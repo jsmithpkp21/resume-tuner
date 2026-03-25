@@ -1,0 +1,6 @@
+# Development tooling dependencies
+# This file provides a minimal default used by scripts/create_env.sh.
+# Run scripts/setup.sh to sync other tooling; update this file manually as needed.
+
+# Pre-commit framework (minimum required before setup)
+pre-commit==3.8.0

@@ -1,0 +1,28 @@
+# Virtual environments
+venv/
+.env/
+.venv/
+*.venv/
+
+# Environment overrides
+.env.local
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# JetBrains / PyCharm
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Swap files (nano/vim)
+*.swp
+*.swo
+
+# Sandbox
+sandbox/

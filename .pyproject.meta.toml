@@ -1,0 +1,16 @@
+# Project metadata — merged with shared tooling configs during sync
+# This file stores ONLY project-specific [project] section fields.
+# Tool configurations are sourced from tooling/pyproject.toml.
+
+[project]
+name = "resume-builder"
+version = "0.1.0"
+description = "AI-driven résumé builder: relevance-scored, layout-aware, two-page PDF/DOCX output."
+authors = [
+    { name = "Jonathan Smith" }
+]
+
+# Optional: project-specific tool overrides (merged with tooling configs)
+# Examples:
+# [tool.ruff.lint]
+# select = ["E", "F"]

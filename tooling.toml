@@ -1,0 +1,26 @@
+# Tooling TOML — project-specific configuration
+# Update 'version' to pin a specific tooling release (tag or branch)
+version = "main"
+repo = "https://github.com/jsmithpkp21/tooling"
+
+[tooling]
+pip = "24.3.1"
+
+[python]
+version = "3.9"
+path = "/usr/bin/python3"
+
+[black]
+line_length = 88
+skip_string_normalization = true
+
+[isort]
+profile = "black"
+line_length = 88
+
+[flake8]
+max_line_length = 88
+
+[mypy]
+files = ["src"]
+ignore_missing_imports = true

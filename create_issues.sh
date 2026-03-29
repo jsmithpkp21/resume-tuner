@@ -60,4 +60,3 @@ project-template fixes (tooling epic #134) are complete and DESIGN.md is approve
 - [ ] make drift-check passes
 - [ ] make check passes
 - [ ] .tooling-sync-manifest.lock committed"
-

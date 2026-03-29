@@ -1,6 +1,22 @@
 # Development tooling dependencies
-# This file provides a minimal default used by scripts/create_env.sh.
-# Run scripts/setup.sh to sync other tooling; update this file manually as needed.
+# Used by pre-commit hooks and testing
 
-# Pre-commit framework (minimum required before setup)
+# Pre-commit framework
 pre-commit==3.8.0
+
+# Code formatting and linting
+ruff==0.15.2
+black==24.10.0
+isort==5.13.2
+
+# Type checking
+mypy==1.11.2
+types-PyYAML==6.0.12.20241230
+
+# Testing
+pytest==8.3.3
+
+# YAML and TOML parsing (used by scripts)
+PyYAML==6.0.3
+tomli_w==1.0.0
+

@@ -1,0 +1,89 @@
+name: Cleanup Artifacts on Branch Delete
+
+on:
+  delete:
+    branches:
+      - '**'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Extract branch name
+        id: vars
+        run: echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+
+      - name: List all workflow runs for deleted branch (with pagination)
+        id: runs
+        uses: actions/github-script@v8.0.0
+        with:
+          script: |
+            const branch = "${{ steps.vars.outputs.branch }}";
+            let runIds = [];
+            let page = 1;
+            let fetched;
+            do {
+              const runs = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch,
+                per_page: 100,
+                page
+              });
+              fetched = runs.data.workflow_runs.length;
+              runIds.push(...runs.data.workflow_runs.map(r => r.id));
+              page++;
+            } while (fetched === 100);
+            return JSON.stringify(runIds);
+
+      - name: Delete artifacts for each run (with error handling and summary)
+        id: cleanup
+        uses: actions/github-script@v8.0.0
+        with:
+          script: |
+            const runIds = JSON.parse(${{ steps.runs.outputs.result }});
+            console.log("Run IDs found for branch:", runIds);
+            let deleted = [];
+            let failed = [];
+            for (const runId of runIds) {
+              let artifacts;
+              try {
+                artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: runId
+                });
+                console.log(`Artifacts for run ${runId}:`, artifacts.data.artifacts.map(a => ({id: a.id, name: a.name})));
+              } catch (err) {
+                console.log(`Failed to list artifacts for run ${runId}:`, err);
+                failed.push({runId, error: `list: ${err}`});
+                continue;
+              }
+              for (const artifact of artifacts.data.artifacts) {
+                try {
+                  await github.rest.actions.deleteArtifact({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    artifact_id: artifact.id
+                  });
+                  deleted.push({runId, artifact: artifact.name, id: artifact.id});
+                  console.log(`Deleted artifact: ${artifact.name} (id ${artifact.id})`);
+                } catch (err) {
+                  console.log(`Failed to delete artifact ${artifact.name} (id ${artifact.id}):`, err);
+                  failed.push({runId, artifact: artifact.name, error: `delete: ${err}`});
+                }
+              }
+            }
+            return JSON.stringify({deleted, failed});
+
+      - name: Print summary
+        run: |
+          echo "Deleted artifacts:"
+          echo "${{ toJson(fromJson(steps.cleanup.outputs.result).deleted) }}"
+          echo "Failures:"
+          echo "${{ toJson(fromJson(steps.cleanup.outputs.result).failed) }}"

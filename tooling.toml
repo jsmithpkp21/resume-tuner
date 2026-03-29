@@ -1,14 +1,18 @@
 # Tooling TOML — project-specific configuration
 # Update 'version' to pin a specific tooling release (tag or branch)
-version = "main"
+version = "v1.11.3"
 repo = "https://github.com/jsmithpkp21/tooling"
 
 [tooling]
 pip = "24.3.1"
 
 [python]
-version = "3.9"
+version = "3.11.14"
 path = "/usr/bin/python3"
+
+[runtime]
+awk_impl = "gawk"
+shell_tools = ["bash", "awk", "grep", "sed", "jq"]
 
 [black]
 line_length = 88
@@ -18,8 +22,6 @@ skip_string_normalization = true
 profile = "black"
 line_length = 88
 
-[flake8]
-max_line_length = 88
 
 [mypy]
 files = ["src"]

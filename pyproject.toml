@@ -1,0 +1,87 @@
+[build-system]
+requires = [
+    "setuptools>=61.0",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "resume-builder"
+version = "0.1.0"
+description = "AI-driven résumé builder: relevance-scored, layout-aware, two-page PDF/DOCX output."
+authors = [
+    { name = "Jonathan Smith" },
+]
+requires-python = "==3.11.14"
+
+[tool.black]
+line-length = 88
+target-version = [
+    "py311",
+]
+skip-string-normalization = false
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+exclude = [
+    ".git",
+    "__pycache__",
+    "env",
+    "venv",
+    ".venv",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "W",
+    "I",
+    "B",
+    "UP",
+]
+ignore = [
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/environment/test_prepare_playwright_layer.py" = [
+    "I001",
+    "E402",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "resume_builder",
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+ignore_missing_imports = true
+strict = true
+overrides = [
+    { module = "tests.*", disallow_untyped_decorators = false },
+]
+
+[tool.pytest.ini_options]
+pythonpath = [
+    ".",
+]
+testpaths = [
+    "tests",
+]
+addopts = "-ra --disable-warnings"

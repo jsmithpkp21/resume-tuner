@@ -1,0 +1,220 @@
+{
+  "files": {
+    ".conventionalcommits.json": {
+      "sha256": "ac1ba68ad3d1e1cc5863378e67d61d911e82316163bc59a56de08d4ade3a99cb"
+    },
+    ".github/workflow-action-lock.json": {
+      "sha256": "fef3dccbdfcef812bace29965102d6f48a4312f26882899ceb93557cbc47d7c6"
+    },
+    ".github/workflows/auto-merge-release.yml": {
+      "sha256": "fb03b23748f1d9b555ad01c76a64ef151401a8ef501e764cc136d04203f94834"
+    },
+    ".github/workflows/cleanup-deleted-branch-artifacts.yml": {
+      "sha256": "098f96d4f0e8b5e670c0c41631c2bb7008a31ff2c325111d79fee1fc324e253c"
+    },
+    ".github/workflows/cleanup-orphaned-artifacts.yml": {
+      "sha256": "244e91267d15a1acc8dffc2effb0d3e3823c35aed804acf33c20603f6b7b0a66"
+    },
+    ".github/workflows/commitlint.yml": {
+      "sha256": "d718c2bc9b924a5c8fdace5dea2b9dbe9041b815d0b543fe0ee7fa9564ecaad8"
+    },
+    ".github/workflows/release-please.yml": {
+      "sha256": "21b00c923cd60f3e0773d3f4213bf776d8cee13fbbfa9c39a710eee509973f86"
+    },
+    ".github/workflows/verify-environment.yml": {
+      "sha256": "f43774bb4195e042d0f9ad62cca3ff0e7af1b9d034efa5e69f859464e34b7f0b"
+    },
+    ".markdownlint.yaml": {
+      "sha256": "afc88cf56f3f6b1b2c9b2fc7af77748ba8fc729ea18ba85757935f16f7f7a85a"
+    },
+    ".pre-commit-config.yaml": {
+      "sha256": "8da1ad375bf8bd4fe4e7b1f3bba65ae374c9f611d9ef64699dbbca71ecb32174"
+    },
+    ".release-please-config.json": {
+      "sha256": "49d2699d4e873493958a79dc25e319b4a13895c4ddd7e812ce41641263709322"
+    },
+    "AGENTS.md": {
+      "sha256": "0deaad0333d8a7269f4177249b2298cb1deacdcd9f690ea35a4b49c7fc1e10fd"
+    },
+    "CODING_STANDARDS.md": {
+      "sha256": "a119ba8ab7e5440b248716040e80b22aa90e296a24b6bbbfc3a2ff24556cf51d"
+    },
+    "CONTRIBUTING.md": {
+      "sha256": "fd350f00c5dd13ce24b22db8fda10830def75c601d2009ec3d26901a0244e4d1"
+    },
+    "DOCKER.md": {
+      "sha256": "8557f6089f53d4c88765bfc8df59a1c047eef317011cdf0d611bdaee7ca2dfd3"
+    },
+    "Dockerfile": {
+      "sha256": "5c742f631bb1156fbd06660964ef858a893a9662279663ed787435d1a887ba79"
+    },
+    "FILE_DISTRIBUTION.md": {
+      "sha256": "fdaef0f20c6628ba14a1671d6ff23273a0ecca04246eaf9c91b6a3f7b70156a4"
+    },
+    "MANIFESTO.md": {
+      "sha256": "c07f6d6973d7ca10865ca28869569f7e95ccf526e6456841f8cc9125bd1a4008"
+    },
+    "Makefile": {
+      "sha256": "47035d48ab130258d04e3f152627469df4535d7b3ffd744053e1736b1cd4951d"
+    },
+    "commitlint.config.mjs": {
+      "sha256": "2bd8a8ea01caa7ff68e9b9096007a80336a061de9f60ac3f06492eb8ef7a7ae0"
+    },
+    "docker-compose.yml": {
+      "sha256": "7a27947936ee30c11099fc97415e841fb09256daa733c65998a5c6baea425d55"
+    },
+    "docs/REFERENCE/AUDIT_COMPLETE.md": {
+      "sha256": "0279c1a94c179a7c63323423710c06f56039e56b8287b96fc393716c4cec1801"
+    },
+    "docs/REFERENCE/BRANCH_PROTECTION.md": {
+      "sha256": "eb36ba2acaca9683105a83f07e2bfc94cfc441d320d18a379216cb3acec76321"
+    },
+    "docs/REFERENCE/BRANCH_PROTECTION_SETUP.md": {
+      "sha256": "d61e5a6ccb682a882ab34bde5fdfd3efec753151132cdc5db29a5c820db850c3"
+    },
+    "docs/REFERENCE/CHANGELOG.md": {
+      "sha256": "ede2247c81dd5511009c10c6f89f1635f0ec06df74df68c27d1a69a9d4de03b1"
+    },
+    "docs/REFERENCE/CODE_REVIEW_CHECKLIST.md": {
+      "sha256": "1dfa3f2b5a20998573deeba03aa271d251f235002735077fd55d583dbab86ebe"
+    },
+    "docs/REFERENCE/COPILOT-INSTRUCTIONS.md": {
+      "sha256": "93cbfff93738cf79c0a4e6ab2cfc28d63e22f37c5b4f6229f2db16cfe5e17e42"
+    },
+    "docs/REFERENCE/DYNAMIC_WORKFLOWS.md": {
+      "sha256": "f8b0c358fc6b13d081b1bee00a1505627ced0244a63d9a53d60cb848aa939b63"
+    },
+    "docs/REFERENCE/FIX_GITHUB_ACTIONS_PR_PERMISSION.md": {
+      "sha256": "f52dccce266fd87a84cc288fb84a100534fe96b4a0d228c16013685b0be2a3c9"
+    },
+    "docs/REFERENCE/GITHUB_ISSUES_GUIDE.md": {
+      "sha256": "69b974f2b586d4860bc4b6e162dc3063c0027a0dc1c34f9aba20921c00fdd0f7"
+    },
+    "docs/REFERENCE/IMPROVEMENTS.md": {
+      "sha256": "b2089afb409930f5a645552f4d88b3bc04a91756ab2e200d6748cf7ee0f03d4a"
+    },
+    "docs/REFERENCE/PRE_COMMIT_HOOKS.md": {
+      "sha256": "731650a67704ad94164a37bf528f4e4c24a48cb57fdcde0b26b3aaa00f27d754"
+    },
+    "docs/REFERENCE/PROJECT_STATUS.md": {
+      "sha256": "d7ccc399fb07490f08b2576f619b6b27d1c578f3823de1d275466d2cd106f3bf"
+    },
+    "docs/REFERENCE/PYPROJECT_ARCHITECTURE.md": {
+      "sha256": "1ffcb76789089f673021614a0ead70cae507920ed23836208a47eab6d24483a1"
+    },
+    "docs/REFERENCE/SECURITY_FIX_ACT_INSTALL.md": {
+      "sha256": "8029a1fff5d3083aa811ef04b69b06fa1aaebee7c38a0061070d072a25c97dc7"
+    },
+    "docs/REFERENCE/SESSION_HANDOFF_CHEATSHEET.md": {
+      "sha256": "4b44c0fe9515e644a7b50a38e108d78169c3d3cd53c52fa752d15e33b6e62217"
+    },
+    "docs/REFERENCE/SESSION_HANDOFF_GUIDE.md": {
+      "sha256": "269c9e190f6010105b8b0eff71f371ddcdf9c1fb14f059704a6681f4101174f7"
+    },
+    "docs/REFERENCE/SUPPLY_CHAIN_SECURITY.md": {
+      "sha256": "e174c08c3b6107518a9395a54ecd3cefabcaed22663ef7087870a5472118f271"
+    },
+    "docs/REFERENCE/SYNC_MANIFEST.md": {
+      "sha256": "74c71cef4f0c1cd5ae496b21b3b0002197286049072615419b482f7410ea2e45"
+    },
+    "docs/REFERENCE/WORKFLOW_AUTOMATION_PLAN.md": {
+      "sha256": "a8776fb498dacca4552077ae3489ca3fceee2c225e6d3b36f92d5e104fff9b60"
+    },
+    "docs/REFERENCE/WORKFLOW_SETUP_READY.md": {
+      "sha256": "0d911660321069e43eece59d144b4ce298f5a2b623359c72ad14f850f1d23a07"
+    },
+    "docs/REFERENCE/WORK_LOG.md": {
+      "sha256": "278c7f1aa0d71204537481f9412e05ea290c60a626cc11dbc17c3de1e8038201"
+    },
+    "docs/REFERENCE/YML_AUDIT_DYNAMIC.md": {
+      "sha256": "a459458200158b5eb03efa1dfdee32b17d749eee16586495dc26a3d8aa2ca4a6"
+    },
+    "docs/SETUP/COPILOT_SETUP.md": {
+      "sha256": "baaf31317f763c3ea9fa58f62f58c9165af71822ba6058cf4dbbd19a01bd28b6"
+    },
+    "docs/SETUP/DOCKER_WSL_SETUP.md": {
+      "sha256": "2347c7812084881dfcc34cb46377861b799ec6809dfadd39d31c8750b32e3b01"
+    },
+    "docs/SETUP/GITHUB_CLI_AUTH.md": {
+      "sha256": "4c3498bf745523b5ee75b37ae9c61dfc445d241dcc767bd38f427f2a590d068a"
+    },
+    "docs/SETUP/GITHUB_ISSUES_SETUP.md": {
+      "sha256": "3b935e7da2ddff7691a6906c11e61338a662377c1ec79901e830950c31c01883"
+    },
+    "docs/SETUP/GIT_STAGING_GUIDE.md": {
+      "sha256": "29768ba94d9083d1ff23f55ee0c66c00008f915e4ab41d681907b4f93485a064"
+    },
+    "docs/SETUP/NEW_PROJECT.md": {
+      "sha256": "e22423e3d4a3efcad2671e6223fd8ff2700eaa4fd2b961620383a2ec759014b7"
+    },
+    "scripts/__init__.py": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "scripts/create_branch.sh": {
+      "sha256": "15df3a6e7c5bca400c1f8eb6b2b7ddfc5de2bbbfef5df99bb16efa91c02a440f"
+    },
+    "scripts/create_env.sh": {
+      "sha256": "d420e8a5fa1d9c4247d61a5f2b0b23b9f274ed277d26a86e0bf20f0ae72b016d"
+    },
+    "scripts/create_github_issues.py": {
+      "sha256": "a97b0baf52eac190335bcbe47edde1b9ee47d16cd34965455fc72754860e0947"
+    },
+    "scripts/create_sync_hardening_issues.py": {
+      "sha256": "a214a35207d46882354f5ee23cc5f6945ca78c64f4cd671e4958f080994a7d12"
+    },
+    "scripts/create_workflow_automation_issues.py": {
+      "sha256": "e20eae3f5cb3ed350e66ecb80c2e5690bb42ad8ceda1efcba24d497f4dfb045b"
+    },
+    "scripts/docker_build.sh": {
+      "sha256": "142fa294db1ea62017003df25985188562e90b7414fc2bb47f079a9c55ebbffd"
+    },
+    "scripts/install_act.sh": {
+      "sha256": "40608801ce6e289f98fe65b2714fc74be86c7296996b3ba580367d030ab6c4c9"
+    },
+    "scripts/load_build_env.sh": {
+      "sha256": "e93ee938b4c7bc2ef0ec9f28ff8efcf98fd26bb47071a20faed37c47d44f0121"
+    },
+    "scripts/merge_pyproject.py": {
+      "sha256": "51620cabfc80d792c3c95c796c29d4039277900fc0c205e50897c0d9044b7c20"
+    },
+    "scripts/prepare_playwright_layer.py": {
+      "sha256": "d4414ae108a4d1c4923f3a37521577f439245102b13c3738ccfd57c7959747a3"
+    },
+    "scripts/run_commitlint.sh": {
+      "sha256": "a25904e3072f97096545c6c1b0456ab442928f7878d15a1ccf6b459e04fbc338"
+    },
+    "scripts/setup_github_labels.py": {
+      "sha256": "3a4c02ed07f562a0756007ef1f26aa1a7902494bfa5917793398be63c509a7d0"
+    },
+    "scripts/update_sync_script.sh": {
+      "sha256": "032ac2ba3e7e47ca3c9bb745d11a00f764ff689f153a90ab97833f12aa02c23d"
+    },
+    "scripts/validate_activation_commands.py": {
+      "sha256": "be7e2ad0678d3821a38eb45b2b83c45652777632f556914632d27266b4b786ff"
+    },
+    "scripts/validate_commit_subject.sh": {
+      "sha256": "d112fc2b0fbf93f3ba313625814dc0775d11fa07732f5591bb6c4c8ee224d147"
+    },
+    "scripts/validate_sync_drift.py": {
+      "sha256": "31a800374b8baa45a923f519a3b5fe56a6901286e181229a5894c4ebe1550d90"
+    },
+    "scripts/validate_version_sync.py": {
+      "sha256": "2b47383dadafc22821d949dc1982b17756225e5b46be03b228f50ef7405fc7b3"
+    },
+    "scripts/validate_workflow_action_pins.py": {
+      "sha256": "d694fd30505844fc9664bc88206e014eb02979ba0518e0815daece96067738f2"
+    },
+    "scripts/verify_env.sh": {
+      "sha256": "f300ce7011aa42a01d5cb2cfe4ce9fe2ca5ce1aabf1cef6e5c9c79428b0ecb2a"
+    },
+    "tests/workflows/test_action_runtime_compatibility.py": {
+      "sha256": "eac4b80328394dacc977662feaf2f59062fde36d33d5ab7976ffd9be407413f0"
+    }
+  },
+  "generated_at_utc": "2026-03-29T18:58:36Z",
+  "requested_ref": "v1.11.3",
+  "resolved_ref": "e1037238fb7157bf5428c7fb6c21ef6d9e8a87f6",
+  "schema_version": 1,
+  "source_mode": "git",
+  "tooling_repo": "https://github.com/jsmithpkp21/tooling"
+}

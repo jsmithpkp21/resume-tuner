@@ -1,0 +1,23 @@
+# .markdownlint.yaml
+# Markdownlint configuration for this repository.
+# Only MD034 (no-bare-urls) is enforced; all other rules are disabled
+# so this config introduces no existing-doc noise and focuses squarely on
+# link-style consistency.
+#
+# Rule reference: https://github.com/DavidAnson/markdownlint/blob/main/doc/md034.md
+#
+# Exceptions
+# ----------
+# URLs inside fenced code blocks (``` ... ```) and inline code spans (` ... `)
+# are automatically exempt — markdownlint skips code content by default.
+# If you need to show a raw URL in prose as a deliberate example (rare), use
+# an inline code span:
+#   `https://example.com`
+#
+# To suppress a single line, add an inline HTML comment immediately before it:
+#   <!-- markdownlint-disable-next-line MD034 -->
+#   https://example.com
+
+default: false
+
+MD034: true

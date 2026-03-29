@@ -1,0 +1,238 @@
+name: release-please
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+  # Note: These permissions allow the workflow to create PRs and push to protected branches,
+  # but the repository setting "Allow GitHub Actions to create and approve pull requests"
+  # must also be enabled for this to work with branch protection rules.
+  # See: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/allowing-deployments-and-builds-to-approve-pull-requests
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Grant elevated permissions for this job
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+    steps:
+      - uses: googleapis/release-please-action@v4.1.4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: .release-please-config.json
+          release-type: python
+          # Ensure PR is created even with branch protection
+          skip-github-pull-request: false
+
+      - name: Checkout code
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Detect Docker input changes
+        if: ${{ steps.release.outputs.release_created }}
+        id: docker_inputs
+        run: |
+          set -euo pipefail
+          changed=false
+          before="${{ github.event.before }}"
+          docker_inputs=(
+            ".conventionalcommits.json"
+            ".markdownlint.yaml"
+            ".pre-commit-config.yaml"
+            "commitlint.config.mjs"
+            "Dockerfile"
+            "Makefile"
+            "requirements.txt"
+            "scripts"
+            "tests"
+            "tooling.toml"
+          )
+          if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+            changed=true
+          else
+            if ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+              changed=true
+            else
+              mapfile -t changed_files < <(
+                git diff --name-only "$before" "${{ github.sha }}" -- "${docker_inputs[@]}"
+              )
+              if [ "${#changed_files[@]}" -gt 0 ]; then
+                changed=true
+              fi
+            fi
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Docker Hub auth configuration
+        id: dockerhub_auth
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "ERROR: DOCKERHUB_USERNAME is set but DOCKERHUB_TOKEN is missing."
+            exit 1
+          fi
+          if [ -z "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
+            echo "ERROR: DOCKERHUB_TOKEN is set but DOCKERHUB_USERNAME is missing."
+            exit 1
+          fi
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Login to Docker Hub (optional)
+        if: ${{ steps.release.outputs.release_created && steps.dockerhub_auth.outputs.enabled == 'true' }}
+        uses: docker/login-action@v3.7.0
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        if: ${{ steps.release.outputs.release_created }}
+        uses: docker/setup-buildx-action@v4.0.0
+
+      - name: Extract Python and pip versions
+        if: ${{ steps.release.outputs.release_created }}
+        id: versions
+        run: |
+          # Extract Python version from tooling.toml [python] section (DRY layout - source of truth)
+          # Use awk stateful parser to properly handle section boundaries
+          PYTHON_VERSION=""
+          if [ -f tooling.toml ]; then
+            PYTHON_VERSION=$(awk '
+              /^[[:space:]]*\[python\]/ {
+                in_python = 1
+                next
+              }
+              /^[[:space:]]*\[/ {
+                in_python = 0
+              }
+              in_python && /^[[:space:]]*version[[:space:]]*=/ {
+                sub(/.*version[[:space:]]*=[[:space:]]*"/, "")
+                sub(/".*/, "")
+                print
+                exit
+              }
+            ' tooling.toml)
+          fi
+
+          # Fallback to pyproject.toml for backward compatibility (repos that still have [project])
+          if [ -z "$PYTHON_VERSION" ]; then
+            PYTHON_VERSION=$(grep -E 'requires-python' pyproject.toml | grep -oE '[0-9]+\.[0-9]+' | head -1)
+          fi
+
+          # Fail fast if Python version is missing
+          if [ -z "$PYTHON_VERSION" ]; then
+            echo "ERROR: Could not extract Python version from tooling.toml or pyproject.toml"
+            echo "Please ensure tooling.toml has [python] section with version field"
+            exit 1
+          fi
+
+          # Extract pip version from tooling.toml
+          PIP_VERSION=""
+          if [ -f tooling.toml ]; then
+            PIP_VERSION=$(grep -E '^pip' tooling.toml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          fi
+
+          echo "python_version=$PYTHON_VERSION" >> $GITHUB_OUTPUT
+          echo "pip_version=$PIP_VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted versions: Python=$PYTHON_VERSION, pip=$PIP_VERSION"
+
+      - name: Extract repository name
+        if: ${{ steps.release.outputs.release_created }}
+        id: repo_info
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          REPO_OWNER=$(echo "${{ github.repository }}" | cut -d'/' -f1)
+          echo "repo_name=$REPO_NAME" >> $GITHUB_OUTPUT
+          echo "repo_owner=$REPO_OWNER" >> $GITHUB_OUTPUT
+
+      - name: Login to GitHub Container Registry
+        if: ${{ steps.release.outputs.release_created }}
+        uses: docker/login-action@v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for reusable GHCR latest image
+        if: ${{ steps.release.outputs.release_created }}
+        id: ghcr_cache
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${{ steps.repo_info.outputs.repo_owner }}/${{ steps.repo_info.outputs.repo_name }}:latest"
+          if docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
+            echo "cache_hit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cache_hit=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push Docker image
+        if: ${{ steps.release.outputs.release_created && (steps.docker_inputs.outputs.changed == 'true' || steps.ghcr_cache.outputs.cache_hit != 'true') }}
+        uses: docker/build-push-action@v7.0.0
+        with:
+          context: .
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ghcr.io/${{ steps.repo_info.outputs.repo_owner }}/${{ steps.repo_info.outputs.repo_name }}:${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}.${{ steps.release.outputs.patch }}
+            ghcr.io/${{ steps.repo_info.outputs.repo_owner }}/${{ steps.repo_info.outputs.repo_name }}:${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}
+            ghcr.io/${{ steps.repo_info.outputs.repo_owner }}/${{ steps.repo_info.outputs.repo_name }}:latest
+          build-args: |
+            PYTHON_VERSION=${{ steps.versions.outputs.python_version }}
+            PIP_VERSION=${{ steps.versions.outputs.pip_version }}
+
+      - name: Re-tag existing GHCR image without rebuild
+        if: ${{ steps.release.outputs.release_created && steps.docker_inputs.outputs.changed != 'true' && steps.ghcr_cache.outputs.cache_hit == 'true' }}
+        run: |
+          set -euo pipefail
+          base="ghcr.io/${{ steps.repo_info.outputs.repo_owner }}/${{ steps.repo_info.outputs.repo_name }}"
+          docker buildx imagetools create \
+            -t "$base:${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}.${{ steps.release.outputs.patch }}" \
+            -t "$base:${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}" \
+            -t "$base:latest" \
+            "$base:latest"
+
+      - name: Update release/stable branch
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          # Fetch the latest commits and tags
+          git fetch origin main
+          git fetch --tags
+
+          # Get the latest release tag (highest semver)
+          LATEST_TAG=$(git tag --list 'v*' --sort=-version:refname | head -n 1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No version tags found"
+            exit 1
+          fi
+
+          # Get the commit hash of the latest tag
+          LATEST_COMMIT=$(git rev-list -n 1 "$LATEST_TAG")
+
+          echo "Latest release tag: $LATEST_TAG (commit: $LATEST_COMMIT)"
+
+          # Create or update the release/stable branch to point to the latest release commit
+          git branch -f release/stable "$LATEST_COMMIT"
+          git push --force-with-lease origin release/stable
+
+          echo "Updated release/stable branch to point to $LATEST_TAG"

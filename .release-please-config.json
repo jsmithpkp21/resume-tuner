@@ -1,0 +1,22 @@
+{
+  "release-type": "python",
+  "changelog-path": "docs/REFERENCE/CHANGELOG.md",
+  "packages": {
+    ".": {
+      "package-name": "resume-builder",
+      "bump-minor-pre-major": false,
+      "extra-files": [
+        {
+          "type": "plain-text",
+          "path": "VERSION",
+          "glob": false
+        },
+        {
+          "type": "toml",
+          "path": ".pyproject.meta.toml",
+          "jsonpath": "$.project.version"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,238 @@
+# Quick Reference: Copilot Code Generation
+
+This quick reference shows what to expect when using Copilot with the project's coding standards.
+
+## ✅ What Copilot Will Generate
+
+### Type Hints
+```python
+def process_items(items: list[str]) -> dict[str, int]:
+    """Process a list of items."""
+    result: dict[str, int] = {}
+    for item in items:
+        result[item] = len(item)
+    return result
+```
+
+### Docstrings (Google-style)
+```python
+def validate_config(path: str) -> bool:
+    """Validate configuration file.
+
+    Args:
+        path: Path to config file.
+
+    Returns:
+        True if config is valid.
+
+    Raises:
+        FileNotFoundError: If config file doesn't exist.
+        ValueError: If config is invalid.
+    """
+    pass
+```
+
+### Proper Error Handling
+```python
+try:
+    result = subprocess.run(["python", "--version"], timeout=10)
+except FileNotFoundError:
+    raise EnvironmentError("Python not found")
+except subprocess.TimeoutExpired:
+    raise EnvironmentError("Command timed out")
+except Exception as e:
+    raise EnvironmentError(f"Unexpected error: {e}") from e
+```
+
+### Organized Imports
+```python
+import os
+import subprocess
+from pathlib import Path
+from typing import Optional
+
+import tomllib
+
+from .utils import helper_function
+```
+
+### Linting-Friendly Code
+```python
+# ✅ Under 88 characters
+result: str = "something"
+
+# ✅ Organized by type
+constants: list[str] = ["a", "b"]
+functions: dict[str, callable] = {}
+
+# ✅ No unused imports
+import os
+env_path = os.path.expanduser("~/test")
+```
+
+## ❌ What Copilot Won't Generate
+
+### Missing Type Hints
+```python
+# ❌ Copilot will NOT do this
+def process(items):  # Missing type hints
+    return items
+```
+
+### Missing Docstrings
+```python
+# ❌ Copilot will NOT do this
+def validate(x):  # No docstring
+    return x > 0
+```
+
+### Bare Exceptions
+```python
+# ❌ Copilot will NOT do this
+try:
+    something()
+except:  # Bare except
+    pass
+```
+
+### Long Lines
+```python
+# ❌ Copilot will NOT do this (over 88 chars)
+very_long_function_call_with_many_parameters(param1="value1", param2="value2", param3="value3")
+```
+
+### Unused Imports
+```python
+# ❌ Copilot will NOT do this
+import os  # But never use it
+print("hello")
+```
+
+## Common Patterns
+
+### Configuration Validation
+```python
+def load_config(path: str) -> dict[str, str]:
+    """Load and validate config file.
+
+    Args:
+        path: Path to config.
+
+    Returns:
+        Configuration dictionary.
+
+    Raises:
+        FileNotFoundError: If config doesn't exist.
+        ValueError: If config is invalid.
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Config not found: {path}")
+
+    with open(path) as f:
+        config: dict[str, str] = tomllib.load(f)
+
+    required: list[str] = ["key1", "key2"]
+    missing: list[str] = [k for k in required if k not in config]
+
+    if missing:
+        raise ValueError(f"Missing keys: {', '.join(missing)}")
+
+    return config
+```
+
+### Shell Command Execution
+```python
+def run_command(cmd: list[str], timeout: int = 300) -> tuple[bool, str]:
+    """Execute shell command.
+
+    Args:
+        cmd: Command as list.
+        timeout: Max execution time in seconds.
+
+    Returns:
+        Tuple of (success, output).
+    """
+    try:
+        result: subprocess.CompletedProcess = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        if result.returncode != 0:
+            return False, result.stderr
+        return True, result.stdout
+    except subprocess.TimeoutExpired:
+        return False, "Command timed out"
+    except FileNotFoundError:
+        return False, f"Command not found: {cmd[0]}"
+```
+
+### Test Structure
+```python
+class TestFeature:
+    """Test feature functionality."""
+
+    def test_success_case(self) -> None:
+        """Test successful execution."""
+        # Setup
+        input_data: dict[str, str] = {"key": "value"}
+        expected: bool = True
+
+        # Execute
+        result: bool = function_under_test(input_data)
+
+        # Assert
+        assert result == expected, f"Expected {expected}, got {result}"
+
+    def test_error_case(self) -> None:
+        """Test error handling."""
+        with pytest.raises(ValueError):
+            function_under_test(invalid_input)
+```
+
+## File Naming
+
+### Python Modules
+```
+src/environment_manager.py      ✅ snake_case
+src/EnvironmentManager.py       ❌ PascalCase (wrong)
+src/environment-manager.py      ❌ kebab-case (wrong)
+```
+
+### Test Files
+```
+tests/environment/test_metadata_parsing.py    ✅ test_<feature>
+tests/environment/TestMetadataParsing.py      ❌ Class name (wrong)
+tests/environment/metadata_parsing_test.py    ❌ Wrong order (wrong)
+```
+
+### Documentation
+```
+README.md          ✅ UPPERCASE
+readme.md          ❌ lowercase (wrong)
+CONTRIBUTING.md    ✅ UPPERCASE
+MANIFESTO.md       ✅ UPPERCASE
+```
+
+## Verification Checklist
+
+Before committing code generated by Copilot:
+
+- ✅ All functions have type hints
+- ✅ All functions have docstrings
+- ✅ No lines exceed 88 characters
+- ✅ Imports are organized (stdlib, third-party, local)
+- ✅ No unused imports
+- ✅ Specific exceptions (not bare `except:`)
+- ✅ Error messages provide context
+- ✅ Tests for public functions exist
+- ✅ Names follow conventions (snake_case/PascalCase)
+- ✅ Code will pass `make lint`
+
+## References
+
+- See `.github/copilot-instructions.md` for detailed standards
+- See `COPILOT_SETUP.md` for IDE agent mode details
+- See `MANIFESTO.md` for the philosophy behind these standards

@@ -1,0 +1,30 @@
+name: Auto-merge Release PR
+on:
+  pull_request:
+    types: [opened, synchronize]
+permissions:
+  pull-requests: write
+  contents: write
+jobs:
+  auto-merge-release:
+    name: Auto-merge Release PR
+    runs-on: ubuntu-latest
+    # Only run for release-please PRs
+    if: |
+      startsWith(github.head_ref, 'release-please-') &&
+      github.actor == 'github-actions[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.2
+      - name: Enable auto-merge for release PR
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} \
+            --auto \
+            --squash \
+            --delete-branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Wait for merge and verify release
+        run: |
+          echo "✅ Auto-merge enabled for PR #${{ github.event.pull_request.number }}"
+          echo "Release tag will be created after merge completes"

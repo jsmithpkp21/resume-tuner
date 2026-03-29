@@ -1,0 +1,159 @@
+# pre-commit-config.yaml
+# See https://pre-commit.com/ for more information
+
+repos:
+  # -------------------------------
+  # Branch Protection: Block commits/pushes to main
+  # These hooks enforce the feature-branch workflow
+  # -------------------------------
+  - repo: local
+    hooks:
+      - id: block-commits-to-main
+        name: Block commits to main branch
+        entry: bash -c 'if [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ]; then echo "❌ Direct commits to main are not allowed. Use a feature branch."; exit 1; fi'
+        language: system
+        pass_filenames: false
+        stages: [commit]
+
+      - id: block-push-to-main
+        name: Block pushes to main branch
+        entry: bash -c 'protected_branch="main"; while read local_ref local_sha remote_ref remote_sha; do if [ "$remote_ref" = "refs/heads/$protected_branch" ]; then echo "❌ Direct pushes to main are not allowed. Use a Pull Request."; exit 1; fi; done'
+        language: system
+        pass_filenames: false
+        stages: [push]
+
+  # -------------------------------
+  # Commit Message: enforce commitlint rules (mirrors CI wagoid/commitlint-github-action)
+  # Uses commitlint.config.mjs as the single source of truth for both local and CI.
+  # Runtime: local npm (inside project container) or Docker fallback.
+  # -------------------------------
+  - repo: local
+    hooks:
+      - id: local-commitlint
+        name: Conventional Commit (commitlint)
+        entry: bash scripts/run_commitlint.sh
+        language: system
+        pass_filenames: true
+        stages: [commit-msg]
+
+      - id: workflow-action-pin-fix
+        name: Auto-fix workflow action pin drift
+        entry: make action-pin-fix
+        language: system
+        pass_filenames: false
+        stages: [commit]
+
+      - id: workflow-action-pin-check
+        name: Enforce workflow action pin lock
+        entry: make action-pin-check
+        language: system
+        pass_filenames: false
+        stages: [push]
+
+  # -------------------------------
+  # Code Quality: linting and formatting
+  # Ruff handles import sorting, linting, and auto-fixes
+  # -------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.2
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+      - id: ruff
+        name: ruff-check-all
+        args: ["."]
+        pass_filenames: false
+        stages: [push]
+      - id: ruff-format
+        name: ruff-format-check-all
+        args: ["--check", "."]
+        pass_filenames: false
+        stages: [push]
+
+  # -------------------------------
+  # mypy (type checking)
+  # -------------------------------
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-PyYAML
+          - types-requests
+      - id: mypy
+        name: mypy-check-all
+        args: ["."]
+        pass_filenames: false
+        stages: [push]
+        additional_dependencies:
+          - types-PyYAML
+          - types-requests
+
+  # -------------------------------
+  # Pytest: run test suite
+  # Runs full test suite to catch issues before commit
+  # -------------------------------
+  - repo: local
+    hooks:
+      - id: pytest-check
+        name: pytest
+        entry: bash -c 'REPO_NAME=$(git remote get-url origin 2>/dev/null | sed "s|.*[:/]||; s|\.git$||"); REPO_NAME="${REPO_NAME:-$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")}"; ENV_PATH="$HOME/envs/${REPO_NAME}-env"; if [ -f "$ENV_PATH/bin/activate" ]; then source "$ENV_PATH/bin/activate" && pytest -q; elif command -v pytest >/dev/null 2>&1; then pytest -q; else echo "⚠️  pytest not found (run make setup to create environment)" && exit 0; fi'
+        language: system
+        pass_filenames: false
+        stages: [commit, push]
+
+      - id: version-sync-check
+        name: Version metadata sync check
+        entry: bash -c 'REPO_NAME=$(git remote get-url origin 2>/dev/null | sed "s|.*[:/]||; s|\.git$||"); REPO_NAME="${REPO_NAME:-$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")}"; ENV_PATH="$HOME/envs/${REPO_NAME}-env"; if [ -f "$ENV_PATH/bin/activate" ]; then source "$ENV_PATH/bin/activate" && python3 scripts/validate_version_sync.py --root .; elif command -v python3 >/dev/null 2>&1; then python3 scripts/validate_version_sync.py --root .; else echo "python3 not found (run make setup to create environment)" && exit 0; fi'
+        language: system
+        pass_filenames: false
+        stages: [commit, push]
+
+      - id: tooling-drift-check
+        name: Tooling drift check
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [push]
+        entry: >-
+          bash -c
+          'REPO_NAME=$(git remote get-url origin 2>/dev/null | sed "s|.*[:/]||; s|\.git$||");
+          REPO_NAME="${REPO_NAME:-$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")}";
+          if [ -f ".tooling-sync-manifest.toml" ] && [ ! -f ".tooling-sync-manifest.lock" ] && [ -f "project-template/scripts/setup.sh" ] && [ -f "pyproject.toml" ] && grep -q '\''name *= *"tooling"'\'' pyproject.toml;
+          then echo "tooling-drift-check: tooling source repo detected (no lock expected) -- skipping"; exit 0; fi;
+          ENV_PATH="$HOME/envs/${REPO_NAME}-env";
+          if [ -f "$ENV_PATH/bin/activate" ]; then source "$ENV_PATH/bin/activate" && python3 scripts/validate_sync_drift.py --root .;
+          elif command -v python3 >/dev/null 2>&1; then python3 scripts/validate_sync_drift.py --root .;
+          else echo "python3 not found (run make setup to create environment)" && exit 1; fi'
+
+
+  # -------------------------------
+  # Markdown Lint: enforce link style (no bare URLs)
+  # MD034 – bare URLs must be wrapped as Markdown links
+  # -------------------------------
+  - repo: local
+    hooks:
+      - id: markdown-lint
+        name: markdown-lint
+        entry: make markdown-lint
+        language: system
+        pass_filenames: false
+        stages: [commit, push]
+
+  # -------------------------------
+  # Configuration Validation: TOML/YAML/JSON
+  # Checks file format and integrity
+  # -------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+        exclude: ".github/ISSUE_TEMPLATE/update_projects_beta.yml"
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files
+      - id: detect-private-key

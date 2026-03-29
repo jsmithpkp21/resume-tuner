@@ -1,0 +1,8 @@
+{
+  "header": {
+    "maxLength": 72
+  },
+  "body": {
+    "maxLineLength": 100
+  }
+}

@@ -1,0 +1,112 @@
+name: Cleanup Artifacts From Deleted Branches
+
+on:
+  workflow_dispatch:   # manual trigger
+  schedule:
+    - cron: "0 4 * * *"  # optional: run daily at 4 AM UTC
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get list of all existing branches (with pagination)
+        id: branches
+        uses: actions/github-script@v8.0.0
+        with:
+          script: |
+            let branches = [];
+            let page = 1;
+            let fetched;
+            do {
+              const resp = await github.rest.repos.listBranches({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 100,
+                page
+              });
+              fetched = resp.data.length;
+              branches.push(...resp.data.map(b => b.name));
+              page++;
+            } while (fetched === 100);
+            return JSON.stringify(branches);
+
+      - name: List all workflow runs (with pagination)
+        id: runs
+        uses: actions/github-script@v8.0.0
+        with:
+          script: |
+            let runs = [];
+            let page = 1;
+            let fetched;
+            do {
+              const resp = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 100,
+                page
+              });
+              fetched = resp.data.workflow_runs.length;
+              runs.push(...resp.data.workflow_runs.map(r => ({
+                id: r.id,
+                branch: r.head_branch
+              })));
+              page++;
+            } while (fetched === 100);
+            return JSON.stringify(runs);
+
+      - name: Delete artifacts for runs on deleted branches (with error handling and summary)
+        id: cleanup
+        uses: actions/github-script@v8.0.0
+        with:
+          script: |
+            const existingBranches = JSON.parse(${{ steps.branches.outputs.result }});
+            const runs = JSON.parse(${{ steps.runs.outputs.result }});
+            console.log("Existing branches:", existingBranches);
+            console.log("Workflow runs:", runs);
+            let deleted = [];
+            let failed = [];
+            for (const run of runs) {
+              if (!existingBranches.includes(run.branch)) {
+                console.log(`Branch ${run.branch} no longer exists. Cleaning run ${run.id}`);
+                let artifacts;
+                try {
+                  artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: run.id
+                  });
+                  console.log(`Artifacts for run ${run.id}:`, artifacts.data.artifacts.map(a => ({id: a.id, name: a.name})));
+                } catch (err) {
+                  console.log(`Failed to list artifacts for run ${run.id}:`, err);
+                  failed.push({runId: run.id, error: `list: ${err}`});
+                  continue;
+                }
+                for (const artifact of artifacts.data.artifacts) {
+                  try {
+                    await github.rest.actions.deleteArtifact({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      artifact_id: artifact.id
+                    });
+                    deleted.push({runId: run.id, artifact: artifact.name, id: artifact.id});
+                    console.log(`Deleted artifact: ${artifact.name} (id ${artifact.id})`);
+                  } catch (err) {
+                    console.log(`Failed to delete artifact ${artifact.name} (id ${artifact.id}):`, err);
+                    failed.push({runId: run.id, artifact: artifact.name, error: `delete: ${err}`});
+                  }
+                }
+              }
+            }
+            return JSON.stringify({deleted, failed});
+
+      - name: Print summary
+        env:
+          CLEANUP_RESULT: ${{ steps.cleanup.outputs.result }}
+        run: |
+          echo "Cleanup result JSON:"
+          echo "$CLEANUP_RESULT"

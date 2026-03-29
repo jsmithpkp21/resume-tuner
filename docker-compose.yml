@@ -1,0 +1,21 @@
+services:
+  base_env:
+    build:
+      context: .
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION}
+        PIP_VERSION: ${PIP_VERSION}
+    working_dir: /repo
+    volumes:
+      - .:/repo
+      - ..:/workspace/projects
+      - base_env_cache:/opt/venv
+    environment:
+      VENV_PATH: /opt/venv
+    stdin_open: true
+    tty: true
+    command: /bin/bash -c "source /opt/venv/bin/activate && exec bash"
+
+volumes:
+  base_env_cache:
+    driver: local

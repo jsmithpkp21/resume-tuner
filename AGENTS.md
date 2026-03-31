@@ -1,3 +1,5 @@
+<!-- Source of truth for agent instructions. Changes here must be reflected in .github/copilot-instructions.md -->
+
 # AGENTS.md
 
 ## Quick Commands

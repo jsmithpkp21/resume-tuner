@@ -10,8 +10,9 @@ DOCKER_COMPOSE ?= docker compose
 DOCKER_SERVICE ?= base_env
 DOCKER_EXEC := $(DOCKER_COMPOSE) exec -T $(DOCKER_SERVICE)
 DOCKER_RUN := $(DOCKER_EXEC) bash -lc
+MARKDOWN_LINT_TIMEOUT_SECONDS ?= 120
 
-.PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check check version-check version-fix action-pin-check action-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg docker-up docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
+.PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check check version-check version-fix action-pin-check action-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit docker-up docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
 
 env:
 	scripts/create_env.sh
@@ -121,11 +122,30 @@ markdown-lint-run:
 		echo "Start Docker Desktop. If using WSL2, enable Docker Desktop WSL integration for this distro"; \
 		exit 1; \
 	elif git ls-files '*.md' | grep -q .; then \
-		git ls-files -z '*.md' | docker run --rm -i \
-			-e NPM_CONFIG_LOGLEVEL=silent \
-			-e NPM_CONFIG_UPDATE_NOTIFIER=false \
-			-v "$$PWD":/repo -w /repo node:20-bullseye \
-			sh -lc "xargs -0 npx --yes --quiet markdownlint-cli@0.47.0 --config .markdownlint.yaml"; \
+		RC=0; \
+		if command -v timeout >/dev/null 2>&1; then \
+			git ls-files -z '*.md' | timeout "$(MARKDOWN_LINT_TIMEOUT_SECONDS)"s docker run --rm -i \
+				-e NPM_CONFIG_LOGLEVEL=silent \
+				-e NPM_CONFIG_UPDATE_NOTIFIER=false \
+				-v "$$PWD":/repo -w /repo node:20-bullseye \
+				sh -lc "xargs -0 npx --yes --quiet markdownlint-cli@0.47.0 --config .markdownlint.yaml"; \
+			RC=$$?; \
+		else \
+			git ls-files -z '*.md' | docker run --rm -i \
+				-e NPM_CONFIG_LOGLEVEL=silent \
+				-e NPM_CONFIG_UPDATE_NOTIFIER=false \
+				-v "$$PWD":/repo -w /repo node:20-bullseye \
+				sh -lc "xargs -0 npx --yes --quiet markdownlint-cli@0.47.0 --config .markdownlint.yaml"; \
+			RC=$$?; \
+		fi; \
+		if [ $$RC -eq 124 ]; then \
+			echo "markdown-lint: Docker fallback timed out after $(MARKDOWN_LINT_TIMEOUT_SECONDS)s"; \
+			echo "Try running again, or install local markdownlint in the active environment/container."; \
+			exit 1; \
+		fi; \
+		if [ $$RC -ne 0 ]; then \
+			exit $$RC; \
+		fi; \
 	fi
 
 # Backward-compatible alias: historically this target handled Docker fallback.
@@ -167,6 +187,36 @@ install-act:
 
 branch:
 	@bash scripts/create_branch.sh $(ISSUE)
+
+# Reword the first commit on a PR branch to fix "Initial plan" commitlint failures.
+# Usage: make fix-pr-initial-commit PR=<num> [MSG=<message>]
+MSG ?= chore(ci): initial planning checkpoint
+fix-pr-initial-commit:
+	@if [ -z "$(PR)" ]; then \
+		echo "ERROR: PR is required."; \
+		echo "Usage: make fix-pr-initial-commit PR=<num> [MSG=<message>]"; \
+		exit 1; \
+	fi
+	@set -e; \
+	BASE=$$(gh pr view $(PR) --json baseRefName -q .baseRefName); \
+	git fetch origin "$$BASE" --quiet; \
+	MERGE_BASE=$$(git merge-base HEAD "origin/$$BASE"); \
+	FIRST_SHORT=$$(git log --reverse --format="%h" "$$MERGE_BASE..HEAD" | head -1); \
+	if [ -z "$$FIRST_SHORT" ]; then \
+		echo "ERROR: no commits found in PR #$(PR)."; exit 1; \
+	fi; \
+	echo "Rewording $$FIRST_SHORT → '$(MSG)'"; \
+	SEQ_ED=$$(mktemp); MSG_F=$$(mktemp); LINT_TMP=$$(mktemp); \
+	trap 'rm -f "$$SEQ_ED" "$$MSG_F" "$$LINT_TMP"' EXIT; \
+	printf '#!/bin/sh\nexec perl -pi -e "s/^pick %s /reword %s /" "$$1"\n' "$$FIRST_SHORT" "$$FIRST_SHORT" > "$$SEQ_ED"; \
+	chmod +x "$$SEQ_ED"; \
+	printf '%s\n' "$(MSG)" > "$$MSG_F"; \
+	GIT_SEQUENCE_EDITOR="$$SEQ_ED" GIT_EDITOR="cp $$MSG_F" git rebase -i "$$MERGE_BASE"; \
+	git log --format="%s%n%n%b" -1 > "$$LINT_TMP"; \
+	bash scripts/run_commitlint.sh "$$LINT_TMP"; \
+	echo ""; \
+	echo "✓ Commit reworded and validated. Force-push with:"; \
+	echo "  git push --force-with-lease"
 
 sync-tooling:
 	./scripts/sync_tooling.sh $(TOOLING_VERSION)

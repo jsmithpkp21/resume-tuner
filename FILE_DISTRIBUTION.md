@@ -24,6 +24,7 @@ The lock records **what is currently managed in that consumer**.
 - Typical examples include shared docs, scripts, workflow helpers, and repo-wide config files
 - Shared agent guidance such as `AGENTS.md` when present in the manifest
 - Shared GitHub workflows under `.github/workflows/` when listed in the manifest
+- Shared consumer-contract tests under `tests/scripts/` when listed in the manifest
 - Shared workflow regression tests under `tests/workflows/` when listed in the manifest
 
 **Tooling repo only (not auto-synced):**

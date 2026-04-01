@@ -234,18 +234,42 @@ jobs:
       - name: Validate workflow action pin lock
         run: docker run --rm ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} make action-pin-check
 
+  consumer-contract:
+    name: Consumer Contract Gate
+    runs-on: ubuntu-24.04
+    needs: build
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: ${{ needs.build.outputs.repo_name }}-image
+          path: /tmp
+
+      - name: Load Docker image from artifact
+        run: docker load -i /tmp/${{ needs.build.outputs.repo_name }}.tar
+
+      - name: Run consumer contract tests
+        run: docker run --rm -v "${{ github.workspace }}:/repo" -w /repo ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} bash -lc 'git config --global --add safe.directory /repo && make env && source ~/envs/${{ needs.build.outputs.repo_name }}-env/bin/activate && python -m pytest -q tests/scripts/test_consumer_contract.py'
+
   # Status check: passes only if all required jobs pass
   status:
     name: CI Status
     runs-on: ubuntu-24.04
-    needs: [lint, test, verify]
+    needs: [lint, test, verify, consumer-contract]
     if: always()
     steps:
       - name: Check job status
         run: |
           if [ "${{ needs.lint.result }}" != "success" ] || \
              [ "${{ needs.test.result }}" != "success" ] || \
-             [ "${{ needs.verify.result }}" != "success" ]; then
+             [ "${{ needs.verify.result }}" != "success" ] || \
+             [ "${{ needs['consumer-contract'].result }}" != "success" ]; then
             echo "❌ CI checks failed"
             exit 1
           fi

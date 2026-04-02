@@ -20,7 +20,7 @@ make test
 make check
 make sync-tooling
 make drift-check
-pytest -q tests/scripts/test_sync_tooling_regressions.py
+pytest -q tests/scripts/test_consumer_contract.py
 ```
 
 ## Architecture
@@ -44,6 +44,13 @@ pytest -q tests/scripts/test_sync_tooling_regressions.py
 - Preserve sync security invariants in `scripts/sync_tooling.sh` (path traversal checks, symlink protections, fail-closed behavior).
 - Validate touched areas with targeted tests first, then broader checks (`make lint`, `make test`, `make check`).
 - Prefer issue-linked branches: `make branch ISSUE=<num>`.
+- Before using `gh` CLI in any script or make target, add `gh auth status` as an explicit preflight with a clear error and remediation message. A stale or expired `GITHUB_TOKEN` env var silently overrides stored credentials and causes HTTP 401 errors.
+- Never export `GITHUB_TOKEN` as a static value in dotfiles (`~/.bashrc`, `~/.bash_profile`, etc.). Use `gh auth login` for persistent credentials. If a token must be in the environment, scope it to the session only.
+
+## PR Review Conventions
+
+- When reviewing a PR whose branch starts with `copilot/`, the changes were authored by GitHub Copilot's SWE agent. Post review comments directed at `@copilot` so the agent receives and acts on the feedback.
+- When you (the agent) authored the changes yourself, implement fixes directly in the branch without @copilot direction. The rule of thumb: if `git log` shows your own commit, fix it; if the branch starts with `copilot/`, comment at @copilot.
 
 ## Files to Read Before Editing Core Logic
 

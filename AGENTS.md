@@ -10,7 +10,7 @@ make test
 make check
 make sync-tooling
 make drift-check
-pytest -q tests/scripts/test_sync_tooling_regressions.py
+pytest -q tests/scripts/test_consumer_contract.py
 ```
 
 ## Planning Gate (Required)
@@ -53,12 +53,19 @@ pytest -q tests/scripts/test_sync_tooling_regressions.py
 - When changing managed-file scope, update `.tooling-sync-manifest.toml`, related docs (for example `FILE_DISTRIBUTION.md`), and regression coverage in `tests/scripts/test_sync_tooling_regressions.py` together.
 - Validate touched areas with targeted tests first, then run broader repo checks (`make lint`, `make test`, or `make check` as appropriate).
 - Prefer issue-linked branches when work maps to an issue: `make branch ISSUE=<num>` creates `<type>/<issue>-<slug>` from labels and title.
+- Before using `gh` CLI in any script or make target, add `gh auth status` as an explicit preflight with a clear error and remediation message. A stale or expired `GITHUB_TOKEN` env var silently overrides stored credentials and causes HTTP 401 errors.
+- Never export `GITHUB_TOKEN` as a static value in dotfiles (`~/.bashrc`, `~/.bash_profile`, etc.). Use `gh auth login` for persistent credentials. If a token must be in the environment, scope it to the session only.
 
 ## Integration Points
 - Consumer sync path: sibling `../tooling` checkout or explicit `TOOLING_DIR`; GitHub-source sync mode intentionally fails fast.
 - Managed-file scope is explicit: update `.tooling-sync-manifest.toml` whenever shared files are added/removed.
 - CI/workflow behavior is repo-name dynamic (see `docs/REFERENCE/DYNAMIC_WORKFLOWS.md`, `.github/workflows/*.yml`).
 - Release metadata integration: sync can update consumer `.release-please-config.json` from `.pyproject.meta.toml` package name.
+
+## PR Review Conventions
+
+- When reviewing a PR whose branch starts with `copilot/`, the changes were authored by GitHub Copilot's SWE agent. Post review comments directed at `@copilot` so the agent receives and acts on the feedback.
+- When you (the agent) authored the changes yourself, implement fixes directly in the branch without @copilot direction. The rule of thumb: if `git log` shows your own commit, fix it; if the branch starts with `copilot/`, comment at @copilot.
 
 ## Files to Read Before Editing Core Logic
 - `Makefile`

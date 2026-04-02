@@ -22,7 +22,7 @@
       "sha256": "d718c2bc9b924a5c8fdace5dea2b9dbe9041b815d0b543fe0ee7fa9564ecaad8"
     },
     ".github/workflows/release-please.yml": {
-      "sha256": "21b00c923cd60f3e0773d3f4213bf776d8cee13fbbfa9c39a710eee509973f86"
+      "sha256": "c2af503339950fd455f73d2719a994181ceb4e5c522336521a57cf17f3b6e8cb"
     },
     ".github/workflows/verify-environment.yml": {
       "sha256": "2feb00308ba733f4fca4b81464662f2a8778132016f65ac5b4f65a5ee0731abf"
@@ -34,7 +34,7 @@
       "sha256": "8da1ad375bf8bd4fe4e7b1f3bba65ae374c9f611d9ef64699dbbca71ecb32174"
     },
     ".release-please-config.json": {
-      "sha256": "49d2699d4e873493958a79dc25e319b4a13895c4ddd7e812ce41641263709322"
+      "sha256": "152ae2c16ca35f23c2ff4616baad23f657f3ffbd88ee6e5a71a341e57a5e6db2"
     },
     "AGENTS.md": {
       "sha256": "59c1ca19dc59b09532e98abdfa418a1c9a59368e718d101be93c8c1ed89be1e1"
@@ -163,7 +163,7 @@
       "sha256": "15df3a6e7c5bca400c1f8eb6b2b7ddfc5de2bbbfef5df99bb16efa91c02a440f"
     },
     "scripts/create_env.sh": {
-      "sha256": "5e2bfb243d7ebdad963a760ba78215bd2e8bea14578d9d15c30e0d3f92dfb307"
+      "sha256": "b2fa43f8d2fc387ea39c1b3c7204c038af80ea19a3309d9847619d5178176da0"
     },
     "scripts/create_github_issues.py": {
       "sha256": "a97b0baf52eac190335bcbe47edde1b9ee47d16cd34965455fc72754860e0947"
@@ -223,9 +223,9 @@
       "sha256": "eac4b80328394dacc977662feaf2f59062fde36d33d5ab7976ffd9be407413f0"
     }
   },
-  "generated_at_utc": "2026-04-02T14:09:16Z",
-  "requested_ref": "v1.14.0",
-  "resolved_ref": "38b1821711198e45f8d84bfc3aee1be3c715e124",
+  "generated_at_utc": "2026-04-02T17:24:22Z",
+  "requested_ref": "HEAD",
+  "resolved_ref": "d5f72b6b59dbeed448001975c6f89796e13a83e1",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

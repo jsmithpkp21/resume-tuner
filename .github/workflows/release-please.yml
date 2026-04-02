@@ -27,15 +27,23 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: .release-please-config.json
-          release-type: python
-          # Ensure PR is created even with branch protection
+          # release-type is intentionally omitted: config-file is the single source of
+          # truth. Including it alongside config-file bypasses extra-files and changelog-path.
           skip-github-pull-request: false
 
       - name: Checkout code
         if: ${{ steps.release.outputs.release_created }}
         uses: actions/checkout@v6.0.2
         with:
+          ref: ${{ steps.release.outputs.sha }}
           fetch-depth: 0
+
+      - name: Validate version metadata after release
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          set -euo pipefail
+          # Fail fast on version drift; do not create post-tag corrective commits.
+          python3 scripts/validate_version_sync.py --root .
 
       - name: Detect Docker input changes
         if: ${{ steps.release.outputs.release_created }}

@@ -53,6 +53,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 - When changing managed-file scope, update `.tooling-sync-manifest.toml`, related docs (for example `FILE_DISTRIBUTION.md`), and regression coverage in `tests/scripts/test_sync_tooling_regressions.py` together.
 - Validate touched areas with targeted tests first, then run broader repo checks (`make lint`, `make test`, or `make check` as appropriate).
 - Prefer issue-linked branches when work maps to an issue: `make branch ISSUE=<num>` creates `<type>/<issue>-<slug>` from labels and title.
+- When presenting multiple implementation options, include concise pros and cons for each option so trade-offs are explicit.
 - Before using `gh` CLI in any script or make target, add `gh auth status` as an explicit preflight with a clear error and remediation message. A stale or expired `GITHUB_TOKEN` env var silently overrides stored credentials and causes HTTP 401 errors.
 - Never export `GITHUB_TOKEN` as a static value in dotfiles (`~/.bashrc`, `~/.bash_profile`, etc.). Use `gh auth login` for persistent credentials. If a token must be in the environment, scope it to the session only.
 

@@ -4,7 +4,7 @@
       "sha256": "ac1ba68ad3d1e1cc5863378e67d61d911e82316163bc59a56de08d4ade3a99cb"
     },
     ".github/copilot-instructions.md": {
-      "sha256": "ed71e00e6251b0aee9b3948f5db5ece06e1ab6ebafb69fc03249e6e6cce42b7f"
+      "sha256": "caa492462bc248f49e9e6c00cd2fa9952e3f2a65c28b81ca7cbbf70502c35c1c"
     },
     ".github/workflow-action-lock.json": {
       "sha256": "fef3dccbdfcef812bace29965102d6f48a4312f26882899ceb93557cbc47d7c6"
@@ -25,7 +25,7 @@
       "sha256": "21b00c923cd60f3e0773d3f4213bf776d8cee13fbbfa9c39a710eee509973f86"
     },
     ".github/workflows/verify-environment.yml": {
-      "sha256": "8bffb5fb1c49ff9770248be3c0d6ef81198bda046fcee2197eb762c882aa6ce9"
+      "sha256": "2feb00308ba733f4fca4b81464662f2a8778132016f65ac5b4f65a5ee0731abf"
     },
     ".markdownlint.yaml": {
       "sha256": "afc88cf56f3f6b1b2c9b2fc7af77748ba8fc729ea18ba85757935f16f7f7a85a"
@@ -37,28 +37,28 @@
       "sha256": "49d2699d4e873493958a79dc25e319b4a13895c4ddd7e812ce41641263709322"
     },
     "AGENTS.md": {
-      "sha256": "74b13ce44f3dbbfd5ff95e6525121a4d2f84baafb9a4755c9da0da8aae056b08"
+      "sha256": "59c1ca19dc59b09532e98abdfa418a1c9a59368e718d101be93c8c1ed89be1e1"
     },
     "CODING_STANDARDS.md": {
       "sha256": "a119ba8ab7e5440b248716040e80b22aa90e296a24b6bbbfc3a2ff24556cf51d"
     },
     "CONTRIBUTING.md": {
-      "sha256": "fd350f00c5dd13ce24b22db8fda10830def75c601d2009ec3d26901a0244e4d1"
+      "sha256": "8fe09fd269dcfd5f6b79b2d1aadd86f0adabd2f1493cd1b56603aeb902aeeab1"
     },
     "DOCKER.md": {
       "sha256": "8557f6089f53d4c88765bfc8df59a1c047eef317011cdf0d611bdaee7ca2dfd3"
     },
     "Dockerfile": {
-      "sha256": "5c742f631bb1156fbd06660964ef858a893a9662279663ed787435d1a887ba79"
+      "sha256": "3cde027961889206f2cd2c2d0124fef0cf51be08f9e0abf205c2b5aa1badd632"
     },
     "FILE_DISTRIBUTION.md": {
-      "sha256": "46181e764f237b896dc25bc5b54ed217c8e6f84ad9f5b4d1667ea41086c73cdf"
+      "sha256": "e6528e93dd5235e0d6869e5acbbcd8ba64574f84cf3ada0e18da5c6c818f29dc"
     },
     "MANIFESTO.md": {
-      "sha256": "c07f6d6973d7ca10865ca28869569f7e95ccf526e6456841f8cc9125bd1a4008"
+      "sha256": "90441f19e84cb77a9f4302d50dd3e9178011f8d1e2e20df43775838711589783"
     },
     "Makefile": {
-      "sha256": "483d38cbb69861246514ef70b8184772c0aeb6bc81b58000c4610c012dd6ffba"
+      "sha256": "5efba872f5953485ed42d4c6525afefb21ef9cc1c5a17bacb22e902ed64a3a3a"
     },
     "commitlint.config.mjs": {
       "sha256": "2bd8a8ea01caa7ff68e9b9096007a80336a061de9f60ac3f06492eb8ef7a7ae0"
@@ -82,7 +82,7 @@
       "sha256": "1dfa3f2b5a20998573deeba03aa271d251f235002735077fd55d583dbab86ebe"
     },
     "docs/REFERENCE/CONSUMER_CONTRACT.md": {
-      "sha256": "6558020103eb0f1fe628152147d8a871bdba6675e35f373952ccd1dae7df0984"
+      "sha256": "2ccaed194baba8c96dfd46265832d718282cd6218ae7f743f58a8819609ff063"
     },
     "docs/REFERENCE/COPILOT-INSTRUCTIONS.md": {
       "sha256": "93cbfff93738cf79c0a4e6ab2cfc28d63e22f37c5b4f6229f2db16cfe5e17e42"
@@ -121,7 +121,7 @@
       "sha256": "e174c08c3b6107518a9395a54ecd3cefabcaed22663ef7087870a5472118f271"
     },
     "docs/REFERENCE/SYNC_MANIFEST.md": {
-      "sha256": "74c71cef4f0c1cd5ae496b21b3b0002197286049072615419b482f7410ea2e45"
+      "sha256": "57834912ad45711b361debd10b8859757602fa975df2e06d99a41ac4c29b6041"
     },
     "docs/REFERENCE/WORKFLOW_AUTOMATION_PLAN.md": {
       "sha256": "a8776fb498dacca4552077ae3489ca3fceee2c225e6d3b36f92d5e104fff9b60"
@@ -153,6 +153,9 @@
     "docs/SETUP/NEW_PROJECT.md": {
       "sha256": "e22423e3d4a3efcad2671e6223fd8ff2700eaa4fd2b961620383a2ec759014b7"
     },
+    "requirements-dev.txt": {
+      "sha256": "719791aedcf5ec05f33f7893664cb0682117a12108c99b5d18a54450541bf871"
+    },
     "scripts/__init__.py": {
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
@@ -160,7 +163,7 @@
       "sha256": "15df3a6e7c5bca400c1f8eb6b2b7ddfc5de2bbbfef5df99bb16efa91c02a440f"
     },
     "scripts/create_env.sh": {
-      "sha256": "d420e8a5fa1d9c4247d61a5f2b0b23b9f274ed277d26a86e0bf20f0ae72b016d"
+      "sha256": "5e2bfb243d7ebdad963a760ba78215bd2e8bea14578d9d15c30e0d3f92dfb307"
     },
     "scripts/create_github_issues.py": {
       "sha256": "a97b0baf52eac190335bcbe47edde1b9ee47d16cd34965455fc72754860e0947"
@@ -211,18 +214,18 @@
       "sha256": "d694fd30505844fc9664bc88206e014eb02979ba0518e0815daece96067738f2"
     },
     "scripts/verify_env.sh": {
-      "sha256": "f300ce7011aa42a01d5cb2cfe4ce9fe2ca5ce1aabf1cef6e5c9c79428b0ecb2a"
+      "sha256": "5e7499d815604a16684fb689baa048336f15b4e1bcecc1176b54d68643fb5603"
     },
     "tests/scripts/test_consumer_contract.py": {
-      "sha256": "b7c73b19832a23816333b8350bbe53af5602590a8c16ea4b14b676b6698a6742"
+      "sha256": "94ab47e3f2122c96cf81a9b926a89ba96825a3e2d1cba8a0476f1b202c105c38"
     },
     "tests/workflows/test_action_runtime_compatibility.py": {
       "sha256": "eac4b80328394dacc977662feaf2f59062fde36d33d5ab7976ffd9be407413f0"
     }
   },
-  "generated_at_utc": "2026-03-31T23:48:07Z",
-  "requested_ref": "v1.13.1",
-  "resolved_ref": "5037214dee8f1f29853f95e5c04c7fc41b460991",
+  "generated_at_utc": "2026-04-02T14:09:16Z",
+  "requested_ref": "v1.14.0",
+  "resolved_ref": "38b1821711198e45f8d84bfc3aee1be3c715e124",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

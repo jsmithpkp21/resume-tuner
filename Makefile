@@ -4,7 +4,7 @@ VERSION := $(shell cat VERSION)
 REPO_NAME_FROM_GIT := $(shell git config --get remote.origin.url 2>/dev/null | sed 's|.*/||; s|\.git$$||')
 REPO_NAME := $(if $(REPO_NAME_FROM_GIT),$(REPO_NAME_FROM_GIT),$(notdir $(CURDIR)))
 # Use stable venv name (without version) so it doesn't change with every release
-ENV_PATH := ~/envs/$(REPO_NAME)-env
+ENV_PATH := $(HOME)/envs/$(REPO_NAME)-env
 export ENV_PATH
 DOCKER_COMPOSE ?= docker compose
 DOCKER_SERVICE ?= base_env
@@ -12,16 +12,16 @@ DOCKER_EXEC := $(DOCKER_COMPOSE) exec -T $(DOCKER_SERVICE)
 DOCKER_RUN := $(DOCKER_EXEC) bash -lc
 MARKDOWN_LINT_TIMEOUT_SECONDS ?= 120
 
-.PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check check version-check version-fix action-pin-check action-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit docker-up docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
+.PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check check version-check version-fix action-pin-check action-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test docker-up docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
 
 env:
 	scripts/create_env.sh
 
 bootstrap: clean env verify
-	bash -lc "source $(ENV_PATH)/bin/activate && pre-commit install --hook-type pre-commit --hook-type pre-push --hook-type commit-msg"
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && pre-commit install --hook-type pre-commit --hook-type pre-push --hook-type commit-msg"
 
 setup: env verify
-	bash -lc "source $(ENV_PATH)/bin/activate && pre-commit install --hook-type pre-commit --hook-type pre-push --hook-type commit-msg"
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && pre-commit install --hook-type pre-commit --hook-type pre-push --hook-type commit-msg"
 	@echo ""
 	@echo "========================================="
 	@echo "  Setup Complete!"
@@ -56,14 +56,14 @@ active:
 	@echo "========================================="
 
 verify: env
-	bash -lc "source $(ENV_PATH)/bin/activate && scripts/verify_env.sh"
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && scripts/verify_env.sh"
 
 clean:
 	rm -rf $(ENV_PATH)
 
 upgrade:
 	scripts/create_env.sh --force
-	bash -lc "source $(ENV_PATH)/bin/activate && scripts/verify_env.sh"
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && scripts/verify_env.sh"
 
 update-docker:
 	docker compose build
@@ -94,11 +94,18 @@ docker-up:
 docker-shell: docker-up
 	$(DOCKER_COMPOSE) exec $(DOCKER_SERVICE) bash
 
-lock: env
-	bash -lc "source $(ENV_PATH)/bin/activate && pip freeze > requirements.txt"
+lock:
+	@echo "Creating temporary environment for runtime-only lock..."
+	@LOCK_TMP=$$(mktemp -d) && \
+	python3 -m venv "$$LOCK_TMP/venv" && \
+	"$$LOCK_TMP/venv/bin/pip" install --quiet --upgrade pip && \
+	"$$LOCK_TMP/venv/bin/pip" install --quiet -r requirements.txt && \
+	"$$LOCK_TMP/venv/bin/pip" freeze > requirements.txt && \
+	rm -rf "$$LOCK_TMP" && \
+	echo "requirements.txt updated (runtime-only packages)."
 
 lint: env
-	bash -lc "source $(ENV_PATH)/bin/activate && ruff check . && ruff format --check . && mypy . && make markdown-lint"
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && ruff check . && ruff format --check . && mypy . && make markdown-lint"
 
 # Public alias — always call this target from hooks, CI, and manually.
 # Uses local markdownlint binary when available (e.g. inside the project container),
@@ -152,7 +159,7 @@ markdown-lint-run:
 markdown-lint-docker: markdown-lint-run
 
 typecheck: env
-	bash -lc "source $(ENV_PATH)/bin/activate && mypy ."
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && mypy ."
 
 # Run commitlint against a commit message file.
 # Usage: make commitlint-msg MSGFILE=<path-to-commit-msg-file>
@@ -165,19 +172,19 @@ commitlint-msg:
 	@bash scripts/run_commitlint.sh "$(MSGFILE)"
 
 lint-fix: env
-	bash -lc "source $(ENV_PATH)/bin/activate && ruff check . --fix && ruff format ."
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && ruff check . --fix && ruff format ."
 
 test: env
-	bash -lc "source $(ENV_PATH)/bin/activate && pytest -q --durations=10"
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && pytest -q --durations=10"
 
 test-shell:
 	@if [ -f tests/test_setup.sh ]; then bash tests/test_setup.sh; else echo "No shell tests to run"; fi
 
 precommit: env
-	bash -lc "source $(ENV_PATH)/bin/activate && pre-commit install --hook-type pre-commit --hook-type pre-push --hook-type commit-msg"
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && pre-commit install --hook-type pre-commit --hook-type pre-push --hook-type commit-msg"
 
 precommit-fix: env
-	bash -lc "source $(ENV_PATH)/bin/activate && pre-commit run --all-files"
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && pre-commit run --all-files"
 
 install-act:
 	@echo "========================================="
@@ -197,6 +204,22 @@ fix-pr-initial-commit:
 		echo "Usage: make fix-pr-initial-commit PR=<num> [MSG=<message>]"; \
 		exit 1; \
 	fi
+	@if ! echo "$(PR)" | grep -qE '^[1-9][0-9]*$$'; then \
+		echo "ERROR: PR must be a positive integer, got: '$(PR)'"; \
+		echo "Usage: make fix-pr-initial-commit PR=<num> [MSG=<message>]"; \
+		exit 1; \
+	fi
+	@if ! command -v gh >/dev/null 2>&1; then \
+		echo "ERROR: gh CLI is not installed."; \
+		echo "Install from https://cli.github.com/ or see docs/SETUP/GITHUB_CLI_AUTH.md"; \
+		exit 1; \
+	fi
+	@if ! gh auth status >/dev/null 2>&1; then \
+		echo "ERROR: gh is not authenticated. Run: gh auth login"; \
+		echo "If GITHUB_TOKEN is exported in your shell, verify it is valid: gh auth status"; \
+		echo "To find stale exports: grep -r GITHUB_TOKEN ~/.bashrc ~/.bash_profile ~/.profile"; \
+		exit 1; \
+	fi
 	@set -e; \
 	BASE=$$(gh pr view $(PR) --json baseRefName -q .baseRefName); \
 	git fetch origin "$$BASE" --quiet; \
@@ -208,15 +231,20 @@ fix-pr-initial-commit:
 	echo "Rewording $$FIRST_SHORT → '$(MSG)'"; \
 	SEQ_ED=$$(mktemp); MSG_F=$$(mktemp); LINT_TMP=$$(mktemp); \
 	trap 'rm -f "$$SEQ_ED" "$$MSG_F" "$$LINT_TMP"' EXIT; \
-	printf '#!/bin/sh\nexec perl -pi -e "s/^pick %s /reword %s /" "$$1"\n' "$$FIRST_SHORT" "$$FIRST_SHORT" > "$$SEQ_ED"; \
+	printf '#!/bin/sh\nset -e\nTMP="$$1.tmp.$$$$"\nsed "s/^pick %s /reword %s /" "$$1" > "$$TMP"\nmv "$$TMP" "$$1"\n' "$$FIRST_SHORT" "$$FIRST_SHORT" > "$$SEQ_ED"; \
 	chmod +x "$$SEQ_ED"; \
 	printf '%s\n' "$(MSG)" > "$$MSG_F"; \
 	GIT_SEQUENCE_EDITOR="$$SEQ_ED" GIT_EDITOR="cp $$MSG_F" git rebase -i "$$MERGE_BASE"; \
-	git log --format="%s%n%n%b" -1 > "$$LINT_TMP"; \
+	FIRST_FULL=$$(git log --reverse --format="%H" "$$MERGE_BASE..HEAD" | head -1); \
+	git log --format="%s%n%n%b" -1 "$$FIRST_FULL" > "$$LINT_TMP"; \
 	bash scripts/run_commitlint.sh "$$LINT_TMP"; \
 	echo ""; \
 	echo "✓ Commit reworded and validated. Force-push with:"; \
 	echo "  git push --force-with-lease"
+# Run consumer contract tests using the same ENV_PATH derivation as all other targets.
+# Replaces the hard-coded ~/envs/${repo}-env path in CI workflows.
+consumer-contract-test: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && pytest -q tests/scripts/test_consumer_contract.py"
 
 sync-tooling:
 	./scripts/sync_tooling.sh $(TOOLING_VERSION)
@@ -253,10 +281,10 @@ docs-check:
 	python3 scripts/validate_activation_commands.py --root .
 
 version-check: env
-	bash -lc "source $(ENV_PATH)/bin/activate && python3 scripts/validate_version_sync.py --root ."
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_version_sync.py --root ."
 
 version-fix: env
-	bash -lc "source $(ENV_PATH)/bin/activate && python3 scripts/validate_version_sync.py --root . --fix"
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_version_sync.py --root . --fix"
 
 action-pin-check:
 	bash -lc 'ENV_ACTIVATE=$(ENV_PATH)/bin/activate; \
@@ -290,20 +318,20 @@ check: env
 	@echo "========================================="
 	@echo ""
 	@echo "1. Auto-fixing code issues..."
-	@bash -lc "source $(ENV_PATH)/bin/activate && ruff check . --fix && ruff format ."
+	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && ruff check . --fix && ruff format ."
 	@echo ""
 	@echo "2. Running type checks..."
-	@bash -lc "source $(ENV_PATH)/bin/activate && mypy ."
+	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && mypy ."
 	@echo ""
 	@echo "3. Running tests..."
-	@bash -lc "source $(ENV_PATH)/bin/activate && pytest -q"
+	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && pytest -q"
 	@echo ""
 	@echo "4. Validating configs..."
-	@bash -lc "source $(ENV_PATH)/bin/activate && pre-commit run check-yaml --all-files"
-	@bash -lc "source $(ENV_PATH)/bin/activate && pre-commit run check-toml --all-files"
-	@bash -lc "source $(ENV_PATH)/bin/activate && pre-commit run check-json --all-files"
-	@bash -lc "source $(ENV_PATH)/bin/activate && python3 scripts/validate_version_sync.py --root ."
-	@bash -lc "source $(ENV_PATH)/bin/activate && python3 scripts/validate_workflow_action_pins.py --root ."
+	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && pre-commit run check-yaml --all-files"
+	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && pre-commit run check-toml --all-files"
+	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && pre-commit run check-json --all-files"
+	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_version_sync.py --root ."
+	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_workflow_action_pins.py --root ."
 	@echo ""
 	@echo "========================================="
 	@echo "  ✅ All checks passed!"

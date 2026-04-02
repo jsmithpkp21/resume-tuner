@@ -43,12 +43,13 @@ RUN if [ -n "${PIP_VERSION}" ]; then \
       pip install --upgrade pip; \
     fi
 
-# Copy requirements.txt first for better caching
+# Copy requirements files first for better caching
 # This layer only invalidates when dependencies change
-COPY requirements.txt .
+COPY requirements.txt requirements-dev.txt ./
 
-# Install requirements
-RUN pip install -r requirements.txt
+# Install all requirements in a single resolver pass to catch conflicts early
+# and avoid redundant installs from sequential pip calls.
+RUN pip install -r requirements.txt -r requirements-dev.txt
 
 # Copy repository files
 # This layer invalidates on any code change but dependencies are cached

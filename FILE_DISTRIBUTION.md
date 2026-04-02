@@ -45,6 +45,12 @@ The lock records **what is currently managed in that consumer**.
 - `requirements.txt`
 - `scripts/sync_tooling.sh`
 
+`requirements.txt` has no tooling-managed sections under the Option A dev
+requirements contract.
+
+`requirements-dev.txt` is tooling-managed and synced to consumers as the shared
+set of dev-tool dependencies used by `make setup`/`make verify` checks.
+
 **Managed files synced from tooling:**
 - Only files declared in `.tooling-sync-manifest.toml`
 - After sync, those files are recorded in `.tooling-sync-manifest.lock`

@@ -44,6 +44,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 - Preserve sync security invariants in `scripts/sync_tooling.sh` (path traversal checks, symlink protections, fail-closed behavior).
 - Validate touched areas with targeted tests first, then broader checks (`make lint`, `make test`, `make check`).
 - Prefer issue-linked branches: `make branch ISSUE=<num>`.
+- When presenting multiple implementation options, include concise pros and cons for each option so trade-offs are explicit.
 - Before using `gh` CLI in any script or make target, add `gh auth status` as an explicit preflight with a clear error and remediation message. A stale or expired `GITHUB_TOKEN` env var silently overrides stored credentials and causes HTTP 401 errors.
 - Never export `GITHUB_TOKEN` as a static value in dotfiles (`~/.bashrc`, `~/.bash_profile`, etc.). Use `gh auth login` for persistent credentials. If a token must be in the environment, scope it to the session only.
 

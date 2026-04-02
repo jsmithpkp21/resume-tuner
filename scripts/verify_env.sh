@@ -47,7 +47,7 @@ fi
 # -----------------------------------------
 
 # Check that all required metadata files exist
-for file in VERSION pyproject.toml tooling.toml requirements.txt; do
+for file in VERSION pyproject.toml tooling.toml requirements.txt requirements-dev.txt; do
     if [ ! -f "$REPO_ROOT/$file" ]; then
         echo "ERROR: Required file not found: $REPO_ROOT/$file"
         exit 1

@@ -1,0 +1,14 @@
+# Shared development tooling dependencies (tooling-managed via sync)
+# Consumer repos keep app/runtime deps in requirements.txt.
+# These packages are not duplicated in requirements.txt.
+# Pre-commit framework
+pre-commit==3.8.0
+# Code formatting and linting
+ruff==0.15.2
+black==24.10.0
+isort==5.13.2
+# Type checking
+mypy==1.11.2
+types-PyYAML==6.0.12.20241230
+# Testing
+pytest==8.3.3

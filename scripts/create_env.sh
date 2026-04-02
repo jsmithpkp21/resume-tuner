@@ -267,7 +267,7 @@ fi
 echo "pip version OK: $ACTUAL_PIP_VERSION"
 
 # -----------------------------------------
-# Validate requirements.txt
+# Validate requirements files
 # -----------------------------------------
 
 if [ ! -f "$REPO_ROOT/requirements.txt" ]; then
@@ -283,7 +283,23 @@ if [ "$REQ_LINE_COUNT" -eq 0 ]; then
     exit 1
 fi
 
-echo "Installing requirements ($REQ_LINE_COUNT packages)..."
+DEV_REQ_FILE="$REPO_ROOT/requirements-dev.txt"
+if [ ! -f "$DEV_REQ_FILE" ]; then
+    echo "ERROR: requirements-dev.txt not found at expected path: $DEV_REQ_FILE"
+    echo "       This file is required for environment creation to match verify_env.sh and Docker."
+    echo "       Run 'make sync-tooling' first, or ensure requirements-dev.txt is present."
+    rm -rf "$ENV_PATH"
+    exit 1
+fi
+
+DEV_REQ_LINE_COUNT=$(grep -v '^#' "$DEV_REQ_FILE" | grep -v '^$' | wc -l)
+if [ "$DEV_REQ_LINE_COUNT" -eq 0 ]; then
+    echo "ERROR: requirements-dev.txt is present but empty"
+    rm -rf "$ENV_PATH"
+    exit 1
+fi
+
+echo "Installing consumer requirements ($REQ_LINE_COUNT packages)..."
 
 # -----------------------------------------
 # Install project requirements with validation
@@ -291,6 +307,13 @@ echo "Installing requirements ($REQ_LINE_COUNT packages)..."
 
 if ! pip install --quiet -r "$REPO_ROOT/requirements.txt"; then
     echo "ERROR: Failed to install requirements from requirements.txt"
+    rm -rf "$ENV_PATH"
+    exit 1
+fi
+
+echo "Installing shared dev requirements ($DEV_REQ_LINE_COUNT packages)..."
+if ! pip install --quiet -r "$DEV_REQ_FILE"; then
+    echo "ERROR: Failed to install requirements from requirements-dev.txt"
     rm -rf "$ENV_PATH"
     exit 1
 fi

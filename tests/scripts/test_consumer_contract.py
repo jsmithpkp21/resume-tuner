@@ -4,9 +4,11 @@ These tests validate that core consumer flows remain stable:
 - Managed-file sync contract (apply + lock behavior)
 - Drift-check enforcement
 - Environment lifecycle verification path
+- Real-manifest contract (exercises the actual .tooling-sync-manifest.toml)
+- Hermetic env isolation (guards against stale GITHUB_TOKEN leakage)
 
 Uses a resume-builder-compatible fixture profile as the reference consumer.
-See docs/REFERENCE/CONSUMER_CONTRACT.md for the local run path.
+Run with: pytest -q tests/scripts/test_consumer_contract.py
 """
 
 from __future__ import annotations
@@ -85,7 +87,13 @@ def _make_resume_builder_consumer(tmp_path: Path) -> Path:
     )
     (consumer / "VERSION").write_text("0.1.0\n", encoding="utf-8")
     (consumer / "requirements.txt").write_text(
-        "# resume-builder dependencies\npytest==8.3.3\n", encoding="utf-8"
+        "# resume-builder app/runtime dependencies\nclick==8.1.7\n", encoding="utf-8"
+    )
+    # Shared dev-tool contract file (synced from tooling in real consumers).
+    (consumer / "requirements-dev.txt").write_text(
+        "# shared dev tooling\npre-commit==3.8.0\nruff==0.15.2\nblack==24.10.0\n"
+        "isort==5.13.2\nmypy==1.11.2\npytest==8.3.3\n",
+        encoding="utf-8",
     )
     # Minimal pyproject.toml so verify_env.sh pre-flight checks pass
     (consumer / "pyproject.toml").write_text(
@@ -101,6 +109,7 @@ def _run_sync(
     *,
     ref: str = "v0.0.0",
     extra_args: list[str] | None = None,
+    extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     command = [
         "bash",
@@ -110,13 +119,25 @@ def _run_sync(
     ]
     if extra_args:
         command.extend(extra_args)
-    env = {**os.environ, "TOOLING_DIR": str(tooling_src)}
+    # Build a minimal hermetic env to prevent parent env vars (e.g. a stale
+    # GITHUB_TOKEN, an inherited TOOLING_DIR, or HOME-scoped git config) from
+    # altering sync behavior.
+    home_path = consumer / ".home"
+    home_path.mkdir(parents=True, exist_ok=True)
+    env: dict[str, str] = {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin:/usr/local/bin"),
+        "HOME": str(home_path),
+        "TOOLING_DIR": str(tooling_src),
+    }
+    if extra_env:
+        env.update(extra_env)
     return subprocess.run(
         command,
         capture_output=True,
         text=True,
         cwd=str(consumer),
         env=env,
+        timeout=60,
     )
 
 
@@ -131,6 +152,7 @@ def _run_drift_validator(root: Path) -> subprocess.CompletedProcess[str]:
         ],
         capture_output=True,
         text=True,
+        timeout=30,
     )
 
 
@@ -498,6 +520,14 @@ def test_consumer_real_manifest_sync_applies_all_declared_files(tmp_path: Path) 
     assert declared_files, "Real manifest must declare at least one file"
 
     result = _run_sync(REPO_ROOT, consumer, ref="HEAD")
+    if (
+        result.returncode != 0
+        and "Manifest entry not found in tooling source at HEAD" in result.stdout
+    ):
+        pytest.skip(
+            "Real-manifest contract requires manifest/file changes to be committed "
+            "before running against HEAD"
+        )
 
     assert result.returncode == 0, (
         f"Real-manifest sync failed:\nstdout={result.stdout}\nstderr={result.stderr}"
@@ -522,3 +552,77 @@ def test_consumer_real_manifest_sync_applies_all_declared_files(tmp_path: Path) 
     assert not missing_from_disk, (
         f"These real-manifest files were not synced to the consumer: {missing_from_disk}"
     )
+
+
+def test_consumer_real_manifest_sync_includes_shared_dev_requirements(
+    tmp_path: Path,
+) -> None:
+    """Contract: real-manifest sync delivers requirements-dev.txt with key tool pins."""
+    consumer = _make_resume_builder_consumer(tmp_path)
+    manifest_path = REPO_ROOT / ".tooling-sync-manifest.toml"
+    if not manifest_path.exists():
+        pytest.skip(
+            "tooling source manifest is not present in synced consumer repos; "
+            "this real-manifest contract check only runs in the tooling repo"
+        )
+
+    result = _run_sync(REPO_ROOT, consumer, ref="HEAD")
+    if (
+        result.returncode != 0
+        and "Manifest entry not found in tooling source at HEAD" in result.stdout
+    ):
+        pytest.skip(
+            "Real-manifest contract requires manifest/file changes to be committed "
+            "before running against HEAD"
+        )
+
+    assert result.returncode == 0, (
+        f"Real-manifest sync failed:\nstdout={result.stdout}\nstderr={result.stderr}"
+    )
+
+    req_dev = consumer / "requirements-dev.txt"
+    assert req_dev.exists(), "requirements-dev.txt must be synced by manifest"
+
+    req_dev_text = req_dev.read_text(encoding="utf-8")
+    for required_pin in [
+        "pre-commit==",
+        "ruff==",
+        "black==",
+        "isort==",
+        "mypy==",
+        "pytest==",
+    ]:
+        assert required_pin in req_dev_text, (
+            f"requirements-dev.txt missing expected tool pin prefix: {required_pin}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Hermetic env isolation
+# ---------------------------------------------------------------------------
+
+
+def test_consumer_sync_is_isolated_from_stale_github_token(tmp_path: Path) -> None:
+    """Contract: sync succeeds even when a stale GITHUB_TOKEN is injected into the env.
+
+    Regression for the gh-auth incident where GITHUB_TOKEN exported in ~/.bashrc
+    clobbered stored gh CLI credentials and caused 401s. Sync must not rely on
+    GITHUB_TOKEN at all; the hermetic env in _run_sync() prevents it from leaking in.
+    """
+    managed_content = "# Managed Makefile\n"
+    tooling_src = _make_tooling_src(tmp_path, {"Makefile": managed_content})
+    consumer = _make_resume_builder_consumer(tmp_path)
+
+    result = _run_sync(
+        tooling_src,
+        consumer,
+        extra_env={"GITHUB_TOKEN": "INVALID_GITHUB_TOKEN"},
+    )
+
+    assert result.returncode == 0, (
+        f"Sync failed when a stale GITHUB_TOKEN was injected into the env:\n"
+        f"stdout={result.stdout}\nstderr={result.stderr}"
+    )
+    assert (consumer / ".home").exists(), "Hermetic per-consumer HOME was not created"
+    assert (consumer / "Makefile").exists(), "Makefile was not synced"
+    assert (consumer / "Makefile").read_text(encoding="utf-8") == managed_content

@@ -148,7 +148,7 @@ make lint         # Check code quality
 ### Updates
 1. **Update Python:** Edit `pyproject.toml`, increment `VERSION`
 2. **Update pip:** Edit `tooling.toml`, increment `VERSION`
-3. **Update packages:** Run `pip install ...`, then `make lock`, increment `VERSION`
+3. **Update packages:** Run `pip install ...` in the env, then `make lock` to re-pin runtime deps, increment `VERSION`
 4. **Test:** Run `make setup && make test && make lint`
 5. **Commit:** All metadata files together
 6. **CI/CD:** Automatic verification on every push
@@ -247,7 +247,7 @@ pip install pytest
 **Our approach:**
 ```bash
 pip install pytest           # Install it
-make lock                    # Update requirements.txt from pip freeze
+make lock                    # Update requirements.txt (runtime-only packages, via isolated temp env)
 # Edit VERSION to bump version (0.1.0 → 0.1.1)
 git add pyproject.toml tooling.toml requirements.txt VERSION
 git commit -m "Add pytest"

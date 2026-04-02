@@ -203,9 +203,12 @@ synced. Each consumer project owns these files:
 | `tooling.toml` | Consumer-specific tooling config |
 | `README.md` | Consumer writes its own README |
 | `CHANGELOG.md` | Consumer maintains its own changelog |
-| `requirements.txt` | Consumer manages its own dependencies |
+| `requirements.txt` | Consumer manages app/runtime dependencies; no tooling-managed overlay/sections |
 | `scripts/sync_tooling.sh` | Must be manually updated (bootstrap/security) |
 | `project-template/` | Tooling-repo-only scaffolding |
+
+`requirements-dev.txt` is part of the tooling-managed allow-list and is synced to
+consumers as the shared dev-tooling dependency contract.
 ---
 ## Related
 - `scripts/sync_tooling.sh` — the sync script that reads this manifest

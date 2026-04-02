@@ -470,7 +470,7 @@ make typecheck     # Run mypy type checking only
 ### Package Management
 
 ```bash
-make lock          # Generate requirements.txt from current environment (pip freeze)
+make lock          # Pin runtime requirements.txt from a clean env (dev-tool packages excluded)
 make upgrade       # Recreate environment and verify (useful after updating dependencies)
 ```
 

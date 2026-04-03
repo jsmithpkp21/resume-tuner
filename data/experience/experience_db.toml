@@ -5,23 +5,175 @@ schema_version = "1"
 default_timezone = "UTC"
 
 [[experience]]
-id = "sample-role-1"
-job_title = "Senior SDET"
-company = "Example Co"
-start_date = "2021-05"
-end_date = "2024-02"
-general_role_description = "Led framework reliability and CI stabilization for distributed UI/API automation."
+id = "exp_hp_poly_architect_python_video_202306"
+job_title = "Architect, Python Test Framework (Video)"
+company = "HP / Poly"
+start_date = "2023-06"
+end_date = "2026-01"
+general_role_description = "Designed and implemented next-generation Python automation framework for video products."
 
 [[experience.bullet_bank]]
-text = "Reduced flaky test failures by introducing deterministic retries and richer failure diagnostics."
-skills = ["Python", "Playwright"]
-categories = ["Automation & Frameworks", "Debugging & Analysis"]
+text = "Transformed an inherited ADB/UI Automator-based system into a lightweight abstraction layer supporting embedded UI testing across PolyOS, Zoom, Teams, and Google Meet."
+skills = ["Python", "ADB", "Playwright"]
+categories = ["Automation & Frameworks", "Architecture"]
+impact_type = "scalability"
+domain = "video"
+
+[[experience.bullet_bank]]
+text = "Set long-term architectural direction and coding standards and mentored a group of five engineers."
+skills = ["Python", "Technical Leadership"]
+categories = ["Architecture", "Technical Leadership"]
+impact_type = "mentoring"
+domain = "video"
+
+[[experience.bullet_bank]]
+text = "Designed a Playwright Web UI automation module for both product interface flows and Zoom portal authentication-constrained paths."
+skills = ["Playwright", "Web UI Automation", "Python"]
+categories = ["Automation & Frameworks", "Web UI Automation"]
 impact_type = "reliability"
-domain = "quality-engineering"
+domain = "video"
+
+[[experience]]
+id = "exp_hp_poly_technical_advisor_sdet_audio_202105"
+job_title = "Technical Advisor / SDET, Audio Team"
+company = "HP / Poly"
+start_date = "2021-05"
+end_date = "2023-06"
+general_role_description = "Guided Audio team migration into corporate automation framework."
 
 [[experience.bullet_bank]]
-text = "Implemented release-safe quality gates in CI to prevent regressions reaching mainline."
-skills = ["GitHub Actions", "Python"]
-categories = ["CI/CD", "Automation & Frameworks"]
+text = "Standardized test patterns across suites, improving reuse by about 25 percent and reducing maintenance overhead."
+skills = ["Python", "Pytest"]
+categories = ["Automation & Frameworks", "Test Reliability"]
+impact_type = "maintainability"
+domain = "audio"
+
+[[experience.bullet_bank]]
+text = "Improved framework ergonomics with shared abstractions and utilities, increasing reuse by about 20 percent."
+skills = ["Python", "Framework Design"]
+categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "delivery-speed"
-domain = "platform"
+domain = "audio"
+
+[[experience.bullet_bank]]
+text = "Refactored legacy error handling that swallowed network exceptions, improving failure reporting and isolating true product defects."
+skills = ["Python", "Debugging"]
+categories = ["Debugging & Analysis", "Test Reliability"]
+impact_type = "reliability"
+domain = "audio"
+
+[[experience]]
+id = "exp_hp_poly_technical_advisor_sdet_headset_202003"
+job_title = "Technical Advisor / SDET, Headset Team"
+company = "HP / Poly"
+start_date = "2020-03"
+end_date = "2021-05"
+general_role_description = "Embedded with Headset team to accelerate adoption of a new Python test framework."
+
+[[experience.bullet_bank]]
+text = "Provided architectural guidance, code reviews, and hands-on development support for six engineers."
+skills = ["Python", "Code Review", "Technical Leadership"]
+categories = ["Technical Leadership", "Architecture"]
+impact_type = "mentoring"
+domain = "headset"
+
+[[experience.bullet_bank]]
+text = "Designed and deployed a remote-controlled USB headset test lab with ten automated stations and fifteen shared VMs."
+skills = ["Distributed Execution", "Test Lab Automation", "Python"]
+categories = ["Automation & Frameworks", "Distributed Systems"]
+impact_type = "scalability"
+domain = "headset"
+
+[[experience.bullet_bank]]
+text = "Doubled automated test capacity and removed on-site dependency through remote lab architecture."
+skills = ["Automation Architecture", "Infrastructure"]
+categories = ["Architecture", "Test Reliability"]
+impact_type = "delivery-speed"
+domain = "headset"
+
+[[experience]]
+id = "exp_hp_poly_technical_lead_framework_integration_201906"
+job_title = "Technical Lead, Corporate Framework Integration"
+company = "HP / Poly"
+start_date = "2019-06"
+end_date = "2020-03"
+general_role_description = "Led technical evaluation and design discussions for integrating product groups into a shared corporate automation architecture."
+
+[[experience.bullet_bank]]
+text = "Contributed technical leadership and architecture design toward migration of the Video automation framework into a unified corporate platform."
+skills = ["Architecture", "Framework Design", "Technical Leadership"]
+categories = ["Architecture", "Automation & Frameworks"]
+impact_type = "architecture"
+domain = "corporate-platform"
+
+[[experience.bullet_bank]]
+text = "Decomposed a monolithic automation system into modular components and standardized package naming conventions."
+skills = ["Java", "Python", "Developer Tooling"]
+categories = ["Architecture", "Maintainability"]
+impact_type = "maintainability"
+domain = "corporate-platform"
+
+[[experience.bullet_bank]]
+text = "Architected and drove Java 8 to 12 migration across 15 projects and 3 product lines while stabilizing CI pipelines."
+skills = ["Java", "CI/CD", "Dependency Management"]
+categories = ["CI/CD", "Architecture"]
+impact_type = "delivery-speed"
+domain = "corporate-platform"
+
+[[experience]]
+id = "exp_hp_poly_lead_technical_designer_corp_automation_201506"
+job_title = "Lead Technical Designer, Corporate Automation Initiative"
+company = "HP / Poly"
+start_date = "2015-06"
+end_date = "2019-06"
+general_role_description = "Provided architectural guidance and design leadership for a company-wide automation initiative."
+
+[[experience.bullet_bank]]
+text = "Evaluated migration paths for unifying automation across Video, Audio, and Network organizations."
+skills = ["Architecture", "Automation Strategy"]
+categories = ["Architecture", "Automation & Frameworks"]
+impact_type = "architecture"
+domain = "corporate-platform"
+
+[[experience.bullet_bank]]
+text = "Created exploratory prototypes and design evaluations that informed cross-team architecture decisions."
+skills = ["Python", "Prototype Design"]
+categories = ["Architecture", "Technical Leadership"]
+impact_type = "delivery-speed"
+domain = "corporate-platform"
+
+[[experience.bullet_bank]]
+text = "Led transition from local combined logs to enterprise-grade remote logging for crash-resilient cross-system observability."
+skills = ["Logging", "Observability", "Distributed Systems"]
+categories = ["Debugging & Analysis", "Distributed Systems"]
+impact_type = "reliability"
+domain = "corporate-platform"
+
+[[experience]]
+id = "exp_hp_poly_lead_framework_designer_video_sqa_200808"
+job_title = "Lead Framework Designer, Video SQA Automation"
+company = "HP / Poly"
+start_date = "2008-08"
+end_date = "2015-06"
+general_role_description = "Principal architect and long-term owner of the Video SQA automation framework used across global teams for over a decade."
+
+[[experience.bullet_bank]]
+text = "Led a distributed team of up to 15 engineers across four countries and five time zones, improving engineering quality and reducing new-test creation time by 30 percent."
+skills = ["Technical Leadership", "Mentoring", "Process Design"]
+categories = ["Technical Leadership", "Architecture"]
+impact_type = "mentoring"
+domain = "video"
+
+[[experience.bullet_bank]]
+text = "Designed a capability-driven, UI-agnostic, and model-agnostic architecture enabling cross-product portability across hardware generations."
+skills = ["Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design"]
+categories = ["Automation & Frameworks", "Architecture"]
+impact_type = "scalability"
+domain = "video"
+
+[[experience.bullet_bank]]
+text = "Unified Telnet, REST, and Web execution into a single test flow, tripling the number of tests executable across interfaces."
+skills = ["REST/SOAP Integration", "Telnet/CLI Automation", "Web UI Automation"]
+categories = ["Automation & Frameworks", "API Testing"]
+impact_type = "delivery-speed"
+domain = "video"

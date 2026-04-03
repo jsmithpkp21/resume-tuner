@@ -1,115 +1,137 @@
 Skills,Category
-"GitHub Copilot (IDE coding assistance)","AI-Assisted Quality"
-"GitHub Copilot Chat","AI-Assisted Quality"
-"GitHub Copilot PR Review","AI-Assisted Quality"
-"Microsoft Copilot (workflow automation & reasoning)","AI-Assisted Quality"
-"Notion AI (content generation & rewriting)","AI-Assisted Quality"
-"AI-based failure triage","AI-Assisted Quality Engineering"
-"Stability analysis","AI-Assisted Quality Engineering"
-"AI-assisted architecture exploration","AI-Driven Engineering"
-"AI-assisted coding","AI-Driven Engineering"
-"AI-assisted debugging","AI-Driven Engineering"
-"AI-assisted documentation","AI-Driven Engineering"
-"AI-augmented test generation","AI-Driven Engineering"
-"Application of abstraction layers","Architecture & Design"
-"Architecture","Architecture & Design"
-"Architecture exploration","Architecture & Design"
-"Design","Architecture & Design"
-"Design patterns","Architecture & Design"
-"Abstraction layers","Automation & Framework Architecture"
-"Data-driven frameworks","Automation & Framework Architecture"
-"Java automation frameworks","Automation & Framework Architecture"
-"Orchestration design","Automation & Framework Architecture"
-"Page Object Model (POM)","Automation & Framework Architecture"
-"Playwright (Python)","Automation & Framework Architecture"
-"Python automation frameworks","Automation & Framework Architecture"
-"Reusable components","Automation & Framework Architecture"
-"Scalable UI/API automation","Automation & Framework Architecture"
-"Selenium WebDriver","Automation & Framework Architecture"
-"Test data management","Automation & Framework Architecture"
-"TestNG","Automation & Framework Architecture"
-"UI/model-agnostic design","Automation & Framework Architecture"
-"Automation","Automation & Framework Engineering"
-"Automation framework design","Automation & Framework Engineering"
-"Automation strategy","Automation & Framework Engineering"
-"Automation troubleshooting","Automation & Framework Engineering"
-"Device automation","Automation & Framework Engineering"
-"Framework design","Automation & Framework Engineering"
-"Orchestration","Automation & Framework Engineering"
-"Artifact management","CI/CD & Tooling"
-"CI/CD","CI/CD & Tooling"
-"CI/CD troubleshooting","CI/CD & Tooling"
-"Continuous testing workflows","CI/CD & Tooling"
-"Git","CI/CD & Tooling"
-"GitHub Actions","CI/CD & Tooling"
-"Jenkins","CI/CD & Tooling"
-"Pipeline design","CI/CD & Tooling"
-"Quality gates","CI/CD & Tooling"
-"Test reliability engineering","CI/CD & Tooling"
-"Versioning automation","CI/CD & Tooling"
-"Collaboration","Collaboration & Engineering Practices"
-"Mentoring","Collaboration & Engineering Practices"
-"Process improvement","Collaboration & Engineering Practices"
-"Test planning","Collaboration & Engineering Practices"
-"Test strategy for automation frameworks","Collaboration & Engineering Practices"
-"Analysis","Core Engineering Skills"
-"Analysis of requirements","Core Engineering Skills"
-"Communication","Core Engineering Skills"
-"Debugging","Core Engineering Skills"
-"Documentation","Core Engineering Skills"
-"Pattern recognition","Core Engineering Skills"
-"Defect isolation","Debugging & Analysis"
-"Environment debugging","Debugging & Analysis"
-"Environment reliability","Debugging & Analysis"
-"Log analysis","Debugging & Analysis"
-"Metrics/monitoring interpretation","Debugging & Analysis"
-"Observability","Debugging & Analysis"
-"Performance profiling","Debugging & Analysis"
-"Regression analysis","Debugging & Analysis"
-"Root cause analysis","Debugging & Analysis"
-"Distributed systems","Distributed Systems & Infrastructure"
-"Distributed tracing","Distributed Systems & Infrastructure"
-"Hybrid cloud interactions (on-prem <-> cloud)","Distributed Systems & Infrastructure"
-"Multi-device automation labs","Distributed Systems & Infrastructure"
-"VM-based testbeds","Distributed Systems & Infrastructure"
-"Docker","Environments & Infrastructure"
-"Environment management","Environments & Infrastructure"
-"Linux command-line","Environments & Infrastructure"
-"TCP/IP fundamentals","Networking"
-"Bash","Programming & Scripting"
-"C","Programming & Scripting"
-"C++","Programming & Scripting"
-"Groovy","Programming & Scripting"
-"Java","Programming & Scripting"
-"JavaScript","Programming & Scripting"
-"Python","Programming & Scripting"
-"Shell scripting","Programming & Scripting"
-"TypeScript","Programming & Scripting"
-"Exploratory testing","Quality & Testing Strategy"
-"Integration testing","Quality & Testing Strategy"
-"Issue triage","Quality & Testing Strategy"
-"Quality strategy","Quality & Testing Strategy"
-"Release readiness","Quality & Testing Strategy"
-"Requirements/testability analysis","Quality & Testing Strategy"
-"Acceptance testing","Testing & Validation"
-"Android UI automation (ADB)","Testing & Validation"
-"Android UI automation (UI Automator)","Testing & Validation"
-"API contract/schema validation","Testing & Validation"
-"Automation testing","Testing & Validation"
-"CLI automation","Testing & Validation"
-"End-to-end testing","Testing & Validation"
-"Functional testing","Testing & Validation"
-"JUnit 4","Testing & Validation"
-"JUnit 5","Testing & Validation"
-"Multi-environment compatibility testing","Testing & Validation"
-"Parallel execution","Testing & Validation"
-"PyTest","Testing & Validation"
-"Regression testing","Testing & Validation"
-"REST API testing","Testing & Validation"
-"Risk-based testing","Testing & Validation"
-"Service-layer automation (Serial)","Testing & Validation"
-"Service-layer automation (SSH)","Testing & Validation"
-"Service-layer automation (Telnet)","Testing & Validation"
-"Smoke testing","Testing & Validation"
-"Spock","Testing & Validation"
-"System testing","Testing & Validation"
+GitHub Copilot (IDE coding assistance),AI-Assisted Quality
+GitHub Copilot Chat,AI-Assisted Quality
+GitHub Copilot PR Review,AI-Assisted Quality
+Microsoft Copilot (workflow automation & reasoning),AI-Assisted Quality
+Notion AI (content generation & rewriting),AI-Assisted Quality
+AI-based failure triage,AI-Assisted Quality Engineering
+Stability analysis,AI-Assisted Quality Engineering
+AI-assisted architecture exploration,AI-Driven Engineering
+AI-assisted coding,AI-Driven Engineering
+AI-assisted debugging,AI-Driven Engineering
+AI-assisted documentation,AI-Driven Engineering
+AI-augmented test generation,AI-Driven Engineering
+Application of abstraction layers,Architecture & Design
+Architecture,Architecture & Design
+Architecture exploration,Architecture & Design
+Design,Architecture & Design
+Design patterns,Architecture & Design
+Abstraction layers,Automation & Framework Architecture
+Data-driven frameworks,Automation & Framework Architecture
+Java automation frameworks,Automation & Framework Architecture
+Orchestration design,Automation & Framework Architecture
+Page Object Model (POM),Automation & Framework Architecture
+Playwright (Python),Automation & Framework Architecture
+Python automation frameworks,Automation & Framework Architecture
+Reusable components,Automation & Framework Architecture
+Scalable UI/API automation,Automation & Framework Architecture
+Selenium WebDriver,Automation & Framework Architecture
+Test data management,Automation & Framework Architecture
+TestNG,Automation & Framework Architecture
+UI/model-agnostic design,Automation & Framework Architecture
+Automation,Automation & Framework Engineering
+Automation framework design,Automation & Framework Engineering
+Automation strategy,Automation & Framework Engineering
+Automation troubleshooting,Automation & Framework Engineering
+Device automation,Automation & Framework Engineering
+Framework design,Automation & Framework Engineering
+Orchestration,Automation & Framework Engineering
+Artifact management,CI/CD & Tooling
+CI/CD,CI/CD & Tooling
+CI/CD troubleshooting,CI/CD & Tooling
+Continuous testing workflows,CI/CD & Tooling
+Git,CI/CD & Tooling
+GitHub Actions,CI/CD & Tooling
+Jenkins,CI/CD & Tooling
+Pipeline design,CI/CD & Tooling
+Quality gates,CI/CD & Tooling
+Test reliability engineering,CI/CD & Tooling
+Versioning automation,CI/CD & Tooling
+Collaboration,Collaboration & Engineering Practices
+Mentoring,Collaboration & Engineering Practices
+Process improvement,Collaboration & Engineering Practices
+Test planning,Collaboration & Engineering Practices
+Test strategy for automation frameworks,Collaboration & Engineering Practices
+Analysis,Core Engineering Skills
+Analysis of requirements,Core Engineering Skills
+Communication,Core Engineering Skills
+Debugging,Core Engineering Skills
+Documentation,Core Engineering Skills
+Pattern recognition,Core Engineering Skills
+Defect isolation,Debugging & Analysis
+Environment debugging,Debugging & Analysis
+Environment reliability,Debugging & Analysis
+Log analysis,Debugging & Analysis
+Metrics/monitoring interpretation,Debugging & Analysis
+Observability,Debugging & Analysis
+Performance profiling,Debugging & Analysis
+Regression analysis,Debugging & Analysis
+Root cause analysis,Debugging & Analysis
+Distributed systems,Distributed Systems & Infrastructure
+Distributed tracing,Distributed Systems & Infrastructure
+Hybrid cloud interactions (on-prem <-> cloud),Distributed Systems & Infrastructure
+Multi-device automation labs,Distributed Systems & Infrastructure
+VM-based testbeds,Distributed Systems & Infrastructure
+Docker,Environments & Infrastructure
+Environment management,Environments & Infrastructure
+Linux command-line,Environments & Infrastructure
+TCP/IP fundamentals,Networking
+Bash,Programming & Scripting
+C,Programming & Scripting
+C++,Programming & Scripting
+Groovy,Programming & Scripting
+Java,Programming & Scripting
+JavaScript,Programming & Scripting
+Python,Programming & Scripting
+Shell scripting,Programming & Scripting
+TypeScript,Programming & Scripting
+Exploratory testing,Quality & Testing Strategy
+Integration testing,Quality & Testing Strategy
+Issue triage,Quality & Testing Strategy
+Quality strategy,Quality & Testing Strategy
+Release readiness,Quality & Testing Strategy
+Requirements/testability analysis,Quality & Testing Strategy
+Acceptance testing,Testing & Validation
+Android UI automation (ADB),Testing & Validation
+Android UI automation (UI Automator),Testing & Validation
+API contract/schema validation,Testing & Validation
+Automation testing,Testing & Validation
+CLI automation,Testing & Validation
+End-to-end testing,Testing & Validation
+Functional testing,Testing & Validation
+JUnit 4,Testing & Validation
+JUnit 5,Testing & Validation
+Multi-environment compatibility testing,Testing & Validation
+Parallel execution,Testing & Validation
+PyTest,Testing & Validation
+Regression testing,Testing & Validation
+REST API testing,Testing & Validation
+Risk-based testing,Testing & Validation
+Service-layer automation (Serial),Testing & Validation
+Service-layer automation (SSH),Testing & Validation
+Service-layer automation (Telnet),Testing & Validation
+Smoke testing,Testing & Validation
+Spock,Testing & Validation
+System testing,Testing & Validation
+ADB,Testing & Validation
+Automation Architecture,Automation & Framework Architecture
+Automation Strategy,Automation & Framework Engineering
+Capability-Driven Design,Automation & Framework Architecture
+Code Review,Collaboration & Engineering Practices
+Dependency Management,CI/CD & Tooling
+Developer Tooling,CI/CD & Tooling
+Distributed Execution,Distributed Systems & Infrastructure
+Distributed Systems,Distributed Systems & Infrastructure
+Framework Design,Automation & Framework Engineering
+Infrastructure,Environments & Infrastructure
+Logging,Debugging & Analysis
+Playwright,Automation & Framework Architecture
+Process Design,Collaboration & Engineering Practices
+Prototype Design,Architecture & Design
+Pytest,Testing & Validation
+REST/SOAP Integration,Testing & Validation
+Technical Leadership,Collaboration & Engineering Practices
+Telnet/CLI Automation,Testing & Validation
+Test Lab Automation,Testing & Validation
+UI & Model-Agnostic Abstractions,Automation & Framework Architecture
+Web UI Automation,Testing & Validation

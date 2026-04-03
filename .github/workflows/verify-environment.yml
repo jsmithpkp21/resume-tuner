@@ -86,8 +86,9 @@ jobs:
             exit 1
           fi
 
-          file_count=$(git ls-files | wc -l | tr -d '[:space:]')
-          if [ "$file_count" = "0" ]; then
+          # Hash all tracked files because Docker build context uses COPY . .
+          tracked_count=$(git ls-files | wc -l | tr -d '[:space:]')
+          if [ "$tracked_count" = "0" ]; then
             echo "ERROR: No tracked files found for build-context fingerprint."
             exit 1
           fi

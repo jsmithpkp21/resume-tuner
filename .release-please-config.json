@@ -1,13 +1,14 @@
 {
   "release-type": "python",
-  "changelog-path": "docs/REFERENCE/CHANGELOG.md",
   "packages": {
     ".": {
       "package-name": "resume-builder",
+      "include-component-in-tag": false,
+      "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": false,
       "extra-files": [
         {
-          "type": "plain-text",
+          "type": "generic",
           "path": "VERSION",
           "glob": false
         },

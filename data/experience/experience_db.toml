@@ -1,0 +1,27 @@
+# Experience database starter schema for resume-builder
+
+[metadata]
+schema_version = "1"
+default_timezone = "UTC"
+
+[[experience]]
+id = "sample-role-1"
+job_title = "Senior SDET"
+company = "Example Co"
+start_date = "2021-05"
+end_date = "2024-02"
+general_role_description = "Led framework reliability and CI stabilization for distributed UI/API automation."
+
+[[experience.bullet_bank]]
+text = "Reduced flaky test failures by introducing deterministic retries and richer failure diagnostics."
+skills = ["Python", "Playwright"]
+categories = ["Automation & Frameworks", "Debugging & Analysis"]
+impact_type = "reliability"
+domain = "quality-engineering"
+
+[[experience.bullet_bank]]
+text = "Implemented release-safe quality gates in CI to prevent regressions reaching mainline."
+skills = ["GitHub Actions", "Python"]
+categories = ["CI/CD", "Automation & Frameworks"]
+impact_type = "delivery-speed"
+domain = "platform"

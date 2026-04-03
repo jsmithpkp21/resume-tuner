@@ -1,0 +1,19 @@
+# Canonical path contract for AI starter data ingestion.
+# Scripts and agents should read from these paths by default.
+
+[manifest]
+version = "1"
+
+[inputs]
+skills_csv = "data/skills/skills_matrix.csv"
+experience_toml = "data/experience/experience_db.toml"
+
+[samples]
+resume_dir = "data/samples/resumes"
+cover_letter_dir = "data/samples/cover_letters"
+resume_extensions = [".pdf", ".docx"]
+cover_letter_extensions = [".pdf", ".docx"]
+
+[private_sources]
+local_sandbox_dir = "sandbox"
+notes = "Use sandbox for private originals that should not be committed."

@@ -3,6 +3,21 @@
 A minimal starting point for new projects that use shared tooling.
 Clone this template, run the setup script, and you are ready to code.
 
+## Starter Data Locations (resume-builder)
+
+Use these paths as the canonical input locations for AI-driven resume generation:
+
+- Skills matrix CSV: `data/skills/skills_matrix.csv`
+- Experience database TOML: `data/experience/experience_db.toml`
+- Ingestion manifest: `data/manifests/starter_data_manifest.toml`
+- Sanitized resume samples: `data/samples/resumes/`
+- Sanitized cover letter samples: `data/samples/cover_letters/`
+
+Private originals (real resumes/cover letters) should stay in `sandbox/`.
+This repo already ignores `sandbox/` in `.gitignore`.
+
+See `docs/REFERENCE/DATA_LAYOUT.md` for the full layout contract.
+
 ---
 
 ## Quick Start

@@ -17,7 +17,7 @@ Create one row per extracted role candidate from a single source resume.
 ## Template columns
 
 ```csv
-run_id,source_resume_id,source_section_label,source_role_text,source_company_text,source_dates_text,normalized_job_title,normalized_company,normalized_start_ym,normalized_end_ym,canonical_experience_id,candidate_match_ids,decision_code,conflict_codes,confidence,needs_followup,provenance_quote,bullet_cluster_ids,selected_bullet_count,general_role_description_seed,notes,reviewer,reviewed_at
+run_id,source_resume_id,source_section_label,source_role_text,source_company_text,source_dates_text,canonical_experience_id,candidate_match_ids,decision_code,conflict_codes,confidence,needs_followup,provenance_quote,selected_bullet_ids,general_role_description_seed,initial_related_skills,skill_inference_notes,notes
 ```
 
 ## Column definitions
@@ -28,10 +28,6 @@ run_id,source_resume_id,source_section_label,source_role_text,source_company_tex
 - `source_role_text`: Raw role title from source.
 - `source_company_text`: Raw company text from source.
 - `source_dates_text`: Raw date range from source.
-- `normalized_job_title`: Canonical title for matching and writeback.
-- `normalized_company`: Canonical company for matching and writeback.
-- `normalized_start_ym`: Start date in `YYYY-MM` format.
-- `normalized_end_ym`: End date in `YYYY-MM` or `present`.
 - `canonical_experience_id`: Target `[[experience]].id`.
 - `candidate_match_ids`: Pipe-separated candidate ids when matching is ambiguous.
 - `decision_code`: Merge/keep/split/drop/defer decision.
@@ -39,12 +35,16 @@ run_id,source_resume_id,source_section_label,source_role_text,source_company_tex
 - `confidence`: `C1` to `C5` confidence score.
 - `needs_followup`: `yes` or `no`.
 - `provenance_quote`: Short source quote proving the mapping.
-- `bullet_cluster_ids`: Pipe-separated bullet group ids used in reconciliation.
-- `selected_bullet_count`: Number of selected bullets for final canonical role.
+- `selected_bullet_ids`: Semicolon-separated canonical bullet ids selected from `experience_db.toml`.
 - `general_role_description_seed`: Factual summary seed for `general_role_description`.
+- `initial_related_skills`: Semicolon-separated role-level skills from derived-plus-curated Option B.
+- `skill_inference_notes`: Why inferred/curated role-level skills were included.
 - `notes`: Reviewer rationale.
-- `reviewer`: Initials or username.
-- `reviewed_at`: ISO timestamp.
+
+Review metadata policy:
+
+- Do not auto-populate reviewer metadata in this worksheet.
+- Manual review tracking happens outside this CSV during adjudication.
 
 ## Decision codes
 
@@ -80,28 +80,30 @@ run_id,source_resume_id,source_section_label,source_role_text,source_company_tex
 Policy:
 
 - Auto-accept only `C4` and `C5`.
-- `C3` requires explicit reviewer note.
+- `C3` requires explicit note in `notes`.
 - `C1` and `C2` must use `DEFER` or `ESCALATE`.
 
 ## Example rows
 
 ```csv
-run_id,source_resume_id,source_section_label,source_role_text,source_company_text,source_dates_text,normalized_job_title,normalized_company,normalized_start_ym,normalized_end_ym,canonical_experience_id,candidate_match_ids,decision_code,conflict_codes,confidence,needs_followup,provenance_quote,bullet_cluster_ids,selected_bullet_count,general_role_description_seed,notes,reviewer,reviewed_at
-2026-04-03-r1,resume_amd_01,Professional Experience,"Senior SDET","Example Co","May 2021 - Feb 2024","Senior SDET","Example Co","2021-05","2024-02","exp_exampleco_senior_sdet_202105","exp_exampleco_sdet_202105","M_EXIST","CT_TITLE","C4","no","Led framework reliability and CI stabilization...","b12|b13|b19",3,"Led deterministic UI/API automation reliability and CI quality gates.","Title variant only.","js","2026-04-03T18:20:00Z"
-2026-04-03-r1,resume_webai_02,Experience,"SDET Lead","Example Company","2021/05 to 2024/02","Senior SDET","Example Co","2021-05","2024-02","exp_exampleco_senior_sdet_202105","exp_exampleco_senior_sdet_202105","M_EXIST","CT_COMPANY|CT_TITLE","C4","no","Implemented release-safe quality gates in CI...","b13|b21|b22",3,"Owned CI quality gates and flake reduction for distributed automation.","Company alias normalized.","js","2026-04-03T18:24:00Z"
-2026-04-03-r1,resume_zebra_03,Experience,"QA Automation / DevOps","Example Co","2020 - 2024","QA Automation Lead","Example Co","2020-01","2024-02","","exp_exampleco_senior_sdet_202105|exp_exampleco_qa_lead_202001","DEFER","CT_DATES|CT_SCOPE","C2","yes","Built CI/CD pipelines and automated test infra...","b31|b32",2,"","Date start unclear; role may combine two positions.","js","2026-04-03T18:31:00Z"
+run_id,source_resume_id,source_section_label,source_role_text,source_company_text,source_dates_text,canonical_experience_id,candidate_match_ids,decision_code,conflict_codes,confidence,needs_followup,provenance_quote,selected_bullet_ids,general_role_description_seed,initial_related_skills,skill_inference_notes,notes
+2026-04-03-r1,resume_amd_01,Professional Experience,"Senior SDET","Example Co","May 2021 - Feb 2024","exp_exampleco_senior_sdet_202105","exp_exampleco_sdet_202105","M_EXIST","CT_TITLE","C4","no","Led framework reliability and CI stabilization...","exp_exampleco_senior_sdet_202105_b12;exp_exampleco_senior_sdet_202105_b13;exp_exampleco_senior_sdet_202105_b19","Led deterministic UI/API automation reliability and CI quality gates.","Python;CI/CD;Quality gates;GitHub Actions","Derived from selected canonical bullets.","Title variant only."
+2026-04-03-r1,resume_webai_02,Experience,"SDET Lead","Example Company","2021/05 to 2024/02","exp_exampleco_senior_sdet_202105","exp_exampleco_senior_sdet_202105","M_EXIST","CT_COMPANY|CT_TITLE","C4","no","Implemented release-safe quality gates in CI...","exp_exampleco_senior_sdet_202105_b13;exp_exampleco_senior_sdet_202105_b21;exp_exampleco_senior_sdet_202105_b22","Owned CI quality gates and flake reduction for distributed automation.","Python;CI/CD;Quality gates;GitHub Actions","Derived from selected canonical bullets.","Company alias normalized."
+2026-04-03-r1,resume_zebra_03,Experience,"QA Automation / DevOps","Example Co","2020 - 2024","","exp_exampleco_senior_sdet_202105|exp_exampleco_qa_lead_202001","DEFER","CT_DATES|CT_SCOPE","C2","yes","Built CI/CD pipelines and automated test infra...","","","CI/CD;Automation;Test planning","Includes inferred skill candidates pending adjudication.","Date start unclear; role may combine two positions."
 ```
 
 ## One-at-a-time SOP
 
 1. Load one source resume and create one worksheet row per role candidate.
-2. Normalize title, company, and dates.
-3. Match against existing canonical ids.
+2. Match against existing canonical ids.
+3. Record source normalization decisions in `notes` when needed.
 4. Assign `decision_code`, `conflict_codes`, and `confidence`.
 5. Capture a provenance quote for each non-drop row.
-6. Promote only `C4` and `C5` rows into `data/experience/experience_db.toml`.
-7. Enforce `DESIGN.md` rules for canonical output:
+6. Select canonical bullets using `selected_bullet_ids` (stable bullet ids, not counts).
+7. Seed `initial_related_skills` from canonical bullet skills, then append curated role-level skills only when justified.
+8. Promote only `C4` and `C5` rows into `data/experience/experience_db.toml`.
+9. Enforce `DESIGN.md` rules for canonical output:
    - each experience uses `general_role_description` as summary source
    - each experience has at least 3 bullets in `bullet_bank`
    - each bullet skill exists in `data/skills/skills_matrix.csv`
-8. Repeat for the next resume.
+10. Repeat for the next resume.

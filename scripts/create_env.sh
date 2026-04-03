@@ -11,20 +11,36 @@ set -euo pipefail
 #   scripts/create_env.sh --force  # Force recreation
 # -----------------------------------------
 
-# Error handler function (must be defined before trap)
-on_error() {
-    local line_number=$?
-    if [ $line_number -ne 0 ]; then
-        echo "ERROR: Script failed at line $line_number"
-        if [ -d "$ENV_PATH" ] && [ ! -f "$ENV_PATH/bin/activate" ]; then
-            echo "Cleaning up incomplete environment at $ENV_PATH"
-            rm -rf "$ENV_PATH"
-        fi
+# Initialize before trap setup; early preflight exits run under set -u.
+ENV_PATH=""
+
+# on_err: called by ERR trap with accurate exit code and line number.
+on_err() {
+    local exit_code="$1"
+    local line_no="$2"
+    echo "ERROR: Script failed with exit code ${exit_code} at line ${line_no}"
+    _cleanup_env
+}
+
+# on_exit: called by EXIT trap for final cleanup; no error message to avoid
+# duplicating output already printed by on_err.
+on_exit() {
+    _cleanup_env
+}
+
+# _cleanup_env: remove a partial environment directory.
+# No-ops when ENV_PATH is unset/empty or when activation script exists.
+_cleanup_env() {
+    if [ -n "${ENV_PATH:-}" ] && [ -d "$ENV_PATH" ] && [ ! -f "$ENV_PATH/bin/activate" ]; then
+        echo "Cleaning up incomplete environment at $ENV_PATH"
+        rm -rf "$ENV_PATH"
     fi
 }
 
-# Trap errors for cleanup
-trap 'on_error' ERR EXIT
+# ERR trap: captures exit code and line number at the point of failure.
+# EXIT trap: handles cleanup only (runs after ERR trap on error, and on clean exit).
+trap 'on_err "$?" "$LINENO"' ERR
+trap 'on_exit' EXIT
 
 # Resolve repo root
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -63,7 +79,12 @@ fi
 # Check that all required metadata files exist
 for file in VERSION pyproject.toml tooling.toml requirements.txt requirements-dev.txt; do
     if [ ! -f "$REPO_ROOT/$file" ]; then
-        echo "ERROR: Required file not found: $REPO_ROOT/$file"
+        if [ "$file" = "requirements-dev.txt" ]; then
+            echo "ERROR: requirements-dev.txt not found at: $REPO_ROOT/$file"
+            echo "       Run 'make sync-tooling' first, or ensure requirements-dev.txt is present."
+        else
+            echo "ERROR: Required file not found: $REPO_ROOT/$file"
+        fi
         exit 1
     fi
 done

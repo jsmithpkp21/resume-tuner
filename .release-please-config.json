@@ -3,11 +3,12 @@
   "packages": {
     ".": {
       "package-name": "resume-builder",
-      "changelog-path": "docs/REFERENCE/CHANGELOG.md",
+      "include-component-in-tag": false,
+      "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": false,
       "extra-files": [
         {
-          "type": "plain-text",
+          "type": "generic",
           "path": "VERSION",
           "glob": false
         },

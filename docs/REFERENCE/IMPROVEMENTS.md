@@ -4,7 +4,8 @@ This document is a placeholder for tracked improvement ideas that do not yet hav
 
 ## Current State
 
-- No additional improvements are recorded here right now.
+- Decision record: `docs/REFERENCE/WORKFLOW_DECISIONS_2026-04-03.md`
+- Actionable issue backlog: `docs/REFERENCE/RESUME_PIPELINE_ISSUES_2026-04-03.md`
 - When a new improvement is identified, add a short summary here and link the relevant issue or design note.
 
 ## Maintenance Notes

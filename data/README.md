@@ -8,7 +8,7 @@ This directory contains the canonical starter inputs that the AI pipeline reads.
 - `experience/experience_db.toml`: structured canonical experience database (role metadata, bullet bank, role-level related skills)
 - `experience/experience_reconciliation_worksheet.csv`: pointer-based worksheet for one-by-one resume reconciliation (maps source rows to canonical role and bullet ids)
 - `manifests/starter_data_manifest.toml`: path contract for ingestion scripts
-- `samples/`: sanitized example resumes and cover letters used for layout/style reference
+- `samples/`: sanitized example resumes and cover letters used for layout/style reference during build-out (transitional, not required runtime input)
 
 ## Category policy
 
@@ -20,3 +20,8 @@ This directory contains the canonical starter inputs that the AI pipeline reads.
 
 - Keep private or personally identifying originals in `sandbox/`.
 - Commit only sanitized examples under `data/samples/`.
+
+## Runtime dependency policy
+
+- Runtime generation depends on canonical data (`skills_matrix.csv` and `experience_db.toml`), not on sample resumes.
+- `experience_reconciliation_worksheet.csv` is retained for audit/provenance and coverage tracking.

@@ -6,6 +6,14 @@ Use this worksheet to reconcile experience data from resumes one-by-one into the
 
 Create one row per extracted role candidate from a single source resume.
 
+Worksheet rows are provenance records. They are used to verify source coverage and reconciliation decisions, not to constrain runtime bullet selection.
+
+## Lifecycle intent
+
+- Build phase: worksheet is active and required for role-by-role reconciliation.
+- Steady state: canonical data in `data/experience/experience_db.toml` is the runtime source; worksheet remains as audit history.
+- Retirement option: worksheet can be archived once canonical coverage is stable and replacement coverage checks exist.
+
 ## Category authority
 
 - `data/skills/skills_matrix.csv` is the source of truth for skill-to-category mapping.
@@ -40,6 +48,11 @@ run_id,source_resume_id,source_section_label,source_role_text,source_company_tex
 - `initial_related_skills`: Semicolon-separated role-level skills from derived-plus-curated Option B.
 - `skill_inference_notes`: Why inferred/curated role-level skills were included.
 - `notes`: Reviewer rationale.
+
+Source-tracking policy:
+
+- `source_resume_id` exists to record what has been reviewed and provide traceability back to original evidence.
+- Do not interpret source rows as quotas or limits on runtime bullet usage.
 
 Review metadata policy:
 

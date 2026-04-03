@@ -15,6 +15,8 @@ This document defines where resume-builder stores starter datasets and reference
 
 Use only sanitized, commit-safe files in `data/samples/`.
 
+`data/samples/` is transitional for style and prompt-seeding work. Production runtime should not require sample files once canonical data is complete.
+
 ## Private originals
 
 Keep private source documents in `sandbox/`.
@@ -32,4 +34,5 @@ This layout aligns with `DESIGN.md`:
 
 - Skills Matrix is the canonical source for skills/category routing.
 - Experience DB provides structured role metadata and bullet banks.
-- Sample resumes/cover letters provide formatting and language references.
+- Reconciliation worksheet provides provenance/coverage evidence and review history.
+- Sample resumes/cover letters provide optional formatting/language references.

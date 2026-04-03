@@ -301,6 +301,21 @@ job description → relevance scoring
     - DOCX
 ```
 
+### Data lifecycle notes
+
+- Source resumes are ingestion inputs for reconciliation only; they are not runtime dependencies once canonical data is complete.
+- `data/experience/experience_reconciliation_worksheet.csv` is a provenance and coverage audit artifact, not a runtime selection constraint.
+- Runtime bullet selection is performed from canonical `experience_db.toml` only.
+- Rows per source are tracked to confirm coverage and support traceability, not to enforce per-source quotas.
+
+### Staged architecture
+
+1. **Canonical data stage**: curate roles, bullets, and validated skills/categories.
+2. **Selection stage**: score and select role bullets for a target job from canonical data.
+3. **Inference stage**: suggest candidate new skills/category changes from JD plus selected bullets.
+4. **Review stage**: accept or reject suggestions before changing canonical data.
+5. **Reporting stage**: emit a decision report for transparency and process improvement.
+
 ---
 
 # 11. Guiding Principles
@@ -325,6 +340,7 @@ job description → relevance scoring
 - Job‑specific portfolio generation
 - Multi‑template support
 - ATS‑optimized vs. human‑optimized modes
+- Decision report generation (selected bullets, inferred skills, category merges, and rejected suggestions)
 
 ---
 

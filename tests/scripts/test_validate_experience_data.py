@@ -1,10 +1,25 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
-from scripts.validate_experience_data import validate_experience_data
+from scripts.validate_experience_data import (
+    load_skills_matrix,
+    validate_experience_data,
+)
 
 VALID_SKILLS = {"Python", "CI/CD", "Java"}
+
+
+def test_load_skills_matrix_reads_utf8_rows(tmp_path: Path) -> None:
+    csv_path = tmp_path / "skills_matrix.csv"
+    csv_path.write_text(
+        'Skills,Category\n"Python","Language"\n"Cafe Testing","QA"\n',
+        encoding="utf-8",
+        newline="",
+    )
+
+    assert load_skills_matrix(csv_path) == {"Python", "Cafe Testing"}
 
 
 def _experience_payload(

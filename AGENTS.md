@@ -68,24 +68,6 @@ pytest -q tests/scripts/test_consumer_contract.py
 - When reviewing a PR whose branch starts with `copilot/`, the changes were authored by GitHub Copilot's SWE agent. Post review comments directed at `@copilot` so the agent receives and acts on the feedback.
 - When you (the agent) authored the changes yourself, implement fixes directly in the branch without @copilot direction. The rule of thumb: if `git log` shows your own commit, fix it; if the branch starts with `copilot/`, comment at @copilot.
 
-## WSL Path Handling (Windows + WSL Workspace)
-This workspace runs on WSL (Ubuntu) but is opened from a Windows JetBrains editor.
-File paths surfaced by the editor use Windows UNC format:
-    \\wsl.localhost\Ubuntu\home\jonathan_smith\projects\<repo>\...
-    \\wsl$\Ubuntu\home\jonathan_smith\projects\<repo>\...
-**Always convert these to native Linux paths before any file edit or git operation:**
-    //wsl.localhost/Ubuntu/home/jonathan_smith/projects/<repo>/...  →  /home/jonathan_smith/projects/<repo>/...
-    \\wsl$\Ubuntu\home\jonathan_smith\projects\<repo>\...   →  /home/jonathan_smith/projects/<repo>/...
-Rules enforced for every session:
-- When calling `replace_string_in_file`, `insert_edit_into_file`, or `create_file`, always pass
-  the `/home/...` path — never the UNC path. UNC writes do not reliably reach the Linux
-  filesystem that git tracks.
-- When running git or shell commands, always use the native Linux path (`/home/jonathan_smith/projects/<repo>`).
-- Use `python3` with `subprocess` (not shell heredocs via `run_in_terminal`) for git operations
-  so output is reliably captured and not swallowed by the prompt.
-- After any file-tool edit, verify with Python: `open('/home/.../<file>').read()` to confirm
-  the write landed on the Linux filesystem before staging or committing.
-
 ## Files to Read Before Editing Core Logic
 - `Makefile`
 - `scripts/sync_tooling.sh`

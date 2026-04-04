@@ -113,7 +113,29 @@ AI must follow these rules when selecting skills, categories, bullets, and exper
 
 ---
 
-# 4. Relevance Engine
+# 4. Inference-First, Rule-Backed, Domain-Agnostic Adaptation
+
+The adaptation model is **AI-first** and **not hardcoded to specific roles**.
+
+### Decision policy
+1. Use AI inference first to map job description signals (scope, level, domain, constraints, delivery model) to candidate skills, bullets, summaries, and framing.
+2. Preserve canonical facts from `experience_db.toml`; adaptation may rephrase but must not invent achievements or metrics.
+3. Apply generic guardrail rules only when inference confidence is low or outputs violate constraints.
+
+### Guardrail rules (generic fallback)
+- Preserve factual claims and chronology.
+- Adapt phrasing and emphasis to the target role and job context.
+- Prefer bullets with strongest evidence match to job signals.
+- Keep output deterministic under the same inputs and configuration.
+
+### Extensibility model
+- Domain support is plugin-based at signal extraction and scoring layers.
+- Adding new role families should not require core-engine rewrites.
+- Domain-specific rules are optional overlays, not baseline hardcoded logic.
+
+---
+
+# 5. Relevance Engine
 
 The relevance engine scores:
 
@@ -143,7 +165,7 @@ The engine outputs:
 
 ---
 
-# 5. Layout Engine (Space & Line Budget)
+# 6. Layout Engine (Space & Line Budget)
 
 The layout engine ensures the résumé fits within the required space and avoids awkward wrapping.
 
@@ -180,7 +202,7 @@ The engine must:
 
 ---
 
-# 6. Category Merging Rules
+# 7. Category Merging Rules
 
 Categories may be merged dynamically to fit space constraints.
 
@@ -202,7 +224,7 @@ Merging is allowed only in the **output**, not in the CSV.
 
 ---
 
-# 7. Skill Renaming Rules (Last Resort)
+# 8. Skill Renaming Rules (Last Resort)
 
 If a skill causes line wrapping issues, the résumé builder may shorten it.
 
@@ -221,7 +243,7 @@ Rules:
 
 ---
 
-# 8. Summary Generation Rules
+# 9. Summary Generation Rules
 
 The 1–2 line summary under each job must:
 
@@ -237,7 +259,7 @@ Example pattern:
 
 ---
 
-# 9. Output Formats
+# 10. Output Formats
 
 The résumé builder must support:
 
@@ -255,7 +277,7 @@ The template engine handles:
 
 ---
 
-# 10. End-to-End Workflow
+# 11. End-to-End Workflow
 
 ```
 data/skills/skills_matrix.csv           -> pytest validation
@@ -305,7 +327,7 @@ job description                          -> relevance scoring
 
 ---
 
-# 11. Guiding Principles
+# 12. Guiding Principles
 
 1. **Relevance over completeness**
 2. **Space‑bounded, not count‑bounded**
@@ -320,7 +342,7 @@ job description                          -> relevance scoring
 
 ---
 
-# 12. Future Extensions
+# 13. Future Extensions
 
 - Cover letter generation
 - LinkedIn profile generation

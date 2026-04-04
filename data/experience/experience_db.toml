@@ -64,7 +64,7 @@ related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_advisor_sdet_audio_202105_b01"
-text = "Standardized test patterns across suites, improving reuse by about 25 percent and reducing maintenance overhead."
+text = "Standardized test patterns across suites, improving reuse by 25 percent and reducing maintenance overhead."
 skills = ["Python", "Pytest"]
 categories = ["Automation & Frameworks", "Test Reliability"]
 impact_type = "maintainability"
@@ -72,7 +72,7 @@ domain = "audio"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_advisor_sdet_audio_202105_b02"
-text = "Improved framework ergonomics with shared abstractions and utilities, increasing reuse by about 20 percent."
+text = "Improved framework ergonomics with shared abstractions and utilities, increasing reuse by 20 percent."
 skills = ["Python", "Framework Design"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "delivery-speed"
@@ -207,7 +207,7 @@ related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b01"
-text = "Led a distributed team of up to 15 engineers across four countries and five time zones, improving engineering quality and reducing new-test creation time by 30 percent."
+text = "Led a distributed team of 15 engineers across four countries and five time zones, improving engineering quality and reducing new-test creation time by 30 percent."
 skills = ["Technical Leadership", "Mentoring", "Process Design"]
 categories = ["Technical Leadership", "Architecture"]
 impact_type = "mentoring"

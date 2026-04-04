@@ -18,6 +18,31 @@ descriptions that match what hiring managers at a given seniority level expect t
 4. **Reproducible**: same canonical data + same JD produces the same selected bullets and same framing.
 5. **Review-only inference**: JD-derived suggestions (new skills, category adjustments) do not
    auto-mutate canonical data.
+
+## Inference-First, Rule-Backed, Domain-Agnostic Adaptation
+
+### Intent
+The engine should not rely on hardcoded role mappings. It should infer framing from each target JD,
+then use lightweight generic rules only when confidence is low.
+
+### Operating Model
+1. **AI-first inference**
+   - Infer framing from JD signals: scope, seniority level, domain, constraints, and delivery model.
+   - Select and rephrase from canonical bullets without mutating source facts.
+2. **Rule-assisted fallback**
+   - Apply generic guidance when inference confidence is below threshold.
+   - Generic rules include:
+     - Preserve factual claims and measured outcomes.
+     - Adapt tone/phrasing to JD context.
+     - Prefer evidence-matching bullets over generic wording.
+3. **Domain-agnostic expansion**
+   - Do not hardcode software-only role logic.
+   - Use pluggable signal extraction so new domains can be added without rewriting selection core.
+
+### Guardrails
+- Never add claims that are not present in canonical data.
+- Treat generated framing as output artifacts; canonical data remains the source of truth.
+- Emit a rationale trace for selected bullets and fallback-rule use.
 ---
 ## Component 1: role_audience Tag Schema Extension
 ### Purpose

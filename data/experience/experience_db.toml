@@ -21,6 +21,7 @@ skills = ["Python", "ADB", "Playwright"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "scalability"
 domain = "video"
+role_audience = "architect"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b02"

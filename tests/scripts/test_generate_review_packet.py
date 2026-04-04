@@ -41,5 +41,7 @@ def test_generate_review_packet_outputs_artifacts(tmp_path: Path) -> None:
         reader = csv.DictReader(handle)
         rows = list(reader)
 
-    assert rows, "findings.csv should include at least one row for current dataset"
+    # Findings may be empty after all blockers/warnings are resolved; require schema either way.
+    assert reader.fieldnames is not None
+    assert "review_item_id" in reader.fieldnames
     assert all("review_item_id" in row for row in rows)

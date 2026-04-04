@@ -16,7 +16,7 @@ related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b01"
-text = "Transformed an inherited ADB/UI Automator-based system into a lightweight abstraction layer supporting embedded UI testing across PolyOS, Zoom, Teams, and Google Meet."
+text = "Transformed an inherited ADB/UI Automator-based system into a lightweight abstraction layer supporting Android-based embedded UI testing across PolyOS, Zoom, Teams, and Google Meet."
 skills = ["Python", "ADB", "Playwright"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "scalability"

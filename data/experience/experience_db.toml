@@ -40,8 +40,15 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b04"
-text = "Established CI quality gates with flake and type checks and integrated framework execution into GitHub Actions workflows."
-skills = ["CI/CD", "GitHub Actions", "Quality gates"]
+text = "Established coding standards, CI quality gates (flake8, mypy), and reproducible environment patterns."
+skills = ["CI/CD", "Quality gates", "Developer Tooling"]
+impact_type = "reliability"
+domain = "video"
+
+[[experience.bullet_bank]]
+id = "exp_hp_poly_architect_python_video_202306_b05"
+text = "Integrated framework execution into containerized GitHub Actions workflows, defining container requirements and collaborating with DevOps on image updates."
+skills = ["CI/CD", "GitHub Actions", "Developer Tooling"]
 impact_type = "reliability"
 domain = "video"
 
@@ -216,7 +223,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b03"
-text = "Architected CI gating pipelines (Smoke -> Suites -> BAT -> EAT) with stability rules enabling deterministic execution across 30+ releases."
+text = "Architected a four-stage CI quality-gate pipeline — branch merge gates, full suite runs, main branch integration gates, and QA acceptance checks — with stability rules enabling deterministic execution across 30+ releases."
 skills = ["CI/CD", "Test reliability engineering", "Distributed Execution"]
 impact_type = "reliability"
 domain = "video"

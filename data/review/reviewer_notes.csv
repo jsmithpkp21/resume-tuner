@@ -9,3 +9,5 @@ review_item_id,status,decision,note,proposed_update,updated_by,updated_at
 ## 3. Separate multiple tagged notes with blank lines
 ## Example:
 ##   WS:13,accepted,keep,"@general: This conflict is resolved by accepting AMD authority for dates. Consider documenting date authority matrix in decision record.","","jonathan","2026-04-03T20:00Z"
+design-001,accepted,capture,"@design: Bullets need audience-specific variants. Same experience can have an Architect framing (focus on abstraction/design) and a Lead/Process framing (focus on CI gates/team/delivery). The selection engine (Issue 22) should pick variant by target role type — not just relevance score. This means bullet_bank entries may need a role_audience tag: architect | lead | process | generalist.","","jonathan","2026-04-03T21:45Z"
+WS:8,accepted,split,"@general: Keep both AMD source bullets as separate canonical bullets; this resolves synthetic merge risk and lets selection decide audience-specific usage.","exp_hp_poly_architect_python_video_202306_b04 + exp_hp_poly_architect_python_video_202306_b05","jonathan","2026-04-04T00:10Z"

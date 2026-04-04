@@ -106,7 +106,7 @@ domain = "headset"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_advisor_sdet_headset_202003_b02"
-text = "Designed and deployed a remote-controlled USB headset test lab with ten automated stations and fifteen shared VMs."
+text = "Designed and deployed a remote-controlled USB headset test lab with ten automated stations and fifteen shared VMs, doubling automated test capacity and eliminating on-site dependency."
 skills = ["Distributed Execution", "Test Lab Automation", "Python"]
 categories = ["Automation & Frameworks", "Distributed Systems"]
 impact_type = "scalability"
@@ -114,7 +114,7 @@ domain = "headset"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_advisor_sdet_headset_202003_b03"
-text = "Doubled automated test capacity and removed on-site dependency through remote lab architecture."
+text = "Enabled distributed engineers to run headset validation remotely through shared lab infrastructure, improving day-to-day execution flexibility."
 skills = ["Automation Architecture", "Infrastructure"]
 categories = ["Architecture", "Test Reliability"]
 impact_type = "delivery-speed"

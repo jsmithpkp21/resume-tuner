@@ -23,34 +23,21 @@ The goal is to produce a clean, professional résumé that:
 
 # 1. Skills Matrix (Source of Truth)
 
-The Skills Matrix CSV contains six columns:
+The Skills Matrix CSV contract is two columns:
 
-1. **Skill**
+1. **Skills**
 2. **Category**
-3. **General Definition**
-4. **My Application**
-5. **Routing Rule** (rarely used; last‑resort override)
-6. **Design Notes**
 
 ### Rules
-- All fields must be quoted (`"..."`)
-- Empty fields must be `""`
-- Skill names may be **renamed/shortened** by the résumé builder *as a last resort*
-- The CSV is **never modified** by the résumé builder; renaming is done only in the output layer
+- Header row is `Skills,Category`
+- Each row maps one skill to one category
+- Skills and categories must be non-empty
+- The CSV is **never modified** by the resume builder at runtime
+- Experience bullets may only reference skills present in this matrix
 
-### Routing Rule (rarely used)
-Allowed values:
-```
-always
-only_if_required
-legacy
-learning
-niche
-avoid_by_default
-```
-
-This field is a **fallback override**.
-The résumé builder should rely primarily on **General Routing Rules** (Section 3).
+### Validation
+- Contract and cross-reference checks are enforced by pytest (`tests/scripts/test_experience_skill_category_contract.py`)
+- Any skill used in `experience_db.toml` but missing from `skills_matrix.csv` is a validation failure
 
 ---
 
@@ -268,35 +255,35 @@ The template engine handles:
 
 ---
 
-# 10. End‑to‑End Workflow
+# 10. End-to-End Workflow
 
 ```
-skills.csv  →  pytest validation
-experience_db → bullet tagging
-job description → relevance scoring
+data/skills/skills_matrix.csv           -> pytest validation
+data/experience/experience_db.toml      -> bullet tagging + canonical facts
+job description                          -> relevance scoring
 
-→ relevance engine selects:
+-> relevance engine selects:
     - categories
     - skills
     - bullets
     - experiences
 
-→ layout engine:
+-> layout engine:
     - enforces line budget
     - merges categories
-    - drops low‑relevance items
-    - avoids single‑word wraps
+    - drops low-relevance items
+    - avoids single-word wraps
     - shortens skills if needed
 
-→ summary generator:
-    - creates 1–2 line role summaries
+-> summary generator:
+    - creates 1-2 line role summaries
 
-→ template engine:
-    - assembles résumé
+-> template engine:
+    - assembles resume
     - formats sections
-    - enforces 2‑page limit
+    - enforces 2-page limit
 
-→ output generator:
+-> output generator:
     - PDF
     - DOCX
 ```

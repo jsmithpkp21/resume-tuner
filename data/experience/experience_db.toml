@@ -132,7 +132,7 @@ related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_lead_framework_integration_201906_b01"
-text = "Contributed technical leadership and architecture design toward migration of the Video automation framework into a unified corporate platform."
+text = "Delivered a technical evaluation for integrating the Video automation framework into a unified corporate platform, including a reusable first implementation step that remained applicable regardless of final direction."
 skills = ["Architecture", "Framework Design", "Technical Leadership"]
 categories = ["Architecture", "Automation & Frameworks"]
 impact_type = "architecture"

@@ -140,7 +140,7 @@ domain = "corporate-platform"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_lead_framework_integration_201906_b02"
-text = "Decomposed a monolithic automation system into modular components and standardized package naming conventions."
+text = "Decomposed a monolithic automation system into modular components and standardized package and project naming conventions, enabling distributed ownership and reducing build times by 75 percent."
 skills = ["Java", "Python", "Developer Tooling"]
 categories = ["Architecture", "Maintainability"]
 impact_type = "maintainability"
@@ -148,7 +148,7 @@ domain = "corporate-platform"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_lead_framework_integration_201906_b03"
-text = "Architected and drove Java 8 to 12 migration across 15 projects and 3 product lines while stabilizing CI pipelines."
+text = "Architected and drove the Java 8 to 12 migration across 15 projects and 3 product lines, resolving Java 9 module-system breaks, modernizing dependencies, and stabilizing CI and automation pipelines."
 skills = ["Java", "CI/CD", "Dependency Management"]
 categories = ["CI/CD", "Architecture"]
 impact_type = "delivery-speed"
@@ -181,7 +181,7 @@ domain = "corporate-platform"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_technical_designer_corp_automation_201506_b02"
-text = "Created exploratory prototypes and design evaluations that informed cross-team architecture decisions."
+text = "Built exploratory prototypes and design evaluations that informed cross-team architecture decisions and feasibility tradeoffs."
 skills = ["Python", "Prototype Design"]
 categories = ["Architecture", "Technical Leadership"]
 impact_type = "delivery-speed"
@@ -189,7 +189,7 @@ domain = "corporate-platform"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_technical_designer_corp_automation_201506_b03"
-text = "Conducted framework assessments across three major product organizations, engaging eight-plus test groups to identify gaps, gather requirements, and inform corporate automation strategy."
+text = "Conducted framework assessments across three product organizations and eight-plus test groups to identify implementation gaps, gather concrete requirements, and drive actionable integration plans."
 skills = ["Logging", "Observability", "Distributed Systems"]
 categories = ["Debugging & Analysis", "Distributed Systems"]
 impact_type = "reliability"

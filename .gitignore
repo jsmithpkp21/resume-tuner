@@ -26,3 +26,6 @@ Thumbs.db
 
 # Sandbox
 sandbox/
+
+# Generated review artifacts
+data/review/packets/

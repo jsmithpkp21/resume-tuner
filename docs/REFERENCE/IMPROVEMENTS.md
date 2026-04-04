@@ -35,6 +35,22 @@ Both issues operate in a non-invasive, review-only mode with traceable rationale
 - Suggestion governance question in WORKFLOW_DECISIONS_2026-04-03.md
 - Staged architecture (decision record, section "Staged architecture (accepted)").
 
+#### Data Review Packet Workflow (2026-04-03)
+
+**Workflow doc**: `docs/REFERENCE/DATA_REVIEW_WORKFLOW.md`
+
+This adds a no-UI review loop for canonical/resolution data:
+
+- Generates a compact review packet (`readiness_summary.md`, `findings.csv`, `fix_queue.csv`, `coverage_snapshot.json`).
+- Supports incremental review so we can fix high-confidence entries first.
+- Uses persistent notes store at `data/review/reviewer_notes.csv` to capture reviewer decisions and proposed text updates.
+
+**Status**: Implementation added; ready for iterative reviewer notes and canonical edits.
+
+**Related issues**:
+- `Issue #27` (reconciliation consistency checks)
+- `Issue #24` and `Issue #25` (skill/category review pipeline integration)
+
 ## Maintenance Notes
 
 - Keep this file non-empty because it is synced as a managed documentation artifact.

@@ -51,6 +51,29 @@ This adds a no-UI review loop for canonical/resolution data:
 - `Issue #27` (reconciliation consistency checks)
 - `Issue #24` and `Issue #25` (skill/category review pipeline integration)
 
+
+#### Selection Engine and Audience-Aware Framing (2026-04-04)
+**Design**: `docs/REFERENCE/SELECTION_ENGINE_DESIGN.md`
+This design covers the audience-aware selection layer that enables generating a "Staff Software
+Engineer" resume from experience accumulated under different titles:
+- **Issue 28** (Feat): Add `role_audience` tag to bullet schema
+  - Per-bullet field: `architect` / `lead` / `generalist`.
+  - Encodes which framing best fits each bullet without hardcoded engine logic.
+  - Includes CI validation for field presence and controlled vocabulary.
+- **Issue 29** (Feat): JD parsing module
+  - Extract seniority level, role type, required/preferred skills, and domain signals from raw JD text.
+  - Output a structured `jd_profile.yaml` artifact that drives all downstream scoring.
+  - Forward unmatched JD terms to the new-skill suggestion pipeline (Issue 24 / #24).
+- **Issue 30** (Feat): Title and description framing
+  - Map canonical job titles to audience-appropriate target-facing titles via `config/title_map.toml`.
+  - Generate 1–2 line role summaries per experience entry from canonical description + selected bullets + JD profile.
+  - All framing is a generated output artifact; canonical data is never mutated.
+All three issues feed into the existing bullet selection engine (#22) and decision report (#23).
+**Status**: Design complete; ready for GitHub issue creation and implementation.
+**Related decisions**:
+- Staged architecture in `WORKFLOW_DECISIONS_2026-04-03.md` (selection stage, inference stage).
+- `DESIGN.md` Section 4 (Relevance Engine) and Section 8 (Summary Generation Rules).
+- `SKILL_CATEGORY_DETECTION_DESIGN.md` (Issues 5–6 / #24–#25 receive JD parser output).
 ## Maintenance Notes
 
 - Keep this file non-empty because it is synced as a managed documentation artifact.

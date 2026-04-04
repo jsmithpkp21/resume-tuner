@@ -1,0 +1,11 @@
+review_item_id,status,decision,note,proposed_update,updated_by,updated_at
+## @review - Review Process Improvements
+## @general - General Next Steps / Observations
+## @design - Design Document Updates / Ideas
+##
+## Instructions:
+## 1. Add entries with review_item_id for findings, or use section headers above for meta-notes
+## 2. Use @review, @general, or @design as first line of multi-line notes
+## 3. Separate multiple tagged notes with blank lines
+## Example:
+##   WS:13,accepted,keep,"@general: This conflict is resolved by accepting AMD authority for dates. Consider documenting date authority matrix in decision record.","","jonathan","2026-04-03T20:00Z"

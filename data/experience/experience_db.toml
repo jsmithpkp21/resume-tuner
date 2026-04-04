@@ -80,7 +80,7 @@ domain = "audio"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_advisor_sdet_audio_202105_b03"
-text = "Refactored legacy error handling that swallowed network exceptions, improving failure reporting and isolating true product defects."
+text = "Refactored legacy error handling that swallowed network exceptions, improving failure reporting and reducing debugging of most I/O issues from hours to minutes while isolating true product defects."
 skills = ["Python", "Debugging"]
 categories = ["Debugging & Analysis", "Test Reliability"]
 impact_type = "reliability"

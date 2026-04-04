@@ -26,7 +26,7 @@ def load_experience_db(toml_path: Path) -> dict[str, Any]:
 def load_skills_matrix(csv_path: Path) -> set[str]:
     """Load skills matrix from CSV file."""
     skills: set[str] = set()
-    with open(csv_path) as f:
+    with csv_path.open(encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row.get("Skills"):

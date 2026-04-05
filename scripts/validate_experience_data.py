@@ -17,33 +17,18 @@ except ImportError:
     import tomli as tomllib  # type: ignore[no-redef]
 
 # ---------------------------------------------------------------------------
-# Runtime blocked-input guard (#20)
+# Runtime blocked-input guard (#20) — shared implementation
 # ---------------------------------------------------------------------------
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_BLOCKED_RUNTIME_ROOTS: frozenset[Path] = frozenset(
-    {
-        _PROJECT_ROOT / "sandbox",
-        _PROJECT_ROOT / "data" / "samples",
-    }
+# Ensure the project root is on sys.path so `scripts._runtime_guard` is
+# importable both when run as a script (Python prepends the script dir,
+# not the project root) and when imported as a module by pytest.
+_guard_root = str(Path(__file__).resolve().parent.parent)
+if _guard_root not in sys.path:
+    sys.path.insert(0, _guard_root)
+del _guard_root
+from scripts._runtime_guard import (  # noqa: E402
+    assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
 )
-
-
-def _assert_not_blocked_runtime_input(path: Path) -> None:
-    """Raise ValueError if *path* resolves into a blocked runtime directory.
-
-    This is a blocklist guard (not a strict allowlist): runtime inputs are
-    rejected only when they resolve into blocked roots.
-    """
-    resolved = path.resolve()
-    for blocked in _BLOCKED_RUNTIME_ROOTS:
-        if resolved.is_relative_to(blocked.resolve()):
-            blocked_display = blocked.relative_to(_PROJECT_ROOT).as_posix()
-            raise ValueError(
-                f"Path '{path}' resolves into blocked runtime directory "
-                f"'{blocked_display}/'. "
-                f"Runtime inputs may not resolve into blocked directories such as "
-                f"sandbox/ or data/samples/."
-            )
 
 
 def load_experience_db(toml_path: Path) -> dict[str, Any]:

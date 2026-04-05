@@ -86,6 +86,20 @@ def test_samples_directory_is_rejected_by_guard() -> None:
         load_skills_matrix(blocked_path)
 
 
+def test_load_experience_db_rejects_sandbox_path() -> None:
+    """Guard rejects `load_experience_db` calls rooted in `sandbox/`."""
+    blocked_path = SANDBOX_DIR / "experience_db.toml"
+    with pytest.raises(ValueError, match="blocked runtime directory"):
+        load_experience_db(blocked_path)
+
+
+def test_load_experience_db_rejects_samples_path() -> None:
+    """Guard rejects `load_experience_db` calls rooted in `data/samples/`."""
+    blocked_path = SAMPLES_DIR / "experience_db.toml"
+    with pytest.raises(ValueError, match="blocked runtime directory"):
+        load_experience_db(blocked_path)
+
+
 def test_path_traversal_attempt_rejected() -> None:
     """Guard rejects `..` traversal that resolves into a blocked directory."""
     traversal_path = CANONICAL_SKILLS.parent / ".." / ".." / "sandbox" / "tricks.csv"
@@ -95,16 +109,26 @@ def test_path_traversal_attempt_rejected() -> None:
 
 def test_symlink_bypass_attempt_rejected() -> None:
     """Guard rejects symlink inputs whose resolved target is in `sandbox/`."""
-    if not SANDBOX_DIR.exists():
-        pytest.skip("sandbox/ directory not present")
-    sandbox_targets = [p for p in SANDBOX_DIR.iterdir() if p.is_file()]
-    if not sandbox_targets:
-        pytest.skip("sandbox/ contains no files to target")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        symlink = Path(tmpdir) / "skills_matrix.csv"
-        try:
-            symlink.symlink_to(sandbox_targets[0])
-        except (OSError, NotImplementedError):
-            pytest.skip("Symlinks not available in this test environment")
-        with pytest.raises(ValueError, match="blocked runtime directory"):
-            load_skills_matrix(symlink)
+    # Create a real file inside sandbox/ so the test never skips because the
+    # directory is absent or empty.  Clean up the file (and the dir if we
+    # created it) in the finally block so the repo stays clean.
+    sandbox_created = not SANDBOX_DIR.exists()
+    SANDBOX_DIR.mkdir(parents=True, exist_ok=True)
+    target_file = SANDBOX_DIR / "_symlink_test_target.csv"
+    target_file.write_text("Skills,Category\nPython,Language\n", encoding="utf-8")
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            symlink = Path(tmpdir) / "skills_matrix.csv"
+            try:
+                symlink.symlink_to(target_file)
+            except (OSError, NotImplementedError):
+                pytest.skip("Symlinks not available in this test environment")
+            with pytest.raises(ValueError, match="blocked runtime directory"):
+                load_skills_matrix(symlink)
+    finally:
+        target_file.unlink(missing_ok=True)
+        if sandbox_created:
+            try:
+                SANDBOX_DIR.rmdir()
+            except OSError:
+                pass  # non-empty is fine; leave it

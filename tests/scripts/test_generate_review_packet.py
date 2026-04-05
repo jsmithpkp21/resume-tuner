@@ -97,6 +97,34 @@ def test_read_notes_rejects_blocked_path_before_write() -> None:
     assert not blocked_notes.exists()
 
 
+def test_read_csv_rows_rejects_blocked_sandbox_path() -> None:
+    """`read_csv_rows` raises ValueError for paths rooted in `sandbox/`."""
+    blocked_path = REPO_ROOT / "sandbox" / "worksheet.csv"
+    with pytest.raises(ValueError, match="blocked runtime directory"):
+        read_csv_rows(blocked_path)
+
+
+def test_read_csv_rows_rejects_blocked_samples_path() -> None:
+    """`read_csv_rows` raises ValueError for paths rooted in `data/samples/`."""
+    blocked_path = REPO_ROOT / "data" / "samples" / "worksheet.csv"
+    with pytest.raises(ValueError, match="blocked runtime directory"):
+        read_csv_rows(blocked_path)
+
+
+def test_read_experiences_rejects_blocked_sandbox_path() -> None:
+    """`read_experiences` raises ValueError for paths rooted in `sandbox/`."""
+    blocked_path = REPO_ROOT / "sandbox" / "experience_db.toml"
+    with pytest.raises(ValueError, match="blocked runtime directory"):
+        read_experiences(blocked_path)
+
+
+def test_read_experiences_rejects_blocked_samples_path() -> None:
+    """`read_experiences` raises ValueError for paths rooted in `data/samples/`."""
+    blocked_path = REPO_ROOT / "data" / "samples" / "experience_db.toml"
+    with pytest.raises(ValueError, match="blocked runtime directory"):
+        read_experiences(blocked_path)
+
+
 def test_generate_review_packet_without_sandbox_dependency(tmp_path: Path) -> None:
     """CLI succeeds with non-blocked temp inputs and no sandbox dependency."""
     data_dir = tmp_path / "data"

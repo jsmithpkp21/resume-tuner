@@ -26,8 +26,10 @@ except ImportError:
 # and package import when loaded as `scripts.build_resume`.
 if __package__ in {None, ""}:
     from _runtime_guard import assert_not_blocked_runtime_input
+    from jd_ingest import JobContext, ingest_job_context
 else:
     from scripts._runtime_guard import assert_not_blocked_runtime_input
+    from scripts.jd_ingest import JobContext, ingest_job_context
 
 
 DEFAULT_PROFILE = Path("data/profile/profile.toml")
@@ -93,7 +95,9 @@ class Experience:
 class ResumeIR:
     profile: Profile
     target_role: str
+    target_company: str
     display_headline: str
+    job_context: JobContext | None
     experiences: tuple[Experience, ...]
     skills_by_category: dict[str, list[str]]
 
@@ -103,6 +107,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--profile", type=Path, default=DEFAULT_PROFILE)
     parser.add_argument("--experience-db", type=Path, default=DEFAULT_EXPERIENCE_DB)
     parser.add_argument("--skills-matrix", type=Path, default=DEFAULT_SKILLS_MATRIX)
+    parser.add_argument("--job-url", type=str, default="")
     parser.add_argument("--target-role", type=str, default="")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument(
@@ -175,22 +180,26 @@ def _normalize_linkedin_slug(value: str) -> str:
     """Accept slug or URL-like input, then keep only the LinkedIn /in/ slug."""
     cleaned = value.strip().replace("http://", "").replace("https://", "")
     cleaned = cleaned.replace("www.", "")
+    cleaned = cleaned.split("?", maxsplit=1)[0].split("#", maxsplit=1)[0]
     if cleaned.startswith("linkedin.com/in/"):
         cleaned = cleaned[len("linkedin.com/in/") :]
     elif cleaned.startswith("in/"):
         cleaned = cleaned[len("in/") :]
-    return cleaned.strip().strip("/")
+    cleaned = cleaned.strip().strip("/")
+    return cleaned.split("/", maxsplit=1)[0].strip()
 
 
 def _normalize_github_username(value: str) -> str:
     """Accept username or URL-like input, then keep only the GitHub username."""
     cleaned = value.strip().replace("http://", "").replace("https://", "")
     cleaned = cleaned.replace("www.", "")
+    cleaned = cleaned.split("?", maxsplit=1)[0].split("#", maxsplit=1)[0]
     if cleaned.startswith("github.com/"):
         cleaned = cleaned[len("github.com/") :]
     if cleaned.startswith("@"):
         cleaned = cleaned[1:]
-    return cleaned.strip().strip("/")
+    cleaned = cleaned.strip().strip("/")
+    return cleaned.split("/", maxsplit=1)[0].strip()
 
 
 def _build_linkedin_url(slug: str) -> str:
@@ -280,6 +289,8 @@ def assemble_baseline_resume(
     *,
     profile: Profile,
     target_role: str,
+    target_company: str,
+    job_context: JobContext | None,
     experiences: tuple[Experience, ...],
     skills_by_category: dict[str, list[str]],
 ) -> ResumeIR:
@@ -287,7 +298,9 @@ def assemble_baseline_resume(
     return ResumeIR(
         profile=profile,
         target_role=target_role,
+        target_company=target_company,
         display_headline=resolve_headline(profile, target_role),
+        job_context=job_context,
         experiences=experiences,
         skills_by_category=skills_by_category,
     )
@@ -335,6 +348,11 @@ def render_html(resume: ResumeIR, output_path: Path) -> None:
     target_role_line = (
         f'<p class="target-role">Target role: {_html_escape(resume.target_role)}</p>'
         if resume.target_role.strip()
+        else ""
+    )
+    target_company_line = (
+        f'<p class="target-role">Target company: {_html_escape(resume.target_company)}</p>'
+        if resume.target_company.strip()
         else ""
     )
 
@@ -457,6 +475,7 @@ def render_html(resume: ResumeIR, output_path: Path) -> None:
                 f'  <p class="headline">{_html_escape(resume.display_headline)}</p>',
                 f'  <p class="contact">{contact_line}</p>',
                 f"  {target_role_line}",
+                f"  {target_company_line}",
                 "  <h2>Summary</h2>",
                 f"  <p>{_html_escape(resume.profile.summary)}</p>",
                 "  <h2>Experience</h2>",
@@ -488,6 +507,8 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
 
     if resume.target_role.strip():
         lines.extend([f"Target role: {resume.target_role}", ""])
+    if resume.target_company.strip():
+        lines.extend([f"Target company: {resume.target_company}", ""])
 
     lines.extend(["## Summary", "", resume.profile.summary, "", "## Experience", ""])
 
@@ -557,6 +578,7 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
 def write_ir_snapshot(resume: ResumeIR, output_path: Path) -> None:
     payload: dict[str, Any] = {
         "target_role": resume.target_role,
+        "target_company": resume.target_company,
         "profile": {
             "name": resume.profile.name,
             "headline": resume.profile.headline,
@@ -582,6 +604,8 @@ def write_ir_snapshot(resume: ResumeIR, output_path: Path) -> None:
             len(skills) for skills in resume.skills_by_category.values()
         ),
     }
+    if resume.job_context is not None:
+        payload["job_context"] = resume.job_context.to_dict()
     output_path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -591,10 +615,21 @@ def run_pipeline(args: argparse.Namespace) -> int:
     profile = load_profile(args.profile)
     experiences = load_experiences(args.experience_db)
     skills_by_category = load_skills_by_category(args.skills_matrix)
+    job_context = ingest_job_context(args.job_url) if args.job_url.strip() else None
+
+    resolved_target_role = args.target_role.strip()
+    if not resolved_target_role and job_context is not None:
+        resolved_target_role = job_context.role_hint
+
+    resolved_target_company = ""
+    if job_context is not None:
+        resolved_target_company = job_context.company_name
 
     resume = assemble_baseline_resume(
         profile=profile,
-        target_role=args.target_role,
+        target_role=resolved_target_role,
+        target_company=resolved_target_company,
+        job_context=job_context,
         experiences=experiences,
         skills_by_category=skills_by_category,
     )

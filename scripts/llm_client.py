@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""Minimal cached LLM client for deterministic resume pipeline stages."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+from urllib.error import URLError
+from urllib.request import Request, urlopen
+
+if __package__ in {None, ""}:
+    from _runtime_guard import assert_not_blocked_runtime_input
+else:
+    from scripts._runtime_guard import assert_not_blocked_runtime_input
+
+_DEFAULT_CHAT_ENDPOINT = "http://localhost:11434/v1/chat/completions"
+_DEFAULT_MODEL = "llama3.1:8b"
+_FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"
+_CACHE_DIR_ENV = "RESUME_BUILDER_LLM_CACHE_DIR"
+_ENDPOINT_ENV = "RESUME_BUILDER_LLM_API_URL"
+_MODEL_ENV = "RESUME_BUILDER_LLM_MODEL"
+
+
+@dataclass(frozen=True)
+class LLMResponse:
+    content: str
+    cache_key: str
+    from_cache: bool
+
+
+class LLMClient:
+    """OpenAI-compatible chat client with file cache and fixture mode."""
+
+    def __init__(
+        self,
+        *,
+        endpoint: str,
+        model: str,
+        cache_dir: Path,
+        fixture_mode: bool,
+    ) -> None:
+        self._endpoint = endpoint
+        self._model = model
+        self._cache_dir = cache_dir
+        self._fixture_mode = fixture_mode
+
+    @classmethod
+    def from_env(cls) -> LLMClient:
+        cache_dir = Path(
+            os.getenv(_CACHE_DIR_ENV, "tests/fixtures/llm_cache").strip()
+            or "tests/fixtures/llm_cache"
+        )
+        endpoint = os.getenv(_ENDPOINT_ENV, _DEFAULT_CHAT_ENDPOINT).strip()
+        model = os.getenv(_MODEL_ENV, _DEFAULT_MODEL).strip() or _DEFAULT_MODEL
+        fixture_mode = os.getenv(_FIXTURE_ENV, "0").strip() == "1"
+        return cls(
+            endpoint=endpoint,
+            model=model,
+            cache_dir=cache_dir,
+            fixture_mode=fixture_mode,
+        )
+
+    def complete_json(
+        self,
+        *,
+        namespace: str,
+        system_prompt: str,
+        user_payload: dict[str, object],
+    ) -> dict[str, Any]:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": json.dumps(user_payload, sort_keys=True)},
+        ]
+        response = self._chat(messages=messages, namespace=namespace)
+        parsed = json.loads(response.content)
+        if not isinstance(parsed, dict):
+            raise ValueError("LLM JSON response must be an object")
+        return parsed
+
+    def _chat(self, *, messages: list[dict[str, str]], namespace: str) -> LLMResponse:
+        cache_key = self._cache_key(messages=messages, namespace=namespace)
+        cache_path = self._cache_dir / f"llm_response_{cache_key}.json"
+
+        cached = self._read_cache(cache_path)
+        if cached is not None:
+            return LLMResponse(content=cached, cache_key=cache_key, from_cache=True)
+
+        if self._fixture_mode:
+            raise RuntimeError(
+                f"LLM fixture missing for namespace={namespace} cache_key={cache_key}"
+            )
+
+        content = self._request_chat_completion(messages)
+        self._write_cache(cache_path=cache_path, content=content)
+        return LLMResponse(content=content, cache_key=cache_key, from_cache=False)
+
+    def _cache_key(self, *, messages: list[dict[str, str]], namespace: str) -> str:
+        payload = {
+            "namespace": namespace,
+            "model": self._model,
+            "messages": messages,
+            "endpoint": self._endpoint,
+        }
+        serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+    def _request_chat_completion(self, messages: list[dict[str, str]]) -> str:
+        payload = {
+            "model": self._model,
+            "messages": messages,
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+        }
+        request = Request(
+            self._endpoint,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=30) as response:  # nosec B310
+                body = response.read().decode("utf-8", errors="replace")
+        except URLError as exc:
+            raise RuntimeError(f"LLM request failed: {exc}") from exc
+
+        try:
+            decoded = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("LLM response was not valid JSON") from exc
+
+        choices = decoded.get("choices", [])
+        if not isinstance(choices, list) or not choices:
+            raise RuntimeError("LLM response missing choices")
+        first = choices[0]
+        if not isinstance(first, dict):
+            raise RuntimeError("LLM response choice was malformed")
+        message = first.get("message", {})
+        if not isinstance(message, dict):
+            raise RuntimeError("LLM response message was malformed")
+        content = message.get("content", "")
+        if not isinstance(content, str) or not content.strip():
+            raise RuntimeError("LLM response content was empty")
+        return content
+
+    def _read_cache(self, path: Path) -> str | None:
+        if not path.exists():
+            return None
+        assert_not_blocked_runtime_input(path)
+        raw = path.read_text(encoding="utf-8")
+        payload = json.loads(raw)
+        if not isinstance(payload, dict):
+            raise ValueError("LLM cache payload must be an object")
+        content = payload.get("content")
+        if not isinstance(content, str):
+            raise ValueError("LLM cache payload missing content string")
+        return content
+
+    def _write_cache(self, *, cache_path: Path, content: str) -> None:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "model": self._model,
+            "endpoint": self._endpoint,
+            "content": content,
+        }
+        cache_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

@@ -16,15 +16,31 @@ try:
 except ImportError:
     import tomli as tomllib  # type: ignore[no-redef]
 
+# ---------------------------------------------------------------------------
+# Runtime blocked-input guard (#20) — shared implementation
+# ---------------------------------------------------------------------------
+# Use local import when run as `python scripts/validate_experience_data.py`,
+# and package import when loaded as `scripts.validate_experience_data`.
+if __package__ in {None, ""}:
+    from _runtime_guard import (
+        assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
+    )
+else:
+    from scripts._runtime_guard import (
+        assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
+    )
+
 
 def load_experience_db(toml_path: Path) -> dict[str, Any]:
     """Load experience database from TOML file."""
+    _assert_not_blocked_runtime_input(toml_path)
     with open(toml_path, "rb") as f:
         return tomllib.load(f)
 
 
 def load_skills_matrix(csv_path: Path) -> set[str]:
     """Load skills matrix from CSV file."""
+    _assert_not_blocked_runtime_input(csv_path)
     skills: set[str] = set()
     with csv_path.open(encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)

@@ -8,10 +8,15 @@ from pathlib import Path
 import pytest
 
 from scripts.build_resume import load_profile
+from scripts.jd_ingest import FetchedPage, ingest_job_context
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "build_resume.py"
 PROFILE = REPO_ROOT / "data" / "profile" / "profile.toml"
+LINKEDIN_JOB_URL = (
+    "https://www.linkedin.com/jobs/search-results/?"
+    "currentJobId=4380299765&keywords=SDET&origin=JOBS_HOME_SEARCH_BUTTON"
+)
 
 
 def test_load_profile_reads_profile_table() -> None:
@@ -35,8 +40,8 @@ location = ""
 email = ""
 phone = ""
 website = ""
-linkedin = "https://www.linkedin.com/in/test-user/"
-github = "https://github.com/test-user/"
+linkedin = "https://www.linkedin.com/in/test-user/detail?trk=foo#top"
+github = "https://github.com/test-user/repositories?tab=projects"
 summary = ""
 """.strip()
         + "\n",
@@ -103,3 +108,83 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     )
     assert snapshot["profile"]["github"] == "jsmithpkp21"
     assert snapshot["profile"]["github_url"] == "github.com/jsmithpkp21"
+
+
+def test_build_resume_cli_accepts_job_url_and_generates_job_context(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "from_job_url"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(output_dir),
+            "--job-url",
+            LINKEDIN_JOB_URL,
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+    html_text = (output_dir / "resume_baseline.html").read_text(encoding="utf-8")
+    snapshot = json.loads(
+        (output_dir / "resume_ir_snapshot.json").read_text(encoding="utf-8")
+    )
+
+    assert '<p class="headline">SDET</p>' in html_text
+    assert "Target role: SDET" in html_text
+    assert snapshot["target_role"] == "SDET"
+    assert snapshot["job_context"]["source"] == "linkedin"
+    assert snapshot["job_context"]["job_id"] == "4380299765"
+    assert snapshot["job_context"]["input_url"] == LINKEDIN_JOB_URL
+
+
+def test_ingest_job_context_extracts_role_company_and_research() -> None:
+    url = (
+        "https://www.linkedin.com/jobs/view/4380299765/?"
+        "currentJobId=4380299765&keywords=SDET"
+    )
+
+    def fake_fetcher(_: str) -> FetchedPage:
+        return FetchedPage(
+            status="fetched",
+            title="Senior SDET - Contoso - Austin, Texas | LinkedIn",
+            description="Contoso is looking for a Senior SDET to join our quality team.",
+            notes=(),
+        )
+
+    context = ingest_job_context(url, fetcher=fake_fetcher)
+
+    assert context.source == "linkedin"
+    assert context.job_id == "4380299765"
+    assert context.role_hint == "Senior SDET"
+    assert context.company_name == "Contoso"
+    assert context.company_research is not None
+    assert context.company_research.strategy == "deterministic-v1"
+
+
+def test_ingest_job_context_falls_back_to_query_keywords() -> None:
+    url = (
+        "https://www.linkedin.com/jobs/search-results/?"
+        "currentJobId=4380299765&keywords=SDET"
+    )
+
+    def fake_fetcher(_: str) -> FetchedPage:
+        return FetchedPage(
+            status="fetch_failed",
+            title="",
+            description="",
+            notes=("fetch_failed:HTTPError",),
+        )
+
+    context = ingest_job_context(url, fetcher=fake_fetcher)
+
+    assert context.role_hint == "SDET"
+    assert context.company_name == ""
+    assert context.fetch_status == "fetch_failed"
+    assert context.notes == ("fetch_failed:HTTPError",)

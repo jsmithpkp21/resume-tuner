@@ -163,12 +163,46 @@ def load_profile(path: Path) -> Profile:
         email=str(data.get("email", "")),
         phone=str(data.get("phone", "")),
         website=str(data.get("website", "")),
-        linkedin=str(data.get("linkedin", "")),
-        github=str(data.get("github", "")),
+        linkedin=_normalize_linkedin_slug(str(data.get("linkedin", ""))),
+        github=_normalize_github_username(str(data.get("github", ""))),
         summary=str(data.get("summary", "")),
         education_entries=education_entries,
         leadership_community_entries=leadership_community_entries,
     )
+
+
+def _normalize_linkedin_slug(value: str) -> str:
+    """Accept slug or URL-like input, then keep only the LinkedIn /in/ slug."""
+    cleaned = value.strip().replace("http://", "").replace("https://", "")
+    cleaned = cleaned.replace("www.", "")
+    if cleaned.startswith("linkedin.com/in/"):
+        cleaned = cleaned[len("linkedin.com/in/") :]
+    elif cleaned.startswith("in/"):
+        cleaned = cleaned[len("in/") :]
+    return cleaned.strip().strip("/")
+
+
+def _normalize_github_username(value: str) -> str:
+    """Accept username or URL-like input, then keep only the GitHub username."""
+    cleaned = value.strip().replace("http://", "").replace("https://", "")
+    cleaned = cleaned.replace("www.", "")
+    if cleaned.startswith("github.com/"):
+        cleaned = cleaned[len("github.com/") :]
+    if cleaned.startswith("@"):
+        cleaned = cleaned[1:]
+    return cleaned.strip().strip("/")
+
+
+def _build_linkedin_url(slug: str) -> str:
+    if not slug.strip():
+        return ""
+    return f"linkedin.com/in/{slug.strip()}"
+
+
+def _build_github_url(username: str) -> str:
+    if not username.strip():
+        return ""
+    return f"github.com/{username.strip()}"
 
 
 def resolve_headline(profile: Profile, target_role: str) -> str:
@@ -289,8 +323,8 @@ def _render_contact(profile: Profile) -> str:
         profile.email,
         profile.phone,
         profile.website,
-        profile.linkedin,
-        profile.github,
+        _build_linkedin_url(profile.linkedin),
+        _build_github_url(profile.github),
     ]
     filtered = [item for item in items if item.strip()]
     return " | ".join(_html_escape(item) for item in filtered)
@@ -532,7 +566,9 @@ def write_ir_snapshot(resume: ResumeIR, output_path: Path) -> None:
             "phone": resume.profile.phone,
             "website": resume.profile.website,
             "linkedin": resume.profile.linkedin,
+            "linkedin_url": _build_linkedin_url(resume.profile.linkedin),
             "github": resume.profile.github,
+            "github_url": _build_github_url(resume.profile.github),
             "summary": resume.profile.summary,
             "education_count": len(resume.profile.education_entries),
             "leadership_community_count": len(

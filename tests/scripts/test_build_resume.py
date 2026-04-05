@@ -14,18 +14,11 @@ from scripts.jd_ingest import FetchedPage, ingest_job_context
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "build_resume.py"
 PROFILE = REPO_ROOT / "data" / "profile" / "profile.toml"
-LINKEDIN_JOB_URL = (
-    "https://www.linkedin.com/jobs/search-results/?"
-    "currentJobId=4380299765&keywords=SDET&origin=JOBS_HOME_SEARCH_BUTTON"
-)
 SCHWAB_JOB_URL = (
     "https://www.schwabjobs.com/job/austin/"
     "sr-sdet-workplace-services-engineering/33727/92422911552"
 )
 SCHWAB_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "job_pages" / "schwab_sr_sdet.html"
-LINKEDIN_FIXTURE = (
-    REPO_ROOT / "tests" / "fixtures" / "job_pages" / "linkedin_sdet_search_results.html"
-)
 
 
 def test_load_profile_reads_profile_table() -> None:
@@ -277,6 +270,16 @@ def test_build_resume_cli_accepts_job_text_file(tmp_path: Path) -> None:
     assert snapshot["target_company"] == "Charles Schwab"
     assert snapshot["job_context"]["source"] == "job-text-file"
     assert snapshot["job_context"]["fetch_status"] == "provided_text"
+
+
+def test_ingest_job_context_rejects_blocked_fixture_env_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    blocked_fixture = REPO_ROOT / "data" / "samples" / "job_page_fixture.html"
+    monkeypatch.setenv("RESUME_BUILDER_JOB_PAGE_FIXTURE", str(blocked_fixture))
+
+    with pytest.raises(ValueError, match="blocked runtime directory"):
+        ingest_job_context(SCHWAB_JOB_URL)
 
 
 def test_build_resume_cli_rejects_typo_hjob_text_file_flag(tmp_path: Path) -> None:

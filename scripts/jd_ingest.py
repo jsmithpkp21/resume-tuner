@@ -20,6 +20,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
+# Use local import when run as `python scripts/jd_ingest.py`,
+# and package import when loaded as `scripts.jd_ingest`.
+if __package__ in {None, ""}:
+    from _runtime_guard import assert_not_blocked_runtime_input
+else:
+    from scripts._runtime_guard import assert_not_blocked_runtime_input
+
 _JOB_PAGE_FIXTURE_ENV = "RESUME_BUILDER_JOB_PAGE_FIXTURE"
 
 
@@ -419,8 +426,10 @@ def _fetch_job_page_metadata(url: str) -> FetchedPage:
 
 
 def _fetch_job_page_metadata_from_fixture(path: Path) -> FetchedPage:
+    assert_not_blocked_runtime_input(path)
+    resolved_path = path.resolve()
     try:
-        html_text = path.read_text(encoding="utf-8")
+        html_text = resolved_path.read_text(encoding="utf-8")
     except Exception as exc:  # noqa: BLE001
         return FetchedPage(
             status="fetch_failed",
@@ -436,7 +445,7 @@ def _fetch_job_page_metadata_from_fixture(path: Path) -> FetchedPage:
         status="fetched",
         title=parser.title,
         description=parser.description,
-        notes=(f"fixture:{path.name}",),
+        notes=(f"fixture:{resolved_path.name}",),
     )
 
 

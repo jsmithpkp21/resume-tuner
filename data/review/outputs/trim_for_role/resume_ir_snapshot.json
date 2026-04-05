@@ -1,0 +1,43 @@
+{
+  "bullet_count": 23,
+  "experience_count": 6,
+  "job_context": {
+    "company_name": "Charles Schwab",
+    "company_research": {
+      "company_name": "Charles Schwab",
+      "confidence": "low",
+      "industry_hint": "Industry unknown (deterministic baseline)",
+      "product_hint": "Public listing signals only; richer enrichment is deferred to provider-backed research in later phases",
+      "strategy": "deterministic-v1"
+    },
+    "description_excerpt": "Job Title: Sr. SDET\nCompany: Charles Schwab\nLooking for a Senior SDET focused on debugging and CI reliability.",
+    "fetch_status": "provided_text",
+    "input_url": "",
+    "job_id": "",
+    "normalized_url": "",
+    "notes": [],
+    "page_title": "",
+    "role_hint": "Sr. SDET",
+    "source": "job-text-file"
+  },
+  "profile": {
+    "display_headline": "Sr. SDET",
+    "education_count": 1,
+    "email": "jonathan@example.com",
+    "github": "jsmithpkp21",
+    "github_url": "github.com/jsmithpkp21",
+    "headline": "Software Engineer | Test Automation and Framework Architecture",
+    "leadership_community_count": 2,
+    "linkedin": "jonathan-j-smith-automation",
+    "linkedin_url": "linkedin.com/in/jonathan-j-smith-automation",
+    "location": "Temple, TX, 76502",
+    "name": "Jonathan Smith",
+    "phone": "(512) 555-0142",
+    "summary": "Baseline resume output generated from canonical data. Edit this summary manually for each target role while automation stages are added incrementally.",
+    "website": ""
+  },
+  "skills_category_count": 16,
+  "skills_count": 137,
+  "target_company": "Charles Schwab",
+  "target_role": "Sr. SDET"
+}

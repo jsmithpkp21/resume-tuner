@@ -9,6 +9,7 @@ Use these paths as the canonical input locations for AI-driven resume generation
 
 - Skills matrix CSV: `data/skills/skills_matrix.csv`
 - Experience database TOML: `data/experience/experience_db.toml`
+- Profile metadata TOML: `data/profile/profile.toml`
 - Ingestion manifest: `data/manifests/starter_data_manifest.toml`
 - Sanitized resume samples: `data/samples/resumes/`
 - Sanitized cover letter samples: `data/samples/cover_letters/`
@@ -17,6 +18,22 @@ Private originals (real resumes/cover letters) should stay in `sandbox/`.
 This repo already ignores `sandbox/` in `.gitignore`.
 
 See `docs/REFERENCE/DATA_LAYOUT.md` for the full layout contract.
+
+## Baseline Resume Output (Milestone 1)
+
+Generate a full editable baseline resume from canonical data:
+
+```bash
+make active
+python scripts/build_resume.py
+```
+
+Default artifacts:
+
+- `data/review/outputs/baseline/resume_baseline.html`
+- `data/review/outputs/baseline/resume_baseline.md`
+- `data/review/outputs/baseline/resume_ir_snapshot.json`
+- `data/review/outputs/baseline/resume_ir_snapshot.txt`
 
 ---
 

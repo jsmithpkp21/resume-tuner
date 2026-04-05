@@ -47,6 +47,25 @@ class Profile:
     linkedin: str
     github: str
     summary: str
+    education_entries: tuple[EducationEntry, ...]
+    leadership_community_entries: tuple[LeadershipCommunityEntry, ...]
+
+
+@dataclass(frozen=True)
+class EducationEntry:
+    degree: str
+    institution: str
+    location: str
+    date_range: str
+    notes: str
+
+
+@dataclass(frozen=True)
+class LeadershipCommunityEntry:
+    title: str
+    organization: str
+    date_range: str
+    details: str
 
 
 @dataclass(frozen=True)
@@ -74,6 +93,7 @@ class Experience:
 class ResumeIR:
     profile: Profile
     target_role: str
+    display_headline: str
     experiences: tuple[Experience, ...]
     skills_by_category: dict[str, list[str]]
 
@@ -100,9 +120,41 @@ def _read_toml(path: Path) -> dict[str, Any]:
 
 
 def load_profile(path: Path) -> Profile:
-    data = _read_toml(path).get("profile", {})
+    payload = _read_toml(path)
+    data = payload.get("profile", {})
     if not isinstance(data, dict):
         raise ValueError("profile.toml must contain a [profile] table")
+
+    raw_education = payload.get("education", [])
+    if not isinstance(raw_education, list):
+        raise ValueError("profile.toml education must use [[education]] entries")
+    education_entries = tuple(
+        EducationEntry(
+            degree=str(item.get("degree", "")),
+            institution=str(item.get("institution", "")),
+            location=str(item.get("location", "")),
+            date_range=str(item.get("date_range", "")),
+            notes=str(item.get("notes", "")),
+        )
+        for item in raw_education
+        if isinstance(item, dict)
+    )
+
+    raw_leadership = payload.get("leadership_community", [])
+    if not isinstance(raw_leadership, list):
+        raise ValueError(
+            "profile.toml leadership/community must use [[leadership_community]] entries"
+        )
+    leadership_community_entries = tuple(
+        LeadershipCommunityEntry(
+            title=str(item.get("title", "")),
+            organization=str(item.get("organization", "")),
+            date_range=str(item.get("date_range", "")),
+            details=str(item.get("details", "")),
+        )
+        for item in raw_leadership
+        if isinstance(item, dict)
+    )
 
     return Profile(
         name=str(data.get("name", "")),
@@ -114,7 +166,17 @@ def load_profile(path: Path) -> Profile:
         linkedin=str(data.get("linkedin", "")),
         github=str(data.get("github", "")),
         summary=str(data.get("summary", "")),
+        education_entries=education_entries,
+        leadership_community_entries=leadership_community_entries,
     )
+
+
+def resolve_headline(profile: Profile, target_role: str) -> str:
+    """Use target role as headline when provided, else keep profile headline."""
+    dynamic = target_role.strip()
+    if dynamic:
+        return dynamic
+    return profile.headline
 
 
 def load_experiences(path: Path) -> tuple[Experience, ...]:
@@ -191,6 +253,7 @@ def assemble_baseline_resume(
     return ResumeIR(
         profile=profile,
         target_role=target_role,
+        display_headline=resolve_headline(profile, target_role),
         experiences=experiences,
         skills_by_category=skills_by_category,
     )
@@ -284,6 +347,56 @@ def render_html(resume: ResumeIR, output_path: Path) -> None:
             f"<p><strong>{_html_escape(category)}:</strong> {joined_skills}</p>"
         )
 
+    education_html: list[str] = []
+    for education_item in resume.profile.education_entries:
+        metadata = " | ".join(
+            part
+            for part in [
+                education_item.institution,
+                education_item.location,
+                education_item.date_range,
+            ]
+            if part.strip()
+        )
+        education_html.append(
+            "\n".join(
+                [
+                    '<section class="info-item">',
+                    f"<p><strong>{_html_escape(education_item.degree)}</strong></p>",
+                    f"<p>{_html_escape(metadata)}</p>" if metadata else "",
+                    (
+                        f"<p>{_html_escape(education_item.notes)}</p>"
+                        if education_item.notes.strip()
+                        else ""
+                    ),
+                    "</section>",
+                ]
+            )
+        )
+
+    leadership_html: list[str] = []
+    for leadership_item in resume.profile.leadership_community_entries:
+        header_parts = [
+            leadership_item.title,
+            leadership_item.organization,
+            leadership_item.date_range,
+        ]
+        header = " | ".join(part for part in header_parts if part.strip())
+        leadership_html.append(
+            "\n".join(
+                [
+                    '<section class="info-item">',
+                    f"<p><strong>{_html_escape(header)}</strong></p>" if header else "",
+                    (
+                        f"<p>{_html_escape(leadership_item.details)}</p>"
+                        if leadership_item.details.strip()
+                        else ""
+                    ),
+                    "</section>",
+                ]
+            )
+        )
+
     output_path.write_text(
         "\n".join(
             [
@@ -302,11 +415,12 @@ def render_html(resume: ResumeIR, output_path: Path) -> None:
                 "    .headline, .contact, .target-role, .dates, .role-summary, .related-skills { margin: 4px 0; }",
                 "    ul { margin-top: 6px; }",
                 "    .experience-item { margin-bottom: 16px; }",
+                "    .info-item { margin-bottom: 10px; }",
                 "  </style>",
                 "</head>",
                 "<body>",
                 f"  <h1>{_html_escape(resume.profile.name)}</h1>",
-                f'  <p class="headline">{_html_escape(resume.profile.headline)}</p>',
+                f'  <p class="headline">{_html_escape(resume.display_headline)}</p>',
                 f'  <p class="contact">{contact_line}</p>',
                 f"  {target_role_line}",
                 "  <h2>Summary</h2>",
@@ -315,6 +429,10 @@ def render_html(resume: ResumeIR, output_path: Path) -> None:
                 *experiences_html,
                 "  <h2>Skills</h2>",
                 *skills_html,
+                "  <h2>Education</h2>" if education_html else "",
+                *education_html,
+                "  <h2>Leadership &amp; Community</h2>" if leadership_html else "",
+                *leadership_html,
                 "</body>",
                 "</html>",
                 "",
@@ -328,7 +446,7 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
     lines: list[str] = [
         f"# {resume.profile.name}",
         "",
-        resume.profile.headline,
+        resume.display_headline,
         "",
         _render_contact(resume.profile),
         "",
@@ -364,6 +482,40 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
     for category, skills in resume.skills_by_category.items():
         lines.append(f"- **{category}:** {', '.join(skills)}")
 
+    if resume.profile.education_entries:
+        lines.extend(["", "## Education", ""])
+        for education_item in resume.profile.education_entries:
+            lines.append(f"- **{education_item.degree}**")
+            metadata = " | ".join(
+                part
+                for part in [
+                    education_item.institution,
+                    education_item.location,
+                    education_item.date_range,
+                ]
+                if part.strip()
+            )
+            if metadata:
+                lines.append(f"  - {metadata}")
+            if education_item.notes.strip():
+                lines.append(f"  - {education_item.notes}")
+
+    if resume.profile.leadership_community_entries:
+        lines.extend(["", "## Leadership & Community", ""])
+        for leadership_item in resume.profile.leadership_community_entries:
+            header = " | ".join(
+                part
+                for part in [
+                    leadership_item.title,
+                    leadership_item.organization,
+                    leadership_item.date_range,
+                ]
+                if part.strip()
+            )
+            lines.append(f"- **{header}**" if header else "-")
+            if leadership_item.details.strip():
+                lines.append(f"  - {leadership_item.details}")
+
     lines.append("")
     output_path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -374,6 +526,7 @@ def write_ir_snapshot(resume: ResumeIR, output_path: Path) -> None:
         "profile": {
             "name": resume.profile.name,
             "headline": resume.profile.headline,
+            "display_headline": resume.display_headline,
             "location": resume.profile.location,
             "email": resume.profile.email,
             "phone": resume.profile.phone,
@@ -381,6 +534,10 @@ def write_ir_snapshot(resume: ResumeIR, output_path: Path) -> None:
             "linkedin": resume.profile.linkedin,
             "github": resume.profile.github,
             "summary": resume.profile.summary,
+            "education_count": len(resume.profile.education_entries),
+            "leadership_community_count": len(
+                resume.profile.leadership_community_entries
+            ),
         },
         "experience_count": len(resume.experiences),
         "bullet_count": sum(len(exp.bullets) for exp in resume.experiences),

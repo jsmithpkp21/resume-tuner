@@ -17,9 +17,11 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from html.parser import HTMLParser
+from http.client import HTTPMessage
 from pathlib import Path
+from typing import IO
 from urllib.parse import parse_qs, urlparse, urlunparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 # Use local import when run as `python scripts/jd_ingest.py`,
 # and package import when loaded as `scripts.jd_ingest`.
@@ -30,6 +32,23 @@ else:
 
 _JOB_PAGE_FIXTURE_ENV = "RESUME_BUILDER_JOB_PAGE_FIXTURE"
 _MAX_DESCRIPTION_EXCERPT = 500
+_MAX_FETCH_BYTES = 256 * 1024
+
+
+class _ValidatingRedirectHandler(HTTPRedirectHandler):
+    """Validate each redirect target before following it."""
+
+    def redirect_request(
+        self,
+        req: Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: HTTPMessage,
+        newurl: str,
+    ) -> Request | None:
+        _validate_job_url(_normalize_url(newurl))
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 @dataclass(frozen=True)
@@ -420,7 +439,6 @@ def _fetch_job_page_metadata(url: str) -> FetchedPage:
     fixture_path = os.getenv(_JOB_PAGE_FIXTURE_ENV, "").strip()
     if fixture_path:
         return _fetch_job_page_metadata_from_fixture(Path(fixture_path))
-
     request = Request(
         url,
         headers={
@@ -430,10 +448,33 @@ def _fetch_job_page_metadata(url: str) -> FetchedPage:
             )
         },
     )
+    opener = build_opener(_ValidatingRedirectHandler())
     try:
-        with urlopen(request, timeout=8) as response:  # nosec B310 - user-supplied URL
+        with opener.open(request, timeout=8) as response:  # nosec B310 - user-supplied URL
+            _validate_job_url(_normalize_url(response.geturl()))
+            content_length_header = response.headers.get("Content-Length")
+            if content_length_header:
+                try:
+                    if int(content_length_header) > _MAX_FETCH_BYTES:
+                        return FetchedPage(
+                            status="fetch_failed",
+                            title="",
+                            description="",
+                            notes=("fetch_failed:ContentTooLarge",),
+                        )
+                except ValueError:
+                    # Ignore malformed Content-Length and continue with bounded read.
+                    pass
             charset = response.headers.get_content_charset() or "utf-8"
-            html_text = response.read().decode(charset, errors="replace")
+            content = response.read(_MAX_FETCH_BYTES + 1)
+            if len(content) > _MAX_FETCH_BYTES:
+                return FetchedPage(
+                    status="fetch_failed",
+                    title="",
+                    description="",
+                    notes=("fetch_failed:ResponseTooLarge",),
+                )
+            html_text = content.decode(charset, errors="replace")
     except Exception as exc:  # noqa: BLE001
         return FetchedPage(
             status="fetch_failed",
@@ -441,7 +482,6 @@ def _fetch_job_page_metadata(url: str) -> FetchedPage:
             description="",
             notes=(f"fetch_failed:{exc.__class__.__name__}",),
         )
-
     parser = _MetadataParser()
     parser.feed(html_text)
     parser.close()

@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import io
 import json
 import os
 import subprocess
 import sys
+from http.client import HTTPMessage
 from pathlib import Path
+from urllib.request import Request
 
 import pytest
 
+from scripts import jd_ingest
 from scripts.build_resume import load_experiences, load_profile
 from scripts.jd_ingest import FetchedPage, ingest_job_context
 
@@ -396,3 +400,56 @@ def test_ingest_job_context_truncates_fetched_description_excerpt() -> None:
 
     assert len(context.description_excerpt) == 500
     assert context.description_excerpt == long_description[:500]
+
+
+def test_redirect_handler_rejects_localhost_redirect_target() -> None:
+    handler = jd_ingest._ValidatingRedirectHandler()
+    request = Request("https://example.com/jobs/123")
+    with pytest.raises(ValueError, match="localhost"):
+        handler.redirect_request(
+            request,
+            fp=io.BytesIO(b""),
+            code=302,
+            msg="Found",
+            headers=HTTPMessage(),
+            newurl="http://localhost/internal",
+        )
+
+
+def test_fetch_job_page_metadata_limits_response_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RESUME_BUILDER_JOB_PAGE_FIXTURE", raising=False)
+
+    class _FakeHeaders:
+        def get_content_charset(self) -> str:
+            return "utf-8"
+
+        def get(self, key: str, default: str | None = None) -> str | None:
+            return default
+
+    class _FakeResponse:
+        headers = _FakeHeaders()
+
+        def __enter__(self) -> _FakeResponse:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        def geturl(self) -> str:
+            return "https://example.com/jobs/123"
+
+        def read(self, limit: int = -1) -> bytes:
+            assert limit == jd_ingest._MAX_FETCH_BYTES + 1
+            return b"x" * (jd_ingest._MAX_FETCH_BYTES + 1)
+
+    class _FakeOpener:
+        def open(self, req: object, timeout: int = 0) -> _FakeResponse:
+            assert timeout == 8
+            return _FakeResponse()
+
+    monkeypatch.setattr(jd_ingest, "build_opener", lambda *args: _FakeOpener())
+    fetched = jd_ingest._fetch_job_page_metadata("https://example.com/jobs/123")
+    assert fetched.status == "fetch_failed"
+    assert fetched.notes == ("fetch_failed:ResponseTooLarge",)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -20,6 +21,10 @@ LINKEDIN_JOB_URL = (
 SCHWAB_JOB_URL = (
     "https://www.schwabjobs.com/job/austin/"
     "sr-sdet-workplace-services-engineering/33727/92422911552"
+)
+SCHWAB_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "job_pages" / "schwab_sr_sdet.html"
+LINKEDIN_FIXTURE = (
+    REPO_ROOT / "tests" / "fixtures" / "job_pages" / "linkedin_sdet_search_results.html"
 )
 
 
@@ -117,7 +122,15 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
 def test_build_resume_cli_accepts_job_url_and_generates_job_context(
     tmp_path: Path,
 ) -> None:
+    """Use the saved Schwab page fixture so the test is fully offline/deterministic.
+
+    The fixture was captured from:
+      https://www.schwabjobs.com/job/austin/sr-sdet-workplace-services-engineering/33727/92422911552
+    and contains the real metadata served by schwabjobs.com.
+    """
     output_dir = tmp_path / "from_job_url"
+    env = os.environ.copy()
+    env["RESUME_BUILDER_JOB_PAGE_FIXTURE"] = str(SCHWAB_FIXTURE)
     result = subprocess.run(
         [
             sys.executable,
@@ -125,27 +138,31 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
             "--output-dir",
             str(output_dir),
             "--job-url",
-            LINKEDIN_JOB_URL,
+            SCHWAB_JOB_URL,
         ],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        timeout=20,
+        env=env,
         check=False,
     )
 
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
 
     html_text = (output_dir / "resume_baseline.html").read_text(encoding="utf-8")
     snapshot = json.loads(
         (output_dir / "resume_ir_snapshot.json").read_text(encoding="utf-8")
     )
 
-    assert '<p class="headline">SDET</p>' in html_text
-    assert "Target role: SDET" in html_text
-    assert snapshot["target_role"] == "SDET"
-    assert snapshot["job_context"]["source"] == "linkedin"
-    assert snapshot["job_context"]["job_id"] == "4380299765"
-    assert snapshot["job_context"]["input_url"] == LINKEDIN_JOB_URL
+    assert '<p class="headline">Sr. SDET</p>' in html_text
+    assert "Target role: Sr. SDET" in html_text
+    assert snapshot["target_role"] == "Sr. SDET"
+    assert snapshot["target_company"] == "Charles Schwab"
+    assert snapshot["job_context"]["source"] == "company-site"
+    assert snapshot["job_context"]["job_id"] == "92422911552"
+    assert snapshot["job_context"]["input_url"] == SCHWAB_JOB_URL
+    assert snapshot["job_context"]["fetch_status"] == "fetched"
 
 
 def test_build_resume_cli_accepts_job_text_file(tmp_path: Path) -> None:

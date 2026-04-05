@@ -369,3 +369,30 @@ def test_ingest_job_context_extracts_role_and_id_from_company_site_path() -> Non
 def test_ingest_job_context_rejects_unsupported_url_scheme() -> None:
     with pytest.raises(ValueError, match="http or https"):
         ingest_job_context("file:///tmp/job.html")
+
+
+def test_ingest_job_context_rejects_localhost_target() -> None:
+    with pytest.raises(ValueError, match="localhost"):
+        ingest_job_context("http://localhost/jobs/123")
+
+
+def test_ingest_job_context_rejects_private_ip_target() -> None:
+    with pytest.raises(ValueError, match="non-public IP"):
+        ingest_job_context("https://10.0.0.5/jobs/123")
+
+
+def test_ingest_job_context_truncates_fetched_description_excerpt() -> None:
+    long_description = "x" * 900
+
+    def fake_fetcher(_: str) -> FetchedPage:
+        return FetchedPage(
+            status="fetched",
+            title="Senior SDET - Contoso - Austin, Texas | LinkedIn",
+            description=long_description,
+            notes=(),
+        )
+
+    context = ingest_job_context(SCHWAB_JOB_URL, fetcher=fake_fetcher)
+
+    assert len(context.description_excerpt) == 500
+    assert context.description_excerpt == long_description[:500]

@@ -11,6 +11,7 @@ Future phases can replace or augment this with richer provider adapters.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import re
 from collections.abc import Callable
@@ -28,6 +29,7 @@ else:
     from scripts._runtime_guard import assert_not_blocked_runtime_input
 
 _JOB_PAGE_FIXTURE_ENV = "RESUME_BUILDER_JOB_PAGE_FIXTURE"
+_MAX_DESCRIPTION_EXCERPT = 500
 
 
 @dataclass(frozen=True)
@@ -164,7 +166,7 @@ def ingest_job_context(
         job_id=job_id,
         fetch_status=fetched.status,
         page_title=fetched.title,
-        description_excerpt=fetched.description,
+        description_excerpt=_truncate_excerpt(fetched.description),
         notes=fetched.notes,
         company_research=research,
     )
@@ -187,7 +189,7 @@ def ingest_job_text(job_text: str, source_hint: str = "job-text-file") -> JobCon
         job_id="",
         fetch_status="provided_text",
         page_title="",
-        description_excerpt=text[:500],
+        description_excerpt=_truncate_excerpt(text),
         notes=(),
         company_research=research,
     )
@@ -214,6 +216,32 @@ def _validate_job_url(url: str) -> None:
         raise ValueError("job URL must use http or https scheme")
     if not parsed.netloc.strip():
         raise ValueError("job URL must include a hostname")
+    hostname = (parsed.hostname or "").strip().lower()
+    if not hostname:
+        raise ValueError("job URL must include a hostname")
+    if hostname == "localhost" or hostname.endswith(".localhost"):
+        raise ValueError("job URL host cannot target localhost")
+
+    host_for_ip_check = hostname.strip("[]")
+    try:
+        ip = ipaddress.ip_address(host_for_ip_check)
+    except ValueError:
+        return
+
+    # Block non-public address classes to reduce SSRF blast radius.
+    if (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    ):
+        raise ValueError("job URL host cannot target non-public IP ranges")
+
+
+def _truncate_excerpt(text: str, *, limit: int = _MAX_DESCRIPTION_EXCERPT) -> str:
+    return text[:limit]
 
 
 def _infer_source(netloc: str) -> str:

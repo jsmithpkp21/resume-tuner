@@ -259,7 +259,37 @@ Example pattern:
 
 ---
 
-# 10. Output Formats
+---
+# 10. Final Pass Rules (Post-Selection Polish)
+Final pass rules run **after** content selection and layout are complete, operating on the assembled resume as a whole. They must never be applied per-bullet or per-section in isolation — context across the full document is required.
+### 10.1 Action Word Diversity Rule
+Resume bullets must not overuse the same action verb (or any of its forms: tense, plural, gerund, or synonyms) across the document.
+**Definitions**
+- **Action word**: the first word of a bullet, which must be a strong past-tense verb (e.g., *Designed*, *Reduced*, *Led*).
+- **Overuse**: any action word (including all inflected forms and close synonyms) appearing more than **twice** across all bullets in the final assembled resume.
+- **Synonym group examples**:
+  - Built / Developed / Created / Designed → same bucket
+  - Managed / Led / Directed / Oversaw → same bucket
+  - Improved / Enhanced / Optimized → same bucket
+  - Implemented / Deployed / Rolled out → same bucket
+**Rules**
+1. Count each action word root (not surface form) across all bullets in the resume.
+2. If a root appears 3+ times, replace the excess occurrences with varied alternatives from the bullet's impact type (e.g., swap a third "Designed" with "Architected" or "Established").
+3. Replacements must be factually accurate and contextually appropriate.
+4. Never invent new achievements to achieve variety.
+5. Prefer replacing lower-relevance or lower-impact bullets' verbs before touching higher-relevance ones.
+6. Document replaced verbs in the decision report (future extension).
+**What counts as overuse**
+| Surface form | Root | Counts as |
+|---|---|---|
+| Built, Builds, Building | build | 1 root |
+| Designed, Design | design | 1 root |
+| Managed, Managing, Manager | manage | 1 root |
+| Led, Leading, Lead | lead | 1 root |
+**Threshold**: ≤ 2 uses of the same root per full resume.
+**Scope**: applies to all bullets across all experience entries in the final assembled output, including any summary lines that begin with an action word.
+---
+# 11. Output Formats
 
 The résumé builder must support:
 
@@ -277,7 +307,7 @@ The template engine handles:
 
 ---
 
-# 11. End-to-End Workflow
+# 12. End-to-End Workflow
 
 ```
 data/skills/skills_matrix.csv           -> pytest validation
@@ -305,6 +335,10 @@ job description                          -> relevance scoring
     - formats sections
     - enforces 2-page limit
 
+-> final pass:
+    - action word diversity check (root deduplication across all bullets)
+    - replace excess verb repetition with contextually appropriate alternatives
+
 -> output generator:
     - PDF
     - DOCX
@@ -327,7 +361,7 @@ job description                          -> relevance scoring
 
 ---
 
-# 12. Guiding Principles
+# 13. Guiding Principles
 
 1. **Relevance over completeness**
 2. **Space‑bounded, not count‑bounded**
@@ -338,11 +372,12 @@ job description                          -> relevance scoring
 7. **Two pages maximum**
 8. **Minimal manual intervention**
 9. **CSV remains the canonical source**
-10. **Output may rename or merge as needed**
+10. **No action word appears more than twice (root-level deduplication)**
+11. **Output may rename or merge as needed**
 
 ---
 
-# 13. Future Extensions
+# 14. Future Extensions
 
 - Cover letter generation
 - LinkedIn profile generation

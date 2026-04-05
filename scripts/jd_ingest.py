@@ -17,9 +17,8 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from html.parser import HTMLParser
-from http.client import HTTPMessage
 from pathlib import Path
-from typing import IO
+from typing import Any
 from urllib.parse import parse_qs, urlparse, urlunparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
@@ -41,10 +40,10 @@ class _ValidatingRedirectHandler(HTTPRedirectHandler):
     def redirect_request(
         self,
         req: Request,
-        fp: IO[bytes],
+        fp: Any,
         code: int,
         msg: str,
-        headers: HTTPMessage,
+        headers: Any,
         newurl: str,
     ) -> Request | None:
         _validate_job_url(_normalize_url(newurl))

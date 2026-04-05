@@ -768,18 +768,20 @@ def run_pipeline(args: argparse.Namespace) -> int:
     profile = load_profile(args.profile)
     experiences = load_experiences(args.experience_db)
     skills_by_category = load_skills_by_category(args.skills_matrix)
-    has_job_url = args.job_url.strip() != ""
-    has_job_text_file = args.job_text_file is not None
+    job_url = args.job_url.strip()
+    job_text_file = args.job_text_file
+    has_job_url = job_url != ""
+    has_job_text_file = job_text_file is not None
     if has_job_url and has_job_text_file:
         raise ValueError("Provide only one of --job-url or --job-text-file")
 
     job_context: JobContext | None = None
-    if has_job_text_file:
-        assert_not_blocked_runtime_input(args.job_text_file)
-        job_text = args.job_text_file.read_text(encoding="utf-8")
+    if job_text_file is not None:
+        assert_not_blocked_runtime_input(job_text_file)
+        job_text = job_text_file.read_text(encoding="utf-8")
         job_context = ingest_job_text(job_text, source_hint="job-text-file")
     elif has_job_url:
-        job_context = ingest_job_context(args.job_url)
+        job_context = ingest_job_context(job_url)
 
     resolved_target_role = args.target_role.strip()
     if not resolved_target_role and job_context is not None:

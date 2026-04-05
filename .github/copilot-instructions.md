@@ -52,9 +52,6 @@ pytest -q tests/scripts/test_consumer_contract.py
 
 - When reviewing a PR whose branch starts with `copilot/`, the changes were authored by GitHub Copilot's SWE agent. Post review comments directed at `@copilot` so the agent receives and acts on the feedback.
 - When you (the agent) authored the changes yourself, implement fixes directly in the branch without @copilot direction. The rule of thumb: if `git log` shows your own commit, fix it; if the branch starts with `copilot/`, comment at @copilot.
-- For every review thread (including resolved/outdated), post a short status update when work is done so audit history is explicit.
-- If a review item is deferred or needs clarification, add a PR-thread comment stating why, open a follow-up issue, and include the issue link in that thread.
-- If a deferred item is picked up later, add a follow-up thread comment linking both the issue and the fixing PR/commit.
 
 ## Files to Read Before Editing Core Logic
 

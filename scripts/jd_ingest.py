@@ -235,13 +235,14 @@ def _validate_job_url(url: str) -> None:
         raise ValueError("job URL must use http or https scheme")
     if not parsed.netloc.strip():
         raise ValueError("job URL must include a hostname")
-    hostname = (parsed.hostname or "").strip().lower()
+    hostname = (parsed.hostname or "").strip().lower().rstrip(".")
     if not hostname:
         raise ValueError("job URL must include a hostname")
     if hostname == "localhost" or hostname.endswith(".localhost"):
         raise ValueError("job URL host cannot target localhost")
 
-    host_for_ip_check = hostname.strip("[]")
+    # Strip IPv6 brackets and zone identifiers (e.g. fe80::1%eth0) before parsing.
+    host_for_ip_check = hostname.strip("[]").split("%", maxsplit=1)[0]
     try:
         ip = ipaddress.ip_address(host_for_ip_check)
     except ValueError:
@@ -264,10 +265,10 @@ def _truncate_excerpt(text: str, *, limit: int = _MAX_DESCRIPTION_EXCERPT) -> st
 
 
 def _infer_source(netloc: str) -> str:
-    host = netloc.lower()
-    if "linkedin.com" in host:
+    host = netloc.lower().split(":", maxsplit=1)[0]  # strip optional port
+    if host == "linkedin.com" or host.endswith(".linkedin.com"):
         return "linkedin"
-    if "indeed.com" in host:
+    if host == "indeed.com" or host.endswith(".indeed.com"):
         return "indeed"
     if host:
         return "company-site"

@@ -190,12 +190,19 @@ def load_profile(path: Path) -> Profile:
 
 
 def _normalize_linkedin_slug(value: str) -> str:
-    """Accept slug or URL-like input, then keep only the LinkedIn /in/ slug."""
+    """Accept slug or URL-like input, then keep only the LinkedIn /in/ slug.
+
+    Returns an empty string for non-/in/ LinkedIn URLs (e.g. /company/) to
+    avoid producing bogus profile links.
+    """
     cleaned = value.strip().replace("http://", "").replace("https://", "")
     cleaned = cleaned.replace("www.", "")
     cleaned = cleaned.split("?", maxsplit=1)[0].split("#", maxsplit=1)[0]
-    if cleaned.startswith("linkedin.com/in/"):
-        cleaned = cleaned[len("linkedin.com/in/") :]
+    if cleaned.startswith("linkedin.com/"):
+        remainder = cleaned[len("linkedin.com/") :]
+        if not remainder.startswith("in/"):
+            return ""
+        cleaned = remainder[len("in/") :]
     elif cleaned.startswith("in/"):
         cleaned = cleaned[len("in/") :]
     cleaned = cleaned.strip().strip("/")
@@ -203,12 +210,20 @@ def _normalize_linkedin_slug(value: str) -> str:
 
 
 def _normalize_github_username(value: str) -> str:
-    """Accept username or URL-like input, then keep only the GitHub username."""
+    """Accept username or URL-like input, then keep only the GitHub username.
+
+    Returns an empty string for GitHub-adjacent hosts (e.g. gist.github.com)
+    that do not map to a user profile URL.
+    """
     cleaned = value.strip().replace("http://", "").replace("https://", "")
-    cleaned = cleaned.replace("www.", "")
     cleaned = cleaned.split("?", maxsplit=1)[0].split("#", maxsplit=1)[0]
-    if cleaned.startswith("github.com/"):
+    if cleaned.startswith("www.github.com/"):
+        cleaned = cleaned[len("www.github.com/") :]
+    elif cleaned.startswith("github.com/"):
         cleaned = cleaned[len("github.com/") :]
+    elif "github.com" in cleaned:
+        # Adjacent host (e.g. gist.github.com) – reject to avoid malformed link.
+        return ""
     if cleaned.startswith("@"):
         cleaned = cleaned[1:]
     cleaned = cleaned.strip().strip("/")

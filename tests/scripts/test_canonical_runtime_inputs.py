@@ -66,8 +66,12 @@ def test_read_experiences_accepts_canonical_path() -> None:
     assert isinstance(experiences, list)
 
 
-def test_canonical_inputs_no_samples_dependency() -> None:
-    """Runtime validates without data/samples/ directory."""
+def test_loaders_accept_arbitrary_non_blocked_temp_paths() -> None:
+    """Loaders accept valid temp paths that are outside blocked roots.
+
+    This verifies #20 uses a blocklist policy (`sandbox/`, `data/samples/`) rather
+    than a strict allowlist tied only to repo canonical files.
+    """
     # Create a minimal temp canonical structure
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_root = Path(tmpdir)
@@ -89,33 +93,21 @@ def test_canonical_inputs_no_samples_dependency() -> None:
         skills = load_skills_matrix(skills_csv)
         assert "Python" in skills
 
-        # Verify data/samples dir is NOT accessed
-        assert not (tmp_root / "samples").exists()
+
+def test_sandbox_directory_is_rejected_by_guard() -> None:
+    """Guard rejects direct runtime reads rooted in sandbox/."""
+    blocked_path = SANDBOX_DIR / "skills_matrix.csv"
+
+    with pytest.raises(ValueError, match="blocked runtime directory"):
+        load_skills_matrix(blocked_path)
 
 
-def test_sandbox_directory_is_not_runtime_canonical() -> None:
-    """Sanity check: sandbox/ is distinct from canonical data roots."""
-    # This test documents that sandbox/ should not be a runtime input source.
-    # No runtime code should attempt to load from SANDBOX_DIR.
-    # TODO: After #20 implementation, add positive test asserting
-    #       that runtime code explicitly rejects SANDBOX_DIR paths.
+def test_samples_directory_is_rejected_by_guard() -> None:
+    """Guard rejects direct runtime reads rooted in data/samples/."""
+    blocked_path = SAMPLES_DIR / "skills_matrix.csv"
 
-    # For now, verify the directory exists and is distinct
-    if SANDBOX_DIR.exists():
-        assert SANDBOX_DIR != REPO_ROOT / "data" / "experience"
-        assert SANDBOX_DIR != REPO_ROOT / "data" / "skills"
-
-
-def test_samples_directory_is_not_runtime_canonical() -> None:
-    """Sanity check: data/samples/ is distinct from canonical data roots."""
-    # This test documents that data/samples/ should not be a runtime input source.
-    # No runtime code should attempt to load from SAMPLES_DIR.
-    # TODO: After #20 implementation, add positive test asserting
-    #       that runtime code explicitly rejects SAMPLES_DIR paths.
-
-    # For now, verify the directory is distinct
-    assert SAMPLES_DIR != REPO_ROOT / "data" / "experience"
-    assert SAMPLES_DIR != REPO_ROOT / "data" / "skills"
+    with pytest.raises(ValueError, match="blocked runtime directory"):
+        load_skills_matrix(blocked_path)
 
 
 def test_path_traversal_attempt_rejected() -> None:

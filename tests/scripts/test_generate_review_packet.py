@@ -49,24 +49,6 @@ def test_generate_review_packet_outputs_artifacts(tmp_path: Path) -> None:
     assert all("review_item_id" in row for row in rows)
 
 
-def test_generate_review_packet_accepts_canonical_defaults() -> None:
-    """Runtime accepts canonical data paths as defaults."""
-    canonical_worksheet = (
-        REPO_ROOT / "data" / "experience" / "experience_reconciliation_worksheet.csv"
-    )
-    canonical_exp_db = REPO_ROOT / "data" / "experience" / "experience_db.toml"
-    canonical_skills = REPO_ROOT / "data" / "skills" / "skills_matrix.csv"
-
-    # Sanity check: defaults point to canonical locations
-    # (actual script uses these as defaults)
-    if canonical_worksheet.exists():
-        assert canonical_worksheet.parent.name == "experience"
-    if canonical_exp_db.exists():
-        assert canonical_exp_db.parent.name == "experience"
-    if canonical_skills.exists():
-        assert canonical_skills.parent.name == "skills"
-
-
 def test_read_csv_rows_with_canonical_path(tmp_path: Path) -> None:
     """read_csv_rows works with canonical data CSV."""
     csv_file = tmp_path / "test.csv"

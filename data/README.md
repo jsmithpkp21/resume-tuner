@@ -32,6 +32,6 @@ This directory contains the canonical starter inputs that the AI pipeline reads.
 ## Baseline output command
 
 ```bash
-source ~/envs/resume-builder-env/bin/activate
+make active
 python scripts/build_resume.py
 ```

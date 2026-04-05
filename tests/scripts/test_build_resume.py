@@ -271,3 +271,8 @@ def test_ingest_job_context_extracts_role_and_id_from_company_site_path() -> Non
     assert context.job_id == "92422911552"
     assert context.role_hint == "Sr SDET Workplace Services Engineering"
     assert context.company_name == "Schwab"
+
+
+def test_ingest_job_context_rejects_unsupported_url_scheme() -> None:
+    with pytest.raises(ValueError, match="http or https"):
+        ingest_job_context("file:///tmp/job.html")

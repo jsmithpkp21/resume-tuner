@@ -12,7 +12,7 @@ Generate a full, manually editable resume from canonical data.
 ## Command
 
 ```bash
-source ~/envs/resume-builder-env/bin/activate
+make active
 python scripts/build_resume.py
 python scripts/build_resume.py --job-url "https://www.linkedin.com/jobs/search-results/?currentJobId=4380299765&keywords=SDET"
 ```

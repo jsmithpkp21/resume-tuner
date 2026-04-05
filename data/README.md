@@ -6,6 +6,7 @@ This directory contains the canonical starter inputs that the AI pipeline reads.
 
 - `skills/skills_matrix.csv`: canonical skills matrix (single source of truth)
 - `experience/experience_db.toml`: structured canonical experience database (role metadata, bullet bank, role-level related skills)
+- `profile/profile.toml`: baseline resume profile data (name/contact/summary shell)
 - `experience/experience_reconciliation_worksheet.csv`: pointer-based worksheet for one-by-one resume reconciliation (maps source rows to canonical role and bullet ids)
 - `manifests/starter_data_manifest.toml`: path contract for ingestion scripts
 - `samples/`: sanitized example resumes and cover letters used for layout/style reference during build-out (transitional, not required runtime input)
@@ -24,4 +25,12 @@ This directory contains the canonical starter inputs that the AI pipeline reads.
 ## Runtime dependency policy
 
 - Runtime generation depends on canonical data (`skills_matrix.csv` and `experience_db.toml`), not on sample resumes.
+- Baseline output generation additionally reads `profile/profile.toml` for presentation metadata.
 - `experience_reconciliation_worksheet.csv` is retained for audit/provenance and coverage tracking.
+
+## Baseline output command
+
+```bash
+source ~/envs/resume-builder-env/bin/activate
+python scripts/build_resume.py
+```

@@ -17,6 +17,8 @@ def test_load_profile_reads_profile_table() -> None:
     profile = load_profile(PROFILE)
     assert profile.name
     assert profile.summary
+    assert profile.education_entries
+    assert profile.leadership_community_entries
 
 
 def test_load_profile_rejects_blocked_path() -> None:
@@ -53,6 +55,12 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert snapshot_path.exists()
 
     html_text = html_path.read_text(encoding="utf-8")
+    md_text = md_path.read_text(encoding="utf-8")
+
     assert "Jonathan Smith" in html_text
-    assert "Staff Software Engineer" in html_text
+    assert '<p class="headline">Staff Software Engineer</p>' in html_text
     assert "Architect, Python Test Framework (Video)" in html_text
+    assert "<h2>Education</h2>" in html_text
+    assert "<h2>Leadership &amp; Community</h2>" in html_text
+    assert "## Education" in md_text
+    assert "## Leadership & Community" in md_text

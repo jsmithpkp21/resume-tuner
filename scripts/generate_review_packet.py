@@ -19,6 +19,20 @@ APPROX_QUANTIFIER_RE = re.compile(
     re.IGNORECASE,
 )
 
+# ---------------------------------------------------------------------------
+# Runtime blocked-input guard (#20) — shared implementation
+# ---------------------------------------------------------------------------
+# Use local import when run as `python scripts/generate_review_packet.py`,
+# and package import when loaded as `scripts.generate_review_packet`.
+if __package__ in {None, ""}:
+    from _runtime_guard import (
+        assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
+    )
+else:
+    from scripts._runtime_guard import (
+        assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
+    )
+
 
 @dataclass
 class Finding:
@@ -69,6 +83,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def read_csv_rows(path: Path) -> list[dict[str, str]]:
+    _assert_not_blocked_runtime_input(path)
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         return list(reader)
@@ -84,6 +99,7 @@ def read_skills(path: Path) -> set[str]:
 
 
 def read_experiences(path: Path) -> list[dict[str, Any]]:
+    _assert_not_blocked_runtime_input(path)
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     experiences = data.get("experience", [])
     if not isinstance(experiences, list):
@@ -92,6 +108,7 @@ def read_experiences(path: Path) -> list[dict[str, Any]]:
 
 
 def ensure_notes_store(path: Path) -> None:
+    _assert_not_blocked_runtime_input(path)
     if path.exists():
         return
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -112,6 +129,8 @@ def ensure_notes_store(path: Path) -> None:
 
 
 def read_notes(path: Path) -> dict[str, dict[str, str]]:
+    # Guard before any filesystem side effects (mkdir/write in ensure_notes_store).
+    _assert_not_blocked_runtime_input(path)
     ensure_notes_store(path)
     notes_by_id: dict[str, dict[str, str]] = {}
     for row in read_csv_rows(path):

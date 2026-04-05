@@ -11,12 +11,16 @@ Future phases can replace or augment this with richer provider adapters.
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from html.parser import HTMLParser
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse, urlunparse
 from urllib.request import Request, urlopen
+
+_JOB_PAGE_FIXTURE_ENV = "RESUME_BUILDER_JOB_PAGE_FIXTURE"
 
 
 @dataclass(frozen=True)
@@ -119,6 +123,7 @@ def ingest_job_context(
     fetcher: Callable[[str], FetchedPage] | None = None,
 ) -> JobContext:
     normalized_url = _normalize_url(job_url)
+    _validate_job_url(normalized_url)
     parsed = urlparse(normalized_url)
     source = _infer_source(parsed.netloc)
     query = parse_qs(parsed.query)
@@ -193,6 +198,15 @@ def _normalize_url(value: str) -> str:
             "",
         )
     )
+
+
+def _validate_job_url(url: str) -> None:
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"}:
+        raise ValueError("job URL must use http or https scheme")
+    if not parsed.netloc.strip():
+        raise ValueError("job URL must include a hostname")
 
 
 def _infer_source(netloc: str) -> str:
@@ -368,6 +382,10 @@ def _extract_company_from_text_blob(text: str) -> str:
 
 
 def _fetch_job_page_metadata(url: str) -> FetchedPage:
+    fixture_path = os.getenv(_JOB_PAGE_FIXTURE_ENV, "").strip()
+    if fixture_path:
+        return _fetch_job_page_metadata_from_fixture(Path(fixture_path))
+
     request = Request(
         url,
         headers={
@@ -397,6 +415,28 @@ def _fetch_job_page_metadata(url: str) -> FetchedPage:
         title=parser.title,
         description=parser.description,
         notes=(),
+    )
+
+
+def _fetch_job_page_metadata_from_fixture(path: Path) -> FetchedPage:
+    try:
+        html_text = path.read_text(encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001
+        return FetchedPage(
+            status="fetch_failed",
+            title="",
+            description="",
+            notes=(f"fixture_read_failed:{exc.__class__.__name__}",),
+        )
+
+    parser = _MetadataParser()
+    parser.feed(html_text)
+    parser.close()
+    return FetchedPage(
+        status="fetched",
+        title=parser.title,
+        description=parser.description,
+        notes=(f"fixture:{path.name}",),
     )
 
 

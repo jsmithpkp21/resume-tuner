@@ -13,6 +13,7 @@ import argparse
 import csv
 import html
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -336,7 +337,7 @@ def _html_escape(value: str) -> str:
     return html.escape(value, quote=True)
 
 
-def _render_contact(profile: Profile) -> str:
+def _render_contact_html(profile: Profile) -> str:
     items = [
         profile.location,
         profile.email,
@@ -349,8 +350,20 @@ def _render_contact(profile: Profile) -> str:
     return " | ".join(_html_escape(item) for item in filtered)
 
 
+def _render_contact_markdown(profile: Profile) -> str:
+    items = [
+        profile.location,
+        profile.email,
+        profile.phone,
+        profile.website,
+        _build_linkedin_url(profile.linkedin),
+        _build_github_url(profile.github),
+    ]
+    return " | ".join(item for item in items if item.strip())
+
+
 def render_html(resume: ResumeIR, output_path: Path) -> None:
-    contact_line = _render_contact(resume.profile)
+    contact_line = _render_contact_html(resume.profile)
     target_role_line = (
         f'<p class="target-role">Target role: {_html_escape(resume.target_role)}</p>'
         if resume.target_role.strip()
@@ -507,7 +520,7 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
         "",
         resume.display_headline,
         "",
-        _render_contact(resume.profile),
+        _render_contact_markdown(resume.profile),
         "",
     ]
 
@@ -679,7 +692,7 @@ def main() -> int:
     try:
         return run_pipeline(args)
     except Exception as exc:  # noqa: BLE001
-        print(f"ERROR: {exc}")
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
 

@@ -24,7 +24,7 @@ See `docs/REFERENCE/DATA_LAYOUT.md` for the full layout contract.
 Generate a full editable baseline resume from canonical data:
 
 ```bash
-source ~/envs/resume-builder-env/bin/activate
+make active
 python scripts/build_resume.py
 ```
 

@@ -20,7 +20,7 @@ APPROX_QUANTIFIER_RE = re.compile(
 )
 
 # ---------------------------------------------------------------------------
-# Canonical input guard (#20)
+# Runtime blocked-input guard (#20)
 # ---------------------------------------------------------------------------
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _BLOCKED_RUNTIME_ROOTS: frozenset[Path] = frozenset(
@@ -31,15 +31,11 @@ _BLOCKED_RUNTIME_ROOTS: frozenset[Path] = frozenset(
 )
 
 
-def _assert_canonical_input(path: Path) -> None:
+def _assert_not_blocked_runtime_input(path: Path) -> None:
     """Raise ValueError if *path* resolves into a blocked runtime directory.
 
-    Resolves symlinks and ``..`` traversal before checking so that crafted
-    relative paths cannot bypass the guard.
-
-    Blocked roots (issue #20):
-      - ``sandbox/``
-      - ``data/samples/``
+    This is a blocklist guard (not a strict allowlist): runtime inputs are
+    rejected only when they resolve into blocked roots.
     """
     resolved = path.resolve()
     for blocked in _BLOCKED_RUNTIME_ROOTS:
@@ -102,7 +98,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def read_csv_rows(path: Path) -> list[dict[str, str]]:
-    _assert_canonical_input(path)
+    _assert_not_blocked_runtime_input(path)
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         return list(reader)
@@ -118,7 +114,7 @@ def read_skills(path: Path) -> set[str]:
 
 
 def read_experiences(path: Path) -> list[dict[str, Any]]:
-    _assert_canonical_input(path)
+    _assert_not_blocked_runtime_input(path)
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     experiences = data.get("experience", [])
     if not isinstance(experiences, list):
@@ -127,6 +123,7 @@ def read_experiences(path: Path) -> list[dict[str, Any]]:
 
 
 def ensure_notes_store(path: Path) -> None:
+    _assert_not_blocked_runtime_input(path)
     if path.exists():
         return
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -147,6 +144,8 @@ def ensure_notes_store(path: Path) -> None:
 
 
 def read_notes(path: Path) -> dict[str, dict[str, str]]:
+    # Guard before any filesystem side effects (mkdir/write in ensure_notes_store).
+    _assert_not_blocked_runtime_input(path)
     ensure_notes_store(path)
     notes_by_id: dict[str, dict[str, str]] = {}
     for row in read_csv_rows(path):

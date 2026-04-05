@@ -17,7 +17,7 @@ except ImportError:
     import tomli as tomllib  # type: ignore[no-redef]
 
 # ---------------------------------------------------------------------------
-# Canonical input guard (#20)
+# Runtime blocked-input guard (#20)
 # ---------------------------------------------------------------------------
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _BLOCKED_RUNTIME_ROOTS: frozenset[Path] = frozenset(
@@ -28,15 +28,11 @@ _BLOCKED_RUNTIME_ROOTS: frozenset[Path] = frozenset(
 )
 
 
-def _assert_canonical_input(path: Path) -> None:
+def _assert_not_blocked_runtime_input(path: Path) -> None:
     """Raise ValueError if *path* resolves into a blocked runtime directory.
 
-    Resolves symlinks and ``..`` traversal before checking so that crafted
-    relative paths cannot bypass the guard.
-
-    Blocked roots (issue #20):
-      - ``sandbox/``
-      - ``data/samples/``
+    This is a blocklist guard (not a strict allowlist): runtime inputs are
+    rejected only when they resolve into blocked roots.
     """
     resolved = path.resolve()
     for blocked in _BLOCKED_RUNTIME_ROOTS:
@@ -52,14 +48,14 @@ def _assert_canonical_input(path: Path) -> None:
 
 def load_experience_db(toml_path: Path) -> dict[str, Any]:
     """Load experience database from TOML file."""
-    _assert_canonical_input(toml_path)
+    _assert_not_blocked_runtime_input(toml_path)
     with open(toml_path, "rb") as f:
         return tomllib.load(f)
 
 
 def load_skills_matrix(csv_path: Path) -> set[str]:
     """Load skills matrix from CSV file."""
-    _assert_canonical_input(csv_path)
+    _assert_not_blocked_runtime_input(csv_path)
     skills: set[str] = set()
     with csv_path.open(encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)

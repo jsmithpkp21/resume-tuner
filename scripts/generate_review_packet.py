@@ -22,17 +22,16 @@ APPROX_QUANTIFIER_RE = re.compile(
 # ---------------------------------------------------------------------------
 # Runtime blocked-input guard (#20) — shared implementation
 # ---------------------------------------------------------------------------
-# Ensure the project root is on sys.path so `scripts._runtime_guard` is
-# importable both when run as a script and when imported as a module.
-import sys as _sys  # noqa: E402
-
-_guard_root = str(Path(__file__).resolve().parent.parent)
-if _guard_root not in _sys.path:
-    _sys.path.insert(0, _guard_root)
-del _guard_root, _sys
-from scripts._runtime_guard import (  # noqa: E402
-    assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
-)
+# Use local import when run as `python scripts/generate_review_packet.py`,
+# and package import when loaded as `scripts.generate_review_packet`.
+if __package__ in {None, ""}:
+    from _runtime_guard import (
+        assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
+    )
+else:
+    from scripts._runtime_guard import (
+        assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
+    )
 
 
 @dataclass

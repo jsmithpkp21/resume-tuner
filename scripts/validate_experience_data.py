@@ -19,16 +19,16 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Runtime blocked-input guard (#20) — shared implementation
 # ---------------------------------------------------------------------------
-# Ensure the project root is on sys.path so `scripts._runtime_guard` is
-# importable both when run as a script (Python prepends the script dir,
-# not the project root) and when imported as a module by pytest.
-_guard_root = str(Path(__file__).resolve().parent.parent)
-if _guard_root not in sys.path:
-    sys.path.insert(0, _guard_root)
-del _guard_root
-from scripts._runtime_guard import (  # noqa: E402
-    assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
-)
+# Use local import when run as `python scripts/validate_experience_data.py`,
+# and package import when loaded as `scripts.validate_experience_data`.
+if __package__ in {None, ""}:
+    from _runtime_guard import (
+        assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
+    )
+else:
+    from scripts._runtime_guard import (
+        assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
+    )
 
 
 def load_experience_db(toml_path: Path) -> dict[str, Any]:

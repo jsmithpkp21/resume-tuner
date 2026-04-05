@@ -453,3 +453,93 @@ def test_fetch_job_page_metadata_limits_response_body(
     fetched = jd_ingest._fetch_job_page_metadata("https://example.com/jobs/123")
     assert fetched.status == "fetch_failed"
     assert fetched.notes == ("fetch_failed:ResponseTooLarge",)
+
+
+def test_ingest_job_context_rejects_localhost_with_trailing_dot() -> None:
+    with pytest.raises(ValueError, match="localhost"):
+        ingest_job_context("http://localhost./jobs/123")
+
+
+def test_ingest_job_context_rejects_link_local_ipv6_zone_id() -> None:
+    with pytest.raises(ValueError, match="non-public IP"):
+        ingest_job_context("http://[fe80::1%25eth0]/jobs/123")
+
+
+def test_infer_source_rejects_linkedin_lookalike_domain() -> None:
+    from scripts.jd_ingest import _infer_source
+
+    assert _infer_source("linkedin.com.evil.com") == "company-site"
+
+
+def test_infer_source_accepts_linkedin_subdomain() -> None:
+    from scripts.jd_ingest import _infer_source
+
+    assert _infer_source("www.linkedin.com") == "linkedin"
+
+
+def test_normalize_linkedin_slug_rejects_company_url() -> None:
+    from scripts.build_resume import _normalize_linkedin_slug
+
+    assert _normalize_linkedin_slug("https://www.linkedin.com/company/foo") == ""
+
+
+def test_normalize_linkedin_slug_accepts_in_url() -> None:
+    from scripts.build_resume import _normalize_linkedin_slug
+
+    assert (
+        _normalize_linkedin_slug(
+            "https://www.linkedin.com/in/jonathan-j-smith-automation"
+        )
+        == "jonathan-j-smith-automation"
+    )
+
+
+def test_normalize_github_username_rejects_gist_host() -> None:
+    from scripts.build_resume import _normalize_github_username
+
+    assert _normalize_github_username("https://gist.github.com/user") == ""
+
+
+def test_normalize_github_username_accepts_github_com() -> None:
+    from scripts.build_resume import _normalize_github_username
+
+    assert _normalize_github_username("https://github.com/jsmithpkp21") == "jsmithpkp21"
+
+
+def test_ingest_job_context_linkedin_login_wall_falls_back_to_keywords(
+    tmp_path: Path,
+) -> None:
+    """LinkedIn login-wall fixture: empty title/description; role from keywords param."""
+    fixture = (
+        REPO_ROOT
+        / "tests"
+        / "fixtures"
+        / "job_pages"
+        / "linkedin_sdet_search_results.html"
+    )
+    import os
+
+    env = os.environ.copy()
+    env["RESUME_BUILDER_JOB_PAGE_FIXTURE"] = str(fixture)
+    url = (
+        "https://www.linkedin.com/jobs/search-results/?"
+        "currentJobId=4380299765&keywords=SDET"
+    )
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--output-dir", str(tmp_path), "--job-url", url],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    import json as _json
+
+    snapshot = _json.loads(
+        (tmp_path / "resume_ir_snapshot.json").read_text(encoding="utf-8")
+    )
+    assert snapshot["job_context"]["source"] == "linkedin"
+    assert snapshot["job_context"]["role_hint"] == "SDET"

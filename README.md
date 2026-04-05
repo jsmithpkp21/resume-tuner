@@ -33,6 +33,7 @@ Default artifacts:
 - `data/review/outputs/baseline/resume_baseline.html`
 - `data/review/outputs/baseline/resume_baseline.md`
 - `data/review/outputs/baseline/resume_ir_snapshot.json`
+- `data/review/outputs/baseline/resume_ir_snapshot.txt`
 
 ---
 

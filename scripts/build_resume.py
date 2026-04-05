@@ -362,15 +362,30 @@ def _render_contact_html(profile: Profile) -> str:
 
 
 def _render_contact_markdown(profile: Profile) -> str:
-    items = [
-        profile.location,
-        profile.email,
-        profile.phone,
-        profile.website,
-        _build_linkedin_url(profile.linkedin),
-        _build_github_url(profile.github),
-    ]
-    return " | ".join(item for item in items if item.strip())
+    items: list[str] = []
+
+    if profile.location.strip():
+        items.append(profile.location)
+    if profile.email.strip():
+        items.append(f"[{profile.email}](mailto:{profile.email})")
+    if profile.phone.strip():
+        items.append(profile.phone)
+    if profile.website.strip():
+        website = profile.website.strip()
+        website_href = website
+        if not website.startswith(("http://", "https://")):
+            website_href = f"https://{website}"
+        items.append(f"[{website}]({website_href})")
+
+    linkedin_url = _build_linkedin_url(profile.linkedin)
+    if linkedin_url:
+        items.append(f"[{linkedin_url}](https://{linkedin_url})")
+
+    github_url = _build_github_url(profile.github)
+    if github_url:
+        items.append(f"[{github_url}](https://{github_url})")
+
+    return " | ".join(items)
 
 
 def render_html(resume: ResumeIR, output_path: Path) -> None:
@@ -508,10 +523,10 @@ def render_html(resume: ResumeIR, output_path: Path) -> None:
                 f"  {target_company_line}",
                 "  <h2>Summary</h2>",
                 f"  <p>{_html_escape(resume.profile.summary)}</p>",
-                "  <h2>Experience</h2>",
-                *experiences_html,
                 "  <h2>Skills</h2>",
                 *skills_html,
+                "  <h2>Experience</h2>",
+                *experiences_html,
                 "  <h2>Education</h2>" if education_html else "",
                 *education_html,
                 "  <h2>Leadership &amp; Community</h2>" if leadership_html else "",
@@ -540,7 +555,12 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
     if resume.target_company.strip():
         lines.extend([f"Target company: {resume.target_company}", ""])
 
-    lines.extend(["## Summary", "", resume.profile.summary, "", "## Experience", ""])
+    lines.extend(["## Summary", "", resume.profile.summary, "", "## Skills", ""])
+
+    for category, skills in resume.skills_by_category.items():
+        lines.append(f"- **{category}:** {', '.join(skills)}")
+
+    lines.extend(["", "## Experience", ""])
 
     for exp in resume.experiences:
         lines.extend(
@@ -562,10 +582,6 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
         for bullet in exp.bullets:
             lines.append(f"- {bullet.text}")
         lines.append("")
-
-    lines.extend(["## Skills", ""])
-    for category, skills in resume.skills_by_category.items():
-        lines.append(f"- **{category}:** {', '.join(skills)}")
 
     if resume.profile.education_entries:
         lines.extend(["", "## Education", ""])
@@ -641,6 +657,98 @@ def write_ir_snapshot(resume: ResumeIR, output_path: Path) -> None:
     )
 
 
+def write_text_snapshot(resume: ResumeIR, output_path: Path) -> None:
+    """Write a plain-text snapshot optimized for low-noise git diffs."""
+    lines: list[str] = [
+        f"target_role: {resume.target_role}",
+        f"target_company: {resume.target_company}",
+        f"profile.name: {resume.profile.name}",
+        f"profile.headline: {resume.profile.headline}",
+        f"profile.display_headline: {resume.display_headline}",
+        f"profile.location: {resume.profile.location}",
+        f"profile.email: {resume.profile.email}",
+        f"profile.phone: {resume.profile.phone}",
+        f"profile.website: {resume.profile.website}",
+        f"profile.linkedin: {resume.profile.linkedin}",
+        f"profile.linkedin_url: {_build_linkedin_url(resume.profile.linkedin)}",
+        f"profile.github: {resume.profile.github}",
+        f"profile.github_url: {_build_github_url(resume.profile.github)}",
+        "",
+        "summary:",
+        resume.profile.summary,
+        "",
+        "skills:",
+    ]
+
+    # Sort categories for stable diffs if CSV section ordering changes.
+    for category in sorted(resume.skills_by_category):
+        skills = resume.skills_by_category[category]
+        lines.append(f"- {category}: {', '.join(skills)}")
+
+    lines.extend(
+        [
+            "",
+            f"experience_count: {len(resume.experiences)}",
+            f"bullet_count: {sum(len(exp.bullets) for exp in resume.experiences)}",
+            "",
+            "experience:",
+        ]
+    )
+
+    for exp in resume.experiences:
+        lines.extend(
+            [
+                f"- {exp.job_title} | {exp.company}",
+                f"  date_range: {exp.start_date} - {exp.end_date}",
+                f"  role_summary: {exp.general_role_description}",
+                f"  related_skills: {', '.join(exp.related_skills)}",
+            ]
+        )
+        lines.extend(f"  * {bullet.text}" for bullet in exp.bullets)
+
+    lines.extend(["", "education:"])
+    for education_item in resume.profile.education_entries:
+        lines.extend(
+            [
+                f"- degree: {education_item.degree}",
+                f"  institution: {education_item.institution}",
+                f"  location: {education_item.location}",
+                f"  date_range: {education_item.date_range}",
+                f"  notes: {education_item.notes}",
+            ]
+        )
+
+    lines.extend(["", "leadership_community:"])
+    for leadership_item in resume.profile.leadership_community_entries:
+        lines.extend(
+            [
+                f"- title: {leadership_item.title}",
+                f"  organization: {leadership_item.organization}",
+                f"  date_range: {leadership_item.date_range}",
+                f"  details: {leadership_item.details}",
+            ]
+        )
+
+    lines.extend(["", "job_context:"])
+    if resume.job_context is None:
+        lines.append("- none")
+    else:
+        lines.extend(
+            [
+                f"- source: {resume.job_context.source}",
+                f"  input_url: {resume.job_context.input_url}",
+                f"  fetch_status: {resume.job_context.fetch_status}",
+                f"  job_id: {resume.job_context.job_id}",
+                f"  role_hint: {resume.job_context.role_hint}",
+                f"  company_name: {resume.job_context.company_name}",
+            ]
+        )
+        if resume.job_context.notes:
+            lines.append(f"  notes: {'; '.join(resume.job_context.notes)}")
+
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def run_pipeline(args: argparse.Namespace) -> int:
     profile = load_profile(args.profile)
     experiences = load_experiences(args.experience_db)
@@ -684,17 +792,20 @@ def run_pipeline(args: argparse.Namespace) -> int:
     html_output = args.output_dir / "resume_baseline.html"
     md_output = args.output_dir / "resume_baseline.md"
     ir_output = args.output_dir / "resume_ir_snapshot.json"
+    text_snapshot_output = args.output_dir / "resume_ir_snapshot.txt"
 
     render_html(resume, html_output)
     if not args.skip_markdown:
         render_markdown(resume, md_output)
     write_ir_snapshot(resume, ir_output)
+    write_text_snapshot(resume, text_snapshot_output)
 
     print(f"Baseline resume output written to: {args.output_dir}")
     print(f"- {html_output}")
     if not args.skip_markdown:
         print(f"- {md_output}")
     print(f"- {ir_output}")
+    print(f"- {text_snapshot_output}")
     return 0
 
 

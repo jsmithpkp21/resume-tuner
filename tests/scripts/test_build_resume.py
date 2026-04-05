@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.build_resume import load_profile
+from scripts.build_resume import load_experiences, load_profile
 from scripts.jd_ingest import FetchedPage, ingest_job_context
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -66,6 +66,59 @@ def test_load_profile_rejects_blocked_path() -> None:
     blocked = REPO_ROOT / "data" / "samples" / "profile.toml"
     with pytest.raises(ValueError, match="blocked runtime directory"):
         load_profile(blocked)
+
+
+def test_load_profile_rejects_non_table_education_entry(tmp_path: Path) -> None:
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(
+        """
+education = "not-a-table"
+
+[profile]
+name = "Test"
+headline = "Engineer"
+location = ""
+email = ""
+phone = ""
+website = ""
+linkedin = "test-user"
+github = "test-user"
+summary = ""
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="education"):
+        load_profile(profile_path)
+
+
+def test_load_experiences_rejects_string_skills_entries(tmp_path: Path) -> None:
+    experience_path = tmp_path / "experience_db.toml"
+    experience_path.write_text(
+        """
+[[experience]]
+id = "exp-1"
+job_title = "Engineer"
+company = "Contoso"
+start_date = "2021-01"
+end_date = "2022-01"
+general_role_description = "Did things"
+related_skills = "python"
+
+[[experience.bullet_bank]]
+id = "b1"
+text = "Built tests"
+skills = ["python"]
+impact_type = "quality"
+domain = "automation"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="related_skills"):
+        load_experiences(experience_path)
 
 
 def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:

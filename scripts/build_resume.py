@@ -140,33 +140,39 @@ def load_profile(path: Path) -> Profile:
     raw_education = payload.get("education", [])
     if not isinstance(raw_education, list):
         raise ValueError("profile.toml education must use [[education]] entries")
-    education_entries = tuple(
-        EducationEntry(
-            degree=str(item.get("degree", "")),
-            institution=str(item.get("institution", "")),
-            location=str(item.get("location", "")),
-            date_range=str(item.get("date_range", "")),
-            notes=str(item.get("notes", "")),
+    education_entries_raw: list[EducationEntry] = []
+    for item in raw_education:
+        if not isinstance(item, dict):
+            raise ValueError("Each [[education]] entry must be a table")
+        education_entries_raw.append(
+            EducationEntry(
+                degree=str(item.get("degree", "")),
+                institution=str(item.get("institution", "")),
+                location=str(item.get("location", "")),
+                date_range=str(item.get("date_range", "")),
+                notes=str(item.get("notes", "")),
+            )
         )
-        for item in raw_education
-        if isinstance(item, dict)
-    )
+    education_entries = tuple(education_entries_raw)
 
     raw_leadership = payload.get("leadership_community", [])
     if not isinstance(raw_leadership, list):
         raise ValueError(
             "profile.toml leadership/community must use [[leadership_community]] entries"
         )
-    leadership_community_entries = tuple(
-        LeadershipCommunityEntry(
-            title=str(item.get("title", "")),
-            organization=str(item.get("organization", "")),
-            date_range=str(item.get("date_range", "")),
-            details=str(item.get("details", "")),
+    leadership_entries_raw: list[LeadershipCommunityEntry] = []
+    for item in raw_leadership:
+        if not isinstance(item, dict):
+            raise ValueError("Each [[leadership_community]] entry must be a table")
+        leadership_entries_raw.append(
+            LeadershipCommunityEntry(
+                title=str(item.get("title", "")),
+                organization=str(item.get("organization", "")),
+                date_range=str(item.get("date_range", "")),
+                details=str(item.get("details", "")),
+            )
         )
-        for item in raw_leadership
-        if isinstance(item, dict)
-    )
+    leadership_community_entries = tuple(leadership_entries_raw)
 
     return Profile(
         name=str(data.get("name", "")),
@@ -244,15 +250,22 @@ def load_experiences(path: Path) -> tuple[Experience, ...]:
         if not isinstance(raw_bullets, list):
             raise ValueError("experience.bullet_bank must be a list")
 
+        raw_related_skills = item.get("related_skills", [])
+        if not isinstance(raw_related_skills, list):
+            raise ValueError("experience.related_skills must be a list")
+
         bullets: list[Bullet] = []
         for raw_bullet in raw_bullets:
             if not isinstance(raw_bullet, dict):
                 raise ValueError("Each bullet_bank entry must be a table")
+            raw_skills = raw_bullet.get("skills", [])
+            if not isinstance(raw_skills, list):
+                raise ValueError("bullet_bank.skills must be a list")
             bullets.append(
                 Bullet(
                     id=str(raw_bullet.get("id", "")),
                     text=str(raw_bullet.get("text", "")),
-                    skills=tuple(str(skill) for skill in raw_bullet.get("skills", [])),
+                    skills=tuple(str(skill) for skill in raw_skills),
                     impact_type=str(raw_bullet.get("impact_type", "")),
                     domain=str(raw_bullet.get("domain", "")),
                 )
@@ -266,9 +279,7 @@ def load_experiences(path: Path) -> tuple[Experience, ...]:
                 start_date=str(item.get("start_date", "")),
                 end_date=str(item.get("end_date", "")),
                 general_role_description=str(item.get("general_role_description", "")),
-                related_skills=tuple(
-                    str(skill) for skill in item.get("related_skills", [])
-                ),
+                related_skills=tuple(str(skill) for skill in raw_related_skills),
                 bullets=tuple(bullets),
             )
         )

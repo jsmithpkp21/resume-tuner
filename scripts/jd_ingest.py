@@ -11,6 +11,7 @@ Future phases can replace or augment this with richer provider adapters.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from html.parser import HTMLParser
@@ -121,19 +122,21 @@ def ingest_job_context(
     parsed = urlparse(normalized_url)
     source = _infer_source(parsed.netloc)
     query = parse_qs(parsed.query)
-    job_id = _extract_job_id(query)
+    job_id = _extract_job_id(query, parsed.path)
 
     effective_fetcher = fetcher or _fetch_job_page_metadata
     fetched = effective_fetcher(normalized_url)
 
     role_hint = _extract_role_hint(
         query=query,
+        path=parsed.path,
         source=source,
         page_title=fetched.title,
         description=fetched.description,
     )
     company_name = _extract_company_name(
         source=source,
+        netloc=parsed.netloc,
         page_title=fetched.title,
         description=fetched.description,
     )
@@ -151,6 +154,29 @@ def ingest_job_context(
         page_title=fetched.title,
         description_excerpt=fetched.description,
         notes=fetched.notes,
+        company_research=research,
+    )
+
+
+def ingest_job_text(job_text: str, source_hint: str = "job-text-file") -> JobContext:
+    text = job_text.strip()
+    role_hint = _extract_role_from_text_blob(text)
+    company_name = _extract_company_from_text_blob(text)
+    research = _deterministic_company_research(
+        company_name=company_name,
+        source=source_hint,
+    )
+    return JobContext(
+        input_url="",
+        normalized_url="",
+        source=source_hint,
+        role_hint=role_hint,
+        company_name=company_name,
+        job_id="",
+        fetch_status="provided_text",
+        page_title="",
+        description_excerpt=text[:500],
+        notes=(),
         company_research=research,
     )
 
@@ -180,18 +206,24 @@ def _infer_source(netloc: str) -> str:
     return "unknown"
 
 
-def _extract_job_id(query: dict[str, list[str]]) -> str:
+def _extract_job_id(query: dict[str, list[str]], path: str) -> str:
     keys = ("currentJobId", "jk", "jobId", "job_id")
     for key in keys:
         values = query.get(key, [])
         if values and values[0].strip():
             return values[0].strip()
+
+    path_segments = [segment for segment in path.split("/") if segment]
+    numeric_segments = [segment for segment in path_segments if segment.isdigit()]
+    if numeric_segments:
+        return numeric_segments[-1]
     return ""
 
 
 def _extract_role_hint(
     *,
     query: dict[str, list[str]],
+    path: str,
     source: str,
     page_title: str,
     description: str,
@@ -206,10 +238,16 @@ def _extract_role_hint(
         if values and values[0].strip():
             return values[0].strip()
 
+    role_from_path = _extract_role_from_path(path=path)
+    if role_from_path:
+        return role_from_path
+
     return _extract_role_from_description(description)
 
 
-def _extract_company_name(*, source: str, page_title: str, description: str) -> str:
+def _extract_company_name(
+    *, source: str, netloc: str, page_title: str, description: str
+) -> str:
     title = page_title.strip()
     if source == "linkedin" and title:
         raw = title.split("|")[0]
@@ -230,6 +268,18 @@ def _extract_company_name(*, source: str, page_title: str, description: str) -> 
         candidate = description[start:].split(".")[0].strip()
         if candidate:
             return candidate
+
+    if source == "company-site":
+        hostname = netloc.split(":", maxsplit=1)[0].strip().lower()
+        labels = [label for label in hostname.split(".") if label]
+        if labels and labels[0] == "www":
+            labels = labels[1:]
+        host_label = labels[0] if labels else ""
+        for suffix in ("jobs", "careers", "career"):
+            if host_label.endswith(suffix) and len(host_label) > len(suffix):
+                host_label = host_label[: -len(suffix)]
+                break
+        return host_label.upper() if host_label in {"hp", "ibm"} else host_label.title()
 
     return ""
 
@@ -252,6 +302,68 @@ def _extract_role_from_description(description: str) -> str:
     if token in lowered:
         start = lowered.index(token) + len(token)
         return text[start:].split(".")[0].strip()
+    return ""
+
+
+def _extract_role_from_path(*, path: str) -> str:
+    segments = [segment for segment in path.split("/") if segment.strip()]
+    ignored = {"job", "jobs", "careers", "career", "position", "opening"}
+    candidates: list[str] = []
+    for segment in segments:
+        lowered = segment.lower()
+        if lowered in ignored:
+            continue
+        if lowered.isdigit():
+            continue
+        if "-" not in segment:
+            continue
+        if not any(char.isalpha() for char in segment):
+            continue
+        candidates.append(segment)
+
+    if not candidates:
+        return ""
+    return _humanize_role_slug(candidates[-1])
+
+
+def _humanize_role_slug(slug: str) -> str:
+    acronyms = {"sdet", "qa", "sre", "ml", "ai", "api", "ui", "ux", "sql"}
+    tokens = [token for token in slug.split("-") if token]
+    normalized: list[str] = []
+    for token in tokens:
+        lowered = token.lower()
+        if lowered in acronyms:
+            normalized.append(lowered.upper())
+        else:
+            normalized.append(token.capitalize())
+    return " ".join(normalized).strip()
+
+
+def _extract_role_from_text_blob(text: str) -> str:
+    if not text:
+        return ""
+    patterns = (
+        r"(?im)^\s*(?:job\s*title|title|position|role)\s*:\s*(.+?)\s*$",
+        r"(?is)\b(?:seeking|looking\s+for)\s+(?:an?\s+)?(.+?)(?:\.|\n|,)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return " ".join(match.group(1).split())
+    return ""
+
+
+def _extract_company_from_text_blob(text: str) -> str:
+    if not text:
+        return ""
+    patterns = (
+        r"(?im)^\s*(?:company|employer|organization)\s*:\s*(.+?)\s*$",
+        r"(?is)\bjoin\s+(.+?)(?:\.|\n|,)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return " ".join(match.group(1).split())
     return ""
 
 

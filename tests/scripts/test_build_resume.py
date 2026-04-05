@@ -17,6 +17,10 @@ LINKEDIN_JOB_URL = (
     "https://www.linkedin.com/jobs/search-results/?"
     "currentJobId=4380299765&keywords=SDET&origin=JOBS_HOME_SEARCH_BUTTON"
 )
+SCHWAB_JOB_URL = (
+    "https://www.schwabjobs.com/job/austin/"
+    "sr-sdet-workplace-services-engineering/33727/92422911552"
+)
 
 
 def test_load_profile_reads_profile_table() -> None:
@@ -144,6 +148,68 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
     assert snapshot["job_context"]["input_url"] == LINKEDIN_JOB_URL
 
 
+def test_build_resume_cli_accepts_job_text_file(tmp_path: Path) -> None:
+    output_dir = tmp_path / "from_job_text"
+    job_text_file = tmp_path / "job_description.txt"
+    job_text_file.write_text(
+        "\n".join(
+            [
+                "Job Title: Senior SDET",
+                "Company: Charles Schwab",
+                "We are looking for a Senior SDET to join our workplace services team.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(output_dir),
+            "--job-text-file",
+            str(job_text_file),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    snapshot = json.loads(
+        (output_dir / "resume_ir_snapshot.json").read_text(encoding="utf-8")
+    )
+
+    assert snapshot["target_role"] == "Senior SDET"
+    assert snapshot["target_company"] == "Charles Schwab"
+    assert snapshot["job_context"]["source"] == "job-text-file"
+    assert snapshot["job_context"]["fetch_status"] == "provided_text"
+
+
+def test_build_resume_cli_rejects_typo_hjob_text_file_flag(tmp_path: Path) -> None:
+    output_dir = tmp_path / "invalid_flag"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(output_dir),
+            "--hjob-text-file",
+            "job.txt",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "--hjob-text-file" in result.stderr
+
+
 def test_ingest_job_context_extracts_role_company_and_research() -> None:
     url = (
         "https://www.linkedin.com/jobs/view/4380299765/?"
@@ -188,3 +254,20 @@ def test_ingest_job_context_falls_back_to_query_keywords() -> None:
     assert context.company_name == ""
     assert context.fetch_status == "fetch_failed"
     assert context.notes == ("fetch_failed:HTTPError",)
+
+
+def test_ingest_job_context_extracts_role_and_id_from_company_site_path() -> None:
+    def fake_fetcher(_: str) -> FetchedPage:
+        return FetchedPage(
+            status="fetch_failed",
+            title="",
+            description="",
+            notes=("fetch_failed:HTTPError",),
+        )
+
+    context = ingest_job_context(SCHWAB_JOB_URL, fetcher=fake_fetcher)
+
+    assert context.source == "company-site"
+    assert context.job_id == "92422911552"
+    assert context.role_hint == "Sr SDET Workplace Services Engineering"
+    assert context.company_name == "Schwab"

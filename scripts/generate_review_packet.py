@@ -19,6 +19,38 @@ APPROX_QUANTIFIER_RE = re.compile(
     re.IGNORECASE,
 )
 
+# ---------------------------------------------------------------------------
+# Canonical input guard (#20)
+# ---------------------------------------------------------------------------
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_BLOCKED_RUNTIME_ROOTS: frozenset[Path] = frozenset(
+    {
+        _PROJECT_ROOT / "sandbox",
+        _PROJECT_ROOT / "data" / "samples",
+    }
+)
+
+
+def _assert_canonical_input(path: Path) -> None:
+    """Raise ValueError if *path* resolves into a blocked runtime directory.
+
+    Resolves symlinks and ``..`` traversal before checking so that crafted
+    relative paths cannot bypass the guard.
+
+    Blocked roots (issue #20):
+      - ``sandbox/``
+      - ``data/samples/``
+    """
+    resolved = path.resolve()
+    for blocked in _BLOCKED_RUNTIME_ROOTS:
+        if resolved.is_relative_to(blocked.resolve()):
+            raise ValueError(
+                f"Path '{path}' resolves into blocked runtime directory "
+                f"'{blocked.name}/'. "
+                f"Runtime inputs must come from canonical sources: "
+                f"data/experience/ or data/skills/"
+            )
+
 
 @dataclass
 class Finding:
@@ -69,6 +101,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def read_csv_rows(path: Path) -> list[dict[str, str]]:
+    _assert_canonical_input(path)
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         return list(reader)
@@ -84,6 +117,7 @@ def read_skills(path: Path) -> set[str]:
 
 
 def read_experiences(path: Path) -> list[dict[str, Any]]:
+    _assert_canonical_input(path)
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     experiences = data.get("experience", [])
     if not isinstance(experiences, list):

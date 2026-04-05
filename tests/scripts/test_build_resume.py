@@ -143,14 +143,17 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     html_path = output_dir / "resume_baseline.html"
     md_path = output_dir / "resume_baseline.md"
     snapshot_path = output_dir / "resume_ir_snapshot.json"
+    text_snapshot_path = output_dir / "resume_ir_snapshot.txt"
 
     assert html_path.exists()
     assert md_path.exists()
     assert snapshot_path.exists()
+    assert text_snapshot_path.exists()
 
     html_text = html_path.read_text(encoding="utf-8")
     md_text = md_path.read_text(encoding="utf-8")
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    text_snapshot = text_snapshot_path.read_text(encoding="utf-8")
 
     assert "Jonathan Smith" in html_text
     assert '<p class="headline">Staff Software Engineer</p>' in html_text
@@ -159,8 +162,12 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert "Architect, Python Test Framework (Video)" in html_text
     assert "<h2>Education</h2>" in html_text
     assert "<h2>Leadership &amp; Community</h2>" in html_text
+    assert html_text.index("<h2>Summary</h2>") < html_text.index("<h2>Skills</h2>")
+    assert html_text.index("<h2>Skills</h2>") < html_text.index("<h2>Experience</h2>")
     assert "## Education" in md_text
     assert "## Leadership & Community" in md_text
+    assert md_text.index("## Summary") < md_text.index("## Skills")
+    assert md_text.index("## Skills") < md_text.index("## Experience")
     assert "linkedin.com/in/jonathan-j-smith-automation" in md_text
     assert "github.com/jsmithpkp21" in md_text
     assert snapshot["profile"]["linkedin"] == "jonathan-j-smith-automation"
@@ -170,6 +177,19 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     )
     assert snapshot["profile"]["github"] == "jsmithpkp21"
     assert snapshot["profile"]["github_url"] == "github.com/jsmithpkp21"
+    assert "summary:" in text_snapshot
+    assert "skills:" in text_snapshot
+    assert "experience:" in text_snapshot
+    assert "education:" in text_snapshot
+    assert "leadership_community:" in text_snapshot
+    assert "job_context:" in text_snapshot
+    assert (
+        "profile.linkedin_url: linkedin.com/in/jonathan-j-smith-automation"
+        in text_snapshot
+    )
+    assert "profile.github_url: github.com/jsmithpkp21" in text_snapshot
+    assert text_snapshot.index("summary:") < text_snapshot.index("skills:")
+    assert text_snapshot.index("skills:") < text_snapshot.index("experience:")
 
 
 def test_build_resume_cli_accepts_job_url_and_generates_job_context(

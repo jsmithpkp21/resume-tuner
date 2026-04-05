@@ -44,11 +44,12 @@ def _assert_canonical_input(path: Path) -> None:
     resolved = path.resolve()
     for blocked in _BLOCKED_RUNTIME_ROOTS:
         if resolved.is_relative_to(blocked.resolve()):
+            blocked_display = blocked.relative_to(_PROJECT_ROOT).as_posix()
             raise ValueError(
                 f"Path '{path}' resolves into blocked runtime directory "
-                f"'{blocked.name}/'. "
-                f"Runtime inputs must come from canonical sources: "
-                f"data/experience/ or data/skills/"
+                f"'{blocked_display}/'. "
+                f"Runtime inputs may not resolve into blocked directories such as "
+                f"sandbox/ or data/samples/."
             )
 
 

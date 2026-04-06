@@ -34,7 +34,7 @@ skills:
 - Testing & Validation: Acceptance testing, Android UI automation (ADB), Android UI automation (UI Automator), API contract/schema validation, Automation testing, CLI automation, End-to-end testing, Functional testing, JUnit 4, JUnit 5, Multi-environment compatibility testing, Parallel execution, PyTest, Regression testing, REST API testing, Risk-based testing, Service-layer automation (Serial), Service-layer automation (SSH), Service-layer automation (Telnet), Smoke testing, Spock, System testing, ADB, Pytest, REST/SOAP Integration, Telnet/CLI Automation, Test Lab Automation, Web UI Automation
 
 experience_count: 6
-bullet_count: 23
+bullet_count: 18
 
 experience:
 - Architect, Python Test Framework (Video) | HP / Poly
@@ -43,9 +43,7 @@ experience:
   related_skills: Python, Playwright, ADB, Web UI Automation, CI/CD, GitHub Actions, Quality gates, Technical Leadership
   * Transformed an inherited ADB/UI Automator-based system into a lightweight abstraction layer supporting Android-based embedded UI testing across PolyOS, Zoom, Teams, and Google Meet.
   * Set long-term architectural direction and coding standards and mentored a group of five engineers.
-  * Designed a Playwright Web UI automation module for both product interface flows and Zoom portal authentication-constrained paths.
   * Established coding standards, CI quality gates (flake8, mypy), and reproducible environment patterns.
-  * Integrated framework execution into containerized GitHub Actions workflows, defining container requirements and collaborating with DevOps on image updates.
 - Technical Advisor / SDET, Audio Team | HP / Poly
   date_range: 2021-05 - 2023-06
   role_summary: Guided Audio team migration into corporate automation framework.
@@ -67,7 +65,6 @@ experience:
   * Delivered a technical evaluation for integrating the Video automation framework into a unified corporate platform, including a reusable first implementation step that remained applicable regardless of final direction.
   * Decomposed a monolithic automation system into modular components and standardized package and project naming conventions, enabling distributed ownership and reducing build times by 75 percent.
   * Architected and drove the Java 8 to 12 migration across 15 projects and 3 product lines, resolving Java 9 module-system breaks, modernizing dependencies, and stabilizing CI and automation pipelines.
-  * Implemented semantic versioning automation to generate and version JAR artifacts from standardized commit messages.
 - Lead Technical Designer, Corporate Automation Initiative | HP / Poly
   date_range: 2015-06 - 2019-06
   role_summary: Provided senior-level architectural guidance and technical design leadership for a company-wide automation initiative, shaping early framework concepts, evaluating migration paths, and advising multiple product organizations.
@@ -82,8 +79,6 @@ experience:
   * Led a distributed team of 15 engineers across four countries and five time zones, improving engineering quality and reducing new-test creation time by 30 percent.
   * Designed a capability-driven, UI-agnostic, and model-agnostic architecture enabling cross-product portability across hardware generations.
   * Architected a four-stage CI quality-gate pipeline — branch merge gates, full suite runs, main branch integration gates, and QA acceptance checks — with stability rules enabling deterministic execution across 30+ releases.
-  * Unified Telnet, REST, and Web execution into a single test flow, tripling the number of tests executable across interfaces.
-  * Led the transition from local combined logs to enterprise-grade remote logging, integrating automation with centralized log aggregation for crash-resilient cross-system observability.
 
 education:
 - degree: B.S. in Computer Science
@@ -103,9 +98,10 @@ leadership_community:
   details: Share practical framework design and debugging patterns with peer engineering groups.
 
 job_context:
-- source: job-text-file
-  input_url:
-  fetch_status: provided_text
-  job_id:
+- source: company-site
+  input_url: https://www.schwabjobs.com/job/austin/sr-sdet-workplace-services-engineering/33727/92422911552
+  fetch_status: fetched
+  job_id: 92422911552
   role_hint: Sr. SDET
   company_name: Charles Schwab
+  notes: fixture:schwab_sr_sdet.html

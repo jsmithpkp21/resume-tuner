@@ -1,5 +1,6 @@
 {
-  "bullet_count": 23,
+  "bullet_count": 18,
+  "enrichment_count": 0,
   "experience_count": 6,
   "job_context": {
     "company_name": "Charles Schwab",
@@ -10,15 +11,17 @@
       "product_hint": "Public listing signals only; richer enrichment is deferred to provider-backed research in later phases",
       "strategy": "deterministic-v1"
     },
-    "description_excerpt": "Job Title: Sr. SDET\nCompany: Charles Schwab\nLooking for a Senior SDET focused on debugging and CI reliability.",
-    "fetch_status": "provided_text",
-    "input_url": "",
-    "job_id": "",
-    "normalized_url": "",
-    "notes": [],
-    "page_title": "",
+    "description_excerpt": "Learn more about applying for Sr. SDET - Workplace Services Engineering at Charles Schwab",
+    "fetch_status": "fetched",
+    "input_url": "https://www.schwabjobs.com/job/austin/sr-sdet-workplace-services-engineering/33727/92422911552",
+    "job_id": "92422911552",
+    "normalized_url": "https://www.schwabjobs.com/job/austin/sr-sdet-workplace-services-engineering/33727/92422911552",
+    "notes": [
+      "fixture:schwab_sr_sdet.html"
+    ],
+    "page_title": "Sr. SDET - Workplace Services Engineering | Schwab Jobs",
     "role_hint": "Sr. SDET",
-    "source": "job-text-file"
+    "source": "company-site"
   },
   "profile": {
     "display_headline": "Sr. SDET",

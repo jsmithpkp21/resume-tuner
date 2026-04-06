@@ -42,9 +42,7 @@ Related skills: Python, Playwright, ADB, Web UI Automation, CI/CD, GitHub Action
 
 - Transformed an inherited ADB/UI Automator-based system into a lightweight abstraction layer supporting Android-based embedded UI testing across PolyOS, Zoom, Teams, and Google Meet.
 - Set long-term architectural direction and coding standards and mentored a group of five engineers.
-- Designed a Playwright Web UI automation module for both product interface flows and Zoom portal authentication-constrained paths.
 - Established coding standards, CI quality gates (flake8, mypy), and reproducible environment patterns.
-- Integrated framework execution into containerized GitHub Actions workflows, defining container requirements and collaborating with DevOps on image updates.
 
 ### Technical Advisor / SDET, Audio Team | HP / Poly
 2021-05 - 2023-06
@@ -78,7 +76,6 @@ Related skills: Architecture, Framework Design, Technical Leadership, Java, Pyth
 - Delivered a technical evaluation for integrating the Video automation framework into a unified corporate platform, including a reusable first implementation step that remained applicable regardless of final direction.
 - Decomposed a monolithic automation system into modular components and standardized package and project naming conventions, enabling distributed ownership and reducing build times by 75 percent.
 - Architected and drove the Java 8 to 12 migration across 15 projects and 3 product lines, resolving Java 9 module-system breaks, modernizing dependencies, and stabilizing CI and automation pipelines.
-- Implemented semantic versioning automation to generate and version JAR artifacts from standardized commit messages.
 
 ### Lead Technical Designer, Corporate Automation Initiative | HP / Poly
 2015-06 - 2019-06
@@ -101,8 +98,6 @@ Related skills: Technical Leadership, Mentoring, Process Design, Capability-Driv
 - Led a distributed team of 15 engineers across four countries and five time zones, improving engineering quality and reducing new-test creation time by 30 percent.
 - Designed a capability-driven, UI-agnostic, and model-agnostic architecture enabling cross-product portability across hardware generations.
 - Architected a four-stage CI quality-gate pipeline — branch merge gates, full suite runs, main branch integration gates, and QA acceptance checks — with stability rules enabling deterministic execution across 30+ releases.
-- Unified Telnet, REST, and Web execution into a single test flow, tripling the number of tests executable across interfaces.
-- Led the transition from local combined logs to enterprise-grade remote logging, integrating automation with centralized log aggregation for crash-resilient cross-system observability.
 
 
 ## Education

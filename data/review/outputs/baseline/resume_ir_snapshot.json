@@ -1,8 +1,30 @@
 {
-  "bullet_count": 23,
+  "bullet_count": 18,
+  "enrichment_count": 0,
   "experience_count": 6,
+  "job_context": {
+    "company_name": "Charles Schwab",
+    "company_research": {
+      "company_name": "Charles Schwab",
+      "confidence": "low",
+      "industry_hint": "Industry unknown (deterministic baseline)",
+      "product_hint": "Public listing signals only; richer enrichment is deferred to provider-backed research in later phases",
+      "strategy": "deterministic-v1"
+    },
+    "description_excerpt": "Learn more about applying for Sr. SDET - Workplace Services Engineering at Charles Schwab",
+    "fetch_status": "fetched",
+    "input_url": "https://www.schwabjobs.com/job/austin/sr-sdet-workplace-services-engineering/33727/92422911552",
+    "job_id": "92422911552",
+    "normalized_url": "https://www.schwabjobs.com/job/austin/sr-sdet-workplace-services-engineering/33727/92422911552",
+    "notes": [
+      "fixture:schwab_sr_sdet.html"
+    ],
+    "page_title": "Sr. SDET - Workplace Services Engineering | Schwab Jobs",
+    "role_hint": "Sr. SDET",
+    "source": "company-site"
+  },
   "profile": {
-    "display_headline": "Software Engineer | Test Automation and Framework Architecture",
+    "display_headline": "Sr. SDET",
     "education_count": 1,
     "email": "jonathan@example.com",
     "github": "jsmithpkp21",
@@ -19,6 +41,6 @@
   },
   "skills_category_count": 16,
   "skills_count": 137,
-  "target_company": "",
-  "target_role": ""
+  "target_company": "Charles Schwab",
+  "target_role": "Sr. SDET"
 }

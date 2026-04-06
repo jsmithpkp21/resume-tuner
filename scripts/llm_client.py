@@ -76,9 +76,18 @@ class LLMClient:
             {"role": "user", "content": json.dumps(user_payload, sort_keys=True)},
         ]
         response = self._chat(messages=messages, namespace=namespace)
-        parsed = json.loads(response.content)
+        try:
+            parsed = json.loads(response.content)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"LLM response was not valid JSON for namespace={namespace} "
+                f"cache_key={response.cache_key}"
+            ) from exc
         if not isinstance(parsed, dict):
-            raise ValueError("LLM JSON response must be an object")
+            raise ValueError(
+                f"LLM JSON response must be an object for namespace={namespace} "
+                f"cache_key={response.cache_key}"
+            )
         return parsed
 
     def _chat(self, *, messages: list[dict[str, str]], namespace: str) -> LLMResponse:

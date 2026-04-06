@@ -13,6 +13,8 @@ import sys
 from difflib import unified_diff
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent
+
 
 def run_pipeline(
     fixture_mode: bool = False, output_label: str = "baseline"
@@ -29,6 +31,8 @@ def run_pipeline(
     if fixture_mode:
         env["RESUME_BUILDER_LLM_FIXTURE"] = "1"
         env["RESUME_BUILDER_LLM_CACHE_DIR"] = "tests/fixtures/llm_cache"
+        env["RESUME_BUILDER_LLM_MODEL"] = "mistral:latest"
+        env["RESUME_BUILDER_LLM_API_URL"] = "http://127.0.0.1:11434/v1/chat/completions"
 
     cmd = [
         sys.executable,
@@ -45,7 +49,7 @@ def run_pipeline(
         capture_output=True,
         text=True,
         env=env,
-        cwd="/home/jonathan_smith/projects/resume-builder",
+        cwd=REPO_ROOT,
     )
 
     if result.returncode != 0:
@@ -87,7 +91,7 @@ def print_diff(snapshot_name: str, baseline_path: Path, with_llm_path: Path) -> 
 
 
 def main() -> int:
-    os.chdir("/home/jonathan_smith/projects/resume-builder")
+    os.chdir(REPO_ROOT)
 
     print("\n" + "=" * 80)
     print("🎯 END-TO-END SAMPLE: Schwab Sr. SDET with enrich_data() + trim_by_rules()")
@@ -122,10 +126,10 @@ def main() -> int:
   - Enables downstream processing to track bullet relevance
 
 ✓ trim_by_rules() stage: Applies deterministic layout trimming
-  - Enforces bullet caps (18 total, 4 per experience max)
+  - Enforces bullet caps ({DEFAULT_MAX_TOTAL_BULLETS} total, 4 per experience max)
   - Removes duplicate bullets
-  - Limits action-word repetition to 2 occurrences
-  - Respects minimum 1 bullet per experience
+  - Limits action-word repetition to {DEFAULT_MAX_ACTION_WORD_OCCURRENCES} occurrences
+  - Respects minimum {DEFAULT_MIN_BULLETS_PER_EXPERIENCE} bullets per experience
 
 The resulting resume_ir_snapshot.txt and resume_ir_snapshot.json files
 show the final tailored resume with enrichment metadata attached.

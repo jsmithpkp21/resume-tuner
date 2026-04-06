@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Build a baseline resume artifact from canonical data.
+"""Build a tailored resume artifact from canonical data.
 
-Milestone-1 behavior intentionally favors output speed and manual finishability:
-- include all canonical experiences and bullets
-- preserve canonical bullet text unchanged
-- keep transform/trim stages as explicit no-op hooks for future phases
+Pipeline stages (in order):
+1. assemble_baseline_resume - load all canonical experiences and bullets unchanged
+2. transform_for_role       - rewrite bullet text to match target role framing (LLM)
+3. trim_for_role            - select/reorder bullets by role relevance (LLM)
+4. enrich_data              - attach role-alignment metadata to bullets (LLM)
+5. trim_by_rules            - enforce layout rules: deduplication, diversity, caps
+
+Note: a future post-layout overflow pass may further shorten wording after page-fit
+measurement for a specific output target (for example PDF/DOCX two-page limits).
 """
 
 from __future__ import annotations
@@ -42,7 +47,7 @@ DEFAULT_EXPERIENCE_DB = Path("data/experience/experience_db.toml")
 DEFAULT_SKILLS_MATRIX = Path("data/skills/skills_matrix.csv")
 DEFAULT_OUTPUT_DIR = Path("data/review/outputs/baseline")
 DEFAULT_MAX_BULLETS_PER_EXPERIENCE = 4
-DEFAULT_MAX_TOTAL_BULLETS = 18
+DEFAULT_MAX_TOTAL_BULLETS = 20
 DEFAULT_MAX_ACTION_WORD_OCCURRENCES = 2
 DEFAULT_MIN_BULLETS_PER_EXPERIENCE = 3
 LLM_ENABLED_ENV = "RESUME_BUILDER_LLM_ENABLED"
@@ -355,8 +360,168 @@ def assemble_baseline_resume(
 
 
 def transform_for_role(resume: ResumeIR) -> ResumeIR:
-    """No-op placeholder for future role-specific rewriting stage."""
-    return resume
+    """Rewrite bullet text to better match the target role without changing facts.
+
+    Purpose:
+        Adapt tone, framing, and emphasis of each bullet to the target role's
+        job description signals. This is the only current pre-layout stage that
+        rewrites bullet text.
+
+    Allowed:
+        - Rewrite bullet text (tone, phrasing, keyword alignment).
+        - Adapt framing to match JD terminology and role context.
+
+    Not allowed:
+        - Add facts or metrics not present in the original bullet.
+        - Select, reorder, or remove bullets.
+        - Change bullet IDs or metadata fields.
+
+    Future note:
+        A later layout-aware pass may still shorten wording after actual page-fit
+        measurement when targeting constrained formats such as PDF or DOCX.
+    """
+    if resume.job_context is None:
+        return resume
+    if (
+        not resume.job_context.description_excerpt.strip()
+        and not resume.target_role.strip()
+    ):
+        return resume
+    if not _llm_stage_enabled():
+        return resume
+
+    try:
+        client = LLMClient.from_env()
+        transformed_experiences = tuple(
+            _transform_experience_bullets(
+                client=client,
+                resume=resume,
+                experience=experience,
+            )
+            for experience in resume.experiences
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("transform_for_role fallback to baseline: %s", exc)
+        return resume
+
+    return ResumeIR(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=transformed_experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
+    )
+
+
+def _transform_experience_bullets(
+    *,
+    client: LLMClient,
+    resume: ResumeIR,
+    experience: Experience,
+) -> Experience:
+    """Apply LLM rewrites to bullet text for a single experience; fall back to originals."""
+    rewrites = _rewrite_experience_bullets(
+        client=client, resume=resume, experience=experience
+    )
+    if not rewrites:
+        return experience
+
+    new_bullets: list[Bullet] = []
+    changed = False
+    for bullet in experience.bullets:
+        rewritten_text = rewrites.get(bullet.id, "").strip()
+        if rewritten_text and rewritten_text != bullet.text:
+            new_bullets.append(
+                Bullet(
+                    id=bullet.id,
+                    text=rewritten_text,
+                    skills=bullet.skills,
+                    impact_type=bullet.impact_type,
+                    domain=bullet.domain,
+                )
+            )
+            changed = True
+        else:
+            new_bullets.append(bullet)
+
+    if not changed:
+        return experience
+
+    return Experience(
+        id=experience.id,
+        job_title=experience.job_title,
+        company=experience.company,
+        start_date=experience.start_date,
+        end_date=experience.end_date,
+        general_role_description=experience.general_role_description,
+        related_skills=experience.related_skills,
+        bullets=tuple(new_bullets),
+    )
+
+
+def _rewrite_experience_bullets(
+    *, client: LLMClient, resume: ResumeIR, experience: Experience
+) -> dict[str, str]:
+    """Call LLM to rewrite bullets for a single experience; return id→rewritten_text map."""
+    if resume.job_context is None:
+        return {}
+
+    role_hint = resume.target_role.strip() or resume.job_context.role_hint
+    company_hint = resume.target_company.strip() or resume.job_context.company_name
+    bullet_payload = [
+        {"id": bullet.id, "text": bullet.text, "skills": list(bullet.skills)}
+        for bullet in experience.bullets
+    ]
+
+    response_payload = client.complete_json(
+        namespace="transform_for_role",
+        system_prompt=(
+            "You are rewriting resume bullets to better match a target role. "
+            "Preserve all factual claims, metrics, and technologies exactly. "
+            "Adapt tone, phrasing, and emphasis to align with the job description. "
+            "Return JSON only with key: bullets."
+        ),
+        user_payload={
+            "target_role": role_hint,
+            "target_company": company_hint,
+            "job_description_excerpt": resume.job_context.description_excerpt,
+            "experience": {
+                "id": experience.id,
+                "job_title": experience.job_title,
+                "company": experience.company,
+                "role_summary": experience.general_role_description,
+            },
+            "bullets": bullet_payload,
+            "response_schema": {
+                "bullets": [
+                    {
+                        "id": "<bullet-id>",
+                        "rewritten_text": "<rewritten bullet text>",
+                    }
+                ]
+            },
+        },
+    )
+
+    raw_bullets = response_payload.get("bullets", [])
+    if not isinstance(raw_bullets, list):
+        return {}
+
+    known_ids = {bullet.id for bullet in experience.bullets}
+    parsed: dict[str, str] = {}
+    for item in raw_bullets:
+        if not isinstance(item, dict):
+            continue
+        bullet_id = str(item.get("id", "")).strip()
+        if not bullet_id or bullet_id not in known_ids:
+            continue
+        rewritten = str(item.get("rewritten_text", "")).strip()
+        if rewritten:
+            parsed[bullet_id] = rewritten
+    return parsed
 
 
 def trim_for_role(resume: ResumeIR) -> ResumeIR:
@@ -643,6 +808,11 @@ def trim_by_rules(resume: ResumeIR) -> ResumeIR:
     Not allowed:
         - Rewrite bullet text.
         - Reorder experiences.
+
+    Future note:
+        This stage does not currently perform layout-aware shortening. If page-fit
+        constraints require small wording reductions, that should happen in a later
+        overflow/layout stage after actual render measurement.
     """
     trimmed_experiences = _apply_rule_based_trimming(
         experiences=resume.experiences,

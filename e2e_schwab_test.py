@@ -14,6 +14,13 @@ from difflib import unified_diff
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+
+from build_resume import (  # noqa: E402
+    DEFAULT_MAX_ACTION_WORD_OCCURRENCES,
+    DEFAULT_MAX_TOTAL_BULLETS,
+    DEFAULT_MIN_BULLETS_PER_EXPERIENCE,
+)
 
 
 def run_pipeline(
@@ -120,7 +127,7 @@ def main() -> int:
     print("\n" + "=" * 80)
     print("📈 SUMMARY: Visible changes from full pipeline")
     print("=" * 80)
-    print("""
+    print(f"""
 ✓ enrich_data() stage: Annotates bullets with role-relevance metadata
   - Adds "bullet_enrichment" to IR snapshot with confidence scores & tags
   - Enables downstream processing to track bullet relevance

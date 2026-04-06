@@ -19,6 +19,7 @@ import csv
 import html
 import json
 import logging
+import math
 import os
 import re
 import sys
@@ -758,6 +759,8 @@ def _coerce_relevance_score(raw: object) -> float:
     try:
         numeric = float(str(raw))
     except (TypeError, ValueError):
+        return 0.0
+    if not math.isfinite(numeric):
         return 0.0
     if numeric < 0.0:
         return 0.0

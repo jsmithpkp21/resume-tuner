@@ -50,13 +50,13 @@ class LLMClient:
 
     @classmethod
     def from_env(cls) -> LLMClient:
+        fixture_mode = os.getenv(_FIXTURE_ENV, "0").strip() == "1"
+        default_cache_dir = "tests/fixtures/llm_cache" if fixture_mode else ".llm_cache"
         cache_dir = Path(
-            os.getenv(_CACHE_DIR_ENV, "tests/fixtures/llm_cache").strip()
-            or "tests/fixtures/llm_cache"
+            os.getenv(_CACHE_DIR_ENV, default_cache_dir).strip() or default_cache_dir
         )
         endpoint = os.getenv(_ENDPOINT_ENV, _DEFAULT_CHAT_ENDPOINT).strip()
         model = os.getenv(_MODEL_ENV, _DEFAULT_MODEL).strip() or _DEFAULT_MODEL
-        fixture_mode = os.getenv(_FIXTURE_ENV, "0").strip() == "1"
         return cls(
             endpoint=endpoint,
             model=model,

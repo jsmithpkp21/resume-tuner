@@ -29,3 +29,5 @@ sandbox/
 
 # Generated review artifacts
 data/review/packets/
+# Visual diff working files (regenerated each run)
+data/review/outputs/visual_diff/

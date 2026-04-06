@@ -1,0 +1,5 @@
+{
+  "model": "mistral:latest",
+  "endpoint": "http://127.0.0.1:11434/v1/chat/completions",
+  "content": "{\n\"scores\": [\n{\"id\": \"exp_hp_poly_architect_python_video_202306_b01\", \"score\": 0.9},\n{\"id\": \"exp_hp_poly_architect_python_video_202306_b02\", \"score\": 0.85},\n{\"id\": \"exp_hp_poly_architect_python_video_202306_b03\", \"score\": 0.9},\n{\"id\": \"exp_hp_poly_architect_python_video_202306_b04\", \"score\": 0.8},\n{\"id\": \"exp_hp_poly_architect_python_video_202306_b05\", \"score\": 0.75}\n]\n}"
+}

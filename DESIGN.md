@@ -8,6 +8,7 @@ The system uses:
 - A set of **General Routing Rules**
 - A **Relevance Engine**
 - A **Layout Engine**
+- A future **Measured Overflow Pass**
 - A **Template Engine**
 - AI‑driven reasoning for selection, summarization, and formatting
 
@@ -18,6 +19,11 @@ The goal is to produce a clean, professional résumé that:
 - adapts to the **job description, job title, and company**
 - outputs to **PDF and Word**
 - requires minimal manual intervention
+
+Current implementation note:
+- `scripts/build_resume.py` currently runs a staged pipeline of `transform_for_role()` → `trim_for_role()` → `enrich_data()` → `trim_by_rules()` before rendering.
+- The current implementation is still count- and rule-assisted in places.
+- True output-target page fitting for PDF/DOCX remains a future measured-render pass.
 
 ---
 
@@ -167,7 +173,11 @@ The engine outputs:
 
 # 6. Layout Engine (Space & Line Budget)
 
-The layout engine ensures the résumé fits within the required space and avoids awkward wrapping.
+The layout engine manages space pressure and awkward wrapping.
+
+Important distinction:
+- The current pipeline can apply selection and deterministic trimming before render.
+- A future measured overflow pass will make final wording reductions only after actual page-fit measurement for a concrete output target such as PDF or DOCX.
 
 ### Skills Section Line Budget
 - Max lines: **10–12**
@@ -192,13 +202,15 @@ The engine must:
 - Bullets must be concise and high‑impact.
 
 ### Document Layout
-- Total document must fit within **two pages**.
-- If over limit:
-  - drop low‑relevance bullets
+- Target document length is **two pages**.
+- Before measured render exists, the system may use conservative selection and trimming heuristics.
+- After measured render exists, if the output still exceeds the limit, the overflow pass should apply the smallest effective changes in this order:
+  - shorten wording that barely spills to another line
   - shorten summaries
   - drop low‑relevance skills
   - merge categories
-  - compress spacing
+  - drop low‑relevance bullets only when wording reductions are insufficient
+  - compress spacing only if allowed by the template
 
 ---
 
@@ -261,7 +273,12 @@ Example pattern:
 
 ---
 # 10. Final Pass Rules (Post-Selection Polish)
-Final pass rules run **after** content selection and layout are complete, operating on the assembled resume as a whole. They must never be applied per-bullet or per-section in isolation — context across the full document is required.
+Final pass rules run **after** content selection on the assembled resume as a whole. They must never be applied per-bullet or per-section in isolation — context across the full document is required.
+
+Current implementation note:
+- `trim_by_rules()` is a deterministic full-document polishing pass.
+- It does **not** currently perform layout-aware wording reduction.
+- If page-fit constraints later require small text reductions, that should happen in a dedicated overflow/layout pass after render measurement.
 ### 10.1 Action Word Diversity Rule
 Resume bullets must not overuse the same action verb (or any of its forms: tense, plural, gerund, or synonyms) across the document.
 **Definitions**
@@ -314,34 +331,27 @@ data/skills/skills_matrix.csv           -> pytest validation
 data/experience/experience_db.toml      -> bullet tagging + canonical facts
 job description                          -> relevance scoring
 
--> relevance engine selects:
-    - categories
-    - skills
-    - bullets
-    - experiences
+-> staged content pipeline (`scripts/build_resume.py` today):
+    - transform_for_role     (rewrite wording for role alignment)
+    - trim_for_role          (select/reorder bullets)
+    - enrich_data            (attach metadata)
+    - trim_by_rules          (dedupe, diversity, caps)
 
--> layout engine:
-    - enforces line budget
-    - merges categories
-    - drops low-relevance items
-    - avoids single-word wraps
-    - shortens skills if needed
-
--> summary generator:
-    - creates 1-2 line role summaries
-
--> template engine:
+-> template/render stage:
     - assembles resume
     - formats sections
-    - enforces 2-page limit
+    - produces HTML / Markdown today
+    - later: PDF / DOCX targets
 
--> final pass:
-    - action word diversity check (root deduplication across all bullets)
-    - replace excess verb repetition with contextually appropriate alternatives
+-> future measured overflow pass:
+    - checks actual page usage for the chosen output target
+    - shortens wording that barely overflows
+    - shortens summaries/skills where needed
+    - drops lower-value content only if wording reductions are insufficient
 
--> output generator:
-    - PDF
-    - DOCX
+-> final output artifacts:
+    - HTML / Markdown / JSON / text snapshot today
+    - PDF / DOCX later
 ```
 
 ### Data lifecycle notes
@@ -354,10 +364,13 @@ job description                          -> relevance scoring
 ### Staged architecture
 
 1. **Canonical data stage**: curate roles, bullets, and validated skills/categories.
-2. **Selection stage**: score and select role bullets for a target job from canonical data.
-3. **Inference stage**: suggest candidate new skills/category changes from JD plus selected bullets.
-4. **Review stage**: accept or reject suggestions before changing canonical data.
-5. **Reporting stage**: emit a decision report for transparency and process improvement.
+2. **Role rewrite stage**: adapt bullet wording to the target job while preserving facts.
+3. **Selection stage**: score and select role bullets for a target job from canonical data.
+4. **Inference stage**: suggest candidate new skills/category changes from JD plus selected bullets.
+5. **Rule-polish stage**: apply deterministic whole-document cleanup such as dedupe and action-word diversity.
+6. **Measured overflow stage (future)**: fit the rendered result to the output target's page budget with minimal shortening.
+7. **Review stage**: accept or reject suggestions before changing canonical data.
+8. **Reporting stage**: emit a decision report for transparency and process improvement.
 
 ---
 

@@ -2,17 +2,29 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import os
 import subprocess
 import sys
 from http.client import HTTPMessage
 from pathlib import Path
+from typing import Any
 from urllib.request import Request
 
 import pytest
 
 from scripts import jd_ingest
-from scripts.build_resume import load_experiences, load_profile
+from scripts.build_resume import (
+    Bullet,
+    Experience,
+    assemble_baseline_resume,
+    enrich_data,
+    load_experiences,
+    load_profile,
+    transform_for_role,
+    trim_by_rules,
+    trim_for_role,
+)
 from scripts.jd_ingest import FetchedPage, ingest_job_context
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -543,3 +555,705 @@ def test_ingest_job_context_linkedin_login_wall_falls_back_to_keywords(
     )
     assert snapshot["job_context"]["source"] == "linkedin"
     assert snapshot["job_context"]["role_hint"] == "SDET"
+
+
+def test_trim_for_role_keeps_subset_and_reorders_by_score(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            """
+            Job Title: Senior SDET
+            Company: Charles Schwab
+            Looking for a Senior SDET focused on debugging and CI reliability.
+            """.strip()
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def fake_scores(*, client: Any, resume: Any, experience: Any) -> dict[str, float]:
+        del client, resume
+        bullet_ids = [bullet.id for bullet in experience.bullets]
+        if len(bullet_ids) < 5:
+            return {bullet_id: 0.0 for bullet_id in bullet_ids}
+        return {
+            bullet_ids[0]: 0.10,
+            bullet_ids[1]: 0.95,
+            bullet_ids[2]: 0.20,
+            bullet_ids[3]: 0.80,
+            bullet_ids[4]: 0.70,
+        }
+
+    monkeypatch.setattr("scripts.build_resume._score_bullet_relevance", fake_scores)
+
+    trimmed = trim_for_role(resume)
+
+    first_before = resume.experiences[0]
+    first_after = trimmed.experiences[0]
+    assert len(first_before.bullets) == 5
+    assert len(first_after.bullets) == 4
+
+    assert [bullet.id for bullet in first_after.bullets] == [
+        first_before.bullets[1].id,
+        first_before.bullets[3].id,
+        first_before.bullets[4].id,
+        first_before.bullets[2].id,
+    ]
+    assert {bullet.id for bullet in first_after.bullets}.issubset(
+        {bullet.id for bullet in first_before.bullets}
+    )
+
+
+def test_trim_for_role_logs_full_score_map_before_ranking(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    caplog.set_level(logging.DEBUG, logger="scripts.build_resume")
+
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            """
+            Job Title: Senior SDET
+            Company: Charles Schwab
+            Looking for a Senior SDET focused on debugging and CI reliability.
+            """.strip()
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def fake_scores(*, client: Any, resume: Any, experience: Any) -> dict[str, float]:
+        del client, resume
+        return {
+            bullet.id: (0.9 - (index * 0.1))
+            for index, bullet in enumerate(experience.bullets)
+        }
+
+    monkeypatch.setattr("scripts.build_resume._score_bullet_relevance", fake_scores)
+
+    trim_for_role(resume)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("trim_for_role scores" in message for message in messages)
+    first_exp = resume.experiences[0]
+    assert any(first_exp.id in message for message in messages)
+    assert any(first_exp.bullets[0].id in message for message in messages)
+
+
+def test_trim_for_role_gracefully_falls_back_on_llm_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def raise_on_score(
+        *, client: Any, resume: Any, experience: Any
+    ) -> dict[str, float]:
+        del client, resume, experience
+        raise RuntimeError("simulated llm failure")
+
+    monkeypatch.setattr("scripts.build_resume._score_bullet_relevance", raise_on_score)
+    assert trim_for_role(resume) == resume
+
+
+def test_trim_for_role_keeps_experience_when_scores_are_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def empty_scores(*, client: Any, resume: Any, experience: Any) -> dict[str, float]:
+        del client, resume, experience
+        return {}
+
+    monkeypatch.setattr("scripts.build_resume._score_bullet_relevance", empty_scores)
+
+    trimmed = trim_for_role(resume)
+    assert trimmed.experiences[0] == resume.experiences[0]
+
+
+def test_enrich_data_adds_metadata_without_changing_bullets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def fake_enrichment(
+        *, client: Any, resume: Any, experience: Any
+    ) -> dict[str, dict[str, object]]:
+        del client, resume
+        first = experience.bullets[0]
+        return {
+            first.id: {
+                "confidence": 0.91,
+                "tags": ["sdet", "automation"],
+            }
+        }
+
+    monkeypatch.setattr(
+        "scripts.build_resume._enrich_experience_bullets", fake_enrichment
+    )
+
+    enriched = enrich_data(resume)
+    assert enriched.experiences == resume.experiences
+    assert enriched.enrichment_by_bullet_id
+    sample = next(iter(enriched.enrichment_by_bullet_id.values()))
+    assert sample["confidence"] == 0.91
+    assert sample["tags"] == ["sdet", "automation"]
+
+
+def test_enrich_data_gracefully_falls_back_on_llm_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def raise_on_enrich(
+        *, client: Any, resume: Any, experience: Any
+    ) -> dict[str, dict[str, object]]:
+        del client, resume, experience
+        raise RuntimeError("simulated llm failure")
+
+    monkeypatch.setattr(
+        "scripts.build_resume._enrich_experience_bullets", raise_on_enrich
+    )
+    assert enrich_data(resume) == resume
+
+
+def test_trim_by_rules_limits_action_word_repetition() -> None:
+    profile = load_profile(PROFILE)
+    experiences = (
+        Experience(
+            id="exp-1",
+            job_title="Role 1",
+            company="Contoso",
+            start_date="2024-01",
+            end_date="2025-01",
+            general_role_description="Did role 1",
+            related_skills=("Python",),
+            bullets=(
+                Bullet(
+                    id="b1",
+                    text="Designed framework architecture for shared automation.",
+                    skills=("Python",),
+                    impact_type="architecture",
+                    domain="automation",
+                ),
+                Bullet(
+                    id="b2",
+                    text="Designed reusable orchestration layer for tests.",
+                    skills=("Python",),
+                    impact_type="architecture",
+                    domain="automation",
+                ),
+                Bullet(
+                    id="b3",
+                    text="Built debugging tools for flaky failures.",
+                    skills=("Python",),
+                    impact_type="quality",
+                    domain="tooling",
+                ),
+                Bullet(
+                    id="b5",
+                    text="Implemented structured test coverage tracking.",
+                    skills=("Python",),
+                    impact_type="delivery-speed",
+                    domain="automation",
+                ),
+            ),
+        ),
+        Experience(
+            id="exp-2",
+            job_title="Role 2",
+            company="Contoso",
+            start_date="2023-01",
+            end_date="2024-01",
+            general_role_description="Did role 2",
+            related_skills=("Python",),
+            bullets=(
+                Bullet(
+                    id="b4",
+                    text="Designed remote lab workflows for validation.",
+                    skills=("Python",),
+                    impact_type="quality",
+                    domain="lab",
+                ),
+            ),
+        ),
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+    resume = type(resume)(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=resume.experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id={
+            "b1": {"confidence": 0.10, "tags": ["architecture"]},
+            "b2": {"confidence": 0.90, "tags": ["architecture"]},
+            "b3": {"confidence": 0.80, "tags": ["debugging"]},
+            "b4": {"confidence": 0.05, "tags": ["lab"]},
+            "b5": {"confidence": 0.70, "tags": ["delivery"]},
+        },
+    )
+
+    trimmed = trim_by_rules(resume)
+
+    assert [bullet.id for bullet in trimmed.experiences[0].bullets] == [
+        "b2",
+        "b3",
+        "b5",
+    ]
+    assert [bullet.id for bullet in trimmed.experiences[1].bullets] == ["b4"]
+    designed_count = sum(
+        1
+        for experience in trimmed.experiences
+        for bullet in experience.bullets
+        if bullet.text.startswith("Designed")
+    )
+    assert designed_count == 2
+
+
+def test_trim_by_rules_enforces_total_bullet_cap() -> None:
+    profile = load_profile(PROFILE)
+    experiences: list[Experience] = []
+    enrichment_by_bullet_id: dict[str, dict[str, object]] = {}
+    action_words = [
+        "Built",
+        "Created",
+        "Implemented",
+        "Improved",
+        "Optimized",
+        "Delivered",
+        "Automated",
+        "Integrated",
+        "Streamlined",
+        "Strengthened",
+        "Expanded",
+        "Advanced",
+        "Launched",
+        "Enabled",
+        "Stabilized",
+        "Refined",
+        "Orchestrated",
+        "Directed",
+        "Modernized",
+        "Scaled",
+        "Accelerated",
+        "Reduced",
+        "Elevated",
+        "Simplified",
+    ]
+    for exp_index in range(6):
+        bullets: list[Bullet] = []
+        for bullet_index in range(4):
+            bullet_id = f"exp{exp_index}-b{bullet_index}"
+            action_word = action_words[exp_index * 4 + bullet_index]
+            bullets.append(
+                Bullet(
+                    id=bullet_id,
+                    text=f"{action_word} measurable automation impact for shared tooling.",
+                    skills=("Python",),
+                    impact_type="quality",
+                    domain="automation",
+                )
+            )
+            enrichment_by_bullet_id[bullet_id] = {
+                "confidence": (exp_index * 10 + bullet_index) / 100,
+                "tags": ["automation"],
+            }
+        experiences.append(
+            Experience(
+                id=f"exp-{exp_index}",
+                job_title=f"Role {exp_index}",
+                company="Contoso",
+                start_date="2024-01",
+                end_date="2025-01",
+                general_role_description="Did role work",
+                related_skills=("Python",),
+                bullets=tuple(bullets),
+            )
+        )
+
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=tuple(experiences),
+        skills_by_category={},
+    )
+    resume = type(resume)(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=resume.experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id=enrichment_by_bullet_id,
+    )
+
+    trimmed = trim_by_rules(resume)
+
+    assert sum(len(experience.bullets) for experience in trimmed.experiences) == 20
+    assert all(len(experience.bullets) >= 3 for experience in trimmed.experiences)
+    assert len(trimmed.experiences[0].bullets) == 3
+
+
+# ---------------------------------------------------------------------------
+# transform_for_role tests
+# ---------------------------------------------------------------------------
+
+
+def test_transform_for_role_is_identity_without_job_context() -> None:
+    """transform_for_role returns the same IR when no job context is provided."""
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={},
+    )
+    assert transform_for_role(resume) is resume
+
+
+def test_transform_for_role_is_identity_when_llm_disabled() -> None:
+    """transform_for_role returns the same IR when neither LLM nor fixture is enabled."""
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+    # Neither RESUME_BUILDER_LLM_ENABLED nor RESUME_BUILDER_LLM_FIXTURE are set.
+    assert transform_for_role(resume) is resume
+
+
+def test_transform_for_role_rewrites_bullet_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """transform_for_role updates bullet text when the LLM returns a non-empty rewrite."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    first_bullet_id = resume.experiences[0].bullets[0].id
+    rewritten_text = (
+        "Transformed inherited ADB/UI Automator test flow into a lightweight "
+        "abstraction layer for Android-based embedded UI testing across PolyOS, "
+        "Zoom, Teams, and Google Meet."
+    )
+
+    def fake_rewrite(*, client: Any, resume: Any, experience: Any) -> dict[str, str]:
+        del client, resume, experience
+        return {first_bullet_id: rewritten_text}
+
+    monkeypatch.setattr(
+        "scripts.build_resume._rewrite_experience_bullets", fake_rewrite
+    )
+
+    transformed = transform_for_role(resume)
+
+    first_original = resume.experiences[0].bullets[0]
+    first_transformed = transformed.experiences[0].bullets[0]
+    assert first_transformed.id == first_original.id
+    assert first_transformed.text == rewritten_text
+    assert first_transformed.text != first_original.text
+
+
+def test_transform_for_role_preserves_bullet_count_and_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """transform_for_role does not add, remove, or reorder bullets."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def fake_rewrite(*, client: Any, resume: Any, experience: Any) -> dict[str, str]:
+        del client, resume
+        # Rewrite every bullet with a prefix to ensure all get new text.
+        return {bullet.id: f"Reframed: {bullet.text}" for bullet in experience.bullets}
+
+    monkeypatch.setattr(
+        "scripts.build_resume._rewrite_experience_bullets", fake_rewrite
+    )
+
+    transformed = transform_for_role(resume)
+
+    for original_exp, transformed_exp in zip(
+        resume.experiences, transformed.experiences, strict=True
+    ):
+        assert len(transformed_exp.bullets) == len(original_exp.bullets)
+        for orig_b, trans_b in zip(
+            original_exp.bullets, transformed_exp.bullets, strict=True
+        ):
+            assert trans_b.id == orig_b.id
+            assert trans_b.skills == orig_b.skills
+            assert trans_b.impact_type == orig_b.impact_type
+            assert trans_b.domain == orig_b.domain
+
+
+def test_transform_for_role_keeps_original_when_rewrite_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """transform_for_role leaves bullet text unchanged when the rewrite is blank."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def fake_rewrite_empty(
+        *, client: Any, resume: Any, experience: Any
+    ) -> dict[str, str]:
+        del client, resume
+        # Return empty strings for all bullets — should be treated as no rewrite.
+        return {bullet.id: "   " for bullet in experience.bullets}
+
+    monkeypatch.setattr(
+        "scripts.build_resume._rewrite_experience_bullets", fake_rewrite_empty
+    )
+
+    transformed = transform_for_role(resume)
+
+    for original_exp, transformed_exp in zip(
+        resume.experiences, transformed.experiences, strict=True
+    ):
+        for orig_b, trans_b in zip(
+            original_exp.bullets, transformed_exp.bullets, strict=True
+        ):
+            assert trans_b.text == orig_b.text
+
+
+def test_transform_for_role_gracefully_falls_back_on_llm_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """transform_for_role returns the original IR when the inner rewrite call raises."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def raise_on_rewrite(
+        *, client: Any, resume: Any, experience: Any
+    ) -> dict[str, str]:
+        del client, resume, experience
+        raise RuntimeError("simulated llm failure")
+
+    monkeypatch.setattr(
+        "scripts.build_resume._rewrite_experience_bullets", raise_on_rewrite
+    )
+    assert transform_for_role(resume) == resume
+
+
+def test_transform_for_role_normalizes_sentence_start_casing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lowercase first-letter rewrites are normalized to sentence case."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    first_bullet = resume.experiences[0].bullets[0]
+    lowered = first_bullet.text[0].lower() + first_bullet.text[1:]
+
+    def fake_rewrite(*, client: Any, resume: Any, experience: Any) -> dict[str, str]:
+        del client, resume, experience
+        return {first_bullet.id: lowered}
+
+    monkeypatch.setattr(
+        "scripts.build_resume._rewrite_experience_bullets", fake_rewrite
+    )
+
+    transformed = transform_for_role(resume)
+    rewritten = transformed.experiences[0].bullets[0].text
+    assert rewritten[0].isupper()
+    assert rewritten == first_bullet.text
+
+
+def test_transform_for_role_rejects_generic_hype_rewrites(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Guardrails reject over-generic hype phrasing and keep canonical text."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    first_bullet = resume.experiences[0].bullets[0]
+    hype = "Demonstrated strong leadership skills across dynamic projects."
+
+    def fake_rewrite(*, client: Any, resume: Any, experience: Any) -> dict[str, str]:
+        del client, resume, experience
+        return {first_bullet.id: hype}
+
+    monkeypatch.setattr(
+        "scripts.build_resume._rewrite_experience_bullets", fake_rewrite
+    )
+
+    transformed = transform_for_role(resume)
+    assert transformed.experiences[0].bullets[0].text == first_bullet.text

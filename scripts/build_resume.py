@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Build a baseline resume artifact from canonical data.
+"""Build a tailored resume artifact from canonical data.
 
-Milestone-1 behavior intentionally favors output speed and manual finishability:
-- include all canonical experiences and bullets
-- preserve canonical bullet text unchanged
-- keep transform/trim stages as explicit no-op hooks for future phases
+Pipeline stages (in order):
+1. assemble_baseline_resume - load all canonical experiences and bullets unchanged
+2. transform_for_role       - rewrite bullet text to match target role framing (LLM)
+3. trim_for_role            - select/reorder bullets by role relevance (LLM)
+4. enrich_data              - attach role-alignment metadata to bullets (LLM)
+5. trim_by_rules            - enforce layout rules: deduplication, diversity, caps
+
+Note: a future post-layout overflow pass may further shorten wording after page-fit
+measurement for a specific output target (for example PDF/DOCX two-page limits).
 """
 
 from __future__ import annotations
@@ -13,8 +18,12 @@ import argparse
 import csv
 import html
 import json
+import logging
+import math
+import os
+import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -28,15 +37,26 @@ except ImportError:
 if __package__ in {None, ""}:
     from _runtime_guard import assert_not_blocked_runtime_input
     from jd_ingest import JobContext, ingest_job_context, ingest_job_text
+    from llm_client import LLMClient
 else:
     from scripts._runtime_guard import assert_not_blocked_runtime_input
     from scripts.jd_ingest import JobContext, ingest_job_context, ingest_job_text
+    from scripts.llm_client import LLMClient
 
 
 DEFAULT_PROFILE = Path("data/profile/profile.toml")
 DEFAULT_EXPERIENCE_DB = Path("data/experience/experience_db.toml")
 DEFAULT_SKILLS_MATRIX = Path("data/skills/skills_matrix.csv")
 DEFAULT_OUTPUT_DIR = Path("data/review/outputs/baseline")
+DEFAULT_MAX_BULLETS_PER_EXPERIENCE = 4
+DEFAULT_MAX_TOTAL_BULLETS = 20
+DEFAULT_MAX_ACTION_WORD_OCCURRENCES = 2
+DEFAULT_MIN_BULLETS_PER_EXPERIENCE = 3
+LLM_ENABLED_ENV = "RESUME_BUILDER_LLM_ENABLED"
+LLM_FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -101,6 +121,7 @@ class ResumeIR:
     job_context: JobContext | None
     experiences: tuple[Experience, ...]
     skills_by_category: dict[str, list[str]]
+    enrichment_by_bullet_id: dict[str, dict[str, object]] = field(default_factory=dict)
 
 
 def parse_args() -> argparse.Namespace:
@@ -336,27 +357,733 @@ def assemble_baseline_resume(
         job_context=job_context,
         experiences=experiences,
         skills_by_category=skills_by_category,
+        enrichment_by_bullet_id={},
     )
 
 
 def transform_for_role(resume: ResumeIR) -> ResumeIR:
-    """No-op placeholder for future role-specific rewriting stage."""
-    return resume
+    """Rewrite bullet text to better match the target role without changing facts.
+
+    Purpose:
+        Adapt tone, framing, and emphasis of each bullet to the target role's
+        job description signals. This is the only current pre-layout stage that
+        rewrites bullet text.
+
+    Allowed:
+        - Rewrite bullet text (tone, phrasing, keyword alignment).
+        - Adapt framing to match JD terminology and role context.
+
+    Not allowed:
+        - Add facts or metrics not present in the original bullet.
+        - Select, reorder, or remove bullets.
+        - Change bullet IDs or metadata fields.
+
+    Future note:
+        A later layout-aware pass may still shorten wording after actual page-fit
+        measurement when targeting constrained formats such as PDF or DOCX.
+    """
+    if resume.job_context is None:
+        return resume
+    if (
+        not resume.job_context.description_excerpt.strip()
+        and not resume.target_role.strip()
+    ):
+        return resume
+    if not _llm_stage_enabled():
+        return resume
+
+    try:
+        client = LLMClient.from_env()
+        transformed_experiences = tuple(
+            _transform_experience_bullets(
+                client=client,
+                resume=resume,
+                experience=experience,
+            )
+            for experience in resume.experiences
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("transform_for_role fallback to baseline: %s", exc)
+        return resume
+
+    return ResumeIR(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=transformed_experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
+    )
+
+
+def _transform_experience_bullets(
+    *,
+    client: LLMClient,
+    resume: ResumeIR,
+    experience: Experience,
+) -> Experience:
+    """Apply LLM rewrites to bullet text for a single experience; fall back to originals."""
+    rewrites = _rewrite_experience_bullets(
+        client=client, resume=resume, experience=experience
+    )
+    if not rewrites:
+        return experience
+
+    new_bullets: list[Bullet] = []
+    changed = False
+    for bullet in experience.bullets:
+        rewritten_text = _normalize_transformed_bullet_text(
+            original_text=bullet.text,
+            rewritten_text=rewrites.get(bullet.id, ""),
+        )
+        if rewritten_text and rewritten_text != bullet.text:
+            new_bullets.append(
+                Bullet(
+                    id=bullet.id,
+                    text=rewritten_text,
+                    skills=bullet.skills,
+                    impact_type=bullet.impact_type,
+                    domain=bullet.domain,
+                )
+            )
+            changed = True
+        else:
+            new_bullets.append(bullet)
+
+    if not changed:
+        return experience
+
+    return Experience(
+        id=experience.id,
+        job_title=experience.job_title,
+        company=experience.company,
+        start_date=experience.start_date,
+        end_date=experience.end_date,
+        general_role_description=experience.general_role_description,
+        related_skills=experience.related_skills,
+        bullets=tuple(new_bullets),
+    )
+
+
+def _rewrite_experience_bullets(
+    *, client: LLMClient, resume: ResumeIR, experience: Experience
+) -> dict[str, str]:
+    """Call LLM to rewrite bullets for a single experience; return id→rewritten_text map."""
+    if resume.job_context is None:
+        return {}
+
+    role_hint = resume.target_role.strip() or resume.job_context.role_hint
+    company_hint = resume.target_company.strip() or resume.job_context.company_name
+    bullet_payload = [
+        {"id": bullet.id, "text": bullet.text, "skills": list(bullet.skills)}
+        for bullet in experience.bullets
+    ]
+
+    response_payload = client.complete_json(
+        namespace="transform_for_role",
+        system_prompt=(
+            "You are rewriting resume bullets to better match a target role. "
+            "Preserve all factual claims, metrics, technologies, and chronology exactly. "
+            "Keep a direct engineering tone and make minimal edits; avoid generic hype phrasing. "
+            "Keep sentence case and proper capitalization. "
+            "Do not use first-person voice. "
+            "Prefer small wording shifts over full rewrites. "
+            "Return JSON only with key: bullets."
+        ),
+        user_payload={
+            "target_role": role_hint,
+            "target_company": company_hint,
+            "job_description_excerpt": resume.job_context.description_excerpt,
+            "experience": {
+                "id": experience.id,
+                "job_title": experience.job_title,
+                "company": experience.company,
+                "role_summary": experience.general_role_description,
+            },
+            "bullets": bullet_payload,
+            "response_schema": {
+                "bullets": [
+                    {
+                        "id": "<bullet-id>",
+                        "rewritten_text": "<rewritten bullet text>",
+                    }
+                ]
+            },
+        },
+    )
+
+    raw_bullets = response_payload.get("bullets", [])
+    if not isinstance(raw_bullets, list):
+        return {}
+
+    known_ids = {bullet.id for bullet in experience.bullets}
+    parsed: dict[str, str] = {}
+    for item in raw_bullets:
+        if not isinstance(item, dict):
+            continue
+        bullet_id = str(item.get("id", "")).strip()
+        if not bullet_id or bullet_id not in known_ids:
+            continue
+        rewritten = str(item.get("rewritten_text", "")).strip()
+        if rewritten:
+            parsed[bullet_id] = rewritten
+    return parsed
+
+
+_FIRST_PERSON_PATTERN = re.compile(r"\b(i|me|my|mine|we|us|our|ours)\b", re.IGNORECASE)
+_GENERIC_HYPE_PHRASES = (
+    "demonstrated strong",
+    "proven track record",
+    "results-driven",
+    "dynamic professional",
+)
+_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9+/#-]*")
+
+
+def _normalize_transformed_bullet_text(
+    *, original_text: str, rewritten_text: str
+) -> str:
+    """Apply deterministic surface fixes and reject low-quality rewrite drift."""
+    rewritten = " ".join(rewritten_text.split()).strip()
+    if not rewritten:
+        return ""
+
+    # Preserve sentence-start casing style from canonical text.
+    original = original_text.strip()
+    if (
+        original
+        and original[0].isalpha()
+        and original[0].isupper()
+        and rewritten[0].isalpha()
+        and rewritten[0].islower()
+    ):
+        rewritten = rewritten[0].upper() + rewritten[1:]
+
+    # Keep terminal punctuation style stable when source has explicit punctuation.
+    if original and original[-1] in ".!?" and rewritten[-1] not in ".!?":
+        rewritten = f"{rewritten}{original[-1]}"
+
+    if not _passes_transform_guardrails(
+        original_text=original_text, rewritten_text=rewritten
+    ):
+        return ""
+    return rewritten
+
+
+def _passes_transform_guardrails(*, original_text: str, rewritten_text: str) -> bool:
+    """Reject rewrites that drift too far from source voice/details."""
+    lowered = rewritten_text.lower()
+    if "!" in rewritten_text:
+        return False
+    if _FIRST_PERSON_PATTERN.search(rewritten_text):
+        return False
+    if any(phrase in lowered for phrase in _GENERIC_HYPE_PHRASES):
+        return False
+
+    original_len = max(1, len(original_text.strip()))
+    rewritten_len = len(rewritten_text.strip())
+    length_ratio = rewritten_len / original_len
+    if length_ratio < 0.6 or length_ratio > 1.45:
+        return False
+
+    original_tokens = {
+        token.lower()
+        for token in _TOKEN_PATTERN.findall(original_text)
+        if len(token) >= 4
+    }
+    if not original_tokens:
+        return True
+    rewritten_tokens = {
+        token.lower()
+        for token in _TOKEN_PATTERN.findall(rewritten_text)
+        if len(token) >= 4
+    }
+    overlap = len(original_tokens & rewritten_tokens) / len(original_tokens)
+    return overlap >= 0.35
 
 
 def trim_for_role(resume: ResumeIR) -> ResumeIR:
-    """No-op placeholder for future role-relevance trimming stage."""
-    return resume
+    """Select and reorder bullets by role relevance without rewriting text.
+
+    Purpose:
+        Reduce each experience to the most role-relevant bullets.
+
+    Allowed:
+        - Keep a subset of bullets from each experience.
+        - Reorder kept bullets by descending relevance.
+
+    Not allowed:
+        - Rewrite bullet text.
+        - Edit canonical source data.
+    """
+    if resume.job_context is None:
+        return resume
+    if (
+        not resume.job_context.description_excerpt.strip()
+        and not resume.target_role.strip()
+    ):
+        return resume
+    if not _llm_stage_enabled():
+        return resume
+
+    try:
+        client = LLMClient.from_env()
+        trimmed_experiences = tuple(
+            _trim_experience_bullets(
+                client=client,
+                resume=resume,
+                experience=experience,
+                max_bullets=DEFAULT_MAX_BULLETS_PER_EXPERIENCE,
+            )
+            for experience in resume.experiences
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("trim_for_role fallback to baseline: %s", exc)
+        return resume
+
+    return ResumeIR(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=trimmed_experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
+    )
+
+
+def _trim_experience_bullets(
+    *,
+    client: LLMClient,
+    resume: ResumeIR,
+    experience: Experience,
+    max_bullets: int,
+) -> Experience:
+    if len(experience.bullets) <= max_bullets:
+        return experience
+
+    scores = _score_bullet_relevance(
+        client=client, resume=resume, experience=experience
+    )
+    if not scores:
+        return experience
+
+    # Emit full per-bullet score map before ranking for audit/debug tracing.
+    score_map = {
+        bullet.id: _coerce_relevance_score(scores.get(bullet.id))
+        for bullet in experience.bullets
+    }
+    logger.debug(
+        "trim_for_role scores experience_id=%s score_map=%s",
+        experience.id,
+        score_map,
+    )
+
+    ranked_pairs: list[tuple[int, Bullet]] = sorted(
+        enumerate(experience.bullets),
+        key=lambda pair: (-scores.get(pair[1].id, 0.0), pair[0]),
+    )
+    trimmed = tuple(bullet for _, bullet in ranked_pairs[:max_bullets])
+
+    return Experience(
+        id=experience.id,
+        job_title=experience.job_title,
+        company=experience.company,
+        start_date=experience.start_date,
+        end_date=experience.end_date,
+        general_role_description=experience.general_role_description,
+        related_skills=experience.related_skills,
+        bullets=trimmed,
+    )
+
+
+def _score_bullet_relevance(
+    *, client: LLMClient, resume: ResumeIR, experience: Experience
+) -> dict[str, float]:
+    bullet_payload = [
+        {"id": bullet.id, "text": bullet.text, "skills": list(bullet.skills)}
+        for bullet in experience.bullets
+    ]
+    if resume.job_context is None:
+        return {}
+    role_hint = resume.target_role.strip() or resume.job_context.role_hint
+    company_hint = resume.target_company.strip() or resume.job_context.company_name
+
+    response_payload = client.complete_json(
+        namespace="trim_for_role",
+        system_prompt=(
+            "You are ranking resume bullets for role relevance. "
+            "Return JSON only with keys: scores."
+        ),
+        user_payload={
+            "target_role": role_hint,
+            "target_company": company_hint,
+            "job_description_excerpt": resume.job_context.description_excerpt,
+            "experience": {
+                "id": experience.id,
+                "job_title": experience.job_title,
+                "company": experience.company,
+                "role_summary": experience.general_role_description,
+            },
+            "bullets": bullet_payload,
+            "response_schema": {
+                "scores": [
+                    {
+                        "id": "<bullet-id>",
+                        "score": "<float between 0.0 and 1.0>",
+                    }
+                ]
+            },
+        },
+    )
+
+    raw_scores = response_payload.get("scores", [])
+    if not isinstance(raw_scores, list):
+        return {}
+
+    parsed_scores: dict[str, float] = {}
+    for item in raw_scores:
+        if not isinstance(item, dict):
+            continue
+        bullet_id = str(item.get("id", "")).strip()
+        if not bullet_id:
+            continue
+        parsed_scores[bullet_id] = _coerce_relevance_score(item.get("score"))
+    return parsed_scores
+
+
+def _coerce_relevance_score(raw: object) -> float:
+    try:
+        numeric = float(str(raw))
+    except (TypeError, ValueError):
+        return 0.0
+    if not math.isfinite(numeric):
+        return 0.0
+    if numeric < 0.0:
+        return 0.0
+    if numeric > 1.0:
+        return 1.0
+    return numeric
 
 
 def enrich_data(resume: ResumeIR) -> ResumeIR:
-    """No-op placeholder for future data enrichment stage."""
-    return resume
+    """Attach role-alignment metadata to bullets without changing display content.
+
+    Purpose:
+        Annotate selected bullets with non-displayed metadata (confidence/tags).
+
+    Allowed:
+        - Add metadata keyed by bullet id.
+
+    Not allowed:
+        - Rewrite bullet text.
+        - Select/reorder bullets.
+    """
+    if resume.job_context is None:
+        return resume
+    if not _llm_stage_enabled():
+        return resume
+
+    try:
+        client = LLMClient.from_env()
+        merged = dict(resume.enrichment_by_bullet_id)
+        for experience in resume.experiences:
+            merged.update(
+                _enrich_experience_bullets(
+                    client=client,
+                    resume=resume,
+                    experience=experience,
+                )
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("enrich_data fallback to baseline: %s", exc)
+        return resume
+
+    return ResumeIR(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=resume.experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id=merged,
+    )
+
+
+def _llm_stage_enabled() -> bool:
+    llm_enabled = os.getenv(LLM_ENABLED_ENV, "0").strip() == "1"
+    fixture_enabled = os.getenv(LLM_FIXTURE_ENV, "0").strip() == "1"
+    return llm_enabled or fixture_enabled
+
+
+def _enrich_experience_bullets(
+    *,
+    client: LLMClient,
+    resume: ResumeIR,
+    experience: Experience,
+) -> dict[str, dict[str, object]]:
+    if resume.job_context is None:
+        return {}
+
+    response_payload = client.complete_json(
+        namespace="enrich_data",
+        system_prompt=(
+            "You are annotating resume bullets with role-relevance metadata. "
+            "Return JSON only with keys: bullets."
+        ),
+        user_payload={
+            "target_role": resume.target_role.strip() or resume.job_context.role_hint,
+            "target_company": (
+                resume.target_company.strip() or resume.job_context.company_name
+            ),
+            "job_description_excerpt": resume.job_context.description_excerpt,
+            "experience": {
+                "id": experience.id,
+                "job_title": experience.job_title,
+                "company": experience.company,
+            },
+            "bullets": [
+                {"id": bullet.id, "text": bullet.text, "skills": list(bullet.skills)}
+                for bullet in experience.bullets
+            ],
+            "response_schema": {
+                "bullets": [
+                    {
+                        "id": "<bullet-id>",
+                        "confidence": "<float between 0.0 and 1.0>",
+                        "tags": ["<short-tag>"],
+                    }
+                ]
+            },
+        },
+    )
+
+    raw_bullets = response_payload.get("bullets", [])
+    if not isinstance(raw_bullets, list):
+        return {}
+
+    known_ids = {bullet.id for bullet in experience.bullets}
+    parsed: dict[str, dict[str, object]] = {}
+    for item in raw_bullets:
+        if not isinstance(item, dict):
+            continue
+        bullet_id = str(item.get("id", "")).strip()
+        if not bullet_id or bullet_id not in known_ids:
+            continue
+
+        raw_tags = item.get("tags", [])
+        tags = []
+        if isinstance(raw_tags, list):
+            tags = [str(tag).strip() for tag in raw_tags if str(tag).strip()]
+
+        parsed[bullet_id] = {
+            "confidence": _coerce_relevance_score(item.get("confidence")),
+            "tags": tags,
+        }
+    return parsed
 
 
 def trim_by_rules(resume: ResumeIR) -> ResumeIR:
-    """No-op placeholder for future layout/rules trimming stage."""
-    return resume
+    """Apply deterministic layout and diversity trimming without rewriting text.
+
+    Purpose:
+        Enforce final presentation rules such as deduplication, action-word diversity,
+        and an overall bullet budget.
+
+    Allowed:
+        - Remove duplicate or low-priority bullets.
+        - Keep original bullet text unchanged.
+
+    Not allowed:
+        - Rewrite bullet text.
+        - Reorder experiences.
+
+    Future note:
+        This stage does not currently perform layout-aware shortening. If page-fit
+        constraints require small wording reductions, that should happen in a later
+        overflow/layout stage after actual render measurement.
+    """
+    trimmed_experiences = _apply_rule_based_trimming(
+        experiences=resume.experiences,
+        enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
+    )
+    if trimmed_experiences == resume.experiences:
+        return resume
+
+    kept_bullet_ids = {
+        bullet.id for experience in trimmed_experiences for bullet in experience.bullets
+    }
+    filtered_enrichment = {
+        bullet_id: metadata
+        for bullet_id, metadata in resume.enrichment_by_bullet_id.items()
+        if bullet_id in kept_bullet_ids
+    }
+
+    return ResumeIR(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=trimmed_experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id=filtered_enrichment,
+    )
+
+
+def _apply_rule_based_trimming(
+    *,
+    experiences: tuple[Experience, ...],
+    enrichment_by_bullet_id: dict[str, dict[str, object]],
+) -> tuple[Experience, ...]:
+    selected_by_experience = [list(experience.bullets) for experience in experiences]
+
+    _drop_duplicate_bullets(selected_by_experience)
+    _limit_action_word_repetition(
+        selected_by_experience,
+        enrichment_by_bullet_id=enrichment_by_bullet_id,
+    )
+    _enforce_total_bullet_cap(
+        selected_by_experience,
+        enrichment_by_bullet_id=enrichment_by_bullet_id,
+        max_total_bullets=DEFAULT_MAX_TOTAL_BULLETS,
+    )
+
+    trimmed_experiences: list[Experience] = []
+    for experience, selected_bullets in zip(
+        experiences, selected_by_experience, strict=True
+    ):
+        trimmed_experiences.append(
+            Experience(
+                id=experience.id,
+                job_title=experience.job_title,
+                company=experience.company,
+                start_date=experience.start_date,
+                end_date=experience.end_date,
+                general_role_description=experience.general_role_description,
+                related_skills=experience.related_skills,
+                bullets=tuple(selected_bullets),
+            )
+        )
+    return tuple(trimmed_experiences)
+
+
+def _drop_duplicate_bullets(selected_by_experience: list[list[Bullet]]) -> None:
+    seen_texts: set[str] = set()
+    for bullets in selected_by_experience:
+        filtered: list[Bullet] = []
+        for i, bullet in enumerate(bullets):
+            normalized_text = " ".join(bullet.text.lower().split())
+            # Always keep the first bullet, even if duplicated.
+            # For subsequent bullets, drop if already seen AND we can afford to drop
+            # (still have more than the minimum required).
+            if (
+                i > 0
+                and normalized_text in seen_texts
+                and len(filtered) >= DEFAULT_MIN_BULLETS_PER_EXPERIENCE
+            ):
+                continue
+            filtered.append(bullet)
+            seen_texts.add(normalized_text)
+        bullets[:] = filtered
+
+
+def _limit_action_word_repetition(
+    selected_by_experience: list[list[Bullet]],
+    *,
+    enrichment_by_bullet_id: dict[str, dict[str, object]],
+) -> None:
+    occurrences: dict[str, list[tuple[int, int, Bullet]]] = {}
+    for exp_index, bullets in enumerate(selected_by_experience):
+        for bullet_index, bullet in enumerate(bullets):
+            action_word = _extract_action_word(bullet.text)
+            if not action_word:
+                continue
+            occurrences.setdefault(action_word, []).append(
+                (exp_index, bullet_index, bullet)
+            )
+
+    for bullets_for_word in occurrences.values():
+        removable = [
+            candidate
+            for candidate in bullets_for_word
+            if len(selected_by_experience[candidate[0]])
+            > DEFAULT_MIN_BULLETS_PER_EXPERIENCE
+        ]
+        removable.sort(
+            key=lambda candidate: (
+                _bullet_confidence(candidate[2], enrichment_by_bullet_id),
+                candidate[0],
+                candidate[1],
+            )
+        )
+        extras_to_remove = max(
+            0,
+            len(bullets_for_word) - DEFAULT_MAX_ACTION_WORD_OCCURRENCES,
+        )
+        for exp_index, _, bullet in removable[:extras_to_remove]:
+            current = selected_by_experience[exp_index]
+            if len(current) <= DEFAULT_MIN_BULLETS_PER_EXPERIENCE:
+                continue
+            selected_by_experience[exp_index] = [
+                existing for existing in current if existing.id != bullet.id
+            ]
+
+
+def _enforce_total_bullet_cap(
+    selected_by_experience: list[list[Bullet]],
+    *,
+    enrichment_by_bullet_id: dict[str, dict[str, object]],
+    max_total_bullets: int,
+) -> None:
+    while sum(len(bullets) for bullets in selected_by_experience) > max_total_bullets:
+        candidates: list[tuple[float, int, int, Bullet]] = []
+        for exp_index, bullets in enumerate(selected_by_experience):
+            if len(bullets) <= DEFAULT_MIN_BULLETS_PER_EXPERIENCE:
+                continue
+            for bullet_index, bullet in enumerate(bullets):
+                candidates.append(
+                    (
+                        _bullet_confidence(bullet, enrichment_by_bullet_id),
+                        exp_index,
+                        bullet_index,
+                        bullet,
+                    )
+                )
+        if not candidates:
+            return
+
+        # Sort: lowest confidence first; when tied, prefer trimming older roles
+        # (highest exp_index) and last bullets first (highest bullet_index).
+        candidates.sort(key=lambda c: (c[0], -c[1], -c[2]))
+        _, exp_index, _, bullet_to_remove = candidates[0]
+        current = selected_by_experience[exp_index]
+        selected_by_experience[exp_index] = [
+            bullet for bullet in current if bullet.id != bullet_to_remove.id
+        ]
+
+
+def _extract_action_word(text: str) -> str:
+    for token in text.split():
+        cleaned = "".join(
+            character for character in token.lower() if character.isalpha()
+        )
+        if cleaned:
+            return cleaned
+    return ""
+
+
+def _bullet_confidence(
+    bullet: Bullet, enrichment_by_bullet_id: dict[str, dict[str, object]]
+) -> float:
+    metadata = enrichment_by_bullet_id.get(bullet.id, {})
+    if not isinstance(metadata, dict):
+        return 0.0
+    return _coerce_relevance_score(metadata.get("confidence"))
 
 
 def _html_escape(value: str) -> str:
@@ -664,9 +1391,12 @@ def write_ir_snapshot(resume: ResumeIR, output_path: Path) -> None:
         "skills_count": sum(
             len(skills) for skills in resume.skills_by_category.values()
         ),
+        "enrichment_count": len(resume.enrichment_by_bullet_id),
     }
     if resume.job_context is not None:
         payload["job_context"] = resume.job_context.to_dict()
+    if resume.enrichment_by_bullet_id:
+        payload["bullet_enrichment"] = resume.enrichment_by_bullet_id
     output_path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

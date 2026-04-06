@@ -1,0 +1,5 @@
+{
+  "model": "mistral:latest",
+  "endpoint": "http://127.0.0.1:11434/v1/chat/completions",
+  "content": "{\"bullets\": [\n  {\n    \"id\": \"exp_hp_poly_technical_advisor_sdet_audio_202105_b01\",\n    \"rewritten_text\": \"Enhanced test pattern consistency across suites, boosting reusability by 25 percent and minimizing maintenance efforts.\"\n  },\n  {\n    \"id\": \"exp_hp_poly_technical_advisor_sdet_audio_202105_b02\",\n    \"rewritten_text\": \"Enhanced framework usability with shared abstractions and utilities, increasing reusability by 20 percent.\"\n  },\n  {\n    \"id\": \"exp_hp_poly_technical_advisor_sdet_audio_202105_b03\",\n    \"rewritten_text\": \"Streamlined legacy error handling, addressing network exceptions and improving failure reporting. Debugging of most I/O issues was reduced from hours to minutes, allowing for efficient isolation of true product defects.\"\n  }\n]}"
+}

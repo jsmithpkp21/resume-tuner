@@ -1,0 +1,5 @@
+{
+  "model": "mistral:latest",
+  "endpoint": "http://127.0.0.1:11434/v1/chat/completions",
+  "content": "{\n  \"scores\": [\n    {\n      \"id\": \"exp_hp_poly_lead_framework_designer_video_sqa_200808_b01\",\n      \"score\": 0.9\n    },\n    {\n      \"id\": \"exp_hp_poly_lead_framework_designer_video_sqa_200808_b02\",\n      \"score\": 0.95\n    },\n    {\n      \"id\": \"exp_hp_poly_lead_framework_designer_video_sqa_200808_b03\",\n      \"score\": 0.85\n    },\n    {\n      \"id\": \"exp_hp_poly_lead_framework_designer_video_sqa_200808_b04\",\n      \"score\": 0.8\n    },\n    {\n      \"id\": \"exp_hp_poly_lead_framework_designer_video_sqa_200808_b05\",\n      \"score\": 0.9\n    }\n  ]\n}"
+}

@@ -1,0 +1,5 @@
+{
+  "model": "mistral:latest",
+  "endpoint": "http://127.0.0.1:11434/v1/chat/completions",
+  "content": "{\"bullets\": [\n  {\"id\": \"exp_hp_poly_technical_advisor_sdet_audio_202105_b01\", \"skills\": [\"Python\", \"Pytest\"], \"text\": \"Enhanced test suite efficiency by standardizing test patterns, resulting in a 25 percent increase in reusability and reduced maintenance burden.\", \"tags\": [\"Automation\", \"Testing\"]},\n  {\"id\": \"exp_hp_poly_technical_advisor_sdet_audio_202105_b02\", \"skills\": [\"Python\", \"Framework Design\"], \"text\": \"Boosted framework efficiency with the introduction of shared abstractions and utilities, leading to a 20 percent increase in reusability.\", \"tags\": [\"Development\", \"Framework\"]},\n  {\"id\": \"exp_hp_poly_technical_advisor_sdet_audio_202105_b03\", \"skills\": [\"Python\", \"Debugging\"], \"text\": \"Streamlined error handling by refactoring legacy code that masked network exceptions, improving failure reporting and significantly reducing debugging time for most I/O issues from hours to minutes.\", \"tags\": [\"Troubleshooting\", \"Error Handling\"]}\n]}"
+}

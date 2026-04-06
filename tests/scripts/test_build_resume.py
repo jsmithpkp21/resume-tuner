@@ -14,9 +14,13 @@ import pytest
 
 from scripts import jd_ingest
 from scripts.build_resume import (
+    Bullet,
+    Experience,
     assemble_baseline_resume,
+    enrich_data,
     load_experiences,
     load_profile,
+    trim_by_rules,
     trim_for_role,
 )
 from scripts.jd_ingest import FetchedPage, ingest_job_context
@@ -634,3 +638,288 @@ def test_trim_for_role_gracefully_falls_back_on_llm_errors(
 
     monkeypatch.setattr("scripts.build_resume._score_bullet_relevance", raise_on_score)
     assert trim_for_role(resume) == resume
+
+
+def test_trim_for_role_keeps_experience_when_scores_are_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def empty_scores(*, client: Any, resume: Any, experience: Any) -> dict[str, float]:
+        del client, resume, experience
+        return {}
+
+    monkeypatch.setattr("scripts.build_resume._score_bullet_relevance", empty_scores)
+
+    trimmed = trim_for_role(resume)
+    assert trimmed.experiences[0] == resume.experiences[0]
+
+
+def test_enrich_data_adds_metadata_without_changing_bullets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def fake_enrichment(
+        *, client: Any, resume: Any, experience: Any
+    ) -> dict[str, dict[str, object]]:
+        del client, resume
+        first = experience.bullets[0]
+        return {
+            first.id: {
+                "confidence": 0.91,
+                "tags": ["sdet", "automation"],
+            }
+        }
+
+    monkeypatch.setattr(
+        "scripts.build_resume._enrich_experience_bullets", fake_enrichment
+    )
+
+    enriched = enrich_data(resume)
+    assert enriched.experiences == resume.experiences
+    assert enriched.enrichment_by_bullet_id
+    sample = next(iter(enriched.enrichment_by_bullet_id.values()))
+    assert sample["confidence"] == 0.91
+    assert sample["tags"] == ["sdet", "automation"]
+
+
+def test_enrich_data_gracefully_falls_back_on_llm_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def raise_on_enrich(
+        *, client: Any, resume: Any, experience: Any
+    ) -> dict[str, dict[str, object]]:
+        del client, resume, experience
+        raise RuntimeError("simulated llm failure")
+
+    monkeypatch.setattr(
+        "scripts.build_resume._enrich_experience_bullets", raise_on_enrich
+    )
+    assert enrich_data(resume) == resume
+
+
+def test_trim_by_rules_limits_action_word_repetition() -> None:
+    profile = load_profile(PROFILE)
+    experiences = (
+        Experience(
+            id="exp-1",
+            job_title="Role 1",
+            company="Contoso",
+            start_date="2024-01",
+            end_date="2025-01",
+            general_role_description="Did role 1",
+            related_skills=("Python",),
+            bullets=(
+                Bullet(
+                    id="b1",
+                    text="Designed framework architecture for shared automation.",
+                    skills=("Python",),
+                    impact_type="architecture",
+                    domain="automation",
+                ),
+                Bullet(
+                    id="b2",
+                    text="Designed reusable orchestration layer for tests.",
+                    skills=("Python",),
+                    impact_type="architecture",
+                    domain="automation",
+                ),
+                Bullet(
+                    id="b3",
+                    text="Built debugging tools for flaky failures.",
+                    skills=("Python",),
+                    impact_type="quality",
+                    domain="tooling",
+                ),
+            ),
+        ),
+        Experience(
+            id="exp-2",
+            job_title="Role 2",
+            company="Contoso",
+            start_date="2023-01",
+            end_date="2024-01",
+            general_role_description="Did role 2",
+            related_skills=("Python",),
+            bullets=(
+                Bullet(
+                    id="b4",
+                    text="Designed remote lab workflows for validation.",
+                    skills=("Python",),
+                    impact_type="quality",
+                    domain="lab",
+                ),
+            ),
+        ),
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+    resume = type(resume)(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=resume.experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id={
+            "b1": {"confidence": 0.10, "tags": ["architecture"]},
+            "b2": {"confidence": 0.90, "tags": ["architecture"]},
+            "b3": {"confidence": 0.80, "tags": ["debugging"]},
+            "b4": {"confidence": 0.05, "tags": ["lab"]},
+        },
+    )
+
+    trimmed = trim_by_rules(resume)
+
+    assert [bullet.id for bullet in trimmed.experiences[0].bullets] == ["b2", "b3"]
+    assert [bullet.id for bullet in trimmed.experiences[1].bullets] == ["b4"]
+    designed_count = sum(
+        1
+        for experience in trimmed.experiences
+        for bullet in experience.bullets
+        if bullet.text.startswith("Designed")
+    )
+    assert designed_count == 2
+
+
+def test_trim_by_rules_enforces_total_bullet_cap() -> None:
+    profile = load_profile(PROFILE)
+    experiences: list[Experience] = []
+    enrichment_by_bullet_id: dict[str, dict[str, object]] = {}
+    action_words = [
+        "Built",
+        "Created",
+        "Implemented",
+        "Improved",
+        "Optimized",
+        "Delivered",
+        "Automated",
+        "Integrated",
+        "Streamlined",
+        "Strengthened",
+        "Expanded",
+        "Advanced",
+        "Launched",
+        "Enabled",
+        "Stabilized",
+        "Refined",
+        "Orchestrated",
+        "Directed",
+        "Modernized",
+        "Scaled",
+        "Accelerated",
+        "Reduced",
+        "Elevated",
+        "Simplified",
+    ]
+    for exp_index in range(6):
+        bullets: list[Bullet] = []
+        for bullet_index in range(4):
+            bullet_id = f"exp{exp_index}-b{bullet_index}"
+            action_word = action_words[exp_index * 4 + bullet_index]
+            bullets.append(
+                Bullet(
+                    id=bullet_id,
+                    text=f"{action_word} measurable automation impact for shared tooling.",
+                    skills=("Python",),
+                    impact_type="quality",
+                    domain="automation",
+                )
+            )
+            enrichment_by_bullet_id[bullet_id] = {
+                "confidence": (exp_index * 10 + bullet_index) / 100,
+                "tags": ["automation"],
+            }
+        experiences.append(
+            Experience(
+                id=f"exp-{exp_index}",
+                job_title=f"Role {exp_index}",
+                company="Contoso",
+                start_date="2024-01",
+                end_date="2025-01",
+                general_role_description="Did role work",
+                related_skills=("Python",),
+                bullets=tuple(bullets),
+            )
+        )
+
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=tuple(experiences),
+        skills_by_category={},
+    )
+    resume = type(resume)(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=resume.experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id=enrichment_by_bullet_id,
+    )
+
+    trimmed = trim_by_rules(resume)
+
+    assert sum(len(experience.bullets) for experience in trimmed.experiences) == 18
+    assert all(len(experience.bullets) >= 1 for experience in trimmed.experiences)
+    assert len(trimmed.experiences[0].bullets) == 1

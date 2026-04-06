@@ -1,0 +1,5 @@
+{
+  "model": "mistral:latest",
+  "endpoint": "http://127.0.0.1:11434/v1/chat/completions",
+  "content": "{\"bullets\": [\n  {\"id\": \"exp_hp_poly_technical_lead_framework_integration_201906_b01\", \"skills\": [\"Architecture\", \"Framework Design\", \"Technical Leadership\"]},\n  {\"id\": \"exp_hp_poly_technical_lead_framework_integration_201906_b02\", \"skills\": [\"Java\", \"Python\", \"Developer Tooling\"]},\n  {\"id\": \"exp_hp_poly_technical_lead_framework_integration_201906_b03\", \"skills\": [\"Java\", \"CI/CD\", \"Dependency Management\"]},\n  {\"id\": \"exp_hp_poly_technical_lead_framework_integration_201906_b04\", \"skills\": [\"Java\", \"Versioning automation\", \"CI/CD\"]}\n]}"
+}

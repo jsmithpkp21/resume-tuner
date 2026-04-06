@@ -16,7 +16,7 @@ import json
 import logging
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +42,9 @@ DEFAULT_EXPERIENCE_DB = Path("data/experience/experience_db.toml")
 DEFAULT_SKILLS_MATRIX = Path("data/skills/skills_matrix.csv")
 DEFAULT_OUTPUT_DIR = Path("data/review/outputs/baseline")
 DEFAULT_MAX_BULLETS_PER_EXPERIENCE = 4
+DEFAULT_MAX_TOTAL_BULLETS = 18
+DEFAULT_MAX_ACTION_WORD_OCCURRENCES = 2
+DEFAULT_MIN_BULLETS_PER_EXPERIENCE = 1
 LLM_ENABLED_ENV = "RESUME_BUILDER_LLM_ENABLED"
 LLM_FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"
 
@@ -111,6 +114,7 @@ class ResumeIR:
     job_context: JobContext | None
     experiences: tuple[Experience, ...]
     skills_by_category: dict[str, list[str]]
+    enrichment_by_bullet_id: dict[str, dict[str, object]] = field(default_factory=dict)
 
 
 def parse_args() -> argparse.Namespace:
@@ -346,6 +350,7 @@ def assemble_baseline_resume(
         job_context=job_context,
         experiences=experiences,
         skills_by_category=skills_by_category,
+        enrichment_by_bullet_id={},
     )
 
 
@@ -375,9 +380,7 @@ def trim_for_role(resume: ResumeIR) -> ResumeIR:
         and not resume.target_role.strip()
     ):
         return resume
-    llm_enabled = os.getenv(LLM_ENABLED_ENV, "0").strip() == "1"
-    fixture_enabled = os.getenv(LLM_FIXTURE_ENV, "0").strip() == "1"
-    if not llm_enabled and not fixture_enabled:
+    if not _llm_stage_enabled():
         return resume
 
     try:
@@ -403,6 +406,7 @@ def trim_for_role(resume: ResumeIR) -> ResumeIR:
         job_context=resume.job_context,
         experiences=trimmed_experiences,
         skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
     )
 
 
@@ -419,6 +423,9 @@ def _trim_experience_bullets(
     scores = _score_bullet_relevance(
         client=client, resume=resume, experience=experience
     )
+    if not scores:
+        return experience
+
     ranked_pairs: list[tuple[int, Bullet]] = sorted(
         enumerate(experience.bullets),
         key=lambda pair: (-scores.get(pair[1].id, 0.0), pair[0]),
@@ -505,13 +512,308 @@ def _coerce_relevance_score(raw: object) -> float:
 
 
 def enrich_data(resume: ResumeIR) -> ResumeIR:
-    """No-op placeholder for future data enrichment stage."""
-    return resume
+    """Attach role-alignment metadata to bullets without changing display content.
+
+    Purpose:
+        Annotate selected bullets with non-displayed metadata (confidence/tags).
+
+    Allowed:
+        - Add metadata keyed by bullet id.
+
+    Not allowed:
+        - Rewrite bullet text.
+        - Select/reorder bullets.
+    """
+    if resume.job_context is None:
+        return resume
+    if not _llm_stage_enabled():
+        return resume
+
+    try:
+        client = LLMClient.from_env()
+        merged = dict(resume.enrichment_by_bullet_id)
+        for experience in resume.experiences:
+            merged.update(
+                _enrich_experience_bullets(
+                    client=client,
+                    resume=resume,
+                    experience=experience,
+                )
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("enrich_data fallback to baseline: %s", exc)
+        return resume
+
+    return ResumeIR(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=resume.experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id=merged,
+    )
+
+
+def _llm_stage_enabled() -> bool:
+    llm_enabled = os.getenv(LLM_ENABLED_ENV, "0").strip() == "1"
+    fixture_enabled = os.getenv(LLM_FIXTURE_ENV, "0").strip() == "1"
+    return llm_enabled or fixture_enabled
+
+
+def _enrich_experience_bullets(
+    *,
+    client: LLMClient,
+    resume: ResumeIR,
+    experience: Experience,
+) -> dict[str, dict[str, object]]:
+    if resume.job_context is None:
+        return {}
+
+    response_payload = client.complete_json(
+        namespace="enrich_data",
+        system_prompt=(
+            "You are annotating resume bullets with role-relevance metadata. "
+            "Return JSON only with keys: bullets."
+        ),
+        user_payload={
+            "target_role": resume.target_role.strip() or resume.job_context.role_hint,
+            "target_company": (
+                resume.target_company.strip() or resume.job_context.company_name
+            ),
+            "job_description_excerpt": resume.job_context.description_excerpt,
+            "experience": {
+                "id": experience.id,
+                "job_title": experience.job_title,
+                "company": experience.company,
+            },
+            "bullets": [
+                {"id": bullet.id, "text": bullet.text, "skills": list(bullet.skills)}
+                for bullet in experience.bullets
+            ],
+            "response_schema": {
+                "bullets": [
+                    {
+                        "id": "<bullet-id>",
+                        "confidence": "<float between 0.0 and 1.0>",
+                        "tags": ["<short-tag>"],
+                    }
+                ]
+            },
+        },
+    )
+
+    raw_bullets = response_payload.get("bullets", [])
+    if not isinstance(raw_bullets, list):
+        return {}
+
+    known_ids = {bullet.id for bullet in experience.bullets}
+    parsed: dict[str, dict[str, object]] = {}
+    for item in raw_bullets:
+        if not isinstance(item, dict):
+            continue
+        bullet_id = str(item.get("id", "")).strip()
+        if not bullet_id or bullet_id not in known_ids:
+            continue
+
+        raw_tags = item.get("tags", [])
+        tags = []
+        if isinstance(raw_tags, list):
+            tags = [str(tag).strip() for tag in raw_tags if str(tag).strip()]
+
+        parsed[bullet_id] = {
+            "confidence": _coerce_relevance_score(item.get("confidence")),
+            "tags": tags,
+        }
+    return parsed
 
 
 def trim_by_rules(resume: ResumeIR) -> ResumeIR:
-    """No-op placeholder for future layout/rules trimming stage."""
-    return resume
+    """Apply deterministic layout and diversity trimming without rewriting text.
+
+    Purpose:
+        Enforce final presentation rules such as deduplication, action-word diversity,
+        and an overall bullet budget.
+
+    Allowed:
+        - Remove duplicate or low-priority bullets.
+        - Keep original bullet text unchanged.
+
+    Not allowed:
+        - Rewrite bullet text.
+        - Reorder experiences.
+    """
+    trimmed_experiences = _apply_rule_based_trimming(
+        experiences=resume.experiences,
+        enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
+    )
+    if trimmed_experiences == resume.experiences:
+        return resume
+
+    kept_bullet_ids = {
+        bullet.id for experience in trimmed_experiences for bullet in experience.bullets
+    }
+    filtered_enrichment = {
+        bullet_id: metadata
+        for bullet_id, metadata in resume.enrichment_by_bullet_id.items()
+        if bullet_id in kept_bullet_ids
+    }
+
+    return ResumeIR(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=trimmed_experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id=filtered_enrichment,
+    )
+
+
+def _apply_rule_based_trimming(
+    *,
+    experiences: tuple[Experience, ...],
+    enrichment_by_bullet_id: dict[str, dict[str, object]],
+) -> tuple[Experience, ...]:
+    selected_by_experience = [list(experience.bullets) for experience in experiences]
+
+    _drop_duplicate_bullets(selected_by_experience)
+    _limit_action_word_repetition(
+        selected_by_experience,
+        enrichment_by_bullet_id=enrichment_by_bullet_id,
+    )
+    _enforce_total_bullet_cap(
+        selected_by_experience,
+        enrichment_by_bullet_id=enrichment_by_bullet_id,
+        max_total_bullets=DEFAULT_MAX_TOTAL_BULLETS,
+    )
+
+    trimmed_experiences: list[Experience] = []
+    for experience, selected_bullets in zip(
+        experiences, selected_by_experience, strict=True
+    ):
+        trimmed_experiences.append(
+            Experience(
+                id=experience.id,
+                job_title=experience.job_title,
+                company=experience.company,
+                start_date=experience.start_date,
+                end_date=experience.end_date,
+                general_role_description=experience.general_role_description,
+                related_skills=experience.related_skills,
+                bullets=tuple(selected_bullets),
+            )
+        )
+    return tuple(trimmed_experiences)
+
+
+def _drop_duplicate_bullets(selected_by_experience: list[list[Bullet]]) -> None:
+    seen_texts: set[str] = set()
+    for bullets in selected_by_experience:
+        filtered: list[Bullet] = []
+        for bullet in bullets:
+            normalized_text = " ".join(bullet.text.lower().split())
+            if (
+                normalized_text in seen_texts
+                and len(bullets) > DEFAULT_MIN_BULLETS_PER_EXPERIENCE
+            ):
+                continue
+            filtered.append(bullet)
+            seen_texts.add(normalized_text)
+        bullets[:] = filtered
+
+
+def _limit_action_word_repetition(
+    selected_by_experience: list[list[Bullet]],
+    *,
+    enrichment_by_bullet_id: dict[str, dict[str, object]],
+) -> None:
+    occurrences: dict[str, list[tuple[int, int, Bullet]]] = {}
+    for exp_index, bullets in enumerate(selected_by_experience):
+        for bullet_index, bullet in enumerate(bullets):
+            action_word = _extract_action_word(bullet.text)
+            if not action_word:
+                continue
+            occurrences.setdefault(action_word, []).append(
+                (exp_index, bullet_index, bullet)
+            )
+
+    for bullets_for_word in occurrences.values():
+        removable = [
+            candidate
+            for candidate in bullets_for_word
+            if len(selected_by_experience[candidate[0]])
+            > DEFAULT_MIN_BULLETS_PER_EXPERIENCE
+        ]
+        removable.sort(
+            key=lambda candidate: (
+                _bullet_confidence(candidate[2], enrichment_by_bullet_id),
+                candidate[0],
+                candidate[1],
+            )
+        )
+        extras_to_remove = max(
+            0,
+            len(bullets_for_word) - DEFAULT_MAX_ACTION_WORD_OCCURRENCES,
+        )
+        for exp_index, _, bullet in removable[:extras_to_remove]:
+            current = selected_by_experience[exp_index]
+            if len(current) <= DEFAULT_MIN_BULLETS_PER_EXPERIENCE:
+                continue
+            selected_by_experience[exp_index] = [
+                existing for existing in current if existing.id != bullet.id
+            ]
+
+
+def _enforce_total_bullet_cap(
+    selected_by_experience: list[list[Bullet]],
+    *,
+    enrichment_by_bullet_id: dict[str, dict[str, object]],
+    max_total_bullets: int,
+) -> None:
+    while sum(len(bullets) for bullets in selected_by_experience) > max_total_bullets:
+        candidates: list[tuple[float, int, int, Bullet]] = []
+        for exp_index, bullets in enumerate(selected_by_experience):
+            if len(bullets) <= DEFAULT_MIN_BULLETS_PER_EXPERIENCE:
+                continue
+            for bullet_index, bullet in enumerate(bullets):
+                candidates.append(
+                    (
+                        _bullet_confidence(bullet, enrichment_by_bullet_id),
+                        exp_index,
+                        bullet_index,
+                        bullet,
+                    )
+                )
+        if not candidates:
+            return
+
+        _, exp_index, _, bullet_to_remove = min(candidates)
+        current = selected_by_experience[exp_index]
+        selected_by_experience[exp_index] = [
+            bullet for bullet in current if bullet.id != bullet_to_remove.id
+        ]
+
+
+def _extract_action_word(text: str) -> str:
+    for token in text.split():
+        cleaned = "".join(
+            character for character in token.lower() if character.isalpha()
+        )
+        if cleaned:
+            return cleaned
+    return ""
+
+
+def _bullet_confidence(
+    bullet: Bullet, enrichment_by_bullet_id: dict[str, dict[str, object]]
+) -> float:
+    metadata = enrichment_by_bullet_id.get(bullet.id, {})
+    if not isinstance(metadata, dict):
+        return 0.0
+    return _coerce_relevance_score(metadata.get("confidence"))
 
 
 def _html_escape(value: str) -> str:
@@ -819,9 +1121,12 @@ def write_ir_snapshot(resume: ResumeIR, output_path: Path) -> None:
         "skills_count": sum(
             len(skills) for skills in resume.skills_by_category.values()
         ),
+        "enrichment_count": len(resume.enrichment_by_bullet_id),
     }
     if resume.job_context is not None:
         payload["job_context"] = resume.job_context.to_dict()
+    if resume.enrichment_by_bullet_id:
+        payload["bullet_enrichment"] = resume.enrichment_by_bullet_id
     output_path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

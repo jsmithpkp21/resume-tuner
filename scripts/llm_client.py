@@ -84,6 +84,7 @@ class LLMClient:
     def _chat(self, *, messages: list[dict[str, str]], namespace: str) -> LLMResponse:
         cache_key = self._cache_key(messages=messages, namespace=namespace)
         cache_path = self._cache_dir / f"llm_response_{cache_key}.json"
+        assert_not_blocked_runtime_input(cache_path)
 
         cached = self._read_cache(cache_path)
         if cached is not None:
@@ -160,6 +161,7 @@ class LLMClient:
         return content
 
     def _write_cache(self, *, cache_path: Path, content: str) -> None:
+        assert_not_blocked_runtime_input(cache_path)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "model": self._model,

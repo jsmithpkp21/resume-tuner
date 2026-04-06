@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -610,6 +611,50 @@ def test_trim_for_role_keeps_subset_and_reorders_by_score(
     assert {bullet.id for bullet in first_after.bullets}.issubset(
         {bullet.id for bullet in first_before.bullets}
     )
+
+
+def test_trim_for_role_logs_full_score_map_before_ranking(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    caplog.set_level(logging.DEBUG, logger="scripts.build_resume")
+
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            """
+            Job Title: Senior SDET
+            Company: Charles Schwab
+            Looking for a Senior SDET focused on debugging and CI reliability.
+            """.strip()
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def fake_scores(*, client: Any, resume: Any, experience: Any) -> dict[str, float]:
+        del client, resume
+        return {
+            bullet.id: (0.9 - (index * 0.1))
+            for index, bullet in enumerate(experience.bullets)
+        }
+
+    monkeypatch.setattr("scripts.build_resume._score_bullet_relevance", fake_scores)
+
+    trim_for_role(resume)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("trim_for_role scores" in message for message in messages)
+    first_exp = resume.experiences[0]
+    assert any(first_exp.id in message for message in messages)
+    assert any(first_exp.bullets[0].id in message for message in messages)
 
 
 def test_trim_for_role_gracefully_falls_back_on_llm_errors(

@@ -670,6 +670,17 @@ def _trim_experience_bullets(
     if not scores:
         return experience
 
+    # Emit full per-bullet score map before ranking for audit/debug tracing.
+    score_map = {
+        bullet.id: _coerce_relevance_score(scores.get(bullet.id))
+        for bullet in experience.bullets
+    }
+    logger.debug(
+        "trim_for_role scores experience_id=%s score_map=%s",
+        experience.id,
+        score_map,
+    )
+
     ranked_pairs: list[tuple[int, Bullet]] = sorted(
         enumerate(experience.bullets),
         key=lambda pair: (-scores.get(pair[1].id, 0.0), pair[0]),

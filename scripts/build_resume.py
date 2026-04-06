@@ -713,11 +713,15 @@ def _drop_duplicate_bullets(selected_by_experience: list[list[Bullet]]) -> None:
     seen_texts: set[str] = set()
     for bullets in selected_by_experience:
         filtered: list[Bullet] = []
-        for bullet in bullets:
+        for i, bullet in enumerate(bullets):
             normalized_text = " ".join(bullet.text.lower().split())
+            # Always keep the first bullet, even if duplicated.
+            # For subsequent bullets, drop if already seen AND we can afford to drop
+            # (still have more than the minimum required).
             if (
-                normalized_text in seen_texts
-                and len(bullets) > DEFAULT_MIN_BULLETS_PER_EXPERIENCE
+                i > 0
+                and normalized_text in seen_texts
+                and len(filtered) >= DEFAULT_MIN_BULLETS_PER_EXPERIENCE
             ):
                 continue
             filtered.append(bullet)

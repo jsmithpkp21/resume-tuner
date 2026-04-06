@@ -44,7 +44,7 @@ DEFAULT_OUTPUT_DIR = Path("data/review/outputs/baseline")
 DEFAULT_MAX_BULLETS_PER_EXPERIENCE = 4
 DEFAULT_MAX_TOTAL_BULLETS = 18
 DEFAULT_MAX_ACTION_WORD_OCCURRENCES = 2
-DEFAULT_MIN_BULLETS_PER_EXPERIENCE = 1
+DEFAULT_MIN_BULLETS_PER_EXPERIENCE = 3
 LLM_ENABLED_ENV = "RESUME_BUILDER_LLM_ENABLED"
 LLM_FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"
 
@@ -794,7 +794,10 @@ def _enforce_total_bullet_cap(
         if not candidates:
             return
 
-        _, exp_index, _, bullet_to_remove = min(candidates)
+        # Sort: lowest confidence first; when tied, prefer trimming older roles
+        # (highest exp_index) and last bullets first (highest bullet_index).
+        candidates.sort(key=lambda c: (c[0], -c[1], -c[2]))
+        _, exp_index, _, bullet_to_remove = candidates[0]
         current = selected_by_experience[exp_index]
         selected_by_experience[exp_index] = [
             bullet for bullet in current if bullet.id != bullet_to_remove.id

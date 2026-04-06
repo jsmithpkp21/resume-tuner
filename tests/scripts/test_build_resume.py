@@ -776,6 +776,13 @@ def test_trim_by_rules_limits_action_word_repetition() -> None:
                     impact_type="quality",
                     domain="tooling",
                 ),
+                Bullet(
+                    id="b5",
+                    text="Implemented structured test coverage tracking.",
+                    skills=("Python",),
+                    impact_type="delivery-speed",
+                    domain="automation",
+                ),
             ),
         ),
         Experience(
@@ -820,12 +827,17 @@ def test_trim_by_rules_limits_action_word_repetition() -> None:
             "b2": {"confidence": 0.90, "tags": ["architecture"]},
             "b3": {"confidence": 0.80, "tags": ["debugging"]},
             "b4": {"confidence": 0.05, "tags": ["lab"]},
+            "b5": {"confidence": 0.70, "tags": ["delivery"]},
         },
     )
 
     trimmed = trim_by_rules(resume)
 
-    assert [bullet.id for bullet in trimmed.experiences[0].bullets] == ["b2", "b3"]
+    assert [bullet.id for bullet in trimmed.experiences[0].bullets] == [
+        "b2",
+        "b3",
+        "b5",
+    ]
     assert [bullet.id for bullet in trimmed.experiences[1].bullets] == ["b4"]
     designed_count = sum(
         1
@@ -921,5 +933,5 @@ def test_trim_by_rules_enforces_total_bullet_cap() -> None:
     trimmed = trim_by_rules(resume)
 
     assert sum(len(experience.bullets) for experience in trimmed.experiences) == 18
-    assert all(len(experience.bullets) >= 1 for experience in trimmed.experiences)
-    assert len(trimmed.experiences[0].bullets) == 1
+    assert all(len(experience.bullets) >= 3 for experience in trimmed.experiences)
+    assert len(trimmed.experiences[0].bullets) == 3

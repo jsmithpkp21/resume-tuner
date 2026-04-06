@@ -20,6 +20,7 @@ import html
 import json
 import logging
 import os
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -432,7 +433,10 @@ def _transform_experience_bullets(
     new_bullets: list[Bullet] = []
     changed = False
     for bullet in experience.bullets:
-        rewritten_text = rewrites.get(bullet.id, "").strip()
+        rewritten_text = _normalize_transformed_bullet_text(
+            original_text=bullet.text,
+            rewritten_text=rewrites.get(bullet.id, ""),
+        )
         if rewritten_text and rewritten_text != bullet.text:
             new_bullets.append(
                 Bullet(
@@ -480,8 +484,11 @@ def _rewrite_experience_bullets(
         namespace="transform_for_role",
         system_prompt=(
             "You are rewriting resume bullets to better match a target role. "
-            "Preserve all factual claims, metrics, and technologies exactly. "
-            "Adapt tone, phrasing, and emphasis to align with the job description. "
+            "Preserve all factual claims, metrics, technologies, and chronology exactly. "
+            "Keep a direct engineering tone and make minimal edits; avoid generic hype phrasing. "
+            "Keep sentence case and proper capitalization. "
+            "Do not use first-person voice. "
+            "Prefer small wording shifts over full rewrites. "
             "Return JSON only with key: bullets."
         ),
         user_payload={
@@ -522,6 +529,78 @@ def _rewrite_experience_bullets(
         if rewritten:
             parsed[bullet_id] = rewritten
     return parsed
+
+
+_FIRST_PERSON_PATTERN = re.compile(r"\b(i|me|my|mine|we|us|our|ours)\b", re.IGNORECASE)
+_GENERIC_HYPE_PHRASES = (
+    "demonstrated strong",
+    "proven track record",
+    "results-driven",
+    "dynamic professional",
+)
+_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9+/#-]*")
+
+
+def _normalize_transformed_bullet_text(
+    *, original_text: str, rewritten_text: str
+) -> str:
+    """Apply deterministic surface fixes and reject low-quality rewrite drift."""
+    rewritten = " ".join(rewritten_text.split()).strip()
+    if not rewritten:
+        return ""
+
+    # Preserve sentence-start casing style from canonical text.
+    original = original_text.strip()
+    if (
+        original
+        and original[0].isalpha()
+        and original[0].isupper()
+        and rewritten[0].isalpha()
+        and rewritten[0].islower()
+    ):
+        rewritten = rewritten[0].upper() + rewritten[1:]
+
+    # Keep terminal punctuation style stable when source has explicit punctuation.
+    if original and original[-1] in ".!?" and rewritten[-1] not in ".!?":
+        rewritten = f"{rewritten}{original[-1]}"
+
+    if not _passes_transform_guardrails(
+        original_text=original_text, rewritten_text=rewritten
+    ):
+        return ""
+    return rewritten
+
+
+def _passes_transform_guardrails(*, original_text: str, rewritten_text: str) -> bool:
+    """Reject rewrites that drift too far from source voice/details."""
+    lowered = rewritten_text.lower()
+    if "!" in rewritten_text:
+        return False
+    if _FIRST_PERSON_PATTERN.search(rewritten_text):
+        return False
+    if any(phrase in lowered for phrase in _GENERIC_HYPE_PHRASES):
+        return False
+
+    original_len = max(1, len(original_text.strip()))
+    rewritten_len = len(rewritten_text.strip())
+    length_ratio = rewritten_len / original_len
+    if length_ratio < 0.6 or length_ratio > 1.45:
+        return False
+
+    original_tokens = {
+        token.lower()
+        for token in _TOKEN_PATTERN.findall(original_text)
+        if len(token) >= 4
+    }
+    if not original_tokens:
+        return True
+    rewritten_tokens = {
+        token.lower()
+        for token in _TOKEN_PATTERN.findall(rewritten_text)
+        if len(token) >= 4
+    }
+    overlap = len(original_tokens & rewritten_tokens) / len(original_tokens)
+    return overlap >= 0.35
 
 
 def trim_for_role(resume: ResumeIR) -> ResumeIR:

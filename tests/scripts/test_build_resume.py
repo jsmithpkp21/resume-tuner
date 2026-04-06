@@ -1001,7 +1001,11 @@ def test_transform_for_role_rewrites_bullet_text(
     )
 
     first_bullet_id = resume.experiences[0].bullets[0].id
-    rewritten_text = "Rewrote first bullet to match target role."
+    rewritten_text = (
+        "Transformed inherited ADB/UI Automator test flow into a lightweight "
+        "abstraction layer for Android-based embedded UI testing across PolyOS, "
+        "Zoom, Teams, and Google Meet."
+    )
 
     def fake_rewrite(*, client: Any, resume: Any, experience: Any) -> dict[str, str]:
         del client, resume, experience
@@ -1136,3 +1140,75 @@ def test_transform_for_role_gracefully_falls_back_on_llm_errors(
         "scripts.build_resume._rewrite_experience_bullets", raise_on_rewrite
     )
     assert transform_for_role(resume) == resume
+
+
+def test_transform_for_role_normalizes_sentence_start_casing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lowercase first-letter rewrites are normalized to sentence case."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    first_bullet = resume.experiences[0].bullets[0]
+    lowered = first_bullet.text[0].lower() + first_bullet.text[1:]
+
+    def fake_rewrite(*, client: Any, resume: Any, experience: Any) -> dict[str, str]:
+        del client, resume, experience
+        return {first_bullet.id: lowered}
+
+    monkeypatch.setattr(
+        "scripts.build_resume._rewrite_experience_bullets", fake_rewrite
+    )
+
+    transformed = transform_for_role(resume)
+    rewritten = transformed.experiences[0].bullets[0].text
+    assert rewritten[0].isupper()
+    assert rewritten == first_bullet.text
+
+
+def test_transform_for_role_rejects_generic_hype_rewrites(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Guardrails reject over-generic hype phrasing and keep canonical text."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\nCompany: Charles Schwab"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    first_bullet = resume.experiences[0].bullets[0]
+    hype = "Demonstrated strong leadership skills across dynamic projects."
+
+    def fake_rewrite(*, client: Any, resume: Any, experience: Any) -> dict[str, str]:
+        del client, resume, experience
+        return {first_bullet.id: hype}
+
+    monkeypatch.setattr(
+        "scripts.build_resume._rewrite_experience_bullets", fake_rewrite
+    )
+
+    transformed = transform_for_role(resume)
+    assert transformed.experiences[0].bullets[0].text == first_bullet.text

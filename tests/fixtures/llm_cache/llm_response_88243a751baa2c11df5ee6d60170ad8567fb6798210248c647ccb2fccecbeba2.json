@@ -1,0 +1,5 @@
+{
+  "model": "mistral:latest",
+  "endpoint": "http://127.0.0.1:11434/v1/chat/completions",
+  "content": "{\"bullets\": [\n{\"id\": \"exp_hp_poly_technical_advisor_sdet_headset_202003_b01\", \"rewritten_text\": \"Offered architectural advice, conducted code reviews, and provided development assistance to six engineers.\"},\n{\"id\": \"exp_hp_poly_technical_advisor_sdet_headset_202003_b02\", \"rewritten_text\": \"Developed and implemented a remotely-controlled USB headset test lab featuring ten automated stations and fifteen shared VMs, increasing automated test capacity by 100% while eliminating on-site dependency.\"},\n{\"id\": \"exp_hp_poly_technical_advisor_sdet_headset_202003_b03\", \"rewritten_text\": \"Facilitated distributed engineers in executing headset validation remotely through shared lab infrastructure, enhancing daily execution flexibility.\"}\n]}"
+}

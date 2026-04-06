@@ -1,0 +1,5 @@
+{
+  "model": "mistral:latest",
+  "endpoint": "http://127.0.0.1:11434/v1/chat/completions",
+  "content": "{\n\"bullets\": [\n  {\n    \"id\": \"exp_hp_poly_lead_technical_designer_corp_automation_201506_b01\",\n    \"skills\": [\"Architecture\", \"Automation Strategy\"],\n    \"tags\": [\"Automation Strategy\", \"Cross-Team Collaboration\"]\n  },\n  {\n    \"id\": \"exp_hp_poly_lead_technical_designer_corp_automation_201506_b02\",\n    \"skills\": [\"Python\", \"Prototype Design\"],\n    \"tags\": [\"Programming\", \"Design\"]\n  },\n  {\n    \"id\": \"exp_hp_poly_lead_technical_designer_corp_automation_201506_b03\",\n    \"skills\": [\"Logging\", \"Observability\", \"Distributed Systems\"],\n    \"tags\": [\"Framework Evaluation\", \"Requirements Gathering\"]\n  }\n]\n}"
+}

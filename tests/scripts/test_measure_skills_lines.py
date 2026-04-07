@@ -503,32 +503,32 @@ class TestKerning:
             font_bold=font_bold,
             kern_table=None,
         )
-        # After the fix, the bold prefix is measured identically in both calls
-        # (kern_table=None), so only the body text kern differs.
-        # Line counts must be equal for a short category with few skills.
-        assert count_fixed == count_no_kern, (
-            f"Expected identical line counts when only bold-prefix kern differs: "
-            f"fixed={count_fixed} no_kern={count_no_kern}.  "
-            "Bold prefix must not receive Regular kern adjustments."
+        # Boundary-case guard: choose a width where incorrect application of
+        # Regular kern to the bold prefix would change wrap behavior.
+        body_with_kern = measure_pt(skills[0], font_regular, kern_table=kern)
+        total_fixed = prefix_no_kern + body_with_kern
+        total_buggy = prefix_with_kern + body_with_kern
+        if total_buggy >= total_fixed:
+            pytest.skip(
+                "Unexpected kern direction for boundary test; "
+                "cannot construct deterministic prefix-kern boundary"
+            )
+        boundary_width_pt = (total_buggy + total_fixed) / 2
+        count_boundary, _ = wrap_category_line(
+            category,
+            skills,
+            font_regular=font_regular,
+            font_bold=font_bold,
+            text_width_pt=boundary_width_pt,
+            kern_table=kern,
         )
-        # Confirm the bold prefix is actually kern-sensitive for this category.
-        # If this specific string has no kern delta, skip instead of asserting a
-        # trivially true condition that would hide regressions.
-        if kern.pair_count == 0:
-            pytest.skip(
-                "Calibri kern table has zero pairs; cannot validate kern impact"
-            )
-        if prefix_with_kern == prefix_no_kern:
-            pytest.skip(
-                "Selected category had no measurable kern delta; "
-                "choose a kern-richer label if this becomes frequent."
-            )
+        assert count_boundary == 2, (
+            "Boundary check failed: with correct implementation (no prefix kern), "
+            "line should wrap. If this regresses to 1, prefix kern is being applied."
+        )
 
-
-class TestRuntimeGuards:
-    """Ensure runtime path guard blocks unsafe CLI input paths."""
-
-    def test_load_skills_rejects_blocked_csv_path(self) -> None:
+    def test_runtime_guards(self) -> None:
+        """Ensure runtime path guard blocks unsafe CLI input paths."""
         blocked_csv = Path("sandbox") / "skills_matrix.csv"
         with pytest.raises(ValueError, match="blocked runtime directory"):
             load_skills_by_category(blocked_csv)

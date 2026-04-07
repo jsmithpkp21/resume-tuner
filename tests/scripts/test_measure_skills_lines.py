@@ -181,41 +181,48 @@ class TestLineSensitivity:
         )
 
     def test_removing_skill_can_decrease_line_count(self) -> None:
-        """Removing a wide skill that causes wrapping collapses the line count."""
+        """Removing a wide skill that causes wrapping collapses the line count.
+
+        Uses a computed text-width boundary so behavior stays deterministic across
+        Calibri/Liberation/DejaVu metrics in local and CI environments.
+        """
         font_regular, font_bold, _ = _get_fonts()
 
-        # "W" is the widest glyph in Calibri; 55 chars guarantees overflow at 11pt.
+        # Keep one intentionally wide terminal skill to force a second line.
         wide_skill = "W" * 55
-        skills_wrapping = [
+        skills_trimmed = [
             "Python",
             "Java",
             "Bash",
             "Groovy",
             "Shell scripting",
-            wide_skill,
         ]
-        skills_trimmed = [s for s in skills_wrapping if s != wide_skill]
+        skills_wrapping = skills_trimmed + [wide_skill]
 
-        count_with, _ = wrap_category_line(
-            "Category",
-            skills_wrapping,
-            font_regular=font_regular,
-            font_bold=font_bold,
-        )
-        if count_with == 1:
-            pytest.skip(
-                "Wide skill still fits on one line with this font; "
-                "increase wide_skill length if Calibri metrics change."
-            )
-            return
+        category = "Category"
+        prefix_pt = measure_pt(f"{category}: ", font_bold)
+        body_pt = measure_pt(SKILLS_SEPARATOR.join(skills_trimmed), font_regular)
+        text_width_pt = prefix_pt + body_pt + 1e-6
+
         count_without, _ = wrap_category_line(
-            "Category",
+            category,
             skills_trimmed,
             font_regular=font_regular,
             font_bold=font_bold,
+            text_width_pt=text_width_pt,
+        )
+        count_with, _ = wrap_category_line(
+            category,
+            skills_wrapping,
+            font_regular=font_regular,
+            font_bold=font_bold,
+            text_width_pt=text_width_pt,
         )
 
-        assert count_without < count_with, (
+        assert count_without == 1, (
+            f"Trimmed skills should fit in 1 line at computed width; got {count_without}"
+        )
+        assert count_with > count_without, (
             f"Expected fewer lines after removing a wide skill: "
             f"with={count_with} without={count_without}"
         )

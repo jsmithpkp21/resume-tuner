@@ -1184,7 +1184,7 @@ def render_html(resume: ResumeIR, output_path: Path) -> None:
     for category, skills in resume.skills_by_category.items():
         joined_skills = ", ".join(_html_escape(skill) for skill in skills)
         skills_html.append(
-            f"<p><strong>{_html_escape(category)}:</strong> {joined_skills}</p>"
+            f'<p class="skills-category"><strong>{_html_escape(category)}:</strong> {joined_skills}</p>'
         )
 
     education_html: list[str] = []
@@ -1253,6 +1253,7 @@ def render_html(resume: ResumeIR, output_path: Path) -> None:
                 "    h3 { margin-bottom: 2px; }",
                 "    h3 span { font-weight: normal; color: #333; }",
                 "    .headline, .contact, .target-role, .dates, .role-summary, .related-skills { margin: 4px 0; }",
+                "    .skills-category { margin: 0; }",
                 "    ul { margin-top: 6px; }",
                 "    .experience-item { margin-bottom: 16px; }",
                 "    .info-item { margin-bottom: 10px; }",

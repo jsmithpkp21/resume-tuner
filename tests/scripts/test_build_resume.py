@@ -166,6 +166,8 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
 
     assert "Jonathan Smith" in html_text
     assert '<p class="headline">Staff Software Engineer</p>' in html_text
+    assert ".skills-category { margin: 0; }" in html_text
+    assert '<p class="skills-category"><strong>' in html_text
     assert "linkedin.com/in/jonathan-j-smith-automation" in html_text
     assert "github.com/jsmithpkp21" in html_text
     assert "Architect, Python Test Framework (Video)" in html_text

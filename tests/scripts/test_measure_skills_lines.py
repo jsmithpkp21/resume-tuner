@@ -210,7 +210,16 @@ class TestLineSensitivity:
 
         category = "Category"
         prefix_pt = measure_pt(f"{category}: ", font_bold)
-        body_pt = measure_pt(SKILLS_SEPARATOR.join(skills_trimmed), font_regular)
+        # Build body width using the same token-summing logic as wrap_category_line
+        # to avoid whole-string vs token-level rounding drift across platforms.
+        body_tokens = SKILLS_SEPARATOR.join(skills_trimmed).split(" ")
+        space_pt = measure_pt(" ", font_regular)
+        body_pt = 0.0
+        for i, token in enumerate(body_tokens):
+            if not token:
+                continue
+            token_pt = measure_pt(token, font_regular)
+            body_pt += token_pt if i == 0 else space_pt + token_pt
         text_width_pt = prefix_pt + body_pt + 1e-6
 
         count_without, _ = wrap_category_line(

@@ -61,10 +61,19 @@ def _get_skills() -> dict[str, list[str]]:
 
 
 def _get_kern() -> KernTable | None:
-    """Load kern table once for the whole class (None if Calibri unavailable)."""
+    """Load kern table once for the whole module.
+
+    Returns None (and skips kern load entirely) when the loaded font pair is not
+    Calibri — applying a Calibri kern table to Liberation/DejaVu metrics would
+    produce incorrect widths and make kern-related assertions meaningless.
+    """
     global _kern_cache, _kern_loaded
     if not _kern_loaded:
-        _kern_cache = load_kern_table()
+        _, _, font_name = _get_fonts()
+        if font_name == "Calibri":
+            _kern_cache = load_kern_table()
+        else:
+            _kern_cache = None
         _kern_loaded = True
     return _kern_cache
 

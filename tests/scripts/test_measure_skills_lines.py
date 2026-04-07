@@ -507,13 +507,17 @@ class TestKerning:
             f"fixed={count_fixed} no_kern={count_no_kern}.  "
             "Bold prefix must not receive Regular kern adjustments."
         )
-        # Confirm the bold prefix width with kern != without kern
-        # (so the test is non-trivial — the category name IS kern-sensitive).
-        # This guards against the test silently passing when kern has zero pairs.
-        if kern.pair_count > 0:
-            assert prefix_with_kern != prefix_no_kern or True, (
-                "Note: kern had zero effect on this category name; "
-                "consider a more kern-rich category if this becomes a concern."
+        # Confirm the bold prefix is actually kern-sensitive for this category.
+        # If this specific string has no kern delta, skip instead of asserting a
+        # trivially true condition that would hide regressions.
+        if kern.pair_count == 0:
+            pytest.skip(
+                "Calibri kern table has zero pairs; cannot validate kern impact"
+            )
+        if prefix_with_kern == prefix_no_kern:
+            pytest.skip(
+                "Selected category had no measurable kern delta; "
+                "choose a kern-richer label if this becomes frequent."
             )
 
 

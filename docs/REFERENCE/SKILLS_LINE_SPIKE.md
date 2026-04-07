@@ -28,7 +28,7 @@ generation.
 
 | Option | Pro | Con |
 |---|---|---|
- Pillow font metrics (chosen)  Fast (<1 s), no render, deterministic, uses real Calibri metrics  Default mode has idealized spacing (no kerning); optional `--kern` improves borderline precision; ligatures ignored
+| Pillow font metrics (chosen) | Fast (<1 s), no render, deterministic, uses real Calibri metrics | Default mode has idealized spacing (no kerning); optional `--kern` improves borderline precision; ligatures ignored |
 | ReportLab (not installed) | True PDF metrics, kerning | Additional dependency, overkill for wrap counting |
 | WeasyPrint (not installed) | Exact browser/CSS layout | Heavy dep, slow, overkill |
 | Playwright PDF | Pixel-perfect CSS layout | Requires browser binary, slow, async |

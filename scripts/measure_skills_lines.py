@@ -93,7 +93,7 @@ DEFAULT_OUTPUT_DIR: Path = (
 
 # Target line budget from DESIGN.md §6 (Skills Section Line Budget)
 TARGET_LINES_MIN: int = 10
-TARGET_LINES_MAX: int = 13  # design says 10-12; 13 is a soft warning threshold
+TARGET_LINES_MAX: int = 12
 
 
 # ---------------------------------------------------------------------------
@@ -167,8 +167,14 @@ def load_font_pair(
     reg_path = regular_path or _find_calibri_path("Regular")
     bld_path = bold_path or _find_calibri_path("Bold")
 
+    def _looks_like_calibri(path: Path | None) -> bool:
+        return bool(path and "calibri" in path.name.lower())
+
     if reg_path and bld_path and reg_path.exists() and bld_path.exists():
-        font_name = "Calibri"
+        if _looks_like_calibri(reg_path) and _looks_like_calibri(bld_path):
+            font_name = "Calibri"
+        else:
+            font_name = "Custom font pair"
     elif require_calibri:
         raise FileNotFoundError(
             "Calibri font not found (Regular/Bold).\n"
@@ -251,21 +257,24 @@ class KernTable:
             ) from None
 
         font = ttLib.TTFont(str(font_path))
-        self._upm: int = int(font["head"].unitsPerEm)
-        self._pairs: dict[tuple[str, str], int] = {}
+        try:
+            self._upm: int = int(font["head"].unitsPerEm)
+            self._pairs: dict[tuple[str, str], int] = {}
 
-        if "kern" in font:
-            cmap: dict[int, str] = font.getBestCmap() or {}
-            rev: dict[str, int] = {
-                glyph: codepoint for codepoint, glyph in cmap.items()
-            }
-            for table in font["kern"].kernTables:
-                if hasattr(table, "kernTable"):
-                    for (g1, g2), val in table.kernTable.items():
-                        cp1 = rev.get(g1)
-                        cp2 = rev.get(g2)
-                        if cp1 is not None and cp2 is not None:
-                            self._pairs[(chr(cp1), chr(cp2))] = int(val)
+            if "kern" in font:
+                cmap: dict[int, str] = font.getBestCmap() or {}
+                rev: dict[str, int] = {
+                    glyph: codepoint for codepoint, glyph in cmap.items()
+                }
+                for table in font["kern"].kernTables:
+                    if hasattr(table, "kernTable"):
+                        for (g1, g2), val in table.kernTable.items():
+                            cp1 = rev.get(g1)
+                            cp2 = rev.get(g2)
+                            if cp1 is not None and cp2 is not None:
+                                self._pairs[(chr(cp1), chr(cp2))] = int(val)
+        finally:
+            font.close()
 
     @property
     def pair_count(self) -> int:

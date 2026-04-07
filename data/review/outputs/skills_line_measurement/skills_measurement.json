@@ -4,6 +4,8 @@
     "source_docx": "sandbox/Zebra_Resume.docx",
     "text_width_in": 7.0924,
     "text_width_pt": 510.65,
+    "reference_text_width_in": 7.0924,
+    "reference_text_width_pt": 510.65,
     "measurement_engine": "Pillow ImageFont.truetype (72-DPI point basis)",
     "kerning_enabled": true,
     "kern_pairs": 2045
@@ -25,7 +27,7 @@
       ],
       "full_line_width_pt": 922.39,
       "text_width_pt": 510.65,
-      "overflow_pt": 411.74
+      "unwrapped_overflow_pt": 411.74
     },
     {
       "category": "AI-Assisted Quality Engineering",
@@ -34,7 +36,7 @@
       "wrap_trigger_words": [],
       "full_line_width_pt": 326.18,
       "text_width_pt": 510.65,
-      "overflow_pt": -184.47
+      "unwrapped_overflow_pt": -184.47
     },
     {
       "category": "AI-Driven Engineering",
@@ -45,7 +47,7 @@
       ],
       "full_line_width_pt": 723.12,
       "text_width_pt": 510.65,
-      "overflow_pt": 212.47
+      "unwrapped_overflow_pt": 212.47
     },
     {
       "category": "Architecture & Design",
@@ -56,7 +58,7 @@
       ],
       "full_line_width_pt": 630.57,
       "text_width_pt": 510.65,
-      "overflow_pt": 119.92
+      "unwrapped_overflow_pt": 119.92
     },
     {
       "category": "Automation & Framework Architecture",
@@ -70,7 +72,7 @@
       ],
       "full_line_width_pt": 2047.14,
       "text_width_pt": 510.65,
-      "overflow_pt": 1536.48
+      "unwrapped_overflow_pt": 1536.48
     },
     {
       "category": "Automation & Framework Engineering",
@@ -82,7 +84,7 @@
       ],
       "full_line_width_pt": 1059.36,
       "text_width_pt": 510.65,
-      "overflow_pt": 548.71
+      "unwrapped_overflow_pt": 548.71
     },
     {
       "category": "CI/CD & Tooling",
@@ -94,7 +96,7 @@
       ],
       "full_line_width_pt": 1189.72,
       "text_width_pt": 510.65,
-      "overflow_pt": 679.06
+      "unwrapped_overflow_pt": 679.06
     },
     {
       "category": "Collaboration & Engineering Practices",
@@ -105,7 +107,7 @@
       ],
       "full_line_width_pt": 918.36,
       "text_width_pt": 510.65,
-      "overflow_pt": 407.71
+      "unwrapped_overflow_pt": 407.71
     },
     {
       "category": "Core Engineering Skills",
@@ -116,7 +118,7 @@
       ],
       "full_line_width_pt": 572.66,
       "text_width_pt": 510.65,
-      "overflow_pt": 62.01
+      "unwrapped_overflow_pt": 62.01
     },
     {
       "category": "Debugging & Analysis",
@@ -128,7 +130,7 @@
       ],
       "full_line_width_pt": 1026.46,
       "text_width_pt": 510.65,
-      "overflow_pt": 515.81
+      "unwrapped_overflow_pt": 515.81
     },
     {
       "category": "Distributed Systems & Infrastructure",
@@ -140,7 +142,7 @@
       ],
       "full_line_width_pt": 995.42,
       "text_width_pt": 510.65,
-      "overflow_pt": 484.77
+      "unwrapped_overflow_pt": 484.77
     },
     {
       "category": "Environments & Infrastructure",
@@ -149,7 +151,7 @@
       "wrap_trigger_words": [],
       "full_line_width_pt": 471.18,
       "text_width_pt": 510.65,
-      "overflow_pt": -39.47
+      "unwrapped_overflow_pt": -39.47
     },
     {
       "category": "Networking",
@@ -158,7 +160,7 @@
       "wrap_trigger_words": [],
       "full_line_width_pt": 149.12,
       "text_width_pt": 510.65,
-      "overflow_pt": -361.54
+      "unwrapped_overflow_pt": -361.54
     },
     {
       "category": "Programming & Scripting",
@@ -167,7 +169,7 @@
       "wrap_trigger_words": [],
       "full_line_width_pt": 476.37,
       "text_width_pt": 510.65,
-      "overflow_pt": -34.28
+      "unwrapped_overflow_pt": -34.28
     },
     {
       "category": "Quality & Testing Strategy",
@@ -178,7 +180,7 @@
       ],
       "full_line_width_pt": 677.66,
       "text_width_pt": 510.65,
-      "overflow_pt": 167.01
+      "unwrapped_overflow_pt": 167.01
     },
     {
       "category": "Testing & Validation",
@@ -193,7 +195,7 @@
       ],
       "full_line_width_pt": 2760.92,
       "text_width_pt": 510.65,
-      "overflow_pt": 2250.27
+      "unwrapped_overflow_pt": 2250.27
     }
   ]
 }

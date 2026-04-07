@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -281,6 +281,25 @@ class TestLineSensitivity:
             "Shortening a skill name should not increase line count"
         )
 
+    def test_wrap_trigger_ignores_separator_token(self) -> None:
+        """Wrap triggers should point to the next skill token, not the bullet separator."""
+        font_regular, font_bold, _ = _get_fonts()
+        category = "Category"
+        skills = ["Python", "Java"]
+
+        prefix_pt = measure_pt(f"{category}: ", font_bold)
+        first_skill_pt = measure_pt(skills[0], font_regular)
+        text_width_pt = prefix_pt + first_skill_pt + 1e-6
+
+        _, triggers = wrap_category_line(
+            category,
+            skills,
+            font_regular=font_regular,
+            font_bold=font_bold,
+            text_width_pt=text_width_pt,
+        )
+        assert triggers and triggers[0] == "Java"
+
 
 # ---------------------------------------------------------------------------
 # Acceptance criterion 3: report structure
@@ -498,22 +517,31 @@ class TestKerning:
         (b) prefix width without kern_table.  If kern were applied, (a) < (b)
         for kern-rich category names; after the fix both are equal.
         """
-        kern = _get_kern()
-        if kern is None:
-            pytest.skip("Calibri not installed")
-            return
         font_regular, font_bold, _ = _get_fonts()
-        # Use a category name with known-tight kern pairs (A-V, T-o, Y-o).
         category = "Automation & Testing"
-        skills = ["Python", "CI/CD"]
+        skills = ["Python"]
+
+        class _SyntheticTighteningKern:
+            """Deterministic fake kern table: every adjacent pair tightens by 0.5pt."""
+
+            pair_count = 1
+
+            def adjust_pt(self, c1: str, c2: str, font_size_pt: float = 11) -> float:
+                _ = (c1, c2, font_size_pt)
+                return -0.5
+
+            def line_adjustment_pt(self, text: str, font_size_pt: float = 11) -> float:
+                _ = font_size_pt
+                return -0.5 * max(len(text) - 1, 0)
+
+        kern = cast(KernTable, _SyntheticTighteningKern())
 
         # Prefix width with kern_table (incorrect — Regular kern on Bold font)
         prefix_with_kern = measure_pt(f"{category}: ", font_bold, kern_table=kern)
         # Prefix width without kern_table (correct — no kern applied to Bold)
         prefix_no_kern = measure_pt(f"{category}: ", font_bold, kern_table=None)
-        # The kern table (Regular) would reduce width if applied; if the fix is
-        # in place, wrap_category_line uses kern_table=None for the prefix, so
-        # the effective prefix matches prefix_no_kern.
+        assert prefix_with_kern < prefix_no_kern
+
         count_fixed, _ = wrap_category_line(
             category,
             skills,
@@ -531,16 +559,13 @@ class TestKerning:
         assert count_fixed == count_no_kern, (
             "Default wrapping should match explicit no-kern prefix behavior."
         )
-        # Boundary-case guard: choose a width where incorrect application of
-        # Regular kern to the bold prefix would change wrap behavior.
+
+        # Pick a deterministic boundary: if prefix kern were (incorrectly) applied,
+        # one line would fit; with the correct implementation it must wrap.
         body_with_kern = measure_pt(skills[0], font_regular, kern_table=kern)
         total_fixed = prefix_no_kern + body_with_kern
         total_buggy = prefix_with_kern + body_with_kern
-        if total_buggy >= total_fixed:
-            pytest.skip(
-                "Unexpected kern direction for boundary test; "
-                "cannot construct deterministic prefix-kern boundary"
-            )
+        assert total_buggy < total_fixed
         boundary_width_pt = (total_buggy + total_fixed) / 2
         count_boundary, _ = wrap_category_line(
             category,

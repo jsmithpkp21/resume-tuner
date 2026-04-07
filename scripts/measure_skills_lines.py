@@ -354,12 +354,15 @@ def wrap_category_line(
 
     line_count = 1
     wrap_triggers: list[str] = []
+    pending_non_separator_trigger = False
     current_width_pt = prefix_width_pt
     current_last_char: str | None = None
 
     for token in tokens:
         if not token:
             continue
+
+        is_separator_token = token == SKILLS_SEPARATOR.strip()
 
         token_pt = measure_pt(token, font_regular, kern_table)
         if current_last_char is None:
@@ -374,11 +377,18 @@ def wrap_category_line(
 
         proposed = current_width_pt + delta
         if proposed <= text_width_pt:
+            if pending_non_separator_trigger and not is_separator_token:
+                wrap_triggers.append(token)
+                pending_non_separator_trigger = False
             current_width_pt = proposed
             current_last_char = token[-1]
         else:
             line_count += 1
-            wrap_triggers.append(token)
+            if is_separator_token:
+                pending_non_separator_trigger = True
+            else:
+                wrap_triggers.append(token)
+                pending_non_separator_trigger = False
             current_width_pt = token_pt
             current_last_char = token[-1]
 
@@ -530,7 +540,9 @@ def main() -> int:
         else:
             kern_table = load_kern_table()
             if kern_table:
-                print(f"Kerning: enabled ({kern_table.pair_count:,} Calibri kern pairs)")
+                print(
+                    f"Kerning: enabled ({kern_table.pair_count:,} Calibri kern pairs)"
+                )
             else:
                 print("Kerning: requested but kern table unavailable; running without")
 

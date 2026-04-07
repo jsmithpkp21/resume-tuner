@@ -521,11 +521,18 @@ def main() -> int:
 
     kern_table: KernTable | None = None
     if args.kern:
-        kern_table = load_kern_table()
-        if kern_table:
-            print(f"Kerning: enabled ({kern_table.pair_count:,} Calibri kern pairs)")
+        if font_name != "Calibri":
+            print(
+                f"Kerning: requested but font is '{font_name}' (not Calibri); "
+                "kern table skipped — install Calibri for exact kern-adjusted measurements",
+                file=sys.stderr,
+            )
         else:
-            print("Kerning: requested but kern table unavailable; running without")
+            kern_table = load_kern_table()
+            if kern_table:
+                print(f"Kerning: enabled ({kern_table.pair_count:,} Calibri kern pairs)")
+            else:
+                print("Kerning: requested but kern table unavailable; running without")
 
     print(f"Font:         {font_name} at {_FONT_SIZE_PT}pt")
     print(f"Text column:  {args.text_width_in:.4f} in = {text_width_pt:.2f} pt")

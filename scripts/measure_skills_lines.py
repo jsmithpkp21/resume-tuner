@@ -350,27 +350,28 @@ def wrap_category_line(
     prefix_width_pt = measure_pt(bold_prefix, font_bold, kern_table=None)
     skills_text = SKILLS_SEPARATOR.join(skills)
     tokens = skills_text.split(" ")
-    space_pt = measure_pt(" ", font_regular, kern_table)
 
-    current_pt = prefix_width_pt
     line_count = 1
     wrap_triggers: list[str] = []
+    current_body_text = ""
+    line_prefix_pt = prefix_width_pt
 
-    for i, token in enumerate(tokens):
+    for token in tokens:
         if not token:
             continue
-        token_pt = measure_pt(token, font_regular, kern_table)
-        if i == 0:
-            proposed = current_pt + token_pt
-        else:
-            proposed = current_pt + space_pt + token_pt
+
+        proposed_body = (
+            token if not current_body_text else f"{current_body_text} {token}"
+        )
+        proposed = line_prefix_pt + measure_pt(proposed_body, font_regular, kern_table)
 
         if proposed <= text_width_pt:
-            current_pt = proposed
+            current_body_text = proposed_body
         else:
             line_count += 1
             wrap_triggers.append(token)
-            current_pt = token_pt
+            line_prefix_pt = 0.0
+            current_body_text = token
 
     return line_count, wrap_triggers
 

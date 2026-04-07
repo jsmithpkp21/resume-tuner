@@ -477,7 +477,7 @@ class TestKerning:
         if kern is None:
             pytest.skip("Calibri not installed")
             return
-        font_regular, font_bold, font_name = _get_fonts()
+        font_regular, font_bold, _ = _get_fonts()
         # Use a category name with known-tight kern pairs (A-V, T-o, Y-o).
         category = "Automation & Testing"
         skills = ["Python", "CI/CD"]
@@ -502,6 +502,9 @@ class TestKerning:
             font_regular=font_regular,
             font_bold=font_bold,
             kern_table=None,
+        )
+        assert count_fixed == count_no_kern, (
+            "Default wrapping should match explicit no-kern prefix behavior."
         )
         # Boundary-case guard: choose a width where incorrect application of
         # Regular kern to the bold prefix would change wrap behavior.

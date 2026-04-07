@@ -31,7 +31,8 @@ Font discovery (in order):
 
 Outputs:
   - stdout: summary table (category → line count, wrap trigger words)
-  - data/review/outputs/skills_line_measurement/skills_measurement.json
+  - default: data/review/outputs/skills_line_measurement/skills_measurement.json
+    (overridable via --output-dir)
 
 Usage:
   python scripts/measure_skills_lines.py

@@ -147,13 +147,18 @@ class TestLineSensitivity:
             "Shell scripting",
         ]
         extended_skills = base_skills + ["PowerShell scripting"]
-        # Compute the actual one-line width of base_skills with the current font so
-        # the wrap boundary is guaranteed to fall between base and extended.
-        # Pillow getlength() is additive over characters, so measuring the full
-        # joined string equals the sum of token widths + inter-token spaces.
+        # Build body width using the same token-summing logic as wrap_category_line
+        # to avoid whole-string vs token-level rounding drift across platforms.
         prefix_pt = measure_pt(f"{category}: ", font_bold)
-        body_pt = measure_pt(SKILLS_SEPARATOR.join(base_skills), font_regular)
-        text_width_pt = prefix_pt + body_pt  # base fits exactly; any extra token wraps
+        body_tokens = SKILLS_SEPARATOR.join(base_skills).split(" ")
+        space_pt = measure_pt(" ", font_regular)
+        body_pt = 0.0
+        for i, token in enumerate(body_tokens):
+            if not token:
+                continue
+            token_pt = measure_pt(token, font_regular)
+            body_pt += token_pt if i == 0 else space_pt + token_pt
+        text_width_pt = prefix_pt + body_pt + 1e-6
         count_before, _ = wrap_category_line(
             category,
             base_skills,
@@ -476,7 +481,6 @@ class TestKerning:
         # Use a category name with known-tight kern pairs (A-V, T-o, Y-o).
         category = "Automation & Testing"
         skills = ["Python", "CI/CD"]
-        from scripts.measure_skills_lines import measure_pt
 
         # Prefix width with kern_table (incorrect — Regular kern on Bold font)
         prefix_with_kern = measure_pt(f"{category}: ", font_bold, kern_table=kern)

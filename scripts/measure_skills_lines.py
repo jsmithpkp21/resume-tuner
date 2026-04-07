@@ -486,7 +486,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
 
-    font_regular, font_bold, font_name = load_font_pair(require_calibri=True)
+    font_regular, font_bold, font_name = load_font_pair(require_calibri=False)
     text_width_pt = args.text_width_in * 72
 
     kern_table: KernTable | None = None

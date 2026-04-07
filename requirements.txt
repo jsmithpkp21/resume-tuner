@@ -19,3 +19,8 @@ pytest==8.3.3
 # YAML and TOML parsing (used by scripts)
 PyYAML==6.0.3
 tomli_w==1.0.0
+
+# Image/font metrics — used by scripts/measure_skills_lines.py (spike #43)
+Pillow==12.2.0
+# fontTools kern table + TTF parsing (optional kerning precision for #43)
+fonttools==4.62.1

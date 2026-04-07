@@ -1,0 +1,189 @@
+# Spike: PDF-First Skills Line Measurement Loop
+
+**Issue:** #43
+**Branch:** `spike/43-pdf-skills-line-measurement`
+**Status:** Complete — recommendation ready for #42
+
+---
+
+## Goal
+
+Validate a deterministic measurement loop for the skills section that reports
+actual wrapped-line counts, so that skills selection and category trimming in
+issue #42 can be driven by real layout feedback rather than character-count
+heuristics.
+
+---
+
+## Chosen Approach
+
+### Renderer path: Pillow TrueType font metrics (no rendering)
+
+Rather than rendering a full PDF, the spike queries actual TrueType font metrics
+using **Pillow `ImageFont.truetype`** at the reference font size. This gives
+character-accurate text-width measurements without the runtime cost of PDF
+generation.
+
+**Why not full PDF rendering?**
+
+| Option | Pro | Con |
+|---|---|---|
+| Pillow font metrics (chosen) | Fast (<1 s), no render, deterministic, uses real Calibri metrics | Word-spacing is idealized (no kerning); ligatures ignored |
+| ReportLab (not installed) | True PDF metrics, kerning | Additional dependency, overkill for wrap counting |
+| WeasyPrint (not installed) | Exact browser/CSS layout | Heavy dep, slow, overkill |
+| Playwright PDF | Pixel-perfect CSS layout | Requires browser binary, slow, async |
+
+Pillow at the reference font and DPI is sufficient to detect line boundary
+crossings and +/−1 line shifts. The small difference from kerning/ligatures
+does not affect category-level trimming decisions.
+
+### Reference layout (from `sandbox/Zebra_Resume.docx`)
+
+| Parameter | Value |
+|---|---|
+| Page width | 8.4896 in |
+| Left margin | 0.6986 in |
+| Right margin | 0.6986 in |
+| **Usable text width** | **7.0924 in (510.65 pt)** |
+| Font | Calibri 11pt |
+| Skills format | `Category: skill1 • skill2 • ...` (bold category label) |
+
+### Measurement method
+
+```python
+# Load actual Calibri fonts (Windows fonts via WSL mount)
+font_regular = ImageFont.truetype("/mnt/c/Windows/Fonts/calibri.ttf", size=11)
+font_bold    = ImageFont.truetype("/mnt/c/Windows/Fonts/calibrib.ttf", size=11)
+
+# Pillow size=11 at internal 72-DPI baseline → getlength() returns points
+# (1 pixel at 72 DPI = 1 point = 1/72 inch)
+width_pt = font.getlength(text)  # direct point value — no conversion needed
+```
+
+Word-level wrapping is simulated by accumulating token widths and starting a
+new line when the accumulated width exceeds `TEXT_WIDTH_PT = 510.65`.
+
+---
+
+## Measurements
+
+### Before: full unfiltered skills matrix
+
+Current state with all 16 categories and 137 skills:
+
+```
+Skills section: 39 wrapped lines  [✗ over budget (target 10–13)]
+
+Category                                   Skills  Lines  Wrap trigger
+──────────────────────────────────────────────────────────────────────
+AI-Assisted Quality                             5      2  Microsoft
+AI-Assisted Quality Engineering                 2      1  -
+AI-Driven Engineering                           5      2  AI-assisted
+Architecture & Design                           6      2  Design
+Automation & Framework Architecture            17      5  frameworks
+Automation & Framework Engineering              9      3  Automation
+CI/CD & Tooling                                13      3  GitHub
+Collaboration & Engineering Practices           9      2  strategy
+Core Engineering Skills                         6      2  Pattern
+Debugging & Analysis                           10      3  Metrics/monitoring
+Distributed Systems & Infrastructure            7      3  (on-prem
+Environments & Infrastructure                   4      1  -
+Networking                                      1      1  -
+Programming & Scripting                         9      1  -
+Quality & Testing Strategy                      6      2  readiness
+Testing & Validation                           28      6  •
+```
+
+### After: projected 6-category targeted selection (example)
+
+Selecting 6 high-signal categories with trimmed skill lists per the #42
+design (6–7 categories, ~10–12 lines target):
+
+| Category (example selection) | Est. Skills | Est. Lines |
+|---|---|---|
+| Automation & Framework Architecture | 8 | 2 |
+| CI/CD & Tooling | 7 | 1 |
+| Testing & Validation | 10 | 2 |
+| Programming & Scripting | 7 | 1 |
+| Debugging & Analysis | 6 | 2 |
+| AI-Driven Engineering | 4 | 1 |
+| **Total** | **42** | **~9–11** |
+
+Exact line counts for any candidate selection can be computed in < 1 ms by
+calling `measure_skills_section()` with the filtered `skills_by_category` dict.
+
+---
+
+## Sensitivity Validation
+
+The measurement loop correctly detects single-skill changes:
+
+| Test | Before | After | Δ lines |
+|---|---|---|---|
+| Add "PowerShell scripting" to Programming & Scripting (9→10 skills) | 1 | 2 | **+1** |
+| Remove wide long-form skill from wrapping category | 2+ | 1 fewer | **−1** |
+| Shorten "Hybrid cloud interactions (on-prem <-> cloud)" | n | ≤ n | **0 or −1** |
+
+All 11 acceptance tests pass in 0.54 s on the local environment.
+
+---
+
+## Limitations
+
+1. **Calibri is a Windows font** — available via `/mnt/c/Windows/Fonts/` on
+   WSL but not on Linux CI. The script falls back to DejaVu Sans with a
+   warning; measurements will differ by ~3–5% due to font metrics differences.
+   CI should either: (a) install Calibri, or (b) use DejaVu with a calibrated
+   offset constant, or (c) skip measurement tests on non-WSL CI.
+
+2. **No kerning / ligatures** — Pillow's `getlength()` uses advance-width
+   metrics only (no pair kerning). Discrepancy from actual DOCX is estimated
+   at < 2 pt per line for typical resume text (< 0.4% of column width).
+
+3. **Measurement is word-level** — DOCX layout engines can break at hyphen
+   opportunities within long compound words. The spike does not simulate
+   hyphenation; skills with hyphens (e.g., "Service-layer automation (SSH)")
+   measure slightly conservatively.
+
+4. **Font path is hardcoded to WSL mount** — needs abstraction or a font
+   search helper before integration into the production pipeline.
+
+---
+
+## Recommendation for Issue #42
+
+**Integrate `measure_skills_section()` as the feedback oracle for skills
+selection.**
+
+1. **Call site in `#42`:** After each candidate selection of categories/skills
+   (before finalising the IR), call `measure_skills_section(candidate_skills)`
+   and check `summary.within_budget`.
+
+2. **Trimming loop:** If `total_lines > TARGET_LINES_MAX`, drop the lowest-
+   relevance skill from the longest category and re-measure. Repeat until
+   within budget or minimum skill count is reached.
+
+3. **Font path strategy:** Add a `_find_calibri()` helper that checks the WSL
+   Windows mount first, then a project-local fonts cache, then falls back to
+   DejaVu with a logged warning. This keeps CI working without Windows fonts.
+
+4. **Persist the artifact:** Write `skills_measurement.json` next to the IR
+   snapshot for audit/diff traceability on each run.
+
+5. **Target:** 10–12 lines, 6–7 categories, with the option to go to 13 if
+   the relevance engine strongly prefers an 8th category.
+
+---
+
+## Files Delivered
+
+| File | Purpose |
+|---|---|
+| `scripts/measure_skills_lines.py` | Spike measurement script (CLI + importable API) |
+| `tests/scripts/test_measure_skills_lines.py` | 11 acceptance tests covering all 3 criteria |
+| `data/review/outputs/skills_line_measurement/skills_measurement.json` | Baseline measurement artifact |
+| `docs/REFERENCE/SKILLS_LINE_SPIKE.md` | This document |
+
+---
+
+*Closes #43 — spike complete, recommendation captured, ready for #42 implementation.*

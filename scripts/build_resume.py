@@ -23,14 +23,15 @@ import math
 import os
 import re
 import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib  # type: ignore[no-redef]
+if __package__ in {None, ""}:
+    from select_skills import select_skills
+else:
+    from scripts.select_skills import select_skills
 
 # Use local import when run as `python scripts/build_resume.py`,
 # and package import when loaded as `scripts.build_resume`.
@@ -1533,6 +1534,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
     resume = trim_for_role(resume)
     resume = enrich_data(resume)
     resume = trim_by_rules(resume)
+    resume = select_skills(resume)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 

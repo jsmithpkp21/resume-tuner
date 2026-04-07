@@ -24,9 +24,10 @@ Optional kerning: --kern flag enables fontTools GPOS/kern table lookup.
   wrap decisions by ±1 line.
 
 Font discovery (in order):
-  1. fontconfig fc-list (finds system-installed Calibri, e.g. ~/.local/share/fonts)
-  2. WSL Windows font mount (/mnt/c/Windows/Fonts/)
-  3. DejaVu Sans fallback (warns; metrics differ ~3–5% from Calibri)
+   1. fontconfig fc-list (finds system-installed Calibri, e.g. ~/.local/share/fonts)
+   2. WSL Windows font mount (/mnt/c/Windows/Fonts/)
+   3. Liberation Sans (metrically ~1% compatible with Calibri; installed in Docker CI)
+   4. DejaVu Sans fallback (warns; metrics differ ~3–5% from Calibri)
 
 Outputs:
   - stdout: summary table (category → line count, wrap trigger words)
@@ -70,9 +71,14 @@ _PILLOW_SIZE: int = _FONT_SIZE_PT
 
 _WSL_CALIBRI_REGULAR: Path = Path("/mnt/c/Windows/Fonts/calibri.ttf")
 _WSL_CALIBRI_BOLD: Path = Path("/mnt/c/Windows/Fonts/calibrib.ttf")
+_LIBERATION_REGULAR: Path = Path(
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+)
+_LIBERATION_BOLD: Path = Path(
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+)
 _DEJAVU_REGULAR: Path = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
 _DEJAVU_BOLD: Path = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
-
 SKILLS_SEPARATOR: str = " \u2022 "  # " • "  — matches Zebra_Resume.docx
 
 _REPO_ROOT: Path = Path(__file__).resolve().parent.parent
@@ -134,6 +140,7 @@ def _find_calibri_path(style: str = "Regular") -> Path | None:
 def load_font_pair(
     regular_path: Path | None = None,
     bold_path: Path | None = None,
+    require_calibri: bool = False,
 ) -> tuple[Any, Any, str]:
     """Return (font_regular, font_bold, font_name_label).
 
@@ -141,17 +148,50 @@ def load_font_pair(
       1. Explicit path argument
       2. fontconfig fc-list (system-installed Calibri, including ~/.local/share/fonts)
       3. WSL Windows font mount /mnt/c/Windows/Fonts/
-      4. DejaVu Sans fallback (warns; ~3–5% metric difference from Calibri)
+      4. Liberation Sans (metrically compatible with MS Office; used in CI)
+      5. DejaVu Sans fallback (warns; ~3–5% metric difference)
+
+    Args:
+        regular_path: explicit path to Regular font
+        bold_path: explicit path to Bold font
+        require_calibri: if True, raise FileNotFoundError if Calibri unavailable;
+                        if False, fall back to Liberation or DejaVu with warning.
+
+    Raises:
+        FileNotFoundError: if require_calibri=True and Calibri cannot be located.
     """
     reg_path = regular_path or _find_calibri_path("Regular")
     bld_path = bold_path or _find_calibri_path("Bold")
 
     if reg_path and bld_path and reg_path.exists() and bld_path.exists():
         font_name = "Calibri"
+    elif require_calibri:
+        raise FileNotFoundError(
+            "Calibri font not found (Regular/Bold).\n"
+            "This spike requires exact Calibri metrics; no fallback is allowed.\n\n"
+            "Fix:\n"
+            "  1) Install Calibri (Linux user-local):\n"
+            "     mkdir -p ~/.local/share/fonts/calibri\n"
+            "     cp /mnt/c/Windows/Fonts/calibri*.ttf ~/.local/share/fonts/calibri/\n"
+            "     fc-cache -fv\n"
+            "  2) Verify discovery:\n"
+            "     fc-list ':family=Calibri' --format='%{file}\\n'\n"
+            "  3) Re-run:\n"
+            "     python3 scripts/measure_skills_lines.py --kern"
+        )
+    elif _LIBERATION_REGULAR.exists() and _LIBERATION_BOLD.exists():
+        font_name = "Liberation Sans (Calibri not found; metrics ≈ MS Office ±1%)"
+        print(
+            "INFO: Using Liberation Sans instead of Calibri. "
+            "Install Calibri to ~/.local/share/fonts/calibri/ for exact measurements.",
+            file=sys.stderr,
+        )
+        reg_path = _LIBERATION_REGULAR
+        bld_path = _LIBERATION_BOLD
     else:
         font_name = "DejaVu Sans (Calibri not found — metrics will differ ~3–5%)"
         print(
-            "WARNING: Calibri not found; falling back to DejaVu Sans. "
+            "WARNING: Calibri and Liberation not found; falling back to DejaVu Sans. "
             "Install Calibri to ~/.local/share/fonts/calibri/ for accurate measurements.",
             file=sys.stderr,
         )
@@ -440,7 +480,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
 
-    font_regular, font_bold, font_name = load_font_pair()
+    font_regular, font_bold, font_name = load_font_pair(require_calibri=True)
     text_width_pt = args.text_width_in * 72
 
     kern_table: KernTable | None = None

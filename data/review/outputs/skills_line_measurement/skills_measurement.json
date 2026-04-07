@@ -4,7 +4,9 @@
     "source_docx": "sandbox/Zebra_Resume.docx",
     "text_width_in": 7.0924,
     "text_width_pt": 510.65,
-    "measurement_engine": "Pillow ImageFont.truetype (72-DPI point basis)"
+    "measurement_engine": "Pillow ImageFont.truetype (72-DPI point basis)",
+    "kerning_enabled": true,
+    "kern_pairs": 2045
   },
   "summary": {
     "category_count": 16,
@@ -21,18 +23,18 @@
       "wrap_trigger_words": [
         "Microsoft"
       ],
-      "full_line_width_pt": 935.8,
+      "full_line_width_pt": 922.39,
       "text_width_pt": 510.65,
-      "overflow_pt": 425.14
+      "overflow_pt": 411.74
     },
     {
       "category": "AI-Assisted Quality Engineering",
       "skill_count": 2,
       "line_count": 1,
       "wrap_trigger_words": [],
-      "full_line_width_pt": 330.22,
+      "full_line_width_pt": 326.18,
       "text_width_pt": 510.65,
-      "overflow_pt": -180.43
+      "overflow_pt": -184.47
     },
     {
       "category": "AI-Driven Engineering",
@@ -41,20 +43,20 @@
       "wrap_trigger_words": [
         "AI-assisted"
       ],
-      "full_line_width_pt": 733.84,
+      "full_line_width_pt": 723.12,
       "text_width_pt": 510.65,
-      "overflow_pt": 223.19
+      "overflow_pt": 212.47
     },
     {
       "category": "Architecture & Design",
       "skill_count": 6,
       "line_count": 2,
       "wrap_trigger_words": [
-        "Design"
+        "patterns"
       ],
-      "full_line_width_pt": 641.0,
+      "full_line_width_pt": 630.57,
       "text_width_pt": 510.65,
-      "overflow_pt": 130.35
+      "overflow_pt": 119.92
     },
     {
       "category": "Automation & Framework Architecture",
@@ -63,12 +65,12 @@
       "wrap_trigger_words": [
         "frameworks",
         "frameworks",
-        "•",
+        "TestNG",
         "Model-Agnostic"
       ],
-      "full_line_width_pt": 2083.61,
+      "full_line_width_pt": 2047.14,
       "text_width_pt": 510.65,
-      "overflow_pt": 1572.96
+      "overflow_pt": 1536.48
     },
     {
       "category": "Automation & Framework Engineering",
@@ -78,9 +80,9 @@
         "Automation",
         "Framework"
       ],
-      "full_line_width_pt": 1075.31,
+      "full_line_width_pt": 1059.36,
       "text_width_pt": 510.65,
-      "overflow_pt": 564.66
+      "overflow_pt": 548.71
     },
     {
       "category": "CI/CD & Tooling",
@@ -90,9 +92,9 @@
         "GitHub",
         "Dependency"
       ],
-      "full_line_width_pt": 1209.8,
+      "full_line_width_pt": 1189.72,
       "text_width_pt": 510.65,
-      "overflow_pt": 699.14
+      "overflow_pt": 679.06
     },
     {
       "category": "Collaboration & Engineering Practices",
@@ -101,9 +103,9 @@
       "wrap_trigger_words": [
         "strategy"
       ],
-      "full_line_width_pt": 935.27,
+      "full_line_width_pt": 918.36,
       "text_width_pt": 510.65,
-      "overflow_pt": 424.61
+      "overflow_pt": 407.71
     },
     {
       "category": "Core Engineering Skills",
@@ -112,9 +114,9 @@
       "wrap_trigger_words": [
         "Pattern"
       ],
-      "full_line_width_pt": 580.52,
+      "full_line_width_pt": 572.66,
       "text_width_pt": 510.65,
-      "overflow_pt": 69.86
+      "overflow_pt": 62.01
     },
     {
       "category": "Debugging & Analysis",
@@ -124,9 +126,9 @@
         "Metrics/monitoring",
         "analysis"
       ],
-      "full_line_width_pt": 1043.16,
+      "full_line_width_pt": 1026.46,
       "text_width_pt": 510.65,
-      "overflow_pt": 532.5
+      "overflow_pt": 515.81
     },
     {
       "category": "Distributed Systems & Infrastructure",
@@ -136,36 +138,36 @@
         "(on-prem",
         "Systems"
       ],
-      "full_line_width_pt": 1010.5,
+      "full_line_width_pt": 995.42,
       "text_width_pt": 510.65,
-      "overflow_pt": 499.85
+      "overflow_pt": 484.77
     },
     {
       "category": "Environments & Infrastructure",
       "skill_count": 4,
       "line_count": 1,
       "wrap_trigger_words": [],
-      "full_line_width_pt": 477.66,
+      "full_line_width_pt": 471.18,
       "text_width_pt": 510.65,
-      "overflow_pt": -33.0
+      "overflow_pt": -39.47
     },
     {
       "category": "Networking",
       "skill_count": 1,
       "line_count": 1,
       "wrap_trigger_words": [],
-      "full_line_width_pt": 151.89,
+      "full_line_width_pt": 149.12,
       "text_width_pt": 510.65,
-      "overflow_pt": -358.76
+      "overflow_pt": -361.54
     },
     {
       "category": "Programming & Scripting",
       "skill_count": 9,
       "line_count": 1,
       "wrap_trigger_words": [],
-      "full_line_width_pt": 482.72,
+      "full_line_width_pt": 476.37,
       "text_width_pt": 510.65,
-      "overflow_pt": -27.93
+      "overflow_pt": -34.28
     },
     {
       "category": "Quality & Testing Strategy",
@@ -174,24 +176,24 @@
       "wrap_trigger_words": [
         "readiness"
       ],
-      "full_line_width_pt": 690.52,
+      "full_line_width_pt": 677.66,
       "text_width_pt": 510.65,
-      "overflow_pt": 179.86
+      "overflow_pt": 167.01
     },
     {
       "category": "Testing & Validation",
       "skill_count": 28,
       "line_count": 6,
       "wrap_trigger_words": [
-        "•",
-        "•",
-        "REST",
-        "Service-layer",
-        "Integration"
+        "API",
+        "JUnit",
+        "API",
+        "automation",
+        "Automation"
       ],
-      "full_line_width_pt": 2813.53,
+      "full_line_width_pt": 2760.92,
       "text_width_pt": 510.65,
-      "overflow_pt": 2302.88
+      "overflow_pt": 2250.27
     }
   ]
 }

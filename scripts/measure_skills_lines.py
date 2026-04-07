@@ -329,7 +329,9 @@ def wrap_category_line(
         wrap_triggers:  first token of each continuation line (for debugging)
     """
     bold_prefix = f"{category}: "
-    prefix_width_pt = measure_pt(bold_prefix, font_bold, kern_table)
+    # kern_table is built from Calibri Regular; do not apply it to the bold
+    # prefix — Bold kerning differs from Regular and we have no Bold kern table.
+    prefix_width_pt = measure_pt(bold_prefix, font_bold, kern_table=None)
     skills_text = SKILLS_SEPARATOR.join(skills)
     tokens = skills_text.split(" ")
     space_pt = measure_pt(" ", font_regular, kern_table)
@@ -406,7 +408,9 @@ def measure_skills_section(
         )
         total_lines += line_count
 
-        prefix_pt = measure_pt(f"{category}: ", font_bold, kern_table)
+        # kern_table is built from Calibri Regular; do not apply it to the bold
+        # prefix — Bold kerning differs from Regular and we have no Bold kern table.
+        prefix_pt = measure_pt(f"{category}: ", font_bold, kern_table=None)
         body_pt = measure_pt(SKILLS_SEPARATOR.join(skills), font_regular, kern_table)
         full_line_pt = prefix_pt + body_pt
 

@@ -210,16 +210,7 @@ class TestLineSensitivity:
 
         category = "Category"
         prefix_pt = measure_pt(f"{category}: ", font_bold)
-        # Build body width using the same token-summing logic as wrap_category_line
-        # to avoid whole-string vs token-level rounding drift across platforms.
-        body_tokens = SKILLS_SEPARATOR.join(skills_trimmed).split(" ")
-        space_pt = measure_pt(" ", font_regular)
-        body_pt = 0.0
-        for i, token in enumerate(body_tokens):
-            if not token:
-                continue
-            token_pt = measure_pt(token, font_regular)
-            body_pt += token_pt if i == 0 else space_pt + token_pt
+        body_pt = measure_pt(SKILLS_SEPARATOR.join(skills_trimmed), font_regular)
         text_width_pt = prefix_pt + body_pt + 1e-6
 
         count_without, _ = wrap_category_line(
@@ -379,7 +370,7 @@ class TestReportStructure:
         assert triggers == []
 
     def test_full_skills_section_is_over_budget(self) -> None:
-        """Full unfiltered skills matrix should be well over the 10-13 line budget,
+        """Full unfiltered skills matrix should be well over the 10-12 line budget,
         confirming that category selection / trimming is required."""
         font_regular, font_bold, font_name = _get_fonts()
         report = measure_skills_section(

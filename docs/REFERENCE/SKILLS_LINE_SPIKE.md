@@ -72,7 +72,7 @@ new line when the accumulated width exceeds `TEXT_WIDTH_PT = 510.65`.
 Current state with all 16 categories and 137 skills:
 
 ```
-Skills section: 39 wrapped lines  [✗ over budget (target 10–13)]
+Skills section: 39 wrapped lines  [✗ over budget (target 10–12)]
 
 Category                                   Skills  Lines  Wrap trigger
 ──────────────────────────────────────────────────────────────────────
@@ -172,8 +172,7 @@ selection.**
 4. **Persist the artifact:** Write `skills_measurement.json` next to the IR
    snapshot for audit/diff traceability on each run.
 
-5. **Target:** 10–12 lines, 6–7 categories, with the option to go to 13 if
-   the relevance engine strongly prefers an 8th category.
+5. **Target:** 10–12 lines, typically 6–7 categories.
 
 ---
 

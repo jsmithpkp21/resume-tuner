@@ -192,6 +192,15 @@ def load_font_pair(
         reg_path = _LIBERATION_REGULAR
         bld_path = _LIBERATION_BOLD
     else:
+        if not (_DEJAVU_REGULAR.exists() and _DEJAVU_BOLD.exists()):
+            raise FileNotFoundError(
+                "No usable font pair found for skills measurement.\n"
+                "Checked (in order): Calibri, Liberation Sans, DejaVu Sans.\n"
+                "DejaVu fallback files are missing:\n"
+                f"  - {_DEJAVU_REGULAR}\n"
+                f"  - {_DEJAVU_BOLD}\n"
+                "Install Calibri (preferred) or install both Liberation/DejaVu font files."
+            )
         font_name = "DejaVu Sans (Calibri not found — metrics will differ ~3–5%)"
         print(
             "WARNING: Calibri and Liberation not found; falling back to DejaVu Sans. "
@@ -200,12 +209,19 @@ def load_font_pair(
         )
         reg_path = _DEJAVU_REGULAR
         bld_path = _DEJAVU_BOLD
-
-    return (
-        ImageFont.truetype(str(reg_path), size=_PILLOW_SIZE),
-        ImageFont.truetype(str(bld_path), size=_PILLOW_SIZE),
-        font_name,
-    )
+    try:
+        return (
+            ImageFont.truetype(str(reg_path), size=_PILLOW_SIZE),
+            ImageFont.truetype(str(bld_path), size=_PILLOW_SIZE),
+            font_name,
+        )
+    except OSError as exc:
+        raise FileNotFoundError(
+            "Font files were discovered but could not be loaded by Pillow.\n"
+            f"Regular: {reg_path}\n"
+            f"Bold:    {bld_path}\n"
+            f"Original error: {exc}"
+        ) from exc
 
 
 # ---------------------------------------------------------------------------

@@ -18,7 +18,7 @@ Measurement engine: Pillow ImageFont.truetype at size=11.
     which equals width in points (1 px = 1 pt at 72 DPI).
   - No rendering is performed; only font-metric width queries are used.
 
-Optional kerning: --kern flag enables fontTools GPOS/kern table lookup.
+Optional kerning: --kern flag enables legacy fontTools kern-table lookup.
   Calibri has 26,706 kern pairs (legacy kern table).
   Impact: −0.1 to −1.0 pt per character pair at 11pt; can shift borderline
   wrap decisions by ±1 line.
@@ -58,6 +58,11 @@ except ImportError:  # pragma: no cover
     )
     raise
 
+if __package__ in {None, ""}:
+    from _runtime_guard import assert_not_blocked_runtime_input
+else:
+    from scripts._runtime_guard import assert_not_blocked_runtime_input
+
 # ---------------------------------------------------------------------------
 # Reference layout constants — derived from sandbox/Zebra_Resume.docx
 # ---------------------------------------------------------------------------
@@ -69,8 +74,6 @@ _FONT_SIZE_PT: int = 11  # Calibri 11pt body text
 # font.getlength() → width in pixels @ 72 DPI = width in points.
 _PILLOW_SIZE: int = _FONT_SIZE_PT
 
-_WSL_CALIBRI_REGULAR: Path = Path("/mnt/c/Windows/Fonts/calibri.ttf")
-_WSL_CALIBRI_BOLD: Path = Path("/mnt/c/Windows/Fonts/calibrib.ttf")
 _LIBERATION_REGULAR: Path = Path(
     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
 )
@@ -361,6 +364,7 @@ def wrap_category_line(
 
 def load_skills_by_category(csv_path: Path) -> dict[str, list[str]]:
     """Return ordered dict of category → [skill, ...] from skills_matrix.csv."""
+    assert_not_blocked_runtime_input(csv_path)
     by_category: dict[str, list[str]] = {}
     with csv_path.open(newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh)
@@ -414,7 +418,7 @@ def measure_skills_section(
                 "wrap_trigger_words": wrap_triggers,
                 "full_line_width_pt": round(full_line_pt, 2),
                 "text_width_pt": round(text_width_pt, 2),
-                "overflow_pt": round(full_line_pt - text_width_pt, 2),
+                "unwrapped_overflow_pt": round(full_line_pt - text_width_pt, 2),
             }
         )
 
@@ -424,8 +428,10 @@ def measure_skills_section(
         "reference_layout": {
             "font": f"{font_name} {_FONT_SIZE_PT}pt",
             "source_docx": "sandbox/Zebra_Resume.docx",
-            "text_width_in": _TEXT_WIDTH_IN,
-            "text_width_pt": round(_TEXT_WIDTH_PT, 2),
+            "text_width_in": round(text_width_pt / 72, 4),
+            "text_width_pt": round(text_width_pt, 2),
+            "reference_text_width_in": _TEXT_WIDTH_IN,
+            "reference_text_width_pt": round(_TEXT_WIDTH_PT, 2),
             "measurement_engine": "Pillow ImageFont.truetype (72-DPI point basis)",
             "kerning_enabled": kern_enabled,
             "kern_pairs": kern_table.pair_count if kern_table else 0,
@@ -495,6 +501,7 @@ def main() -> int:
     print(f"Text column:  {args.text_width_in:.4f} in = {text_width_pt:.2f} pt")
     print(f"Skills CSV:   {args.csv}")
 
+    assert_not_blocked_runtime_input(args.csv)
     skills_by_category = load_skills_by_category(args.csv)
     report = measure_skills_section(
         skills_by_category,
@@ -525,8 +532,10 @@ def main() -> int:
             f"{cat['line_count']:>5}  {trigger}"
         )
 
+    assert_not_blocked_runtime_input(args.output_dir)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     out_path = args.output_dir / "skills_measurement.json"
+    assert_not_blocked_runtime_input(out_path)
     out_path.write_text(
         json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )

@@ -285,7 +285,7 @@ class TestReportStructure:
             assert "line_count" in cat
             assert "wrap_trigger_words" in cat
             assert "full_line_width_pt" in cat
-            assert "overflow_pt" in cat
+            assert "unwrapped_overflow_pt" in cat
             assert isinstance(cat["line_count"], int)
             assert cat["line_count"] >= 1
 
@@ -441,3 +441,12 @@ class TestKerning:
         layout = report["reference_layout"]
         assert layout["kerning_enabled"] is True
         assert layout["kern_pairs"] == kern.pair_count
+
+
+class TestRuntimeGuards:
+    """Ensure runtime path guard blocks unsafe CLI input paths."""
+
+    def test_load_skills_rejects_blocked_csv_path(self) -> None:
+        blocked_csv = Path("sandbox") / "skills_matrix.csv"
+        with pytest.raises(ValueError, match="blocked runtime directory"):
+            load_skills_by_category(blocked_csv)

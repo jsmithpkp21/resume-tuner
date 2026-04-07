@@ -51,9 +51,9 @@ does not affect category-level trimming decisions.
 ### Measurement method
 
 ```python
-# Load actual Calibri fonts (Windows fonts via WSL mount)
-font_regular = ImageFont.truetype("/mnt/c/Windows/Fonts/calibri.ttf", size=11)
-font_bold    = ImageFont.truetype("/mnt/c/Windows/Fonts/calibrib.ttf", size=11)
+# Discover Calibri via fontconfig first, then WSL Windows mount.
+# If Calibri is unavailable, test paths can use Liberation Sans fallback.
+font_regular, font_bold, font_name = load_font_pair()
 
 # Pillow size=11 at internal 72-DPI baseline → getlength() returns points
 # (1 pixel at 72 DPI = 1 point = 1/72 inch)
@@ -124,17 +124,16 @@ The measurement loop correctly detects single-skill changes:
 | Remove wide long-form skill from wrapping category | 2+ | 1 fewer | **−1** |
 | Shorten "Hybrid cloud interactions (on-prem <-> cloud)" | n | ≤ n | **0 or −1** |
 
-All 11 acceptance tests pass in 0.54 s on the local environment.
+All 17 measurement tests pass in the current local environment.
 
 ---
 
 ## Limitations
 
-1. **Calibri is a Windows font** — available via `/mnt/c/Windows/Fonts/` on
-   WSL but not on Linux CI. The script falls back to DejaVu Sans with a
-   warning; measurements will differ by ~3–5% due to font metrics differences.
-   CI should either: (a) install Calibri, or (b) use DejaVu with a calibrated
-   offset constant, or (c) skip measurement tests on non-WSL CI.
+1. **Calibri availability differs by environment.** Discovery is `fc-list`
+   first, then WSL Windows mount. Local/CLI execution requires exact Calibri
+   metrics (`require_calibri=True`). Test paths can fall back to Liberation
+   Sans (preferred CI fallback) and then DejaVu Sans if Liberation is absent.
 
 2. **No kerning / ligatures** — Pillow's `getlength()` uses advance-width
    metrics only (no pair kerning). Discrepancy from actual DOCX is estimated
@@ -145,8 +144,9 @@ All 11 acceptance tests pass in 0.54 s on the local environment.
    hyphenation; skills with hyphens (e.g., "Service-layer automation (SSH)")
    measure slightly conservatively.
 
-4. **Font path is hardcoded to WSL mount** — needs abstraction or a font
-   search helper before integration into the production pipeline.
+4. **Runtime input guards are now enforced** for `--csv` and `--output-dir`.
+   This blocks reads/writes under `sandbox/` and `data/samples/`, consistent
+   with repo runtime-input policy.
 
 ---
 
@@ -163,9 +163,9 @@ selection.**
    relevance skill from the longest category and re-measure. Repeat until
    within budget or minimum skill count is reached.
 
-3. **Font path strategy:** Add a `_find_calibri()` helper that checks the WSL
-   Windows mount first, then a project-local fonts cache, then falls back to
-   DejaVu with a logged warning. This keeps CI working without Windows fonts.
+3. **Font path strategy:** Keep `fc-list` as primary Calibri discovery,
+   preserve WSL mount as secondary, and use Liberation Sans in CI for fallback
+   test coverage when Calibri is not available.
 
 4. **Persist the artifact:** Write `skills_measurement.json` next to the IR
    snapshot for audit/diff traceability on each run.
@@ -180,7 +180,7 @@ selection.**
 | File | Purpose |
 |---|---|
 | `scripts/measure_skills_lines.py` | Spike measurement script (CLI + importable API) |
-| `tests/scripts/test_measure_skills_lines.py` | 11 acceptance tests covering all 3 criteria |
+| `tests/scripts/test_measure_skills_lines.py` | 17 tests covering acceptance criteria + kerning/runtime-guard behavior |
 | `data/review/outputs/skills_line_measurement/skills_measurement.json` | Baseline measurement artifact |
 | `docs/REFERENCE/SKILLS_LINE_SPIKE.md` | This document |
 

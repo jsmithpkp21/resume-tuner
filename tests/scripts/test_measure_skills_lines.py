@@ -15,11 +15,13 @@ from typing import Any
 import pytest
 
 from scripts.measure_skills_lines import (
+    SKILLS_SEPARATOR,
     TARGET_LINES_MAX,
     KernTable,
     load_font_pair,
     load_kern_table,
     load_skills_by_category,
+    measure_pt,
     measure_skills_section,
     wrap_category_line,
 )
@@ -125,9 +127,14 @@ class TestLineSensitivity:
     """AC-2: adding or removing one skill can shift the line count by ±1."""
 
     def test_adding_one_skill_can_increase_line_count(self) -> None:
-        """Adding a skill to a line already near the wrap point adds a line."""
+        """Adding a skill to a line already near the wrap point adds a line.
+        text_width_pt is computed from the actual font so the test is font-agnostic
+        (works with Calibri locally and Liberation Sans in CI without skipping).
+        Strategy: set text_width_pt to exactly the width base_skills occupies on one
+        line, so any additional token forces a wrap regardless of font metrics.
+        """
         font_regular, font_bold, _ = _get_fonts()
-
+        category = "Programming & Scripting"
         base_skills = [
             "Python",
             "Java",
@@ -140,22 +147,32 @@ class TestLineSensitivity:
             "Shell scripting",
         ]
         extended_skills = base_skills + ["PowerShell scripting"]
-
+        # Compute the actual one-line width of base_skills with the current font so
+        # the wrap boundary is guaranteed to fall between base and extended.
+        # Pillow getlength() is additive over characters, so measuring the full
+        # joined string equals the sum of token widths + inter-token spaces.
+        prefix_pt = measure_pt(f"{category}: ", font_bold)
+        body_pt = measure_pt(SKILLS_SEPARATOR.join(base_skills), font_regular)
+        text_width_pt = prefix_pt + body_pt  # base fits exactly; any extra token wraps
         count_before, _ = wrap_category_line(
-            "Programming & Scripting",
+            category,
             base_skills,
             font_regular=font_regular,
             font_bold=font_bold,
+            text_width_pt=text_width_pt,
         )
         count_after, _ = wrap_category_line(
-            "Programming & Scripting",
+            category,
             extended_skills,
             font_regular=font_regular,
             font_bold=font_bold,
+            text_width_pt=text_width_pt,
         )
-
-        assert count_after == count_before + 1, (
-            f"Expected +1 line after adding a skill: before={count_before} after={count_after}"
+        assert count_before == 1, (
+            f"Base skills should fit in exactly 1 line at computed width; got {count_before}"
+        )
+        assert count_after == 2, (
+            f"Extended skills should wrap to 2 lines; got {count_after}"
         )
 
     def test_removing_skill_can_decrease_line_count(self) -> None:

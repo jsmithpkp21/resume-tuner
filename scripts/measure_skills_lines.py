@@ -92,8 +92,8 @@ DEFAULT_OUTPUT_DIR: Path = (
 )
 
 # Target line budget from DESIGN.md §6 (Skills Section Line Budget)
-TARGET_LINES_MIN: int = 10
-TARGET_LINES_MAX: int = 12
+TARGET_LINES_MIN: int = 11
+TARGET_LINES_MAX: int = 13
 
 
 # ---------------------------------------------------------------------------

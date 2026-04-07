@@ -180,7 +180,8 @@ Important distinction:
 - A future measured overflow pass will make final wording reductions only after actual page-fit measurement for a concrete output target such as PDF or DOCX.
 
 ### Skills Section Line Budget
-- Max lines: **10–12**
+- Preferred lines: **12**
+- Acceptable range: **11–13**
 - Max categories: **6–7**
 - Max characters per line: template‑dependent
 

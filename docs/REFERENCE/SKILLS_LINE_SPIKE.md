@@ -124,20 +124,22 @@ The measurement loop correctly detects single-skill changes:
 | Remove wide long-form skill from wrapping category | 2+ | 1 fewer | **−1** |
 | Shorten "Hybrid cloud interactions (on-prem <-> cloud)" | n | ≤ n | **0 or −1** |
 
-All 17 measurement tests pass in the current local environment.
+All measurement tests in `tests/scripts/test_measure_skills_lines.py` pass in
+the current local environment.
 
 ---
 
 ## Limitations
 
 1. **Calibri availability differs by environment.** Discovery is `fc-list`
-   first, then WSL Windows mount. Local/CLI execution requires exact Calibri
-   metrics (`require_calibri=True`). Test paths can fall back to Liberation
-   Sans (preferred CI fallback) and then DejaVu Sans if Liberation is absent.
+   first, then WSL Windows mount. Current CLI behavior allows fallback fonts
+   (`require_calibri=False`) to keep CI stable when Calibri is unavailable.
+   Fallback order is Liberation Sans first, then DejaVu Sans.
 
-2. **No kerning / ligatures** — Pillow's `getlength()` uses advance-width
-   metrics only (no pair kerning). Discrepancy from actual DOCX is estimated
-   at < 2 pt per line for typical resume text (< 0.4% of column width).
+2. **Kerning is optional; ligatures are not modeled.** By default,
+   `ImageFont.getlength()` uses advance-width metrics only. Passing `--kern`
+   enables legacy kern-table adjustments via fontTools. Ligatures are still
+   not modeled, and residual discrepancy from DOCX can remain near boundaries.
 
 3. **Measurement is word-level** — DOCX layout engines can break at hyphen
    opportunities within long compound words. The spike does not simulate
@@ -180,7 +182,7 @@ selection.**
 | File | Purpose |
 |---|---|
 | `scripts/measure_skills_lines.py` | Spike measurement script (CLI + importable API) |
-| `tests/scripts/test_measure_skills_lines.py` | 17 tests covering acceptance criteria + kerning/runtime-guard behavior |
+| `tests/scripts/test_measure_skills_lines.py` | Measurement tests covering acceptance criteria + kerning/runtime-guard behavior |
 | `data/review/outputs/skills_line_measurement/skills_measurement.json` | Baseline measurement artifact |
 | `docs/REFERENCE/SKILLS_LINE_SPIKE.md` | This document |
 

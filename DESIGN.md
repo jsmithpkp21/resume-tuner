@@ -192,7 +192,7 @@ Important distinction:
 ### Skills Section Line Budget
 - Preferred lines: **12**
 - Acceptable range: **11–13**
-- Max categories: **6–7**
+- Max categories: **9**
 - Max characters per line: template‑dependent
 
 ### Layout Enforcement

@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter
+from collections.abc import Iterable
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,12 @@ _ROLE_STOPWORDS = {
 _BULLET_COUNT_WEIGHT = 2.0
 _RELATED_SKILL_WEIGHT = 1.0
 _ROLE_RELEVANCE_WEIGHT = 3.0
+SKILLS_SEPARATOR = " • "
+
+
+def join_skills(skills: Iterable[str]) -> str:
+    """Join skills with the shared render/measurement separator."""
+    return SKILLS_SEPARATOR.join(skill for skill in skills if skill)
 
 
 def _load_measure_backend() -> Any | None:
@@ -55,7 +62,7 @@ def _load_measure_backend() -> Any | None:
             from scripts import measure_skills_lines as skills_measure
         _MEASURE_BACKEND = skills_measure
         return _MEASURE_BACKEND
-    except ModuleNotFoundError as exc:
+    except (ModuleNotFoundError, ImportError) as exc:
         logger.warning("skills packing fallback estimator enabled: %s", exc)
         _MEASURE_BACKEND = None
         return None
@@ -83,7 +90,7 @@ def _wrap_widths(
 def _estimate_category_lines_fallback(category: str, skills: list[str]) -> list[float]:
     """Fallback line estimator when Pillow/font metrics are unavailable."""
     prefix = len(f"{category}: ")
-    body_tokens = " * ".join(skills).split(" ")
+    body_tokens = join_skills(skills).split(" ")
     widths = [float(len(token)) for token in body_tokens if token]
     # Add one char for the inter-token space after each token except the first line start.
     token_widths = [
@@ -101,11 +108,10 @@ def _estimate_category_lines_with_fonts(
     font_bold: Any,
 ) -> list[float]:
     """Point-accurate wrapped line widths using `measure_skills_lines` helpers."""
-    separator = measure_backend.SKILLS_SEPARATOR
     text_width_pt = float(measure_backend._TEXT_WIDTH_PT)
     prefix_width = float(measure_backend.measure_pt(f"{category}: ", font_bold, None))
     space_width = float(measure_backend.measure_pt(" ", font_regular, None))
-    tokens = separator.join(skills).split(" ")
+    tokens = join_skills(skills).split(" ")
     token_widths: list[float] = []
     for idx, token in enumerate(tokens):
         if not token:

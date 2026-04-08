@@ -75,6 +75,21 @@ Use this file to create/track GitHub issues. Each item includes concrete scope a
   - Recommendations are review-only.
   - Accepted changes update docs and matrix with traceable rationale.
 
+### Issue 9: Skills ranking and tail-trim safety
+- Type: `feat` + `test` + `docs`
+- Goal: Rank skills by observed evidence and role relevance so category tail trimming removes the least important entries first.
+- Tasks:
+  1. Add deterministic scoring from bullet skill counts, `related_skills` counts, and target-role/JD relevance.
+  2. Reorder skills per category by descending score before line-budget packing.
+  3. Add long-skill tie-break behavior for similar-value skills to improve line-count reduction under pressure.
+  4. Extend validation/tests for `related_skills` references and ranking determinism.
+  5. Update design documentation to describe ranking and trim interactions.
+- Acceptance criteria:
+  - Under the same inputs, skill ordering is deterministic and reproducible.
+  - Higher-evidence role-relevant skills appear earlier in category lists.
+  - Over-budget trimming preferentially removes lower-value tail skills.
+  - Contract tests fail when `related_skills` references unknown skills.
+
 ## EPIC: Quality and Process
 
 ### Issue 7: Date authority guardrail

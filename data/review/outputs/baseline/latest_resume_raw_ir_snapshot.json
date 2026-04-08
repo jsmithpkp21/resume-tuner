@@ -1,5 +1,5 @@
 {
-  "bullet_count": 20,
+  "bullet_count": 23,
   "enrichment_count": 0,
   "experience_count": 6,
   "profile": {
@@ -18,8 +18,8 @@
     "summary": "Baseline resume output generated from canonical data. Edit this summary manually for each target role while automation stages are added incrementally.",
     "website": ""
   },
-  "skills_category_count": 4,
-  "skills_count": 57,
+  "skills_category_count": 16,
+  "skills_count": 137,
   "target_company": "",
   "target_role": ""
 }

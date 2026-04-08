@@ -43,6 +43,10 @@ _BULLET_COUNT_WEIGHT = 2.0
 _RELATED_SKILL_WEIGHT = 1.0
 _ROLE_RELEVANCE_WEIGHT = 3.0
 SKILLS_SEPARATOR = " • "
+_DEFAULT_ANCHOR_SKILLS = frozenset({"Python", "Java"})
+_PROTECTED_SKILL_SCORE_FLOOR = 4.0
+_PROTECTED_CATEGORY_DROP_PENALTY = 400.0
+_PROTECTED_SKILL_DROP_PENALTY = 150.0
 
 
 def join_skills(skills: Iterable[str]) -> str:
@@ -69,21 +73,29 @@ def _load_measure_backend() -> Any | None:
 
 
 def _wrap_widths(
-    token_widths: list[float], line_limit: float, prefix_width: float
+    token_widths: list[float],
+    line_limit: float,
+    prefix_width: float,
+    *,
+    inter_token_space: float,
 ) -> list[float]:
-    """Wrap token widths into line widths using space-separated token boundaries."""
+    """Wrap bare token widths and add inter-token spacing only within a line."""
     if not token_widths:
         return [prefix_width]
     line_widths: list[float] = [prefix_width]
     current = prefix_width
+    tokens_on_line = 0
     for width in token_widths:
-        proposed = current + width
+        space = inter_token_space if tokens_on_line > 0 else 0.0
+        proposed = current + space + width
         if proposed <= line_limit:
             current = proposed
             line_widths[-1] = current
+            tokens_on_line += 1
         else:
             current = width
             line_widths.append(current)
+            tokens_on_line = 1
     return line_widths
 
 
@@ -91,12 +103,13 @@ def _estimate_category_lines_fallback(category: str, skills: list[str]) -> list[
     """Fallback line estimator when Pillow/font metrics are unavailable."""
     prefix = len(f"{category}: ")
     body_tokens = join_skills(skills).split(" ")
-    widths = [float(len(token)) for token in body_tokens if token]
-    # Add one char for the inter-token space after each token except the first line start.
-    token_widths = [
-        width if idx == 0 else width + 1.0 for idx, width in enumerate(widths)
-    ]
-    return _wrap_widths(token_widths, float(_CHAR_WIDTH_LIMIT), float(prefix))
+    token_widths = [float(len(token)) for token in body_tokens if token]
+    return _wrap_widths(
+        token_widths,
+        float(_CHAR_WIDTH_LIMIT),
+        float(prefix),
+        inter_token_space=1.0,
+    )
 
 
 def _estimate_category_lines_with_fonts(
@@ -113,12 +126,17 @@ def _estimate_category_lines_with_fonts(
     space_width = float(measure_backend.measure_pt(" ", font_regular, None))
     tokens = join_skills(skills).split(" ")
     token_widths: list[float] = []
-    for idx, token in enumerate(tokens):
+    for token in tokens:
         if not token:
             continue
         width = float(measure_backend.measure_pt(token, font_regular, None))
-        token_widths.append(width if idx == 0 else width + space_width)
-    return _wrap_widths(token_widths, text_width_pt, prefix_width)
+        token_widths.append(width)
+    return _wrap_widths(
+        token_widths,
+        text_width_pt,
+        prefix_width,
+        inter_token_space=space_width,
+    )
 
 
 def _category_layout_metrics(
@@ -302,6 +320,22 @@ def _collect_skill_usage_signals(resume: Any) -> tuple[Counter[str], Counter[str
     return bullet_counts, related_counts
 
 
+def _compute_skill_scores(resume: Any) -> dict[str, float]:
+    """Compute weighted skill importance from usage and role relevance signals."""
+    role_text, role_tokens = _extract_role_context(resume)
+    bullet_counts, related_counts = _collect_skill_usage_signals(resume)
+
+    scores: dict[str, float] = {}
+    for skill in set(bullet_counts) | set(related_counts):
+        role_relevance = _skill_role_relevance(skill, role_text, role_tokens)
+        scores[skill] = (
+            bullet_counts[skill] * _BULLET_COUNT_WEIGHT
+            + related_counts[skill] * _RELATED_SKILL_WEIGHT
+            + role_relevance * _ROLE_RELEVANCE_WEIGHT
+        )
+    return scores
+
+
 def _skill_role_relevance(skill: str, role_text: str, role_tokens: set[str]) -> float:
     if not role_text:
         return 0.0
@@ -319,9 +353,10 @@ def _skill_role_relevance(skill: str, role_text: str, role_tokens: set[str]) -> 
     return exact_phrase_bonus + overlap_ratio
 
 
-def prioritize_skills_by_importance(resume: Any) -> dict[str, list[str]]:
+def prioritize_skills_by_importance(
+    resume: Any, *, scores: dict[str, float] | None = None
+) -> dict[str, list[str]]:
     """Order skills so higher-value entries stay earlier during tail trimming."""
-    role_text, role_tokens = _extract_role_context(resume)
     bullet_counts, related_counts = _collect_skill_usage_signals(resume)
     known_skills = {
         skill
@@ -338,22 +373,15 @@ def prioritize_skills_by_importance(resume: Any) -> dict[str, list[str]]:
             ", ".join(unknown_signal_skills),
         )
 
-    scores: dict[str, float] = {}
-    for skill in set(bullet_counts) | set(related_counts):
-        role_relevance = _skill_role_relevance(skill, role_text, role_tokens)
-        scores[skill] = (
-            bullet_counts[skill] * _BULLET_COUNT_WEIGHT
-            + related_counts[skill] * _RELATED_SKILL_WEIGHT
-            + role_relevance * _ROLE_RELEVANCE_WEIGHT
-        )
+    resolved_scores = scores if scores is not None else _compute_skill_scores(resume)
 
     prioritized: dict[str, list[str]] = {}
     for category, skills in resume.skills_by_category.items():
         indexed = list(enumerate(skills))
         indexed.sort(
             key=lambda pair: (
-                -round(scores.get(pair[1], 0.0), 3),
-                -scores.get(pair[1], 0.0),
+                -round(resolved_scores.get(pair[1], 0.0), 3),
+                -resolved_scores.get(pair[1], 0.0),
                 len(pair[1]),
                 pair[0],
             )
@@ -378,6 +406,62 @@ def _removed_skill_char_count(
     return sum(len(skill) * count for skill, count in removed.items())
 
 
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        deduped.append(value)
+    return deduped
+
+
+def _protected_drop_penalty(
+    before: dict[str, list[str]],
+    after: dict[str, list[str]],
+    *,
+    protected_skills: set[str],
+    skill_scores: dict[str, float],
+) -> float:
+    if not protected_skills:
+        return 0.0
+
+    before_counter: Counter[str] = Counter()
+    after_counter: Counter[str] = Counter()
+    for skills in before.values():
+        before_counter.update(skills)
+    for skills in after.values():
+        after_counter.update(skills)
+
+    removed = before_counter - after_counter
+    removed_protected = {
+        skill: count for skill, count in removed.items() if skill in protected_skills
+    }
+    removed_protected_penalty = sum(
+        count * (_PROTECTED_SKILL_DROP_PENALTY + (skill_scores.get(skill, 0.0) * 10.0))
+        for skill, count in removed_protected.items()
+    )
+
+    protected_categories_before = {
+        category
+        for category, skills in before.items()
+        if any(skill in protected_skills for skill in skills)
+    }
+    protected_categories_after = {
+        category
+        for category, skills in after.items()
+        if any(skill in protected_skills for skill in skills)
+    }
+    dropped_protected_categories = (
+        protected_categories_before - protected_categories_after
+    )
+    dropped_category_penalty = (
+        len(dropped_protected_categories) * _PROTECTED_CATEGORY_DROP_PENALTY
+    )
+    return removed_protected_penalty + dropped_category_penalty
+
+
 def pack_skills_to_budget(
     skills_by_category: dict[str, list[str]],
     *,
@@ -386,9 +470,19 @@ def pack_skills_to_budget(
     target_min: int = TARGET_LINES_MIN,
     target_max: int = TARGET_LINES_MAX,
     target_category_max: int = TARGET_CATEGORY_MAX,
+    skill_scores: dict[str, float] | None = None,
+    protected_skill_floor: float = _PROTECTED_SKILL_SCORE_FLOOR,
 ) -> dict[str, list[str]]:
     """Trim skills to fit target line budget while reducing singleton/category fragmentation."""
     result = {cat: list(skills) for cat, skills in skills_by_category.items()}
+    known_skills = {skill for skills in result.values() for skill in skills}
+    resolved_skill_scores = skill_scores if skill_scores is not None else {}
+    protected_skills = {
+        skill
+        for skill, score in resolved_skill_scores.items()
+        if score >= protected_skill_floor and skill in known_skills
+    }
+    protected_skills |= _DEFAULT_ANCHOR_SKILLS & known_skills
     layout_cache: dict[tuple[str, tuple[str, ...], bool], tuple[int, float]] = {}
     iteration = 0
     max_iterations = 200
@@ -457,7 +551,8 @@ def pack_skills_to_budget(
 
             # Prefer reducing category fragmentation by merging small categories into
             # existing ones. This preserves skills while lowering category count.
-            if len(skills) <= 3 and len(result) > 1:
+            merge_allowed = len(skills) <= 3 or category_only_pressure
+            if merge_allowed and len(result) > 1:
                 for target_category in result:
                     if target_category == category:
                         continue
@@ -466,10 +561,17 @@ def pack_skills_to_budget(
                         for cat, values in result.items()
                         if cat != category
                     }
-                    merged = list(candidate[target_category])
-                    for skill in skills:
-                        if skill not in merged:
-                            merged.append(skill)
+                    source_protected = [
+                        skill for skill in skills if skill in protected_skills
+                    ]
+                    source_other = [
+                        skill for skill in skills if skill not in protected_skills
+                    ]
+                    merged = _dedupe_preserve_order(
+                        source_protected
+                        + list(candidate[target_category])
+                        + source_other
+                    )
                     candidate[target_category] = merged
                     candidate_variants.append(
                         (candidate, f"merge-into:{target_category}")
@@ -494,6 +596,12 @@ def pack_skills_to_budget(
                     category_count=cand_category_count,
                     singleton_count=cand_singleton_count,
                     total_skills=cand_total_skills,
+                )
+                score += _protected_drop_penalty(
+                    result,
+                    candidate,
+                    protected_skills=protected_skills,
+                    skill_scores=resolved_skill_scores,
                 )
                 removed_chars = _removed_skill_char_count(result, candidate)
                 # deterministic tie-breaker by category name then strategy
@@ -541,7 +649,8 @@ def select_skills(resume: Any) -> Any:
         except FileNotFoundError as exc:
             logger.warning("skills packing fallback estimator enabled: %s", exc)
 
-    prioritized_skills = prioritize_skills_by_importance(resume)
+    skill_scores = _compute_skill_scores(resume)
+    prioritized_skills = prioritize_skills_by_importance(resume, scores=skill_scores)
 
     trimmed_skills = pack_skills_to_budget(
         prioritized_skills,
@@ -550,6 +659,7 @@ def select_skills(resume: Any) -> Any:
         target_min=TARGET_LINES_MIN,
         target_max=TARGET_LINES_MAX,
         target_category_max=TARGET_CATEGORY_MAX,
+        skill_scores=skill_scores,
     )
 
     from dataclasses import replace as dataclass_replace

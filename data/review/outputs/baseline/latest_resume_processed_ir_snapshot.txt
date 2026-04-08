@@ -16,10 +16,12 @@ summary:
 Baseline resume output generated from canonical data. Edit this summary manually for each target role while automation stages are added incrementally.
 
 skills:
-- Automation & Framework Architecture: Playwright, Automation Architecture, Capability-Driven Design, UI & Model-Agnostic Abstractions, TestNG, Abstraction layers, Selenium WebDriver, Playwright (Python), Reusable components, Orchestration design, Test data management, Data-driven frameworks
-- CI/CD & Tooling: CI/CD, Developer Tooling, Quality gates, GitHub Actions, Versioning automation, Dependency Management, Test reliability engineering, Git, Jenkins, Pipeline design, Artifact management, GitHub Copilot Chat, GitHub Copilot PR Review, GitHub Copilot (IDE coding assistance)
-- Distributed Systems & Infrastructure: Distributed Execution, Distributed Systems, VM-based testbeds, Distributed systems, Distributed tracing, Multi-device automation labs
-- Testing & Validation: ADB, Pytest, Test Lab Automation, Web UI Automation, REST/SOAP Integration, Telnet/CLI Automation, Spock, PyTest, JUnit 4, JUnit 5, Smoke testing, CLI automation, System testing, REST API testing, Acceptance testing, Automation testing, End-to-end testing, Functional testing, Parallel execution, Regression testing, Risk-based testing, Android UI automation (ADB), API contract/schema validation, Service-layer automation (SSH), Service-layer automation (Serial)
+- Automation & Framework Architecture: Architecture • Playwright • Automation Architecture • Capability-Driven Design • UI & Model-Agnostic Abstractions • TestNG • Abstraction layers • Selenium WebDriver • Playwright (Python) • Reusable components • Orchestration design • Test data management • Data-driven frameworks • Page Object Model (POM) • UI/model-agnostic design • Java automation frameworks • Scalable UI/API automation • Python automation frameworks • Stability analysis • AI-based failure triage
+- CI/CD & Tooling: CI/CD • Developer Tooling • Quality gates • GitHub Actions • Versioning automation • Dependency Management • Test reliability engineering
+- Debugging & Analysis: Logging • Observability • Log analysis • Defect isolation
+- Distributed Systems & Infrastructure: Distributed Execution • Distributed Systems
+- Programming & Scripting: Technical Leadership • Framework Design • Python • Java
+- Quality & Testing Strategy: Issue triage • Quality strategy • Release readiness • Exploratory testing • Integration testing • Requirements/testability analysis
 
 experience_count: 6
 bullet_count: 20

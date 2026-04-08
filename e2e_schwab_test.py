@@ -48,6 +48,8 @@ def run_pipeline(
         "https://www.schwabjobs.com/job/austin/sr-sdet-workplace-services-engineering/33727/92422911552",
         "--output-dir",
         str(output_dir),
+        "--processing-mode",
+        "processed",
         "--skip-markdown",
     ]
 
@@ -121,8 +123,8 @@ def main() -> int:
         with_llm_dir = baseline_dir
 
     print("\n📊 STEP 3: Analyzing snapshot diffs...")
-    print_diff("resume_ir_snapshot.txt", baseline_dir, with_llm_dir)
-    print_diff("resume_ir_snapshot.json", baseline_dir, with_llm_dir)
+    print_diff("latest_resume_processed_ir_snapshot.txt", baseline_dir, with_llm_dir)
+    print_diff("latest_resume_processed_ir_snapshot.json", baseline_dir, with_llm_dir)
 
     print("\n" + "=" * 80)
     print("📈 SUMMARY: Visible changes from full pipeline")
@@ -138,13 +140,14 @@ def main() -> int:
   - Limits action-word repetition to {DEFAULT_MAX_ACTION_WORD_OCCURRENCES} occurrences
   - Respects minimum {DEFAULT_MIN_BULLETS_PER_EXPERIENCE} bullets per experience
 
-The resulting resume_ir_snapshot.txt and resume_ir_snapshot.json files
+The resulting latest_resume_processed_ir_snapshot.txt and
+latest_resume_processed_ir_snapshot.json files
 show the final tailored resume with enrichment metadata attached.
 """)
 
     # Show file sizes as proxy for data changes
-    baseline_json = baseline_dir / "resume_ir_snapshot.json"
-    with_llm_json = with_llm_dir / "resume_ir_snapshot.json"
+    baseline_json = baseline_dir / "latest_resume_processed_ir_snapshot.json"
+    with_llm_json = with_llm_dir / "latest_resume_processed_ir_snapshot.json"
 
     if baseline_json.exists() and with_llm_json.exists():
         baseline_size = baseline_json.stat().st_size

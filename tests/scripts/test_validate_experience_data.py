@@ -53,6 +53,16 @@ def test_validate_experience_data_flags_invalid_impact_type() -> None:
     assert warnings == []
 
 
+def test_validate_experience_data_flags_invalid_related_skill() -> None:
+    payload = _experience_payload(impact_type="reliability", domain="video")
+    payload["experience"][0]["related_skills"] = ["Cobol"]
+
+    errors, warnings = validate_experience_data(payload, VALID_SKILLS)
+
+    assert errors == ["exp_1: related_skill 'Cobol' not in skills matrix"]
+    assert warnings == []
+
+
 def test_validate_experience_data_warns_when_domain_missing() -> None:
     errors, warnings = validate_experience_data(
         _experience_payload(impact_type="reliability", domain=None), VALID_SKILLS

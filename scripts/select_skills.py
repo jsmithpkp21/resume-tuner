@@ -9,6 +9,8 @@ categories and stable ordering.
 from __future__ import annotations
 
 import logging
+import re
+from collections import Counter
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,23 @@ TARGET_CATEGORY_MAX: int = 9
 # Minimum skill count to preserve per category (to avoid empty categories)
 MIN_SKILLS_PER_CATEGORY: int = 1
 _CHAR_WIDTH_LIMIT: int = 92
+_ROLE_TOKEN_PATTERN = re.compile(r"[a-z0-9+#/.-]+")
+_ROLE_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "for",
+    "in",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "with",
+}
+_BULLET_COUNT_WEIGHT = 2.0
+_RELATED_SKILL_WEIGHT = 1.0
+_ROLE_RELEVANCE_WEIGHT = 3.0
 
 
 def _load_measure_backend() -> Any | None:
@@ -232,6 +251,127 @@ def _state_stats(skills_by_category: dict[str, list[str]]) -> tuple[int, int, in
     return category_count, singleton_count, total_skills
 
 
+def _tokenize_role_text(text: str) -> set[str]:
+    tokens = {
+        token
+        for token in _ROLE_TOKEN_PATTERN.findall(text.lower())
+        if len(token) >= 2 and token not in _ROLE_STOPWORDS
+    }
+    return tokens
+
+
+def _extract_role_context(resume: Any) -> tuple[str, set[str]]:
+    parts: list[str] = []
+    target_role = str(getattr(resume, "target_role", "") or "").strip()
+    if target_role:
+        parts.append(target_role)
+
+    job_context = getattr(resume, "job_context", None)
+    if job_context is not None:
+        role_hint = str(getattr(job_context, "role_hint", "") or "").strip()
+        if role_hint:
+            parts.append(role_hint)
+        description_excerpt = str(
+            getattr(job_context, "description_excerpt", "") or ""
+        ).strip()
+        if description_excerpt:
+            parts.append(description_excerpt)
+
+    role_text = " ".join(parts).lower()
+    role_tokens = _tokenize_role_text(role_text)
+    return role_text, role_tokens
+
+
+def _collect_skill_usage_signals(resume: Any) -> tuple[Counter[str], Counter[str]]:
+    bullet_counts: Counter[str] = Counter()
+    related_counts: Counter[str] = Counter()
+
+    for experience in getattr(resume, "experiences", ()) or ():
+        for skill in getattr(experience, "related_skills", ()) or ():
+            related_counts[str(skill)] += 1
+        for bullet in getattr(experience, "bullets", ()) or ():
+            for skill in getattr(bullet, "skills", ()) or ():
+                bullet_counts[str(skill)] += 1
+
+    return bullet_counts, related_counts
+
+
+def _skill_role_relevance(skill: str, role_text: str, role_tokens: set[str]) -> float:
+    if not role_text:
+        return 0.0
+
+    normalized_skill = skill.strip().lower()
+    if not normalized_skill:
+        return 0.0
+
+    skill_tokens = _tokenize_role_text(normalized_skill)
+    if not skill_tokens:
+        return 0.0
+
+    exact_phrase_bonus = 1.0 if normalized_skill in role_text else 0.0
+    overlap_ratio = len(skill_tokens & role_tokens) / len(skill_tokens)
+    return exact_phrase_bonus + overlap_ratio
+
+
+def prioritize_skills_by_importance(resume: Any) -> dict[str, list[str]]:
+    """Order skills so higher-value entries stay earlier during tail trimming."""
+    role_text, role_tokens = _extract_role_context(resume)
+    bullet_counts, related_counts = _collect_skill_usage_signals(resume)
+    known_skills = {
+        skill
+        for category_skills in resume.skills_by_category.values()
+        for skill in category_skills
+    }
+
+    unknown_signal_skills = sorted(
+        (set(bullet_counts) | set(related_counts)) - known_skills
+    )
+    if unknown_signal_skills:
+        logger.warning(
+            "skills prioritization ignored unknown skills not present in skills matrix: %s",
+            ", ".join(unknown_signal_skills),
+        )
+
+    scores: dict[str, float] = {}
+    for skill in set(bullet_counts) | set(related_counts):
+        role_relevance = _skill_role_relevance(skill, role_text, role_tokens)
+        scores[skill] = (
+            bullet_counts[skill] * _BULLET_COUNT_WEIGHT
+            + related_counts[skill] * _RELATED_SKILL_WEIGHT
+            + role_relevance * _ROLE_RELEVANCE_WEIGHT
+        )
+
+    prioritized: dict[str, list[str]] = {}
+    for category, skills in resume.skills_by_category.items():
+        indexed = list(enumerate(skills))
+        indexed.sort(
+            key=lambda pair: (
+                -round(scores.get(pair[1], 0.0), 3),
+                -scores.get(pair[1], 0.0),
+                len(pair[1]),
+                pair[0],
+            )
+        )
+        prioritized[category] = [skill for _, skill in indexed]
+
+    return prioritized
+
+
+def _removed_skill_char_count(
+    before: dict[str, list[str]], after: dict[str, list[str]]
+) -> int:
+    """Count removed skill-name characters as a tie-breaker under line pressure."""
+    before_counter: Counter[str] = Counter()
+    after_counter: Counter[str] = Counter()
+    for skills in before.values():
+        before_counter.update(skills)
+    for skills in after.values():
+        after_counter.update(skills)
+
+    removed = before_counter - after_counter
+    return sum(len(skill) * count for skill, count in removed.items())
+
+
 def pack_skills_to_budget(
     skills_by_category: dict[str, list[str]],
     *,
@@ -275,6 +415,7 @@ def pack_skills_to_budget(
         best_candidate: dict[str, list[str]] | None = None
         best_category = ""
         best_strategy = ""
+        best_removed_chars = -1
         force_progress = (
             total_lines > target_max or category_count > target_category_max
         )
@@ -348,18 +489,29 @@ def pack_skills_to_budget(
                     singleton_count=cand_singleton_count,
                     total_skills=cand_total_skills,
                 )
+                removed_chars = _removed_skill_char_count(result, candidate)
                 # deterministic tie-breaker by category name then strategy
                 if score < best_score or (
                     score == best_score
                     and (
-                        (not best_category or category < best_category)
-                        or (category == best_category and strategy < best_strategy)
+                        (force_progress and removed_chars > best_removed_chars)
+                        or (
+                            removed_chars == best_removed_chars
+                            and (
+                                (not best_category or category < best_category)
+                                or (
+                                    category == best_category
+                                    and strategy < best_strategy
+                                )
+                            )
+                        )
                     )
                 ):
                     best_candidate = candidate
                     best_score = score
                     best_category = category
                     best_strategy = strategy
+                    best_removed_chars = removed_chars
 
         if best_candidate is None:
             break
@@ -383,8 +535,10 @@ def select_skills(resume: Any) -> Any:
         except FileNotFoundError as exc:
             logger.warning("skills packing fallback estimator enabled: %s", exc)
 
+    prioritized_skills = prioritize_skills_by_importance(resume)
+
     trimmed_skills = pack_skills_to_budget(
-        resume.skills_by_category,
+        prioritized_skills,
         font_regular=font_regular,
         font_bold=font_bold,
         target_min=TARGET_LINES_MIN,

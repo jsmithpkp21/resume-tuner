@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+import pytest
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"))
@@ -16,6 +19,7 @@ if __package__ in {None, ""}:
         _section_layout,
         estimate_line_count,
         pack_skills_to_budget,
+        prioritize_skills_by_importance,
         select_skills,
     )
 else:
@@ -27,6 +31,7 @@ else:
         _section_layout,
         estimate_line_count,
         pack_skills_to_budget,
+        prioritize_skills_by_importance,
         select_skills,
     )
 
@@ -144,6 +149,89 @@ def test_pack_skills_to_budget_reduces_category_count_even_when_lines_already_fi
 @dataclass(frozen=True)
 class _DummyResume:
     skills_by_category: dict[str, list[str]]
+    experiences: tuple[object, ...] = ()
+    target_role: str = ""
+    job_context: object | None = None
+
+
+@dataclass(frozen=True)
+class _DummyBullet:
+    skills: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _DummyExperience:
+    related_skills: tuple[str, ...]
+    bullets: tuple[_DummyBullet, ...]
+
+
+@dataclass(frozen=True)
+class _DummyJobContext:
+    role_hint: str = ""
+    description_excerpt: str = ""
+
+
+def test_prioritize_skills_by_importance_uses_frequency_and_role_relevance() -> None:
+    resume = _DummyResume(
+        skills_by_category={
+            "Languages": ["Python", "Java", "Kotlin"],
+        },
+        experiences=(
+            _DummyExperience(
+                related_skills=("Java", "Java", "Python"),
+                bullets=(
+                    _DummyBullet(skills=("Java", "Kotlin")),
+                    _DummyBullet(skills=("Java",)),
+                    _DummyBullet(skills=("Python",)),
+                ),
+            ),
+        ),
+        target_role="Senior Java Engineer",
+    )
+
+    prioritized = prioritize_skills_by_importance(resume)
+    assert prioritized["Languages"] == ["Java", "Python", "Kotlin"]
+
+
+def test_prioritize_skills_by_importance_prefers_shorter_skill_when_scores_are_equal() -> (
+    None
+):
+    resume = _DummyResume(
+        skills_by_category={
+            "Integration": [
+                "Enterprise Service Bus Integration Automation",
+                "API",
+            ]
+        }
+    )
+
+    prioritized = prioritize_skills_by_importance(resume)
+    assert prioritized["Integration"] == [
+        "API",
+        "Enterprise Service Bus Integration Automation",
+    ]
+
+
+def test_prioritize_skills_by_importance_warns_for_unknown_signal_skills(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    resume = _DummyResume(
+        skills_by_category={"Languages": ["Python"]},
+        experiences=(
+            _DummyExperience(
+                related_skills=("Cobol",),
+                bullets=(_DummyBullet(skills=("Cobol",)),),
+            ),
+        ),
+    )
+
+    caplog.set_level(logging.WARNING)
+    prioritize_skills_by_importance(resume)
+
+    assert any(
+        "ignored unknown skills not present in skills matrix" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_select_skills_returns_new_dataclass_and_keeps_source_immutable() -> None:
@@ -156,3 +244,31 @@ def test_select_skills_returns_new_dataclass_and_keeps_source_immutable() -> Non
     assert packed_resume is not resume
     assert isinstance(packed_resume, _DummyResume)
     assert resume.skills_by_category == original
+
+
+def test_select_skills_applies_importance_order_before_trimming() -> None:
+    resume = _DummyResume(
+        skills_by_category={
+            "Languages": ["Kotlin", "Python", "Java"],
+            "Automation": ["Playwright", "Selenium", "Pytest"],
+            "Platforms": ["Linux", "Docker", "Kubernetes"],
+            "Tooling": ["CI/CD", "GitHub Actions", "Jenkins"],
+        },
+        experiences=(
+            _DummyExperience(
+                related_skills=("Java", "Java", "Python"),
+                bullets=(
+                    _DummyBullet(skills=("Java",)),
+                    _DummyBullet(skills=("Java", "CI/CD")),
+                    _DummyBullet(skills=("Java", "Python")),
+                ),
+            ),
+        ),
+        target_role="Senior Java Engineer",
+        job_context=_DummyJobContext(description_excerpt="Java backend testing CI/CD"),
+    )
+
+    packed_resume = select_skills(resume)
+    ordered_languages = packed_resume.skills_by_category.get("Languages", [])
+    assert ordered_languages
+    assert ordered_languages[0] == "Java"

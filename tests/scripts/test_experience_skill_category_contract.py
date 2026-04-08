@@ -68,6 +68,23 @@ def test_all_experience_bullet_skills_exist_in_skills_matrix() -> None:
     )
 
 
+def test_all_experience_related_skills_exist_in_skills_matrix() -> None:
+    skill_map = _load_skill_to_category()
+    experiences = _load_experience()
+
+    missing: list[tuple[str, str]] = []
+    for exp in experiences:
+        exp_id = str(exp.get("id", "<missing-id>"))
+        for skill in exp.get("related_skills", []):
+            if skill not in skill_map:
+                missing.append((exp_id, skill))
+
+    assert not missing, (
+        "experience_db.toml related_skills reference skills missing from skills_matrix.csv: "
+        + ", ".join(f"{exp_id}:{skill}" for exp_id, skill in missing)
+    )
+
+
 def test_bullet_categories_if_present_are_nonempty_strings() -> None:
     experiences = _load_experience()
     for exp in experiences:

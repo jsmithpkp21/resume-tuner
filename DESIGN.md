@@ -44,6 +44,7 @@ The Skills Matrix CSV contract is two columns:
 ### Validation
 - Contract and cross-reference checks are enforced by pytest (`tests/scripts/test_experience_skill_category_contract.py`)
 - Any skill used in `experience_db.toml` but missing from `skills_matrix.csv` is a validation failure
+- `related_skills` references are validated against `skills_matrix.csv` with the same failure policy as bullet skill references
 
 ---
 
@@ -99,6 +100,15 @@ AI must follow these rules when selecting skills, categories, bullets, and exper
    - skill ordering
    - skill renaming (last resort)
    - dropping low‑relevance skills
+
+### Deterministic skill ranking before trimming
+- Skills are ranked before layout trimming so the highest-value items appear first in each category list.
+- Ranking uses a weighted hybrid score:
+  - bullet mention frequency (`bullet.skills`)
+  - experience-level mention frequency (`related_skills`)
+  - role relevance signals from target role plus job context text
+- Category tail-trimming remains in place; low-score skills are intentionally pushed to the tail so removal is low-risk.
+- For similar-value ties, shorter skills sort earlier and longer skills sort later, so trimming can remove long/low-delta items first when that better reduces wrapped lines.
 
 ### Experience Selection
 9. Include only experiences with an end date within **15 years**.
@@ -194,6 +204,7 @@ The engine must:
 4. Reorder skills to avoid widows/orphans.
 5. Rename skills (shorten) as a **last resort**.
 6. Reflow text until no single‑word wraps remain.
+7. Prefer removing longer, similar-value tail skills when over budget if it yields faster line-count reduction.
 
 ### Experience Section Layout
 - Each job gets:

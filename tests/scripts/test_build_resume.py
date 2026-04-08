@@ -175,10 +175,12 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert "<h2>Leadership &amp; Community</h2>" in html_text
     assert html_text.index("<h2>Summary</h2>") < html_text.index("<h2>Skills</h2>")
     assert html_text.index("<h2>Skills</h2>") < html_text.index("<h2>Experience</h2>")
+    assert " • " in html_text
     assert "## Education" in md_text
     assert "## Leadership & Community" in md_text
     assert md_text.index("## Summary") < md_text.index("## Skills")
     assert md_text.index("## Skills") < md_text.index("## Experience")
+    assert " • " in md_text
     assert "linkedin.com/in/jonathan-j-smith-automation" in md_text
     assert "github.com/jsmithpkp21" in md_text
     assert snapshot["profile"]["linkedin"] == "jonathan-j-smith-automation"
@@ -201,6 +203,7 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert "profile.github_url: github.com/jsmithpkp21" in text_snapshot
     assert text_snapshot.index("summary:") < text_snapshot.index("skills:")
     assert text_snapshot.index("skills:") < text_snapshot.index("experience:")
+    assert " • " in text_snapshot
 
 
 def test_build_resume_cli_accepts_job_url_and_generates_job_context(

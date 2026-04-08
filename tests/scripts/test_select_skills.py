@@ -2,38 +2,25 @@
 
 from __future__ import annotations
 
+import builtins
 import logging
-import sys
 from dataclasses import dataclass
-from pathlib import Path
 
 import pytest
 
-if __package__ in {None, ""}:
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"))
-    from select_skills import (
-        MIN_SKILLS_PER_CATEGORY,
-        TARGET_CATEGORY_MAX,
-        TARGET_LINES_MAX,
-        TARGET_LINES_MIN,
-        _section_layout,
-        estimate_line_count,
-        pack_skills_to_budget,
-        prioritize_skills_by_importance,
-        select_skills,
-    )
-else:
-    from scripts.select_skills import (
-        MIN_SKILLS_PER_CATEGORY,
-        TARGET_CATEGORY_MAX,
-        TARGET_LINES_MAX,
-        TARGET_LINES_MIN,
-        _section_layout,
-        estimate_line_count,
-        pack_skills_to_budget,
-        prioritize_skills_by_importance,
-        select_skills,
-    )
+from scripts import select_skills as select_skills_module
+from scripts.select_skills import (
+    MIN_SKILLS_PER_CATEGORY,
+    TARGET_CATEGORY_MAX,
+    TARGET_LINES_MAX,
+    TARGET_LINES_MIN,
+    _section_layout,
+    estimate_line_count,
+    join_skills,
+    pack_skills_to_budget,
+    prioritize_skills_by_importance,
+    select_skills,
+)
 
 
 def test_estimate_line_count_handles_empty_and_non_empty() -> None:
@@ -144,6 +131,38 @@ def test_pack_skills_to_budget_reduces_category_count_even_when_lines_already_fi
     assert sum(len(skills) for skills in packed.values()) == sum(
         len(skills) for skills in source.values()
     )
+
+
+def test_join_skills_uses_shared_separator() -> None:
+    assert join_skills(["Python", "Pytest", "CI/CD"]) == "Python • Pytest • CI/CD"
+
+
+def test_load_measure_backend_falls_back_on_import_error(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    original_import = builtins.__import__
+
+    def fake_import(
+        name: str,
+        globals: dict[str, object] | None = None,
+        locals: dict[str, object] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "measure_skills_lines":
+            raise ImportError("simulated Pillow import failure")
+        if name == "scripts" and "measure_skills_lines" in fromlist:
+            raise ImportError("simulated Pillow import failure")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(select_skills_module, "_MEASURE_BACKEND", False)
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    with caplog.at_level(logging.WARNING):
+        backend = select_skills_module._load_measure_backend()
+
+    assert backend is None
+    assert "skills packing fallback estimator enabled" in caplog.text
 
 
 @dataclass(frozen=True)

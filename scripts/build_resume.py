@@ -29,9 +29,9 @@ from pathlib import Path
 from typing import Any
 
 if __package__ in {None, ""}:
-    from select_skills import select_skills
+    from select_skills import join_skills, select_skills
 else:
-    from scripts.select_skills import select_skills
+    from scripts.select_skills import join_skills, select_skills
 
 # Use local import when run as `python scripts/build_resume.py`,
 # and package import when loaded as `scripts.build_resume`.
@@ -1182,7 +1182,7 @@ def render_html(resume: ResumeIR, output_path: Path) -> None:
 
     skills_html: list[str] = []
     for category, skills in resume.skills_by_category.items():
-        joined_skills = ", ".join(_html_escape(skill) for skill in skills)
+        joined_skills = join_skills(_html_escape(skill) for skill in skills)
         skills_html.append(
             f'<p class="skills-category"><strong>{_html_escape(category)}:</strong> {joined_skills}</p>'
         )
@@ -1302,7 +1302,7 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
     lines.extend(["## Summary", "", resume.profile.summary, "", "## Skills", ""])
 
     for category, skills in resume.skills_by_category.items():
-        lines.append(f"- **{category}:** {', '.join(skills)}")
+        lines.append(f"- **{category}:** {join_skills(skills)}")
 
     lines.extend(["", "## Experience", ""])
 
@@ -1430,7 +1430,7 @@ def write_text_snapshot(resume: ResumeIR, output_path: Path) -> None:
     # Sort categories for stable diffs if CSV section ordering changes.
     for category in sorted(resume.skills_by_category):
         skills = resume.skills_by_category[category]
-        lines.append(f"- {category}: {', '.join(skills)}")
+        lines.append(f"- {category}: {join_skills(skills)}")
 
     lines.extend(
         [

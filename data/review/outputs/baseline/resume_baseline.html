@@ -11,6 +11,7 @@
     h3 { margin-bottom: 2px; }
     h3 span { font-weight: normal; color: #333; }
     .headline, .contact, .target-role, .dates, .role-summary, .related-skills { margin: 4px 0; }
+    .skills-category { margin: 0; }
     ul { margin-top: 6px; }
     .experience-item { margin-bottom: 16px; }
     .info-item { margin-bottom: 10px; }
@@ -18,29 +19,18 @@
 </head>
 <body>
   <h1>Jonathan Smith</h1>
-  <p class="headline">Sr. SDET</p>
+  <p class="headline">Software Engineer | Test Automation and Framework Architecture</p>
   <p class="contact">Temple, TX, 76502 | jonathan@example.com | (512) 555-0142 | linkedin.com/in/jonathan-j-smith-automation | github.com/jsmithpkp21</p>
-  <p class="target-role">Target role: Sr. SDET</p>
-  <p class="target-role">Target company: Charles Schwab</p>
+
+
   <h2>Summary</h2>
   <p>Baseline resume output generated from canonical data. Edit this summary manually for each target role while automation stages are added incrementally.</p>
   <h2>Skills</h2>
-<p><strong>AI-Assisted Quality:</strong> GitHub Copilot (IDE coding assistance), GitHub Copilot Chat, GitHub Copilot PR Review, Microsoft Copilot (workflow automation &amp; reasoning), Notion AI (content generation &amp; rewriting)</p>
-<p><strong>AI-Assisted Quality Engineering:</strong> AI-based failure triage, Stability analysis</p>
-<p><strong>AI-Driven Engineering:</strong> AI-assisted architecture exploration, AI-assisted coding, AI-assisted debugging, AI-assisted documentation, AI-augmented test generation</p>
-<p><strong>Architecture &amp; Design:</strong> Application of abstraction layers, Architecture, Architecture exploration, Design, Design patterns, Prototype Design</p>
-<p><strong>Automation &amp; Framework Architecture:</strong> Abstraction layers, Data-driven frameworks, Java automation frameworks, Orchestration design, Page Object Model (POM), Playwright (Python), Python automation frameworks, Reusable components, Scalable UI/API automation, Selenium WebDriver, Test data management, TestNG, UI/model-agnostic design, Automation Architecture, Capability-Driven Design, Playwright, UI &amp; Model-Agnostic Abstractions</p>
-<p><strong>Automation &amp; Framework Engineering:</strong> Automation, Automation framework design, Automation strategy, Automation troubleshooting, Device automation, Framework design, Orchestration, Automation Strategy, Framework Design</p>
-<p><strong>CI/CD &amp; Tooling:</strong> Artifact management, CI/CD, CI/CD troubleshooting, Continuous testing workflows, Git, GitHub Actions, Jenkins, Pipeline design, Quality gates, Test reliability engineering, Versioning automation, Dependency Management, Developer Tooling</p>
-<p><strong>Collaboration &amp; Engineering Practices:</strong> Collaboration, Mentoring, Process improvement, Test planning, Test strategy for automation frameworks, Jira, Code Review, Process Design, Technical Leadership</p>
-<p><strong>Core Engineering Skills:</strong> Analysis, Analysis of requirements, Communication, Debugging, Documentation, Pattern recognition</p>
-<p><strong>Debugging &amp; Analysis:</strong> Defect isolation, Environment debugging, Environment reliability, Log analysis, Metrics/monitoring interpretation, Observability, Performance profiling, Regression analysis, Root cause analysis, Logging</p>
-<p><strong>Distributed Systems &amp; Infrastructure:</strong> Distributed systems, Distributed tracing, Hybrid cloud interactions (on-prem &lt;-&gt; cloud), Multi-device automation labs, VM-based testbeds, Distributed Execution, Distributed Systems</p>
-<p><strong>Environments &amp; Infrastructure:</strong> Docker, Environment management, Linux command-line, Infrastructure</p>
-<p><strong>Networking:</strong> TCP/IP fundamentals</p>
-<p><strong>Programming &amp; Scripting:</strong> Bash, C, C++, Groovy, Java, JavaScript, Python, Shell scripting, TypeScript</p>
-<p><strong>Quality &amp; Testing Strategy:</strong> Exploratory testing, Integration testing, Issue triage, Quality strategy, Release readiness, Requirements/testability analysis</p>
-<p><strong>Testing &amp; Validation:</strong> Acceptance testing, Android UI automation (ADB), Android UI automation (UI Automator), API contract/schema validation, Automation testing, CLI automation, End-to-end testing, Functional testing, JUnit 4, JUnit 5, Multi-environment compatibility testing, Parallel execution, PyTest, Regression testing, REST API testing, Risk-based testing, Service-layer automation (Serial), Service-layer automation (SSH), Service-layer automation (Telnet), Smoke testing, Spock, System testing, ADB, Pytest, REST/SOAP Integration, Telnet/CLI Automation, Test Lab Automation, Web UI Automation</p>
+<p class="skills-category"><strong>Architecture &amp; Design:</strong> Application of abstraction layers, Architecture, Architecture exploration, Design, Design patterns, Prototype Design, AI-based failure triage</p>
+<p class="skills-category"><strong>Automation &amp; Framework Architecture:</strong> Abstraction layers, Data-driven frameworks, Java automation frameworks, Orchestration design, Page Object Model (POM), Playwright (Python), Python automation frameworks, Reusable components, Scalable UI/API automation, Selenium WebDriver, Test data management, TestNG, UI/model-agnostic design, Automation Architecture</p>
+<p class="skills-category"><strong>CI/CD &amp; Tooling:</strong> Artifact management, CI/CD, CI/CD troubleshooting, Continuous testing workflows, Git, GitHub Actions, Jenkins, Pipeline design, Quality gates, Test reliability engineering</p>
+<p class="skills-category"><strong>Debugging &amp; Analysis:</strong> Defect isolation, Environment debugging, Environment reliability, Log analysis</p>
+<p class="skills-category"><strong>Testing &amp; Validation:</strong> Acceptance testing, Android UI automation (ADB), Android UI automation (UI Automator), API contract/schema validation, Automation testing, CLI automation, End-to-end testing, Functional testing, JUnit 4, JUnit 5, Multi-environment compatibility testing, Parallel execution, PyTest, Regression testing, REST API testing, Risk-based testing, Service-layer automation (Serial)</p>
   <h2>Experience</h2>
 <section class="experience-item">
 <h3>Architect, Python Test Framework (Video)<span> | HP / Poly</span></h3>
@@ -51,6 +41,7 @@
 <li>Transformed an inherited ADB/UI Automator-based system into a lightweight abstraction layer supporting Android-based embedded UI testing across PolyOS, Zoom, Teams, and Google Meet.</li>
 <li>Set long-term architectural direction and coding standards and mentored a group of five engineers.</li>
 <li>Established coding standards, CI quality gates (flake8, mypy), and reproducible environment patterns.</li>
+<li>Integrated framework execution into containerized GitHub Actions workflows, defining container requirements and collaborating with DevOps on image updates.</li>
 </ul>
 </section>
 <section class="experience-item">
@@ -84,6 +75,7 @@
 <li>Delivered a technical evaluation for integrating the Video automation framework into a unified corporate platform, including a reusable first implementation step that remained applicable regardless of final direction.</li>
 <li>Decomposed a monolithic automation system into modular components and standardized package and project naming conventions, enabling distributed ownership and reducing build times by 75 percent.</li>
 <li>Architected and drove the Java 8 to 12 migration across 15 projects and 3 product lines, resolving Java 9 module-system breaks, modernizing dependencies, and stabilizing CI and automation pipelines.</li>
+<li>Implemented semantic versioning automation to generate and version JAR artifacts from standardized commit messages.</li>
 </ul>
 </section>
 <section class="experience-item">

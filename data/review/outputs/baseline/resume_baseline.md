@@ -1,12 +1,8 @@
 # Jonathan Smith
 
-Sr. SDET
+Software Engineer | Test Automation and Framework Architecture
 
 Temple, TX, 76502 | [jonathan@example.com](mailto:jonathan@example.com) | (512) 555-0142 | [linkedin.com/in/jonathan-j-smith-automation](https://linkedin.com/in/jonathan-j-smith-automation) | [github.com/jsmithpkp21](https://github.com/jsmithpkp21)
-
-Target role: Sr. SDET
-
-Target company: Charles Schwab
 
 ## Summary
 
@@ -14,22 +10,11 @@ Baseline resume output generated from canonical data. Edit this summary manually
 
 ## Skills
 
-- **AI-Assisted Quality:** GitHub Copilot (IDE coding assistance), GitHub Copilot Chat, GitHub Copilot PR Review, Microsoft Copilot (workflow automation & reasoning), Notion AI (content generation & rewriting)
-- **AI-Assisted Quality Engineering:** AI-based failure triage, Stability analysis
-- **AI-Driven Engineering:** AI-assisted architecture exploration, AI-assisted coding, AI-assisted debugging, AI-assisted documentation, AI-augmented test generation
-- **Architecture & Design:** Application of abstraction layers, Architecture, Architecture exploration, Design, Design patterns, Prototype Design
-- **Automation & Framework Architecture:** Abstraction layers, Data-driven frameworks, Java automation frameworks, Orchestration design, Page Object Model (POM), Playwright (Python), Python automation frameworks, Reusable components, Scalable UI/API automation, Selenium WebDriver, Test data management, TestNG, UI/model-agnostic design, Automation Architecture, Capability-Driven Design, Playwright, UI & Model-Agnostic Abstractions
-- **Automation & Framework Engineering:** Automation, Automation framework design, Automation strategy, Automation troubleshooting, Device automation, Framework design, Orchestration, Automation Strategy, Framework Design
-- **CI/CD & Tooling:** Artifact management, CI/CD, CI/CD troubleshooting, Continuous testing workflows, Git, GitHub Actions, Jenkins, Pipeline design, Quality gates, Test reliability engineering, Versioning automation, Dependency Management, Developer Tooling
-- **Collaboration & Engineering Practices:** Collaboration, Mentoring, Process improvement, Test planning, Test strategy for automation frameworks, Jira, Code Review, Process Design, Technical Leadership
-- **Core Engineering Skills:** Analysis, Analysis of requirements, Communication, Debugging, Documentation, Pattern recognition
-- **Debugging & Analysis:** Defect isolation, Environment debugging, Environment reliability, Log analysis, Metrics/monitoring interpretation, Observability, Performance profiling, Regression analysis, Root cause analysis, Logging
-- **Distributed Systems & Infrastructure:** Distributed systems, Distributed tracing, Hybrid cloud interactions (on-prem <-> cloud), Multi-device automation labs, VM-based testbeds, Distributed Execution, Distributed Systems
-- **Environments & Infrastructure:** Docker, Environment management, Linux command-line, Infrastructure
-- **Networking:** TCP/IP fundamentals
-- **Programming & Scripting:** Bash, C, C++, Groovy, Java, JavaScript, Python, Shell scripting, TypeScript
-- **Quality & Testing Strategy:** Exploratory testing, Integration testing, Issue triage, Quality strategy, Release readiness, Requirements/testability analysis
-- **Testing & Validation:** Acceptance testing, Android UI automation (ADB), Android UI automation (UI Automator), API contract/schema validation, Automation testing, CLI automation, End-to-end testing, Functional testing, JUnit 4, JUnit 5, Multi-environment compatibility testing, Parallel execution, PyTest, Regression testing, REST API testing, Risk-based testing, Service-layer automation (Serial), Service-layer automation (SSH), Service-layer automation (Telnet), Smoke testing, Spock, System testing, ADB, Pytest, REST/SOAP Integration, Telnet/CLI Automation, Test Lab Automation, Web UI Automation
+- **Architecture & Design:** Application of abstraction layers, Architecture, Architecture exploration, Design, Design patterns, Prototype Design, AI-based failure triage
+- **Automation & Framework Architecture:** Abstraction layers, Data-driven frameworks, Java automation frameworks, Orchestration design, Page Object Model (POM), Playwright (Python), Python automation frameworks, Reusable components, Scalable UI/API automation, Selenium WebDriver, Test data management, TestNG, UI/model-agnostic design, Automation Architecture
+- **CI/CD & Tooling:** Artifact management, CI/CD, CI/CD troubleshooting, Continuous testing workflows, Git, GitHub Actions, Jenkins, Pipeline design, Quality gates, Test reliability engineering
+- **Debugging & Analysis:** Defect isolation, Environment debugging, Environment reliability, Log analysis
+- **Testing & Validation:** Acceptance testing, Android UI automation (ADB), Android UI automation (UI Automator), API contract/schema validation, Automation testing, CLI automation, End-to-end testing, Functional testing, JUnit 4, JUnit 5, Multi-environment compatibility testing, Parallel execution, PyTest, Regression testing, REST API testing, Risk-based testing, Service-layer automation (Serial)
 
 ## Experience
 
@@ -43,6 +28,7 @@ Related skills: Python, Playwright, ADB, Web UI Automation, CI/CD, GitHub Action
 - Transformed an inherited ADB/UI Automator-based system into a lightweight abstraction layer supporting Android-based embedded UI testing across PolyOS, Zoom, Teams, and Google Meet.
 - Set long-term architectural direction and coding standards and mentored a group of five engineers.
 - Established coding standards, CI quality gates (flake8, mypy), and reproducible environment patterns.
+- Integrated framework execution into containerized GitHub Actions workflows, defining container requirements and collaborating with DevOps on image updates.
 
 ### Technical Advisor / SDET, Audio Team | HP / Poly
 2021-05 - 2023-06
@@ -76,6 +62,7 @@ Related skills: Architecture, Framework Design, Technical Leadership, Java, Pyth
 - Delivered a technical evaluation for integrating the Video automation framework into a unified corporate platform, including a reusable first implementation step that remained applicable regardless of final direction.
 - Decomposed a monolithic automation system into modular components and standardized package and project naming conventions, enabling distributed ownership and reducing build times by 75 percent.
 - Architected and drove the Java 8 to 12 migration across 15 projects and 3 product lines, resolving Java 9 module-system breaks, modernizing dependencies, and stabilizing CI and automation pipelines.
+- Implemented semantic versioning automation to generate and version JAR artifacts from standardized commit messages.
 
 ### Lead Technical Designer, Corporate Automation Initiative | HP / Poly
 2015-06 - 2019-06

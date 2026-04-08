@@ -10,6 +10,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"))
     from select_skills import (
         MIN_SKILLS_PER_CATEGORY,
+        TARGET_CATEGORY_MAX,
         TARGET_LINES_MAX,
         TARGET_LINES_MIN,
         _section_layout,
@@ -20,6 +21,7 @@ if __package__ in {None, ""}:
 else:
     from scripts.select_skills import (
         MIN_SKILLS_PER_CATEGORY,
+        TARGET_CATEGORY_MAX,
         TARGET_LINES_MAX,
         TARGET_LINES_MIN,
         _section_layout,
@@ -76,6 +78,67 @@ def test_pack_skills_to_budget_is_deterministic_and_does_not_mutate_input() -> N
     packed2 = pack_skills_to_budget(source, font_regular=None, font_bold=None)
     assert source == baseline
     assert packed1 == packed2
+
+
+def test_pack_skills_to_budget_can_drop_singleton_categories_when_over_budget() -> None:
+    source = {f"Category {idx:02d}": [f"skill_{idx:02d}"] for idx in range(1, 16)}
+    packed = pack_skills_to_budget(source, font_regular=None, font_bold=None)
+    total_lines, _ = _section_layout(packed, font_regular=None, font_bold=None)
+
+    assert total_lines <= TARGET_LINES_MAX
+    assert len(packed) < len(source)
+
+
+def test_pack_skills_to_budget_progresses_when_single_trims_do_not_immediately_unwrap() -> (
+    None
+):
+    source = {
+        "Automation & Frameworks": [f"framework_{idx}" for idx in range(1, 30)],
+        "Architecture": [f"arch_{idx}" for idx in range(1, 25)],
+        "Quality Engineering": [f"qe_{idx}" for idx in range(1, 30)],
+        "Leadership": [f"lead_{idx}" for idx in range(1, 22)],
+    }
+
+    baseline_lines, _ = _section_layout(source, font_regular=None, font_bold=None)
+    assert baseline_lines > TARGET_LINES_MAX
+
+    # Regression precondition: one-skill trim candidates do not immediately change
+    # wrapped line count, which previously caused the optimizer to stall.
+    single_trim_lines: set[int] = set()
+    for category, skills in source.items():
+        candidate = {cat: list(values) for cat, values in source.items()}
+        candidate[category] = skills[:-1]
+        candidate_lines, _ = _section_layout(
+            candidate, font_regular=None, font_bold=None
+        )
+        single_trim_lines.add(candidate_lines)
+
+    assert single_trim_lines == {baseline_lines}
+
+    packed = pack_skills_to_budget(source, font_regular=None, font_bold=None)
+    packed_lines, _ = _section_layout(packed, font_regular=None, font_bold=None)
+
+    assert packed_lines <= TARGET_LINES_MAX
+    assert any(len(source[cat]) - len(packed[cat]) >= 2 for cat in source)
+
+
+def test_pack_skills_to_budget_reduces_category_count_even_when_lines_already_fit() -> (
+    None
+):
+    source = {f"Category {idx:02d}": [f"skill_{idx:02d}"] for idx in range(1, 13)}
+
+    baseline_lines, _ = _section_layout(source, font_regular=None, font_bold=None)
+    assert TARGET_LINES_MIN <= baseline_lines <= TARGET_LINES_MAX
+    assert len(source) > TARGET_CATEGORY_MAX
+
+    packed = pack_skills_to_budget(source, font_regular=None, font_bold=None)
+    packed_lines, _ = _section_layout(packed, font_regular=None, font_bold=None)
+
+    assert packed_lines <= TARGET_LINES_MAX
+    assert len(packed) <= TARGET_CATEGORY_MAX
+    assert sum(len(skills) for skills in packed.values()) == sum(
+        len(skills) for skills in source.values()
+    )
 
 
 @dataclass(frozen=True)

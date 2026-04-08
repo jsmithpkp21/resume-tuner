@@ -18,6 +18,7 @@ _MEASURE_BACKEND: Any | None | bool = False
 TARGET_LINES_MIN: int = 11
 TARGET_LINES_MAX: int = 13
 TARGET_LINES_PREFERRED: int = 12
+TARGET_CATEGORY_MAX: int = 9
 # Minimum skill count to preserve per category (to avoid empty categories)
 MIN_SKILLS_PER_CATEGORY: int = 1
 _CHAR_WIDTH_LIMIT: int = 92
@@ -195,13 +196,40 @@ def _layout_score(
     *,
     target_min: int,
     target_max: int,
+    target_category_max: int,
+    category_count: int,
+    singleton_count: int,
+    total_skills: int,
 ) -> float:
     """Lower score is better; prioritize staying in range, then line fullness."""
     preferred = target_min + ((target_max - target_min) // 2)
     over = max(0, total_lines - target_max)
     under = max(0, target_min - total_lines)
+    category_over = max(0, category_count - target_category_max)
     distance = abs(total_lines - preferred)
-    return over * 1000.0 + under * 500.0 + distance * 25.0 + short_tail_penalty
+    # When over budget, prioritize structural progress toward fewer lines.
+    # Skill-retention reward is re-enabled only once we are no longer over max.
+    skill_retention_reward = 0.0 if over > 0 else (total_skills * 0.05)
+    return (
+        over * 1000.0
+        + under * 500.0
+        + category_over * 250.0
+        + distance * 25.0
+        + short_tail_penalty
+        + (category_count * 2.5)
+        + (singleton_count * 12.0)
+        - skill_retention_reward
+    )
+
+
+def _state_stats(skills_by_category: dict[str, list[str]]) -> tuple[int, int, int]:
+    """Return (category_count, singleton_count, total_skills) for score tie-breaks."""
+    category_count = len(skills_by_category)
+    singleton_count = sum(
+        1 for skills in skills_by_category.values() if len(skills) == 1
+    )
+    total_skills = sum(len(skills) for skills in skills_by_category.values())
+    return category_count, singleton_count, total_skills
 
 
 def pack_skills_to_budget(
@@ -211,8 +239,9 @@ def pack_skills_to_budget(
     font_bold: Any | None,
     target_min: int = TARGET_LINES_MIN,
     target_max: int = TARGET_LINES_MAX,
+    target_category_max: int = TARGET_CATEGORY_MAX,
 ) -> dict[str, list[str]]:
-    """Trim trailing skills to fit target line budget while preserving grouping."""
+    """Trim skills to fit target line budget while reducing singleton/category fragmentation."""
     result = {cat: list(skills) for cat, skills in skills_by_category.items()}
     layout_cache: dict[tuple[str, tuple[str, ...], bool], tuple[int, float]] = {}
     iteration = 0
@@ -220,42 +249,117 @@ def pack_skills_to_budget(
 
     while iteration < max_iterations:
         iteration += 1
-        total_lines, _ = _section_layout(
+        total_lines, total_tail = _section_layout(
             result,
             font_regular=font_regular,
             font_bold=font_bold,
             cache=layout_cache,
         )
-        if total_lines <= target_max:
+        category_count, singleton_count, total_skills = _state_stats(result)
+        current_score = _layout_score(
+            total_lines,
+            total_tail,
+            target_min=target_min,
+            target_max=target_max,
+            target_category_max=target_category_max,
+            category_count=category_count,
+            singleton_count=singleton_count,
+            total_skills=total_skills,
+        )
+        if (
+            target_min <= total_lines <= target_max
+            and category_count <= target_category_max
+        ):
             break
 
         best_candidate: dict[str, list[str]] | None = None
         best_category = ""
-        best_score = float("inf")
+        best_strategy = ""
+        force_progress = (
+            total_lines > target_max or category_count > target_category_max
+        )
+        category_only_pressure = (
+            category_count > target_category_max and total_lines <= target_max
+        )
+        best_score = float("inf") if force_progress else current_score
         for category, skills in result.items():
-            if len(skills) <= MIN_SKILLS_PER_CATEGORY:
-                continue
-            candidate = {cat: list(values) for cat, values in result.items()}
-            candidate[category] = candidate[category][:-1]
-            candidate_lines, candidate_tail = _section_layout(
-                candidate,
-                font_regular=font_regular,
-                font_bold=font_bold,
-                cache=layout_cache,
-            )
-            score = _layout_score(
-                candidate_lines,
-                candidate_tail,
-                target_min=target_min,
-                target_max=target_max,
-            )
-            # deterministic tie-breaker by category name
-            if score < best_score or (
-                score == best_score and (not best_category or category < best_category)
+            candidate_variants: list[tuple[dict[str, list[str]], str]] = []
+            if not category_only_pressure and len(skills) > MIN_SKILLS_PER_CATEGORY:
+                candidate = {cat: list(values) for cat, values in result.items()}
+                candidate[category] = candidate[category][:-1]
+                candidate_variants.append((candidate, "trim1"))
+
+            # Single-skill drops often do not reduce line count; evaluate a 2-skill trim
+            # candidate so we can take a bigger step when that is what actually unwraps.
+            if not category_only_pressure and len(skills) >= (
+                MIN_SKILLS_PER_CATEGORY + 2
             ):
-                best_candidate = candidate
-                best_score = score
-                best_category = category
+                candidate = {cat: list(values) for cat, values in result.items()}
+                candidate[category] = candidate[category][:-2]
+                candidate_variants.append((candidate, "trim2"))
+
+            # Allow removing singleton categories when over budget; this avoids getting
+            # stuck with many 1-skill categories that each consume one full line.
+            if total_lines > target_max and len(skills) == 1:
+                candidate = {
+                    cat: list(values)
+                    for cat, values in result.items()
+                    if cat != category
+                }
+                candidate_variants.append((candidate, "drop-category"))
+
+            # Prefer reducing category fragmentation by merging small categories into
+            # existing ones. This preserves skills while lowering category count.
+            if len(skills) <= 3 and len(result) > 1:
+                for target_category in result:
+                    if target_category == category:
+                        continue
+                    candidate = {
+                        cat: list(values)
+                        for cat, values in result.items()
+                        if cat != category
+                    }
+                    merged = list(candidate[target_category])
+                    for skill in skills:
+                        if skill not in merged:
+                            merged.append(skill)
+                    candidate[target_category] = merged
+                    candidate_variants.append(
+                        (candidate, f"merge-into:{target_category}")
+                    )
+
+            for candidate, strategy in candidate_variants:
+                candidate_lines, candidate_tail = _section_layout(
+                    candidate,
+                    font_regular=font_regular,
+                    font_bold=font_bold,
+                    cache=layout_cache,
+                )
+                cand_category_count, cand_singleton_count, cand_total_skills = (
+                    _state_stats(candidate)
+                )
+                score = _layout_score(
+                    candidate_lines,
+                    candidate_tail,
+                    target_min=target_min,
+                    target_max=target_max,
+                    target_category_max=target_category_max,
+                    category_count=cand_category_count,
+                    singleton_count=cand_singleton_count,
+                    total_skills=cand_total_skills,
+                )
+                # deterministic tie-breaker by category name then strategy
+                if score < best_score or (
+                    score == best_score
+                    and (
+                        (not best_category or category < best_category)
+                        or (category == best_category and strategy < best_strategy)
+                    )
+                ):
+                    best_candidate = candidate
+                    best_score = score
+                    best_category = category
+                    best_strategy = strategy
 
         if best_candidate is None:
             break
@@ -285,6 +389,7 @@ def select_skills(resume: Any) -> Any:
         font_bold=font_bold,
         target_min=TARGET_LINES_MIN,
         target_max=TARGET_LINES_MAX,
+        target_category_max=TARGET_CATEGORY_MAX,
     )
 
     from dataclasses import replace as dataclass_replace

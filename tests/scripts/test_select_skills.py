@@ -15,6 +15,7 @@ from scripts.select_skills import (
     TARGET_LINES_MAX,
     TARGET_LINES_MIN,
     _section_layout,
+    _wrap_widths,
     estimate_line_count,
     join_skills,
     pack_skills_to_budget,
@@ -133,8 +134,86 @@ def test_pack_skills_to_budget_reduces_category_count_even_when_lines_already_fi
     )
 
 
+def test_pack_skills_to_budget_reduces_categories_under_category_only_pressure() -> (
+    None
+):
+    source = {
+        f"Category {idx:02d}": [f"skill_{idx}_{skill_idx}" for skill_idx in range(1, 5)]
+        for idx in range(1, 13)
+    }
+
+    baseline_lines, _ = _section_layout(source, font_regular=None, font_bold=None)
+    assert TARGET_LINES_MIN <= baseline_lines <= TARGET_LINES_MAX
+    assert len(source) > TARGET_CATEGORY_MAX
+
+    packed = pack_skills_to_budget(source, font_regular=None, font_bold=None)
+    packed_lines, _ = _section_layout(packed, font_regular=None, font_bold=None)
+
+    assert packed_lines <= TARGET_LINES_MAX
+    assert len(packed) <= TARGET_CATEGORY_MAX
+
+
+def test_pack_skills_to_budget_keeps_programming_category_when_protected() -> None:
+    source = {
+        "Programming & Scripting": [
+            "Python",
+            "Java",
+            "Very Long Legacy Scripting Capability",
+            "Legacy Build Language",
+        ],
+        "A": ["a1", "a2", "a3"],
+        "B": ["b1", "b2", "b3"],
+    }
+    skill_scores = {"Python": 9.0, "Java": 8.0}
+
+    packed = pack_skills_to_budget(
+        source,
+        font_regular=None,
+        font_bold=None,
+        target_min=0,
+        target_max=50,
+        target_category_max=2,
+        skill_scores=skill_scores,
+    )
+
+    assert "Programming & Scripting" in packed
+    assert "Python" in packed["Programming & Scripting"]
+    assert "Java" in packed["Programming & Scripting"]
+
+
+def test_pack_skills_to_budget_moves_protected_skills_to_front_on_merge() -> None:
+    source = {
+        "Programming & Scripting": ["Python", "Java", "C"],
+        "CI/CD & Tooling": ["Git", "Jenkins"],
+    }
+
+    packed = pack_skills_to_budget(
+        source,
+        font_regular=None,
+        font_bold=None,
+        target_min=0,
+        target_max=50,
+        target_category_max=1,
+        skill_scores={"Python": 9.0, "Java": 8.0},
+    )
+
+    assert len(packed) == 1
+    merged_skills = next(iter(packed.values()))
+    assert merged_skills[:2] == ["Python", "Java"]
+
+
 def test_join_skills_uses_shared_separator() -> None:
     assert join_skills(["Python", "Pytest", "CI/CD"]) == "Python • Pytest • CI/CD"
+
+
+def test_wrap_widths_does_not_count_leading_space_on_wrapped_lines() -> None:
+    wrapped = _wrap_widths(
+        token_widths=[4.0, 4.0],
+        line_limit=8.0,
+        prefix_width=4.0,
+        inter_token_space=1.0,
+    )
+    assert wrapped == [8.0, 4.0]
 
 
 def test_load_measure_backend_falls_back_on_import_error(

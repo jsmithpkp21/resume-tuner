@@ -140,6 +140,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-role", type=str, default="")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument(
+        "--processing-mode",
+        choices=("raw", "processed"),
+        default="raw",
+        help=(
+            "raw keeps canonical content unfiltered (baseline contract); "
+            "processed runs transform/trim/enrich/rule/select stages."
+        ),
+    )
+    parser.add_argument(
         "--skip-markdown",
         action="store_true",
         help="Write only HTML and JSON artifacts.",
@@ -1531,18 +1540,24 @@ def run_pipeline(args: argparse.Namespace) -> int:
         experiences=experiences,
         skills_by_category=skills_by_category,
     )
-    resume = transform_for_role(resume)
-    resume = trim_for_role(resume)
-    resume = enrich_data(resume)
-    resume = trim_by_rules(resume)
-    resume = select_skills(resume)
+    if args.processing_mode == "processed":
+        resume = transform_for_role(resume)
+        resume = trim_for_role(resume)
+        resume = enrich_data(resume)
+        resume = trim_by_rules(resume)
+        resume = select_skills(resume)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    html_output = args.output_dir / "resume_baseline.html"
-    md_output = args.output_dir / "resume_baseline.md"
-    ir_output = args.output_dir / "resume_ir_snapshot.json"
-    text_snapshot_output = args.output_dir / "resume_ir_snapshot.txt"
+    output_prefix = (
+        "latest_resume_processed"
+        if args.processing_mode == "processed"
+        else "latest_resume_raw"
+    )
+    html_output = args.output_dir / f"{output_prefix}.html"
+    md_output = args.output_dir / f"{output_prefix}.md"
+    ir_output = args.output_dir / f"{output_prefix}_ir_snapshot.json"
+    text_snapshot_output = args.output_dir / f"{output_prefix}_ir_snapshot.txt"
 
     render_html(resume, html_output)
     if not args.skip_markdown:

@@ -30,10 +30,10 @@ python scripts/build_resume.py
 
 Default artifacts:
 
-- `data/review/outputs/baseline/resume_baseline.html`
-- `data/review/outputs/baseline/resume_baseline.md`
-- `data/review/outputs/baseline/resume_ir_snapshot.json`
-- `data/review/outputs/baseline/resume_ir_snapshot.txt`
+- `data/review/outputs/baseline/latest_resume_raw.html`
+- `data/review/outputs/baseline/latest_resume_raw.md`
+- `data/review/outputs/baseline/latest_resume_raw_ir_snapshot.json`
+- `data/review/outputs/baseline/latest_resume_raw_ir_snapshot.txt`
 
 ---
 

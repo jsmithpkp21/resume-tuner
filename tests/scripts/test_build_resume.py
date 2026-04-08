@@ -149,10 +149,10 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
 
-    html_path = output_dir / "resume_baseline.html"
-    md_path = output_dir / "resume_baseline.md"
-    snapshot_path = output_dir / "resume_ir_snapshot.json"
-    text_snapshot_path = output_dir / "resume_ir_snapshot.txt"
+    html_path = output_dir / "latest_resume_raw.html"
+    md_path = output_dir / "latest_resume_raw.md"
+    snapshot_path = output_dir / "latest_resume_raw_ir_snapshot.json"
+    text_snapshot_path = output_dir / "latest_resume_raw_ir_snapshot.txt"
 
     assert html_path.exists()
     assert md_path.exists()
@@ -190,6 +190,10 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     )
     assert snapshot["profile"]["github"] == "jsmithpkp21"
     assert snapshot["profile"]["github_url"] == "github.com/jsmithpkp21"
+    assert "Programming & Scripting" in md_text
+    assert "Python" in md_text
+    assert "Java" in md_text
+    assert snapshot["skills_category_count"] >= 12
     assert "summary:" in text_snapshot
     assert "skills:" in text_snapshot
     assert "experience:" in text_snapshot
@@ -204,6 +208,59 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert text_snapshot.index("summary:") < text_snapshot.index("skills:")
     assert text_snapshot.index("skills:") < text_snapshot.index("experience:")
     assert " • " in text_snapshot
+
+
+def test_build_resume_cli_processed_mode_applies_filtering(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    processed_dir = tmp_path / "processed"
+
+    raw_result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(raw_dir),
+            "--processing-mode",
+            "raw",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert raw_result.returncode == 0, raw_result.stderr
+
+    processed_result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(processed_dir),
+            "--processing-mode",
+            "processed",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert processed_result.returncode == 0, processed_result.stderr
+
+    raw_snapshot = json.loads(
+        (raw_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+    )
+    processed_snapshot = json.loads(
+        (processed_dir / "latest_resume_processed_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    raw_count = int(raw_snapshot["skills_category_count"])
+    processed_count = int(processed_snapshot["skills_category_count"])
+
+    assert raw_count > processed_count
+    raw_md = (raw_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
+    assert "Programming & Scripting" in raw_md
 
 
 def test_build_resume_cli_accepts_job_url_and_generates_job_context(
@@ -237,9 +294,9 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
 
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
 
-    html_text = (output_dir / "resume_baseline.html").read_text(encoding="utf-8")
+    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
     snapshot = json.loads(
-        (output_dir / "resume_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
 
     assert '<p class="headline">Sr. SDET</p>' in html_text
@@ -284,7 +341,7 @@ def test_build_resume_cli_accepts_job_text_file(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     snapshot = json.loads(
-        (output_dir / "resume_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
 
     assert snapshot["target_role"] == "Senior SDET"
@@ -556,7 +613,7 @@ def test_ingest_job_context_linkedin_login_wall_falls_back_to_keywords(
     import json as _json
 
     snapshot = _json.loads(
-        (tmp_path / "resume_ir_snapshot.json").read_text(encoding="utf-8")
+        (tmp_path / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
     assert snapshot["job_context"]["source"] == "linkedin"
     assert snapshot["job_context"]["role_hint"] == "SDET"

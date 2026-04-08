@@ -10,11 +10,10 @@ Baseline resume output generated from canonical data. Edit this summary manually
 
 ## Skills
 
-- **Architecture & Design:** Application of abstraction layers, Architecture, Architecture exploration, Design, Design patterns, Prototype Design, AI-based failure triage
-- **Automation & Framework Architecture:** Abstraction layers, Data-driven frameworks, Java automation frameworks, Orchestration design, Page Object Model (POM), Playwright (Python), Python automation frameworks, Reusable components, Scalable UI/API automation, Selenium WebDriver, Test data management, TestNG, UI/model-agnostic design, Automation Architecture
-- **CI/CD & Tooling:** Artifact management, CI/CD, CI/CD troubleshooting, Continuous testing workflows, Git, GitHub Actions, Jenkins, Pipeline design, Quality gates, Test reliability engineering
-- **Debugging & Analysis:** Defect isolation, Environment debugging, Environment reliability, Log analysis
-- **Testing & Validation:** Acceptance testing, Android UI automation (ADB), Android UI automation (UI Automator), API contract/schema validation, Automation testing, CLI automation, End-to-end testing, Functional testing, JUnit 4, JUnit 5, Multi-environment compatibility testing, Parallel execution, PyTest, Regression testing, REST API testing, Risk-based testing, Service-layer automation (Serial)
+- **Automation & Framework Architecture:** Playwright, Automation Architecture, Capability-Driven Design, UI & Model-Agnostic Abstractions, TestNG, Abstraction layers, Selenium WebDriver, Playwright (Python), Reusable components, Orchestration design, Test data management, Data-driven frameworks
+- **CI/CD & Tooling:** CI/CD, Developer Tooling, Quality gates, GitHub Actions, Versioning automation, Dependency Management, Test reliability engineering, Git, Jenkins, Pipeline design, Artifact management, GitHub Copilot Chat, GitHub Copilot PR Review, GitHub Copilot (IDE coding assistance)
+- **Distributed Systems & Infrastructure:** Distributed Execution, Distributed Systems, VM-based testbeds, Distributed systems, Distributed tracing, Multi-device automation labs
+- **Testing & Validation:** ADB, Pytest, Test Lab Automation, Web UI Automation, REST/SOAP Integration, Telnet/CLI Automation, Spock, PyTest, JUnit 4, JUnit 5, Smoke testing, CLI automation, System testing, REST API testing, Acceptance testing, Automation testing, End-to-end testing, Functional testing, Parallel execution, Regression testing, Risk-based testing, Android UI automation (ADB), API contract/schema validation, Service-layer automation (SSH), Service-layer automation (Serial)
 
 ## Experience
 

@@ -160,9 +160,9 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="modern",
         help=(
-            "Secondary HTML layout template name for latest_modern_* output "
-            "(for example: modern). Primary latest_* uses default in raw mode "
-            "and modern in processed mode."
+            "Secondary HTML layout template name. Primary latest_* uses default "
+            "in raw mode and modern in processed mode. Secondary output is named "
+            "latest_<template>_resume_*.html."
         ),
     )
     return parser.parse_args()
@@ -1678,19 +1678,23 @@ def run_pipeline(args: argparse.Namespace) -> int:
         if args.processing_mode == "processed"
         else "latest_resume_raw"
     )
+    # For processed mode, use modern template as primary; for raw, use default.
+    primary_template = "modern" if args.processing_mode == "processed" else "default"
+    secondary_template = args.template
+    if secondary_template == primary_template:
+        secondary_template = "default" if primary_template == "modern" else "modern"
+
     html_output = args.output_dir / f"{output_prefix}.html"
-    modern_html_output = args.output_dir / output_prefix.replace(
-        "latest_resume_", "latest_modern_resume_"
+    secondary_html_output = args.output_dir / output_prefix.replace(
+        "latest_resume_", f"latest_{secondary_template}_resume_"
     )
-    modern_html_output = modern_html_output.with_suffix(".html")
+    secondary_html_output = secondary_html_output.with_suffix(".html")
     md_output = args.output_dir / f"{output_prefix}.md"
     ir_output = args.output_dir / f"{output_prefix}_ir_snapshot.json"
     text_snapshot_output = args.output_dir / f"{output_prefix}_ir_snapshot.txt"
 
-    # For processed mode, use modern template as primary; for raw, use default
-    primary_template = "modern" if args.processing_mode == "processed" else "default"
     render_html(resume, html_output, template_name=primary_template)
-    render_html(resume, modern_html_output, template_name=args.template)
+    render_html(resume, secondary_html_output, template_name=secondary_template)
     if not args.skip_markdown:
         render_markdown(resume, md_output)
     write_ir_snapshot(resume, ir_output)
@@ -1698,7 +1702,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
 
     print(f"Resume output written to ({args.processing_mode} mode): {args.output_dir}")
     print(f"- {html_output}")
-    print(f"- {modern_html_output}")
+    print(f"- {secondary_html_output}")
     if not args.skip_markdown:
         print(f"- {md_output}")
     print(f"- {ir_output}")

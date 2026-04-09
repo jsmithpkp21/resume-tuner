@@ -5,27 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Jonathan Smith - Resume</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 24px auto; max-width: 960px; line-height: 1.4; }
-    h1 { margin-bottom: 4px; }
-    h2 { border-bottom: 1px solid #ccc; margin-top: 20px; padding-bottom: 4px; }
-    h3 { margin-bottom: 2px; }
-    h3 span { font-weight: normal; color: #333; }
-    .headline, .contact, .target-role, .dates, .role-summary, .related-skills { margin: 4px 0; }
-    .skills-category { margin: 0; }
-    ul { margin-top: 6px; }
-    .experience-item { margin-bottom: 16px; }
-    .info-item { margin-bottom: 10px; }
+    body { font-family: Calibri, Arial, sans-serif; margin: 16px auto; width: 510pt; font-size: 11pt; line-height: 1.22; color: #111; }
+    .header { margin: 0; }
+    h1 { margin: 0 0 2px 0; font-size: 18pt; font-weight: 700; line-height: 1.15; }
+    .headline { margin: 0; font-size: 11pt; }
+    .contact { display: grid; grid-template-columns: 1fr; gap: 0; margin: 2px 0 0 0; font-size: 10.5pt; }
+    .contact-line { margin: 0; }
+    .target-role { margin: 1px 0 0 0; font-size: 10.5pt; }
+    .header-divider { border: 0; border-top: 1px solid #000; margin: 5px 0 6px 0; }
+    .resume-title { margin: 0; font-size: 11.5pt; font-weight: 700; }
+    .summary-text { margin: 2px 0 6px 0; font-size: 10.5pt; }
+    h2 { font-size: 11pt; font-weight: 700; text-transform: none; letter-spacing: 0; margin: 10px 0 4px 0; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
+    .company-line { margin: 0 0 1px 0; display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5pt; }
+    .company-line span { margin-left: auto; text-align: right; font-size: 10pt; color: #222; }
+    h3 { margin: 0; font-size: 11pt; font-weight: 700; }
+    h3.job-title-line { display: flex; justify-content: space-between; align-items: baseline; }
+    h3 span { font-weight: 400; color: #222; text-align: right; margin-left: auto; font-size: 10pt; }
+    .dates { margin: 0; font-size: 10pt; color: #444; text-align: right; }
+    .role-summary { margin: 2px 0; font-size: 10.5pt; }
+    .related-skills { display: none; }
+    .skills-category { margin: 0 0 3px 0; font-size: 10.5pt; }
+    ul { margin: 2px 0 0 16px; padding: 0; }
+    li { margin: 1px 0; font-size: 10.5pt; }
+    .experience-item { margin-bottom: 8px; }
+    .info-item { margin-bottom: 6px; font-size: 10.5pt; }
+    .info-item p { margin: 1px 0; }
   </style>
 </head>
 <body>
   <h1>Jonathan Smith</h1>
   <p class="headline">Software Engineer | Test Automation and Framework Architecture</p>
-  <p class="contact">Temple, TX, 76502 | jonathan@example.com | (512) 555-0142 | linkedin.com/in/jonathan-j-smith-automation | github.com/jsmithpkp21</p>
-
-
-  <h2>Summary</h2>
-  <p>Baseline resume output generated from canonical data. Edit this summary manually for each target role while automation stages are added incrementally.</p>
-  <h2>Skills</h2>
+  <p class="contact-line">Temple, TX, 76502 | jonathan@example.com | (512) 555-0142</p>
+  <p class="contact-line">linkedin.com/in/jonathan-j-smith-automation | github.com/jsmithpkp21</p>
+  <hr class="header-divider" />
+  <p class="resume-title"><strong>Software Engineer</strong></p>
+  <p class="summary-text">Baseline resume output generated from canonical data. Edit this summary manually for each target role while automation stages are added incrementally.</p>
+  <h2>Key Skills and Expertise</h2>
 <p class="skills-category"><strong>AI-Assisted Quality:</strong> GitHub Copilot (IDE coding assistance) • GitHub Copilot Chat • GitHub Copilot PR Review • Microsoft Copilot (workflow automation &amp; reasoning) • Notion AI (content generation &amp; rewriting)</p>
 <p class="skills-category"><strong>AI-Assisted Quality Engineering:</strong> AI-based failure triage • Stability analysis</p>
 <p class="skills-category"><strong>AI-Driven Engineering:</strong> AI-assisted architecture exploration • AI-assisted coding • AI-assisted debugging • AI-assisted documentation • AI-augmented test generation</p>
@@ -42,10 +57,10 @@
 <p class="skills-category"><strong>Programming &amp; Scripting:</strong> Bash • C • C++ • Groovy • Java • JavaScript • Python • Shell scripting • TypeScript</p>
 <p class="skills-category"><strong>Quality &amp; Testing Strategy:</strong> Exploratory testing • Integration testing • Issue triage • Quality strategy • Release readiness • Requirements/testability analysis</p>
 <p class="skills-category"><strong>Testing &amp; Validation:</strong> Acceptance testing • Android UI automation (ADB) • Android UI automation (UI Automator) • API contract/schema validation • Automation testing • CLI automation • End-to-end testing • Functional testing • JUnit 4 • JUnit 5 • Multi-environment compatibility testing • Parallel execution • PyTest • Regression testing • REST API testing • Risk-based testing • Service-layer automation (Serial) • Service-layer automation (SSH) • Service-layer automation (Telnet) • Smoke testing • Spock • System testing • ADB • Pytest • REST/SOAP Integration • Telnet/CLI Automation • Test Lab Automation • Web UI Automation</p>
-  <h2>Experience</h2>
+  <h2>Professional Experience</h2>
 <section class="experience-item">
-<h3>Architect, Python Test Framework (Video)<span> | HP / Poly</span></h3>
-<p class="dates">2023-06 - 2026-01</p>
+<p class="company-line"><strong>HP / Poly</strong><span>August 2008 - January 2026</span></p>
+<h3 class="job-title-line">Architect, Python Test Framework (Video)<span>June 2023 - January 2026</span></h3>
 <p class="role-summary">Designed and implemented next-generation Python automation framework for video products.</p>
 <p class="related-skills"><strong>Related skills:</strong> Python, Playwright, ADB, Web UI Automation, CI/CD, GitHub Actions, Quality gates, Technical Leadership</p>
 <ul>
@@ -57,8 +72,7 @@
 </ul>
 </section>
 <section class="experience-item">
-<h3>Technical Advisor / SDET, Audio Team<span> | HP / Poly</span></h3>
-<p class="dates">2021-05 - 2023-06</p>
+<h3 class="job-title-line">Technical Advisor / SDET, Audio Team<span>May 2021 - June 2023</span></h3>
 <p class="role-summary">Guided Audio team migration into corporate automation framework.</p>
 <p class="related-skills"><strong>Related skills:</strong> Python, Pytest, Framework Design, Debugging</p>
 <ul>
@@ -68,8 +82,7 @@
 </ul>
 </section>
 <section class="experience-item">
-<h3>Technical Advisor / SDET, Headset Team<span> | HP / Poly</span></h3>
-<p class="dates">2020-03 - 2021-05</p>
+<h3 class="job-title-line">Technical Advisor / SDET, Headset Team<span>March 2020 - May 2021</span></h3>
 <p class="role-summary">Embedded with Headset team to accelerate adoption of a new Python test framework.</p>
 <p class="related-skills"><strong>Related skills:</strong> Python, Code Review, Technical Leadership, Distributed Execution, Test Lab Automation, Infrastructure, Automation Architecture</p>
 <ul>
@@ -79,8 +92,7 @@
 </ul>
 </section>
 <section class="experience-item">
-<h3>Technical Lead, Corporate Framework Integration<span> | HP / Poly</span></h3>
-<p class="dates">2019-06 - 2020-03</p>
+<h3 class="job-title-line">Technical Lead, Corporate Framework Integration<span>June 2019 - March 2020</span></h3>
 <p class="role-summary">Led technical evaluation and design discussions for integrating multiple product groups into a shared corporate automation architecture, assessing REST-adapter models, language strategies, and cross-team feasibility.</p>
 <p class="related-skills"><strong>Related skills:</strong> Architecture, Framework Design, Technical Leadership, Java, Python, Developer Tooling, CI/CD, Dependency Management, Versioning automation</p>
 <ul>
@@ -91,8 +103,7 @@
 </ul>
 </section>
 <section class="experience-item">
-<h3>Lead Technical Designer, Corporate Automation Initiative<span> | HP / Poly</span></h3>
-<p class="dates">2015-06 - 2019-06</p>
+<h3 class="job-title-line">Lead Technical Designer, Corporate Automation Initiative<span>June 2015 - June 2019</span></h3>
 <p class="role-summary">Provided senior-level architectural guidance and technical design leadership for a company-wide automation initiative, shaping early framework concepts, evaluating migration paths, and advising multiple product organizations.</p>
 <p class="related-skills"><strong>Related skills:</strong> Architecture, Automation Strategy, Python, Prototype Design, Logging, Observability, Distributed Systems</p>
 <ul>
@@ -102,8 +113,7 @@
 </ul>
 </section>
 <section class="experience-item">
-<h3>Lead Framework Designer, Video SQA Automation<span> | HP / Poly</span></h3>
-<p class="dates">2008-08 - 2015-06</p>
+<h3 class="job-title-line">Lead Framework Designer, Video SQA Automation<span>August 2008 - June 2015</span></h3>
 <p class="role-summary">Principal architect and long-term owner of the Video SQA automation framework, a system that supported ~16 endpoint models, 30-40 releases, and remained in active use for over a decade across global SQA teams.</p>
 <p class="related-skills"><strong>Related skills:</strong> Technical Leadership, Mentoring, Process Design, Capability-Driven Design, UI &amp; Model-Agnostic Abstractions, Framework Design, CI/CD, Test reliability engineering, Distributed Execution, REST/SOAP Integration, Telnet/CLI Automation, Web UI Automation</p>
 <ul>

@@ -17,6 +17,7 @@ from scripts import jd_ingest
 from scripts.build_resume import (
     Bullet,
     Experience,
+    _display_company_header,
     assemble_baseline_resume,
     derive_resume_title,
     enrich_data,
@@ -151,38 +152,55 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
 
     html_path = output_dir / "latest_resume_raw.html"
+    modern_html_path = output_dir / "latest_modern_resume_raw.html"
     md_path = output_dir / "latest_resume_raw.md"
     snapshot_path = output_dir / "latest_resume_raw_ir_snapshot.json"
     text_snapshot_path = output_dir / "latest_resume_raw_ir_snapshot.txt"
 
     assert html_path.exists()
+    assert modern_html_path.exists()
     assert md_path.exists()
     assert snapshot_path.exists()
     assert text_snapshot_path.exists()
 
     html_text = html_path.read_text(encoding="utf-8")
+    modern_html_text = modern_html_path.read_text(encoding="utf-8")
     md_text = md_path.read_text(encoding="utf-8")
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     text_snapshot = text_snapshot_path.read_text(encoding="utf-8")
 
     assert "Jonathan Smith" in html_text
     assert '<p class="headline">Staff Software Engineer</p>' in html_text
-    assert ".skills-category { margin: 0; }" in html_text
+    assert ".skills-category { margin: 0 0 3px 0;" in html_text
     assert '<p class="skills-category"><strong>' in html_text
     assert "linkedin.com/in/jonathan-j-smith-automation" in html_text
     assert "github.com/jsmithpkp21" in html_text
     assert "Architect, Python Test Framework (Video)" in html_text
+    assert "HP / Poly (formerly Polycom), Austin, TX" in html_text
+    assert (
+        ".company-line span { margin-left: auto; text-align: right; font-size: 10pt; color: #222; font-weight: 700; }"
+        in html_text
+    )
     assert "<h2>Education</h2>" in html_text
     assert "<h2>Leadership &amp; Community</h2>" in html_text
     assert "<h2>Summary</h2>" not in html_text
     assert '<p class="resume-title"><strong>Staff Software Engineer' in html_text
-    assert html_text.index('class="resume-title"') < html_text.index("<h2>Skills</h2>")
-    assert html_text.index("<h2>Skills</h2>") < html_text.index("<h2>Experience</h2>")
+    assert html_text.index('class="resume-title"') < html_text.index(
+        "<h2>Key Skills and Expertise</h2>"
+    )
+    assert '<hr class="header-divider" />' in html_text
+    assert ".header-divider { border: 0; border-top: 1px solid #000;" in html_text
+    assert html_text.index("<h2>Key Skills and Expertise</h2>") < html_text.index(
+        "<h2>Professional Experience</h2>"
+    )
+    assert ".header { text-align: center;" in modern_html_text
     assert " • " in html_text
     assert "## Education" in md_text
     assert "## Leadership & Community" in md_text
-    assert md_text.index("## Summary") < md_text.index("## Skills")
-    assert md_text.index("## Skills") < md_text.index("## Experience")
+    assert md_text.index("## Summary") < md_text.index("## Key Skills and Expertise")
+    assert md_text.index("## Key Skills and Expertise") < md_text.index(
+        "## Professional Experience"
+    )
     assert " • " in md_text
     assert "linkedin.com/in/jonathan-j-smith-automation" in md_text
     assert "github.com/jsmithpkp21" in md_text
@@ -286,12 +304,20 @@ def test_build_resume_cli_modern_template_renders_centered_header(
     )
 
     assert result.returncode == 0, result.stderr
-    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
+    html_text = (output_dir / "latest_modern_resume_raw.html").read_text(
+        encoding="utf-8"
+    )
     assert '<div class="header">' in html_text
     assert ".header { text-align: center;" in html_text
-    assert "h2 { font-size: 13px;" in html_text
+    assert "body { font-family: Calibri, Arial, sans-serif;" in html_text
+    assert "font-size: 11pt; line-height: 1.22;" in html_text
+    assert "h2 { font-size: 11pt;" in html_text
+    assert "text-align: center;" in html_text
     assert "border-bottom: none;" in html_text
     assert ".resume-title" in html_text
+    assert '<hr class="header-divider" />' in html_text
+    assert ".header-divider { border: 0; border-top: 1px solid #000;" in html_text
+    assert ".target-role { margin: 1px 0 0 0;" in html_text
     assert "<h2>Summary</h2>" not in html_text
 
 
@@ -343,6 +369,17 @@ def test_derive_resume_title_adds_missing_seniority_from_headline() -> None:
     assert derive_resume_title(adjusted) == "Staff SDET"
 
 
+def test_display_company_header_maps_hp_poly_aliases() -> None:
+    cases = [
+        ("HP / Poly", "HP / Poly (formerly Polycom), Austin, TX"),
+        ("HP/Poly", "HP / Poly (formerly Polycom), Austin, TX"),
+        ("Poly", "HP / Poly (formerly Polycom), Austin, TX"),
+        ("Polycom", "HP / Poly (formerly Polycom), Austin, TX"),
+    ]
+    for company, expected in cases:
+        assert _display_company_header(company) == expected
+
+
 def test_build_resume_cli_accepts_job_url_and_generates_job_context(
     tmp_path: Path,
 ) -> None:
@@ -380,7 +417,7 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
     )
 
     assert '<p class="headline">Sr. SDET</p>' in html_text
-    assert "Target role: Sr. SDET" in html_text
+    assert '<p class="resume-title"><strong>Sr. SDET</strong></p>' in html_text
     assert snapshot["target_role"] == "Sr. SDET"
     assert snapshot["target_company"] == "Charles Schwab"
     assert snapshot["job_context"]["source"] == "company-site"

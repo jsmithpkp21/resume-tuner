@@ -8,7 +8,7 @@ Temple, TX, 76502 | [jonathan@example.com](mailto:jonathan@example.com) | (512) 
 
 Baseline resume output generated from canonical data. Edit this summary manually for each target role while automation stages are added incrementally.
 
-## Skills
+## Key Skills and Expertise
 
 - **AI-Assisted Quality:** GitHub Copilot (IDE coding assistance) • GitHub Copilot Chat • GitHub Copilot PR Review • Microsoft Copilot (workflow automation & reasoning) • Notion AI (content generation & rewriting)
 - **AI-Assisted Quality Engineering:** AI-based failure triage • Stability analysis
@@ -27,7 +27,7 @@ Baseline resume output generated from canonical data. Edit this summary manually
 - **Quality & Testing Strategy:** Exploratory testing • Integration testing • Issue triage • Quality strategy • Release readiness • Requirements/testability analysis
 - **Testing & Validation:** Acceptance testing • Android UI automation (ADB) • Android UI automation (UI Automator) • API contract/schema validation • Automation testing • CLI automation • End-to-end testing • Functional testing • JUnit 4 • JUnit 5 • Multi-environment compatibility testing • Parallel execution • PyTest • Regression testing • REST API testing • Risk-based testing • Service-layer automation (Serial) • Service-layer automation (SSH) • Service-layer automation (Telnet) • Smoke testing • Spock • System testing • ADB • Pytest • REST/SOAP Integration • Telnet/CLI Automation • Test Lab Automation • Web UI Automation
 
-## Experience
+## Professional Experience
 
 ### Architect, Python Test Framework (Video) | HP / Poly
 2023-06 - 2026-01

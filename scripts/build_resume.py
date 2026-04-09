@@ -158,8 +158,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--template",
         type=str,
-        default="default",
-        help="HTML layout template name (for example: default, modern).",
+        default="modern",
+        help=(
+            "Secondary HTML layout template name for latest_modern_* output "
+            "(for example: modern). latest_* always uses default."
+        ),
     )
     return parser.parse_args()
 
@@ -1199,13 +1202,90 @@ def _render_contact_markdown(profile: Profile) -> str:
     return " | ".join(items)
 
 
+def _format_month_year(raw: str) -> str:
+    """Format YYYY-MM as Month YYYY while preserving non-standard values."""
+    value = raw.strip()
+    match = re.fullmatch(r"(\d{4})-(\d{2})", value)
+    if not match:
+        return value
+    year = int(match.group(1))
+    month = int(match.group(2))
+    month_names = (
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    )
+    if 1 <= month <= 12:
+        return f"{month_names[month - 1]} {year}"
+    return value
+
+
+def _date_sort_key(raw: str, *, is_end: bool) -> tuple[int, int]:
+    """Sort key for yyyy-mm dates, treating 'Present' as far-future for end dates."""
+    value = raw.strip().lower()
+    if value in {"present", "current", "now"}:
+        return (9999, 12) if is_end else (0, 1)
+    match = re.fullmatch(r"(\d{4})-(\d{2})", raw.strip())
+    if not match:
+        return (0, 1)
+    return (int(match.group(1)), int(match.group(2)))
+
+
+def _format_date_range(start_raw: str, end_raw: str) -> str:
+    return f"{_format_month_year(start_raw)} - {_format_month_year(end_raw)}"
+
+
+def _normalize_company_alias(company: str) -> str:
+    """Normalize company aliases so equivalent labels group together."""
+    normalized = re.sub(r"[^a-z0-9]+", " ", company.strip().lower()).strip()
+    hp_poly_aliases = {
+        "hp poly",
+        "hp polycom",
+        "hp poly formerly polycom",
+        "poly",
+        "polycom",
+        "hp poly formerly polycom austin tx",
+    }
+    if normalized in hp_poly_aliases:
+        return "hp_poly"
+    return normalized
+
+
+def _display_company_header(company: str) -> str:
+    """Return display text for company group headers."""
+    canonical = company.strip()
+    if _normalize_company_alias(canonical) == "hp_poly":
+        return "HP / Poly (formerly Polycom), Austin, TX"
+    return canonical
+
+
 def render_html(
     resume: ResumeIR, output_path: Path, template_name: str = "default"
 ) -> None:
     contact_line = _render_contact_html(resume.profile)
 
     experiences_html: list[str] = []
-    for exp in resume.experiences:
+    company_blocks: dict[int, tuple[int, int]] = {}
+    block_start = 0
+    while block_start < len(resume.experiences):
+        block_end = block_start
+        while block_end + 1 < len(resume.experiences) and _normalize_company_alias(
+            resume.experiences[block_end + 1].company
+        ) == _normalize_company_alias(resume.experiences[block_start].company):
+            block_end += 1
+        company_blocks[block_start] = (block_start, block_end)
+        block_start = block_end + 1
+
+    for exp_index, exp in enumerate(resume.experiences):
         bullets_html = "\n".join(
             f"<li>{_html_escape(bullet.text)}</li>" for bullet in exp.bullets
         )
@@ -1215,30 +1295,43 @@ def render_html(
             if related
             else ""
         )
-        experiences_html.append(
-            "\n".join(
-                [
-                    '<section class="experience-item">',
-                    (
-                        f"<h3>{_html_escape(exp.job_title)}"
-                        f"<span> | {_html_escape(exp.company)}</span></h3>"
-                    ),
-                    (
-                        f'<p class="dates">{_html_escape(exp.start_date)}'
-                        f" - {_html_escape(exp.end_date)}</p>"
-                    ),
-                    (
-                        f'<p class="role-summary">'
-                        f"{_html_escape(exp.general_role_description)}</p>"
-                    ),
-                    related_html,
-                    "<ul>",
-                    bullets_html,
-                    "</ul>",
-                    "</section>",
-                ]
+        company_header_html = ""
+        if exp_index in company_blocks:
+            start_index, end_index = company_blocks[exp_index]
+            block = resume.experiences[start_index : end_index + 1]
+            overall_start = min(
+                block, key=lambda item: _date_sort_key(item.start_date, is_end=False)
+            ).start_date
+            overall_end = max(
+                block, key=lambda item: _date_sort_key(item.end_date, is_end=True)
+            ).end_date
+            company_header_html = (
+                f'<p class="company-line"><strong>{_html_escape(_display_company_header(exp.company))}</strong>'
+                f"<span>{_html_escape(_format_date_range(overall_start, overall_end))}</span></p>"
             )
+
+        role_date_range = _format_date_range(exp.start_date, exp.end_date)
+        lines = ['<section class="experience-item">']
+        if company_header_html:
+            lines.append(company_header_html)
+        lines.extend(
+            [
+                (
+                    f'<h3 class="job-title-line">{_html_escape(exp.job_title)}'
+                    f"<span>{_html_escape(role_date_range)}</span></h3>"
+                ),
+                (
+                    f'<p class="role-summary">'
+                    f"{_html_escape(exp.general_role_description)}</p>"
+                ),
+                related_html,
+                "<ul>",
+                bullets_html,
+                "</ul>",
+                "</section>",
+            ]
         )
+        experiences_html.append("\n".join(lines))
 
     skills_html: list[str] = []
     for category, skills in resume.skills_by_category.items():
@@ -1329,12 +1422,21 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
     if resume.target_company.strip():
         lines.extend([f"Target company: {resume.target_company}", ""])
 
-    lines.extend(["## Summary", "", resume.profile.summary, "", "## Skills", ""])
+    lines.extend(
+        [
+            "## Summary",
+            "",
+            resume.profile.summary,
+            "",
+            "## Key Skills and Expertise",
+            "",
+        ]
+    )
 
     for category, skills in resume.skills_by_category.items():
         lines.append(f"- **{category}:** {join_skills(skills)}")
 
-    lines.extend(["", "## Experience", ""])
+    lines.extend(["", "## Professional Experience", ""])
 
     for exp in resume.experiences:
         lines.extend(
@@ -1576,11 +1678,18 @@ def run_pipeline(args: argparse.Namespace) -> int:
         else "latest_resume_raw"
     )
     html_output = args.output_dir / f"{output_prefix}.html"
+    modern_html_output = args.output_dir / output_prefix.replace(
+        "latest_resume_", "latest_modern_resume_"
+    )
+    modern_html_output = modern_html_output.with_suffix(".html")
     md_output = args.output_dir / f"{output_prefix}.md"
     ir_output = args.output_dir / f"{output_prefix}_ir_snapshot.json"
     text_snapshot_output = args.output_dir / f"{output_prefix}_ir_snapshot.txt"
 
-    render_html(resume, html_output, template_name=args.template)
+    # For processed mode, use modern template as primary; for raw, use default
+    primary_template = "modern" if args.processing_mode == "processed" else "default"
+    render_html(resume, html_output, template_name=primary_template)
+    render_html(resume, modern_html_output, template_name=args.template)
     if not args.skip_markdown:
         render_markdown(resume, md_output)
     write_ir_snapshot(resume, ir_output)
@@ -1588,6 +1697,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
 
     print(f"Baseline resume output written to: {args.output_dir}")
     print(f"- {html_output}")
+    print(f"- {modern_html_output}")
     if not args.skip_markdown:
         print(f"- {md_output}")
     print(f"- {ir_output}")

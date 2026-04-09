@@ -126,10 +126,12 @@ class DefaultTemplate(ResumeTemplate):
             else:
                 contact_lines.append(part)
         contact_line_1 = " | ".join(contact_lines)
-        contact_html_formatted = f'  <p class="contact-line">{contact_line_1}</p>\n'
+        contact_html_formatted = '  <div class="contact">\n'
+        contact_html_formatted += f'    <p class="contact-line">{contact_line_1}</p>\n'
         if links:
             links_line = " | ".join(links)
-            contact_html_formatted += f'  <p class="contact-line">{links_line}</p>\n'
+            contact_html_formatted += f'    <p class="contact-line">{links_line}</p>\n'
+        contact_html_formatted += "  </div>"
         return "\n".join(
             [
                 "<!doctype html>",
@@ -197,10 +199,16 @@ class ModernTemplate(ResumeTemplate):
             else:
                 contact_lines.append(part)
         contact_line_1 = " | ".join(contact_lines)
-        contact_html_formatted = f'    <p class="contact-line">{contact_line_1}</p>\n'
+        contact_html_formatted = '    <div class="contact">\n'
+        contact_html_formatted += (
+            f'      <p class="contact-line">{contact_line_1}</p>\n'
+        )
         if links:
             links_line = " | ".join(links)
-            contact_html_formatted += f'    <p class="contact-line">{links_line}</p>\n'
+            contact_html_formatted += (
+                f'      <p class="contact-line">{links_line}</p>\n'
+            )
+        contact_html_formatted += "    </div>"
         return "\n".join(
             [
                 "<!doctype html>",

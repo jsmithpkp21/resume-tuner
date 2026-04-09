@@ -21,19 +21,29 @@ python scripts/build_resume.py --job-url "https://www.linkedin.com/jobs/search-r
 python scripts/build_resume.py --job-text-file "data/review/inputs/job_description.txt"
 ```
 
-Artifacts (default):
+Artifacts (raw mode defaults):
 
 - `data/review/outputs/baseline/latest_resume_raw.html`
+- `data/review/outputs/baseline/latest_modern_resume_raw.html`
 - `data/review/outputs/baseline/latest_resume_raw.md`
 - `data/review/outputs/baseline/latest_resume_raw_ir_snapshot.json`
 - `data/review/outputs/baseline/latest_resume_raw_ir_snapshot.txt`
+
+Artifacts (processed mode defaults):
+
+- `data/review/outputs/baseline/latest_resume_processed.html` (primary modern template)
+- `data/review/outputs/baseline/latest_default_resume_processed.html` (secondary template)
+- `data/review/outputs/baseline/latest_resume_processed.md`
+- `data/review/outputs/baseline/latest_resume_processed_ir_snapshot.json`
+- `data/review/outputs/baseline/latest_resume_processed_ir_snapshot.txt`
 
 Processing contract:
 
 - Default mode is `--processing-mode raw`: preserve canonical/unfiltered content.
 - Use `--processing-mode processed` to apply transform/trim/enrich/rule/select stages.
 - Baseline files should remain raw unless you explicitly opt into processed mode.
-- Processed-mode file names use the `latest_resume_processed*` prefix.
+- Processed-mode primary files use the `latest_resume_processed*` prefix.
+- A secondary HTML artifact is always generated as `latest_<template>_resume_<mode>.html`.
 
 ## Headline and bottom sections
 

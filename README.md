@@ -28,12 +28,21 @@ make active
 python scripts/build_resume.py
 ```
 
-Default artifacts:
+Default artifacts (raw mode):
 
 - `data/review/outputs/baseline/latest_resume_raw.html`
+- `data/review/outputs/baseline/latest_modern_resume_raw.html`
 - `data/review/outputs/baseline/latest_resume_raw.md`
 - `data/review/outputs/baseline/latest_resume_raw_ir_snapshot.json`
 - `data/review/outputs/baseline/latest_resume_raw_ir_snapshot.txt`
+
+Default artifacts (processed mode):
+
+- `data/review/outputs/baseline/latest_resume_processed.html` (primary modern template)
+- `data/review/outputs/baseline/latest_default_resume_processed.html` (secondary template)
+- `data/review/outputs/baseline/latest_resume_processed.md`
+- `data/review/outputs/baseline/latest_resume_processed_ir_snapshot.json`
+- `data/review/outputs/baseline/latest_resume_processed_ir_snapshot.txt`
 
 ---
 

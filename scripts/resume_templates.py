@@ -7,7 +7,6 @@ Each template defines:
 Templates can be extended to support different layouts:
 - default: left-justified, clean, minimal styling
 - modern: centered headers, modern styling (WebAI Resume style)
-- compact: space-optimized for two-page PDF
 """
 
 from __future__ import annotations

@@ -153,7 +153,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-markdown",
         action="store_true",
-        help="Write only HTML and JSON artifacts.",
+        help="Skip Markdown output; HTML plus JSON/text IR snapshots are still written.",
     )
     parser.add_argument(
         "--template",

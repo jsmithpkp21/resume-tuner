@@ -80,7 +80,7 @@ def test_all_experience_related_skills_exist_in_skills_matrix() -> None:
                 missing.append((exp_id, skill))
 
     assert not missing, (
-        "experience_db.toml related_skills reference skills missing from skills_matrix.csv: "
+        "experience_db.toml related_skills references skills missing from skills_matrix.csv: "
         + ", ".join(f"{exp_id}:{skill}" for exp_id, skill in missing)
     )
 

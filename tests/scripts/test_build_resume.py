@@ -194,6 +194,15 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
         "<h2>Professional Experience</h2>"
     )
     assert ".header { text-align: center;" in modern_html_text
+    # Both templates must center-align education/leadership (info-item) sections
+    assert (
+        ".info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center;"
+        in html_text
+    )
+    assert (
+        ".info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center;"
+        in modern_html_text
+    )
     assert " • " in html_text
     assert "## Education" in md_text
     assert "## Leadership & Community" in md_text
@@ -319,6 +328,13 @@ def test_build_resume_cli_modern_template_renders_centered_header(
     assert ".header-divider { border: 0; border-top: 1px solid #000;" in html_text
     assert ".target-role { margin: 1px 0 0 0;" in html_text
     assert "<h2>Summary</h2>" not in html_text
+    # Modern template must NOT re-emit the duplicate headline element
+    assert '<p class="headline">' not in html_text
+    # Education / leadership sections must be center-aligned in the modern template
+    assert (
+        ".info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center;"
+        in html_text
+    )
 
 
 def test_build_resume_cli_rejects_unknown_template(tmp_path: Path) -> None:

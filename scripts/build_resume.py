@@ -29,8 +29,10 @@ from pathlib import Path
 from typing import Any
 
 if __package__ in {None, ""}:
+    from resume_templates import TemplateContext, get_template
     from select_skills import join_skills, select_skills
 else:
+    from scripts.resume_templates import TemplateContext, get_template
     from scripts.select_skills import join_skills, select_skills
 
 # Use local import when run as `python scripts/build_resume.py`,
@@ -152,6 +154,12 @@ def parse_args() -> argparse.Namespace:
         "--skip-markdown",
         action="store_true",
         help="Write only HTML and JSON artifacts.",
+    )
+    parser.add_argument(
+        "--template",
+        type=str,
+        default="default",
+        help="HTML layout template name (for example: default, modern).",
     )
     return parser.parse_args()
 
@@ -279,6 +287,57 @@ def resolve_headline(profile: Profile, target_role: str) -> str:
     if dynamic:
         return dynamic
     return profile.headline
+
+
+_SENIORITY_PATTERNS: tuple[tuple[str, str], ...] = (
+    (r"\bsenior\s+staff\b", "Senior Staff"),
+    (r"\bsr\.?\s+staff\b", "Sr Staff"),
+    (r"\bstaff\b", "Staff"),
+    (r"\bprincipal\b", "Principal"),
+    (r"\bsenior\b", "Senior"),
+    (r"\bsr\.?\b", "Senior"),
+    (r"\blead\b", "Lead"),
+)
+
+
+def _extract_seniority(text: str) -> str:
+    lowered = text.lower()
+    for pattern, normalized in _SENIORITY_PATTERNS:
+        if re.search(pattern, lowered):
+            return normalized
+    return ""
+
+
+def _normalize_role_acronyms(text: str) -> str:
+    normalized = re.sub(r"\bsdet\b", "SDET", text, flags=re.IGNORECASE)
+    normalized = re.sub(r"\bqa\b", "QA", normalized, flags=re.IGNORECASE)
+    return normalized
+
+
+def derive_resume_title(resume: ResumeIR) -> str:
+    """Build a seniority-aware role title for the top title block in templates."""
+    target_role = resume.target_role.strip()
+    headline = resume.display_headline.strip() or resume.profile.headline.strip()
+    base = target_role or headline
+    if "|" in base:
+        base = base.split("|", maxsplit=1)[0].strip()
+    base = " ".join(base.split())
+    if not base:
+        return "Software Test Automation Engineer"
+
+    seniority = _extract_seniority(target_role) or _extract_seniority(headline)
+    if seniority and not _extract_seniority(base):
+        base = f"{seniority} {base}"
+
+    specialization = ""
+    if "|" in headline:
+        specialization = headline.split("|", maxsplit=1)[1].strip()
+    if specialization and not re.search(
+        r"\b(automation|test|quality|sdet|qa)\b", base, re.IGNORECASE
+    ):
+        base = f"{base} / {specialization}"
+
+    return _normalize_role_acronyms(base)
 
 
 def load_experiences(path: Path) -> tuple[Experience, ...]:
@@ -1140,18 +1199,10 @@ def _render_contact_markdown(profile: Profile) -> str:
     return " | ".join(items)
 
 
-def render_html(resume: ResumeIR, output_path: Path) -> None:
+def render_html(
+    resume: ResumeIR, output_path: Path, template_name: str = "default"
+) -> None:
     contact_line = _render_contact_html(resume.profile)
-    target_role_line = (
-        f'<p class="target-role">Target role: {_html_escape(resume.target_role)}</p>'
-        if resume.target_role.strip()
-        else ""
-    )
-    target_company_line = (
-        f'<p class="target-role">Target company: {_html_escape(resume.target_company)}</p>'
-        if resume.target_company.strip()
-        else ""
-    )
 
     experiences_html: list[str] = []
     for exp in resume.experiences:
@@ -1246,51 +1297,21 @@ def render_html(resume: ResumeIR, output_path: Path) -> None:
             )
         )
 
-    output_path.write_text(
-        "\n".join(
-            [
-                "<!doctype html>",
-                '<html lang="en">',
-                "<head>",
-                '  <meta charset="utf-8" />',
-                '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
-                f"  <title>{_html_escape(resume.profile.name)} - Resume</title>",
-                "  <style>",
-                "    body { font-family: Arial, sans-serif; margin: 24px auto; max-width: 960px; line-height: 1.4; }",
-                "    h1 { margin-bottom: 4px; }",
-                "    h2 { border-bottom: 1px solid #ccc; margin-top: 20px; padding-bottom: 4px; }",
-                "    h3 { margin-bottom: 2px; }",
-                "    h3 span { font-weight: normal; color: #333; }",
-                "    .headline, .contact, .target-role, .dates, .role-summary, .related-skills { margin: 4px 0; }",
-                "    .skills-category { margin: 0; }",
-                "    ul { margin-top: 6px; }",
-                "    .experience-item { margin-bottom: 16px; }",
-                "    .info-item { margin-bottom: 10px; }",
-                "  </style>",
-                "</head>",
-                "<body>",
-                f"  <h1>{_html_escape(resume.profile.name)}</h1>",
-                f'  <p class="headline">{_html_escape(resume.display_headline)}</p>',
-                f'  <p class="contact">{contact_line}</p>',
-                f"  {target_role_line}",
-                f"  {target_company_line}",
-                "  <h2>Summary</h2>",
-                f"  <p>{_html_escape(resume.profile.summary)}</p>",
-                "  <h2>Skills</h2>",
-                *skills_html,
-                "  <h2>Experience</h2>",
-                *experiences_html,
-                "  <h2>Education</h2>" if education_html else "",
-                *education_html,
-                "  <h2>Leadership &amp; Community</h2>" if leadership_html else "",
-                *leadership_html,
-                "</body>",
-                "</html>",
-                "",
-            ]
-        ),
-        encoding="utf-8",
+    template = get_template(template_name)
+    context = TemplateContext(
+        name=resume.profile.name,
+        headline=resume.display_headline,
+        contact_html=contact_line,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        resume_title=derive_resume_title(resume),
+        summary=resume.profile.summary,
+        skills_html=skills_html,
+        experiences_html=experiences_html,
+        education_html=education_html,
+        leadership_html=leadership_html,
     )
+    output_path.write_text(template.render(context), encoding="utf-8")
 
 
 def render_markdown(resume: ResumeIR, output_path: Path) -> None:
@@ -1559,7 +1580,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
     ir_output = args.output_dir / f"{output_prefix}_ir_snapshot.json"
     text_snapshot_output = args.output_dir / f"{output_prefix}_ir_snapshot.txt"
 
-    render_html(resume, html_output)
+    render_html(resume, html_output, template_name=args.template)
     if not args.skip_markdown:
         render_markdown(resume, md_output)
     write_ir_snapshot(resume, ir_output)

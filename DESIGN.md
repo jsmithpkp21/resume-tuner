@@ -334,6 +334,12 @@ The template engine handles:
 - section ordering
 - widow/orphan prevention
 
+Current HTML template contract:
+- `default` and `modern` use the same section ordering contract.
+- The historical `Summary` section label is removed in HTML templates.
+- A generated seniority-aware `resume_title` line is rendered where `Summary` previously appeared, followed by summary text.
+- `modern` keeps centered header/title styling while body sections remain readable for ATS and PDF export.
+
 ---
 
 # 12. End-to-End Workflow

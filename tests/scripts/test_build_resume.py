@@ -18,6 +18,7 @@ from scripts.build_resume import (
     Bullet,
     Experience,
     assemble_baseline_resume,
+    derive_resume_title,
     enrich_data,
     load_experiences,
     load_profile,
@@ -173,7 +174,9 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert "Architect, Python Test Framework (Video)" in html_text
     assert "<h2>Education</h2>" in html_text
     assert "<h2>Leadership &amp; Community</h2>" in html_text
-    assert html_text.index("<h2>Summary</h2>") < html_text.index("<h2>Skills</h2>")
+    assert "<h2>Summary</h2>" not in html_text
+    assert '<p class="resume-title"><strong>Staff Software Engineer' in html_text
+    assert html_text.index('class="resume-title"') < html_text.index("<h2>Skills</h2>")
     assert html_text.index("<h2>Skills</h2>") < html_text.index("<h2>Experience</h2>")
     assert " • " in html_text
     assert "## Education" in md_text
@@ -261,6 +264,83 @@ def test_build_resume_cli_processed_mode_applies_filtering(tmp_path: Path) -> No
     assert raw_count > processed_count
     raw_md = (raw_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
     assert "Programming & Scripting" in raw_md
+
+
+def test_build_resume_cli_modern_template_renders_centered_header(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "modern"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(output_dir),
+            "--template",
+            "modern",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
+    assert '<div class="header">' in html_text
+    assert ".header { text-align: center;" in html_text
+    assert "h2 { font-size: 13px;" in html_text
+    assert "border-bottom: none;" in html_text
+    assert ".resume-title" in html_text
+    assert "<h2>Summary</h2>" not in html_text
+
+
+def test_build_resume_cli_rejects_unknown_template(tmp_path: Path) -> None:
+    output_dir = tmp_path / "invalid_template"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(output_dir),
+            "--template",
+            "does-not-exist",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "Template 'does-not-exist' not found" in result.stderr
+
+
+def test_derive_resume_title_adds_missing_seniority_from_headline() -> None:
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="SDET",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={},
+    )
+    adjusted = type(resume)(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline="Staff Software Engineer | Test Automation and Framework Architecture",
+        job_context=resume.job_context,
+        experiences=resume.experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
+    )
+
+    assert derive_resume_title(adjusted) == "Staff SDET"
 
 
 def test_build_resume_cli_accepts_job_url_and_generates_job_context(

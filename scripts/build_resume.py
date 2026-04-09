@@ -161,8 +161,9 @@ def parse_args() -> argparse.Namespace:
         default="modern",
         help=(
             "Secondary HTML layout template name. Primary latest_* uses default "
-            "in raw mode and modern in processed mode. Secondary output is named "
-            "latest_<template>_resume_*.html."
+            "in raw mode and modern in processed mode. If the requested secondary "
+            "template matches the primary template, build_resume automatically "
+            "uses the other built-in template for the secondary artifact."
         ),
     )
     return parser.parse_args()

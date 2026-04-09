@@ -163,7 +163,6 @@ class ModernTemplate(ResumeTemplate):
         return """    body { font-family: Calibri, Arial, sans-serif; margin: 16px auto; width: 510pt; font-size: 11pt; line-height: 1.22; color: #111; }
      .header { text-align: center; margin: 0; }
      h1 { margin: 0 0 2px 0; font-size: 18pt; font-weight: 700; line-height: 1.15; text-align: center; }
-     .headline { margin: 0; font-size: 11pt; text-align: center; }
      .contact { display: grid; grid-template-columns: 1fr; gap: 0; margin: 2px 0 0 0; font-size: 10.5pt; text-align: center; }
      .contact-line { margin: 0; }
      .target-role { margin: 1px 0 0 0; font-size: 10.5pt; text-align: center; }

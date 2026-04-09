@@ -161,7 +161,8 @@ def parse_args() -> argparse.Namespace:
         default="modern",
         help=(
             "Secondary HTML layout template name for latest_modern_* output "
-            "(for example: modern). latest_* always uses default."
+            "(for example: modern). Primary latest_* uses default in raw mode "
+            "and modern in processed mode."
         ),
     )
     return parser.parse_args()
@@ -1695,7 +1696,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
     write_ir_snapshot(resume, ir_output)
     write_text_snapshot(resume, text_snapshot_output)
 
-    print(f"Baseline resume output written to: {args.output_dir}")
+    print(f"Resume output written to ({args.processing_mode} mode): {args.output_dir}")
     print(f"- {html_output}")
     print(f"- {modern_html_output}")
     if not args.skip_markdown:

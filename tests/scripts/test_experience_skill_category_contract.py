@@ -75,7 +75,15 @@ def test_all_experience_related_skills_exist_in_skills_matrix() -> None:
     missing: list[tuple[str, str]] = []
     for exp in experiences:
         exp_id = str(exp.get("id", "<missing-id>"))
-        for skill in exp.get("related_skills", []):
+        related_skills = exp.get("related_skills", [])
+        assert isinstance(related_skills, list), (
+            f"{exp_id}: related_skills must be a list"
+        )
+        assert all(
+            isinstance(skill, str) and skill.strip() for skill in related_skills
+        ), f"{exp_id}: related_skills entries must be non-empty strings"
+
+        for skill in related_skills:
             if skill not in skill_map:
                 missing.append((exp_id, skill))
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.2.0...v0.3.0) (2026-04-09)
+
+
+### Features
+
+* **resume:** pack skills into unified categories and standardize output filenames ([989d041](https://github.com/jsmithpkp21/resume-builder/commit/989d041063a737340a19136e24aca7b9f60ea202))
+* **resume:** refine experience layout and headers ([0e6309f](https://github.com/jsmithpkp21/resume-builder/commit/0e6309f5092cad965541d4268d4154208ef30b5a))
+* **resume:** unify template contract and add generated resume title ([9b3d085](https://github.com/jsmithpkp21/resume-builder/commit/9b3d08503c60dfea675cb412ea22c13416883869))
+* **resume:** unify template section contract and add generated title block ([36deca6](https://github.com/jsmithpkp21/resume-builder/commit/36deca6084dd8ccf79cd49a2d14d8551b8c6df6b))
+* **skills:** implement deterministic 11-13 line skills packing ([#42](https://github.com/jsmithpkp21/resume-builder/issues/42)) ([8478e99](https://github.com/jsmithpkp21/resume-builder/commit/8478e99b3c64645d70738ba08e4456b027b1910b))
+* **skills:** prioritize category reduction in packing ([01d6d18](https://github.com/jsmithpkp21/resume-builder/commit/01d6d18a1c77d1f91fe8523e5419671a9b706640))
+
+
+### Bug Fixes
+
+* **cli:** clarify secondary template help and harden related_skills contract test ([14644f2](https://github.com/jsmithpkp21/resume-builder/commit/14644f25d57999d18c7b9677802b5d0fcddef50f))
+* **render:** tighten skills category spacing in HTML output ([#42](https://github.com/jsmithpkp21/resume-builder/issues/42)) ([26cd794](https://github.com/jsmithpkp21/resume-builder/commit/26cd7945827e7cbb30dd967ec92c11b04eb70793))
+* **render:** tighten skills category spacing in HTML output ([#42](https://github.com/jsmithpkp21/resume-builder/issues/42)) ([6d7be66](https://github.com/jsmithpkp21/resume-builder/commit/6d7be66186bd51c903d925d4c1aece8bae5aee51))
+* **review:** address pr 49 follow-up comments ([b3f6080](https://github.com/jsmithpkp21/resume-builder/commit/b3f6080336fb487f66e6cba5312bc579dc16ce5c))
+* **review:** address remaining pr 49 comments ([852fcdd](https://github.com/jsmithpkp21/resume-builder/commit/852fcdd4a5714d49366cec2a8a63ab71c25f525b))
+* **review:** align template docs and output naming ([477b7a7](https://github.com/jsmithpkp21/resume-builder/commit/477b7a7bd17861c9453e3361eefceef7fa0f65e8))
+* **review:** sync baseline output docs and artifacts ([9e2143b](https://github.com/jsmithpkp21/resume-builder/commit/9e2143b768c4d50cd65b2905ec51daf75a029ed9))
+* **skills:** address review feedback ([cbc2182](https://github.com/jsmithpkp21/resume-builder/commit/cbc2182fce04a1236360247d8f305546861cf297))
+
 ## [0.2.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.1.0...v0.2.0) (2026-04-07)
 
 

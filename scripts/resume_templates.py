@@ -37,8 +37,8 @@ class TemplateContext:
 class ResumeTemplate(ABC):
     """Base class for resume templates."""
 
-    def _render_sections(self, context: TemplateContext) -> list[str]:
-        sections = [
+    def _render_title_summary(self, context: TemplateContext) -> list[str]:
+        return [
             (
                 f'  <p class="resume-title"><strong>{html.escape(context.resume_title)}</strong></p>'
                 if context.resume_title.strip()
@@ -49,9 +49,13 @@ class ResumeTemplate(ABC):
                 if context.summary.strip()
                 else ""
             ),
-            "  <h2>Skills</h2>",
+        ]
+
+    def _render_sections(self, context: TemplateContext) -> list[str]:
+        sections = [
+            "  <h2>Key Skills and Expertise</h2>",
             *context.skills_html,
-            "  <h2>Experience</h2>",
+            "  <h2>Professional Experience</h2>",
             *context.experiences_html,
         ]
         if context.education_html:
@@ -82,39 +86,51 @@ class ResumeTemplate(ABC):
 
 
 class DefaultTemplate(ResumeTemplate):
-    """Default left-justified layout.
-    Clean, minimal styling with:
-    - Left-aligned body text
-    - Simple section headers with bottom border
-    - Standard margins and spacing
-    """
+    """Default left-justified layout with PDF-safe width and split contact lines."""
 
     def get_css(self) -> str:
-        return """    body { font-family: Arial, sans-serif; margin: 24px auto; max-width: 960px; line-height: 1.4; }
-    h1 { margin-bottom: 4px; }
-    h2 { border-bottom: 1px solid #ccc; margin-top: 20px; padding-bottom: 4px; }
-    h3 { margin-bottom: 2px; }
-    h3 span { font-weight: normal; color: #333; }
-    .headline, .contact, .target-role, .dates, .role-summary, .related-skills { margin: 4px 0; }
-    .resume-title { margin: 10px 0 4px 0; font-size: 16px; }
-    .summary-text { margin: 4px 0 12px 0; }
-    .skills-category { margin: 0; }
-    ul { margin-top: 6px; }
-    .experience-item { margin-bottom: 16px; }
-    .info-item { margin-bottom: 10px; }"""
+        return """    body { font-family: Calibri, Arial, sans-serif; margin: 16px auto; width: 510pt; font-size: 11pt; line-height: 1.22; color: #111; }
+    .header { margin: 0; }
+    h1 { margin: 0 0 2px 0; font-size: 18pt; font-weight: 700; line-height: 1.15; }
+    .headline { margin: 0; font-size: 11pt; }
+    .contact { display: grid; grid-template-columns: 1fr; gap: 0; margin: 2px 0 0 0; font-size: 10.5pt; }
+    .contact-line { margin: 0; }
+    .target-role { margin: 1px 0 0 0; font-size: 10.5pt; }
+    .header-divider { border: 0; border-top: 1px solid #000; margin: 5px 0 6px 0; }
+    .resume-title { margin: 0; font-size: 11.5pt; font-weight: 700; }
+    .summary-text { margin: 2px 0 6px 0; font-size: 10.5pt; }
+    h2 { font-size: 11pt; font-weight: 700; text-transform: none; letter-spacing: 0; margin: 10px 0 4px 0; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
+    .company-line { margin: 0; display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5pt; line-height: 1.15; }
+    .company-line span { margin-left: auto; text-align: right; font-size: 10pt; color: #222; font-weight: 700; }
+    h3 { margin: 0; font-size: 11pt; font-weight: 700; }
+    h3.job-title-line { display: flex; justify-content: space-between; align-items: baseline; line-height: 1.15; }
+    h3 span { font-weight: 400; color: #222; text-align: right; margin-left: auto; font-size: 10pt; }
+    .dates { margin: 0; font-size: 10pt; color: #444; text-align: right; }
+    .role-summary { margin: 1px 0; font-size: 10.5pt; }
+    .related-skills { display: none; }
+    .skills-category { margin: 0 0 3px 0; font-size: 10.5pt; }
+    ul { margin: 1px 0 0 16px; padding: 0; }
+    li { margin: 1px 0; font-size: 10.5pt; }
+    .experience-item { margin-bottom: 6px; }
+    .info-item { margin-bottom: 6px; font-size: 10.5pt; }
+    .info-item p { margin: 1px 0; }"""
 
     def render(self, context: TemplateContext) -> str:
-        target_role_line = (
-            f'  <p class="target-role">Target role: {html.escape(context.target_role)}</p>'
-            if context.target_role.strip()
-            else ""
-        )
-        target_company_line = (
-            f'  <p class="target-role">Target company: {html.escape(context.target_company)}</p>'
-            if context.target_company.strip()
-            else ""
-        )
-        sections = self._render_sections(context)
+        # Split contact info: location/email first line, LinkedIn/GitHub on second line
+        contact_parts = context.contact_html.split(" | ")
+        contact_lines = []
+        links = []
+        for part in contact_parts:
+            part = part.strip()
+            if "linkedin.com" in part or "github.com" in part:
+                links.append(part)
+            else:
+                contact_lines.append(part)
+        contact_line_1 = " | ".join(contact_lines)
+        contact_html_formatted = f'  <p class="contact-line">{contact_line_1}</p>\n'
+        if links:
+            links_line = " | ".join(links)
+            contact_html_formatted += f'  <p class="contact-line">{links_line}</p>\n'
         return "\n".join(
             [
                 "<!doctype html>",
@@ -130,10 +146,10 @@ class DefaultTemplate(ResumeTemplate):
                 "<body>",
                 f"  <h1>{html.escape(context.name)}</h1>",
                 f'  <p class="headline">{html.escape(context.headline)}</p>',
-                f'  <p class="contact">{context.contact_html}</p>',
-                target_role_line,
-                target_company_line,
-                *sections,
+                contact_html_formatted.rstrip(),
+                '  <hr class="header-divider" />',
+                *self._render_title_summary(context),
+                *self._render_sections(context),
                 "</body>",
                 "</html>",
                 "",
@@ -142,48 +158,51 @@ class DefaultTemplate(ResumeTemplate):
 
 
 class ModernTemplate(ResumeTemplate):
-    """Modern centered layout inspired by WebAI Resume.
-    Professional styling with:
-    - Centered name and contact info (header block)
-    - Modern section headers (no bottom border, clean styling)
-    - Elegant spacing and typography
-    - Left-aligned body content
-    """
+    """Modern centered layout with PDF-safe width and split contact lines."""
 
     def get_css(self) -> str:
-        return """    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px auto; max-width: 900px; line-height: 1.5; color: #1a1a1a; }
-    .header { text-align: center; margin-bottom: 16px; }
-    h1 { margin: 0; font-size: 24px; font-weight: 700; }
-    .headline { margin: 6px 0 0 0; font-size: 14px; color: #555; }
-    .contact { margin: 8px 0; font-size: 13px; color: #666; }
-    .target-role { margin: 6px 0; font-size: 13px; color: #555; }
-    .resume-title { margin: 6px 0 2px 0; font-size: 16px; font-weight: 700; text-align: center; }
-    .summary-text { margin: 0 0 12px 0; text-align: center; font-size: 13px; color: #444; }
-    h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 18px; margin-bottom: 10px; padding-bottom: 0; border-bottom: none; }
-    h3 { margin-bottom: 4px; font-size: 13px; font-weight: 600; }
-    h3 span { font-weight: 400; color: #666; }
-    .dates { margin: 2px 0; font-size: 12px; color: #666; }
-    .role-summary { margin: 6px 0; font-size: 13px; }
-    .related-skills { margin: 6px 0; font-size: 12px; color: #555; }
-    .skills-category { margin: 0 0 8px 0; font-size: 13px; }
-    ul { margin: 8px 0 0 20px; padding: 0; }
-    li { margin: 4px 0; font-size: 13px; }
-    .experience-item { margin-bottom: 14px; }
-    .info-item { margin-bottom: 10px; font-size: 13px; }
-    .info-item p { margin: 3px 0; }"""
+        return """    body { font-family: Calibri, Arial, sans-serif; margin: 16px auto; width: 510pt; font-size: 11pt; line-height: 1.22; color: #111; }
+    .header { text-align: center; margin: 0; }
+    h1 { margin: 0 0 2px 0; font-size: 18pt; font-weight: 700; line-height: 1.15; text-align: center; }
+    .headline { margin: 0; font-size: 11pt; text-align: center; }
+    .contact { display: grid; grid-template-columns: 1fr; gap: 0; margin: 2px 0 0 0; font-size: 10.5pt; text-align: center; }
+    .contact-line { margin: 0; }
+    .target-role { margin: 1px 0 0 0; font-size: 10.5pt; text-align: center; }
+    .header-divider { border: 0; border-top: 1px solid #000; margin: 5px 0 6px 0; }
+    .resume-title { margin: 0; font-size: 11.5pt; font-weight: 700; text-align: center; }
+    .summary-text { margin: 2px 0 6px 0; text-align: center; font-size: 10.5pt; }
+    h2 { font-size: 11pt; font-weight: 700; text-transform: none; letter-spacing: 0; margin: 10px 0 4px 0; border-bottom: none; text-align: center; width: 100%; display: block; }
+    .company-line { margin: 0; display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5pt; text-align: left; line-height: 1.15; }
+    .company-line span { margin-left: auto; text-align: right; font-size: 10pt; color: #222; font-weight: 700; }
+    h3 { margin: 0; font-size: 11pt; font-weight: 700; }
+    h3.job-title-line { display: flex; justify-content: space-between; align-items: baseline; line-height: 1.15; }
+    h3 span { font-weight: 400; color: #222; text-align: right; margin-left: auto; font-size: 10pt; }
+    .dates { margin: 0; font-size: 10pt; color: #444; text-align: right; }
+    .role-summary { margin: 1px 0; font-size: 10.5pt; }
+    .related-skills { display: none; }
+    .skills-category { margin: 0 0 3px 0; font-size: 10.5pt; }
+    ul { margin: 1px 0 0 16px; padding: 0; }
+    li { margin: 1px 0; font-size: 10.5pt; }
+    .experience-item { margin-bottom: 6px; }
+    .info-item { margin-bottom: 6px; font-size: 10.5pt; }
+    .info-item p { margin: 1px 0; }"""
 
     def render(self, context: TemplateContext) -> str:
-        target_role_line = (
-            f'  <p class="target-role">Target role: {html.escape(context.target_role)}</p>'
-            if context.target_role.strip()
-            else ""
-        )
-        target_company_line = (
-            f'  <p class="target-role">Target company: {html.escape(context.target_company)}</p>'
-            if context.target_company.strip()
-            else ""
-        )
-        sections = self._render_sections(context)
+        # Split contact info: location/email first line, LinkedIn/GitHub on second line
+        contact_parts = context.contact_html.split(" | ")
+        contact_lines = []
+        links = []
+        for part in contact_parts:
+            part = part.strip()
+            if "linkedin.com" in part or "github.com" in part:
+                links.append(part)
+            else:
+                contact_lines.append(part)
+        contact_line_1 = " | ".join(contact_lines)
+        contact_html_formatted = f'    <p class="contact-line">{contact_line_1}</p>\n'
+        if links:
+            links_line = " | ".join(links)
+            contact_html_formatted += f'    <p class="contact-line">{links_line}</p>\n'
         return "\n".join(
             [
                 "<!doctype html>",
@@ -200,11 +219,11 @@ class ModernTemplate(ResumeTemplate):
                 '  <div class="header">',
                 f"    <h1>{html.escape(context.name)}</h1>",
                 f'    <p class="headline">{html.escape(context.headline)}</p>',
-                f'    <p class="contact">{context.contact_html}</p>',
+                contact_html_formatted.rstrip(),
                 "  </div>",
-                target_role_line,
-                target_company_line,
-                *sections,
+                '  <hr class="header-divider" />',
+                *self._render_title_summary(context),
+                *self._render_sections(context),
                 "</body>",
                 "</html>",
                 "",
@@ -220,14 +239,7 @@ TEMPLATES: dict[str, type[ResumeTemplate]] = {
 
 
 def get_template(name: str) -> ResumeTemplate:
-    """Get a template instance by name.
-    Args:
-        name: Template name (e.g., "default", "modern")
-    Returns:
-        ResumeTemplate instance
-    Raises:
-        ValueError: If template name is not found
-    """
+    """Get a template instance by name."""
     if name not in TEMPLATES:
         available = ", ".join(sorted(TEMPLATES.keys()))
         raise ValueError(f"Template '{name}' not found. Available: {available}")

@@ -20,7 +20,6 @@ _MEASURE_BACKEND: Any | None | bool = False
 # Target line budget from Issue #42
 TARGET_LINES_MIN: int = 11
 TARGET_LINES_MAX: int = 13
-TARGET_LINES_PREFERRED: int = 12
 TARGET_CATEGORY_MAX: int = 9
 # Minimum skill count to preserve per category (to avoid empty categories)
 MIN_SKILLS_PER_CATEGORY: int = 1

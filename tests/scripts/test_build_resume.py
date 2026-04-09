@@ -169,7 +169,7 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     text_snapshot = text_snapshot_path.read_text(encoding="utf-8")
 
-    assert "Jonathan Smith" in html_text
+    assert "Jonathan J Smith" in html_text
     assert '<p class="headline">Staff Software Engineer</p>' in html_text
     assert ".skills-category { margin: 0 0 3px 0;" in html_text
     assert '<p class="skills-category"><strong>' in html_text
@@ -311,7 +311,7 @@ def test_build_resume_cli_modern_template_renders_centered_header(
     assert ".header { text-align: center;" in html_text
     assert "body { font-family: Calibri, Arial, sans-serif;" in html_text
     assert "font-size: 11pt; line-height: 1.22;" in html_text
-    assert "h2 { font-size: 11pt;" in html_text
+    assert "h2 { font-size: 12pt;" in html_text
     assert "text-align: center;" in html_text
     assert "border-bottom: none;" in html_text
     assert ".resume-title" in html_text

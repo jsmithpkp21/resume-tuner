@@ -41,4 +41,4 @@ Processing contract:
 - `--job-url` and `--job-text-file` are mutually exclusive; pass only one.
 - Education and Leadership & Community sections are sourced from `data/profile/profile.toml` and rendered at the bottom of the resume.
 - If `--target-role` is not provided, role hint extraction can fall back to `--job-url` metadata (for example query/title signals).
-- Company context uses deterministic research (`deterministic-v1`) for now and is saved in `latest_resume_raw_ir_snapshot.json`; richer providers can be layered later without changing the baseline contract.
+- Company context uses deterministic research (`deterministic-v1`) for now and is saved in the generated `*_ir_snapshot.json` artifact for the selected mode (for example `latest_resume_raw_ir_snapshot.json` or `latest_resume_processed_ir_snapshot.json`); richer providers can be layered later without changing the baseline contract.

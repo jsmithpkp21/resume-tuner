@@ -190,6 +190,7 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     )
     assert '<hr class="header-divider" />' in html_text
     assert ".header-divider { border: 0; border-top: 1px solid #000;" in html_text
+    assert "h2 { font-size: 12pt;" in html_text
     assert html_text.index("<h2>Key Skills and Expertise</h2>") < html_text.index(
         "<h2>Professional Experience</h2>"
     )

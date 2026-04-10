@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.3.0...v0.3.1) (2026-04-10)
+
+
+### Bug Fixes
+
+* **templates:** remove dead .headline CSS from ModernTemplate ([874ea44](https://github.com/jsmithpkp21/resume-builder/commit/874ea448f816c041bd53e858e9b420ec44e5a38b))
+* **templates:** update name to Jonathan J Smith and modernize layout ([930931b](https://github.com/jsmithpkp21/resume-builder/commit/930931b4469bf0b840bbf1a66b3f83be78999181))
+* **templates:** wrap contact lines in .contact div in both templates ([3e7039f](https://github.com/jsmithpkp21/resume-builder/commit/3e7039f05ba4ee6f0e30b0327b553d96c9ba044c))
+
 ## [0.3.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.2.0...v0.3.0) (2026-04-09)
 
 

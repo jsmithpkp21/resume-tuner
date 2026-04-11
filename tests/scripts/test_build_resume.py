@@ -1542,6 +1542,76 @@ def test_summarize_for_role_enforces_two_line_layout_without_single_word_wraps()
     assert all(len(line.split()) >= 2 for line in wrapped_lines[1:])
 
 
+def test_summarize_for_role_avoids_fragmented_connector_sentences() -> None:
+    profile = load_profile(PROFILE)
+    experiences = (
+        Experience(
+            id="exp-fragment",
+            job_title="Senior Test Automation Engineer",
+            company="Contoso",
+            start_date="2024-01",
+            end_date="2025-01",
+            general_role_description=(
+                "Led platform reliability automation across mobile and web release trains "
+                "using Python and to"
+            ),
+            related_skills=("Python", "ADB", "CI/CD"),
+            bullets=(
+                Bullet(
+                    id="frag-b1",
+                    text="Built deterministic mobile and API automation coverage across release trains.",
+                    skills=("Python", "ADB"),
+                    impact_type="quality",
+                    domain="automation",
+                ),
+                Bullet(
+                    id="frag-b2",
+                    text="Integrated CI quality gates and reliability diagnostics for regression triage.",
+                    skills=("CI/CD", "Logging"),
+                    impact_type="quality",
+                    domain="ci",
+                ),
+                Bullet(
+                    id="frag-b3",
+                    text="Stabilized flaky workflows by instrumenting debug traces and failure classification.",
+                    skills=("Python", "Pytest"),
+                    impact_type="quality",
+                    domain="debugging",
+                ),
+            ),
+        ),
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior Software Engineer in Test",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior Software Engineer in Test\n"
+            "Need Python and ADB automation plus CI quality ownership."
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    summarized = summarize_for_role(resume)
+    summary = summarized.experiences[0].general_role_description
+
+    assert " to. Focused" not in summary
+    assert " shaping. Focused." not in summary
+    assert not summary.endswith(" to.")
+    assert not summary.endswith(" Focused.")
+
+
+def test_fit_summary_layout_drops_dangling_fragment_tail_words() -> None:
+    fitted = build_resume._fit_summary_layout(
+        "Led quality modernization across distributed systems. Focused on Python and ADB to"
+    )
+
+    assert fitted
+    assert not fitted.endswith(" to.")
+    assert not fitted.endswith(" Focused.")
+
+
 def test_summarize_profile_for_role_generates_role_aware_top_summary() -> None:
     profile = load_profile(PROFILE)
     experiences = load_experiences(

@@ -63,6 +63,28 @@ DEFAULT_MIN_BULLETS_PER_EXPERIENCE = 3
 SUMMARY_LINE_WIDTH = 72
 SUMMARY_MAX_LINES = 2
 SUMMARY_MAX_WORDS = 30
+# Prevent clipped summaries from ending on dangling connectors/fragments.
+_TRAILING_FRAGMENT_WORDS = {
+    "a",
+    "an",
+    "and",
+    "as",
+    "at",
+    "by",
+    "for",
+    "from",
+    "in",
+    "into",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "via",
+    "with",
+    "without",
+    "focused",
+}
 # Calibrated from sandbox resume corpus: longest observed summary (107 words) + 5.
 PROFILE_SUMMARY_MAX_WORDS = 112
 PROFILE_SUMMARY_MIN_RATIO = 0.8
@@ -1331,11 +1353,23 @@ def _shorten_sentence(text: str, *, max_words: int) -> str:
     words = text.strip().replace("\n", " ").split()
     if not words:
         return ""
-    clipped = words[:max_words]
+    clipped = _trim_trailing_fragment_words(words[:max_words])
+    if not clipped:
+        return ""
     sentence = " ".join(clipped).strip(" ,;:")
     if sentence and sentence[-1] not in ".!?":
         sentence = f"{sentence}."
     return sentence
+
+
+def _trim_trailing_fragment_words(words: list[str]) -> list[str]:
+    trimmed = list(words)
+    while trimmed:
+        token = trimmed[-1].strip(" ,;:.!?").lower()
+        if token and token not in _TRAILING_FRAGMENT_WORDS:
+            break
+        trimmed.pop()
+    return trimmed
 
 
 def _summary_wrap_lines(
@@ -1367,6 +1401,9 @@ def _fit_summary_layout(summary: str) -> str:
         words.pop()
 
     while words:
+        words = _trim_trailing_fragment_words(words)
+        if not words:
+            return ""
         candidate = " ".join(words).strip(" ,;:")
         if candidate and candidate[-1] not in ".!?":
             candidate = f"{candidate}."

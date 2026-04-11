@@ -1596,6 +1596,7 @@ def test_summarize_for_role_avoids_fragmented_connector_sentences() -> None:
     summarized = summarize_for_role(resume)
     summary = summarized.experiences[0].general_role_description
 
+    assert summary.strip()
     assert " to. Focused" not in summary
     assert not summary.endswith(" to.")
     assert not summary.endswith(" Focused.")

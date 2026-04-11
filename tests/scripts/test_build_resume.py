@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import math
 import os
 import subprocess
 import sys
@@ -13,16 +14,23 @@ from urllib.request import Request
 
 import pytest
 
-from scripts import jd_ingest
+from scripts import build_resume, jd_ingest
 from scripts.build_resume import (
+    PROFILE_SUMMARY_MAX_WORDS,
+    PROFILE_SUMMARY_MIN_RATIO,
     Bullet,
     Experience,
+    _collect_resume_skill_signals,
     _display_company_header,
+    _get_base_role,
+    _summary_wrap_lines,
     assemble_baseline_resume,
     derive_resume_title,
     enrich_data,
     load_experiences,
     load_profile,
+    summarize_for_role,
+    summarize_profile_for_role,
     transform_for_role,
     trim_by_rules,
     trim_for_role,
@@ -169,8 +177,8 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     text_snapshot = text_snapshot_path.read_text(encoding="utf-8")
 
-    assert "Jonathan J Smith" in html_text
-    assert '<p class="headline">Staff Software Engineer</p>' in html_text
+    assert ("Jonathan J. Smith" in html_text) or ("Jonathan J Smith" in html_text)
+    assert '<p class="headline">Staff Software Engineer</p>' not in html_text
     assert ".skills-category { margin: 0 0 3px 0;" in html_text
     assert '<p class="skills-category"><strong>' in html_text
     assert "linkedin.com/in/jonathan-j-smith-automation" in html_text
@@ -194,8 +202,8 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert html_text.index("<h2>Key Skills and Expertise</h2>") < html_text.index(
         "<h2>Professional Experience</h2>"
     )
-    assert ".header { text-align: center;" in modern_html_text
-    # Both templates must center-align education/leadership (info-item) sections
+    assert ".header { text-align: center; margin: 0;" in modern_html_text
+    # Both templates center-align info-item sections.
     assert (
         ".info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center;"
         in html_text
@@ -318,12 +326,20 @@ def test_build_resume_cli_modern_template_renders_centered_header(
         encoding="utf-8"
     )
     assert '<div class="header">' in html_text
-    assert ".header { text-align: center;" in html_text
+    assert ".header { text-align: center; margin: 0;" in html_text
     assert "body { font-family: Calibri, Arial, sans-serif;" in html_text
     assert "font-size: 11pt; line-height: 1.22;" in html_text
     assert "h2 { font-size: 12pt;" in html_text
-    assert "text-align: center;" in html_text
+    assert "text-align: center; width: 100%; display: block;" in html_text
     assert "border-bottom: none;" in html_text
+    assert (
+        ".skills-category { margin: 0 0 3px 0; font-size: 10.5pt; text-align: center; }"
+        in html_text
+    )
+    assert (
+        ".info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center; }"
+        in html_text
+    )
     assert ".resume-title" in html_text
     assert '<hr class="header-divider" />' in html_text
     assert ".header-divider { border: 0; border-top: 1px solid #000;" in html_text
@@ -386,6 +402,25 @@ def test_derive_resume_title_adds_missing_seniority_from_headline() -> None:
     assert derive_resume_title(adjusted) == "Staff SDET"
 
 
+def test_derive_resume_title_preserves_senior_sdet_without_special_expansion() -> None:
+    """Senior SDET is now treated as any other role, not specially expanded."""
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    # No special case: Senior SDET stays as Senior SDET
+    assert derive_resume_title(resume) == "Senior SDET"
+
+
 def test_display_company_header_maps_hp_poly_aliases() -> None:
     cases = [
         ("HP / Poly", "HP / Poly (formerly Polycom), Austin, TX"),
@@ -433,7 +468,7 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
         (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
 
-    assert '<p class="headline">Sr. SDET</p>' in html_text
+    assert '<p class="headline">Sr. SDET</p>' not in html_text
     assert '<p class="resume-title"><strong>Sr. SDET</strong></p>' in html_text
     assert snapshot["target_role"] == "Sr. SDET"
     assert snapshot["target_company"] == "Charles Schwab"
@@ -513,6 +548,203 @@ def test_build_resume_cli_rejects_typo_hjob_text_file_flag(tmp_path: Path) -> No
 
     assert result.returncode != 0
     assert "--hjob-text-file" in result.stderr
+
+
+def test_build_resume_cli_deduplicates_equivalent_headline_and_resume_title(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "processed"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(output_dir),
+            "--processing-mode",
+            "processed",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    modern_html = (output_dir / "latest_resume_processed.html").read_text(
+        encoding="utf-8"
+    )
+    default_html = (output_dir / "latest_default_resume_processed.html").read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        '<p class="headline">Software Engineer | Test Automation and Framework Architecture</p>'
+        not in modern_html
+    )
+    assert (
+        '<p class="headline">Software Engineer | Test Automation and Framework Architecture</p>'
+        not in default_html
+    )
+    assert (
+        '<p class="resume-title"><strong>Software Engineer / Test Automation and Framework Architecture</strong></p>'
+        in modern_html
+    )
+    assert (
+        '<p class="resume-title"><strong>Software Engineer / Test Automation and Framework Architecture</strong></p>'
+        in default_html
+    )
+
+
+def test_collect_resume_skill_signals_is_relevance_weighted_and_deterministic() -> None:
+    profile = load_profile(PROFILE)
+    bullet_low = Bullet(
+        id="b-low",
+        text="Low relevance work.",
+        skills=("SkillLow",),
+        impact_type="reliability",
+        domain="video",
+    )
+    bullet_high = Bullet(
+        id="b-high",
+        text="High relevance work.",
+        skills=("SkillHigh",),
+        impact_type="reliability",
+        domain="video",
+    )
+    experience = Experience(
+        id="exp-test",
+        job_title="Role",
+        company="Company",
+        start_date="2020-01",
+        end_date="2021-01",
+        general_role_description="Did relevant work.",
+        related_skills=("SkillRelated",),
+        bullets=(bullet_low, bullet_high),
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="",
+        target_company="",
+        job_context=None,
+        experiences=(experience,),
+        skills_by_category={
+            "zeta": ["SkillLow"],
+            "alpha": ["SkillHigh"],
+        },
+    )
+    scored_resume = type(resume)(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=resume.experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id={
+            "b-low": {"confidence": 0.1},
+            "b-high": {"confidence": 0.95},
+        },
+    )
+
+    assert _collect_resume_skill_signals(scored_resume)[:2] == [
+        "SkillHigh",
+        "SkillLow",
+    ]
+
+
+def test_collect_resume_skill_signals_is_stable_across_order_churn() -> None:
+    profile = load_profile(PROFILE)
+    bullet_a = Bullet(
+        id="b-a",
+        text="Service diagnostics.",
+        skills=("Service Diagnostics",),
+        impact_type="reliability",
+        domain="video",
+    )
+    bullet_b = Bullet(
+        id="b-b",
+        text="Automation architecture.",
+        skills=("Automation Architecture",),
+        impact_type="reliability",
+        domain="video",
+    )
+
+    base_experience = Experience(
+        id="exp-churn-a",
+        job_title="Role A",
+        company="Company",
+        start_date="2020-01",
+        end_date="2021-01",
+        general_role_description="Built and stabilized automation systems.",
+        related_skills=("Service Diagnostics",),
+        bullets=(bullet_a, bullet_b),
+    )
+    churned_experience = Experience(
+        id="exp-churn-a",
+        job_title="Role A",
+        company="Company",
+        start_date="2020-01",
+        end_date="2021-01",
+        general_role_description="Built and stabilized automation systems.",
+        related_skills=("Service Diagnostics",),
+        bullets=(bullet_b, bullet_a),
+    )
+
+    base_resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="",
+        target_company="",
+        job_context=None,
+        experiences=(base_experience,),
+        skills_by_category={
+            "Platform": ["Automation Architecture", "Service Diagnostics"],
+            "Tooling": ["Python"],
+        },
+    )
+    churned_resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="",
+        target_company="",
+        job_context=None,
+        experiences=(churned_experience,),
+        skills_by_category={
+            "Tooling": ["Python"],
+            "Platform": ["Service Diagnostics", "Automation Architecture"],
+        },
+    )
+
+    base_scored = type(base_resume)(
+        profile=base_resume.profile,
+        target_role=base_resume.target_role,
+        target_company=base_resume.target_company,
+        display_headline=base_resume.display_headline,
+        job_context=base_resume.job_context,
+        experiences=base_resume.experiences,
+        skills_by_category=base_resume.skills_by_category,
+        enrichment_by_bullet_id={
+            "b-a": {"confidence": 0.95},
+            "b-b": {"confidence": 0.60},
+        },
+    )
+    churned_scored = type(churned_resume)(
+        profile=churned_resume.profile,
+        target_role=churned_resume.target_role,
+        target_company=churned_resume.target_company,
+        display_headline=churned_resume.display_headline,
+        job_context=churned_resume.job_context,
+        experiences=churned_resume.experiences,
+        skills_by_category=churned_resume.skills_by_category,
+        enrichment_by_bullet_id={
+            "b-a": {"confidence": 0.95},
+            "b-b": {"confidence": 0.60},
+        },
+    )
+
+    base_signals = _collect_resume_skill_signals(base_scored)
+    churned_signals = _collect_resume_skill_signals(churned_scored)
+
+    assert base_signals == churned_signals
+    assert base_signals[0] == "Service Diagnostics"
 
 
 def test_ingest_job_context_extracts_role_company_and_research() -> None:
@@ -1179,9 +1411,345 @@ def test_trim_by_rules_enforces_total_bullet_cap() -> None:
     assert len(trimmed.experiences[0].bullets) == 3
 
 
+def test_summarize_for_role_generates_distinct_summaries() -> None:
+    profile = load_profile(PROFILE)
+    experiences = (
+        Experience(
+            id="exp-1",
+            job_title="Architect, Python Test Framework",
+            company="Contoso",
+            start_date="2024-01",
+            end_date="2025-01",
+            general_role_description="Owned framework strategy across shared quality initiatives.",
+            related_skills=("Python", "Pytest", "CI/CD"),
+            bullets=(
+                Bullet(
+                    id="b1",
+                    text="Designed framework abstractions for resilient UI and API automation.",
+                    skills=("Python", "Pytest"),
+                    impact_type="architecture",
+                    domain="automation",
+                ),
+                Bullet(
+                    id="b2",
+                    text="Integrated validation workflows into CI pipelines with quality gates.",
+                    skills=("CI/CD", "GitHub Actions"),
+                    impact_type="quality",
+                    domain="automation",
+                ),
+                Bullet(
+                    id="b3",
+                    text="Reduced triage time by improving diagnostics and test reliability tooling.",
+                    skills=("Python", "Logging"),
+                    impact_type="quality",
+                    domain="debugging",
+                ),
+            ),
+        ),
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior Software Engineer in Test",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior Software Engineer in Test\n"
+            "Company: Charles Schwab\n"
+            "Need Python-based automation and CI quality ownership."
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    summarized = summarize_for_role(resume)
+    summary = summarized.experiences[0].general_role_description
+    assert summary != experiences[0].general_role_description
+    for bullet in summarized.experiences[0].bullets:
+        assert summary.strip().lower() != bullet.text.strip().lower()
+        assert summary.strip().lower() not in bullet.text.strip().lower()
+
+
+def test_summarize_for_role_enforces_two_line_layout_without_single_word_wraps() -> (
+    None
+):
+    profile = load_profile(PROFILE)
+    experiences = (
+        Experience(
+            id="exp-layout",
+            job_title="Lead Automation Engineer",
+            company="Contoso",
+            start_date="2024-01",
+            end_date="2025-01",
+            general_role_description=(
+                "Led a broad automation modernization program spanning multiple products, "
+                "delivery organizations, and infrastructure dependencies."
+            ),
+            related_skills=("Python", "Pytest", "Playwright", "CI/CD"),
+            bullets=(
+                Bullet(
+                    id="layout-b1",
+                    text=(
+                        "Implemented deterministic orchestration patterns for long-running "
+                        "cross-platform validation workflows."
+                    ),
+                    skills=("Python", "Pytest"),
+                    impact_type="quality",
+                    domain="automation",
+                ),
+                Bullet(
+                    id="layout-b2",
+                    text=(
+                        "Integrated resilient pipeline guardrails and telemetry dashboards "
+                        "to reduce flaky failures."
+                    ),
+                    skills=("CI/CD", "Logging"),
+                    impact_type="quality",
+                    domain="ci",
+                ),
+                Bullet(
+                    id="layout-b3",
+                    text=(
+                        "Expanded framework support for service-layer testing and UI flows "
+                        "with reusable harnesses."
+                    ),
+                    skills=("Playwright", "Python"),
+                    impact_type="architecture",
+                    domain="automation",
+                ),
+            ),
+        ),
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Staff Test Automation Engineer",
+        target_company="",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Staff Test Automation Engineer\n"
+            "Need strong Python, CI ownership, and cross-functional reliability leadership."
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    summarized = summarize_for_role(resume)
+    summary = summarized.experiences[0].general_role_description
+    wrapped_lines = _summary_wrap_lines(summary)
+    assert 1 <= len(wrapped_lines) <= 2
+    assert all(len(line.split()) >= 2 for line in wrapped_lines[1:])
+
+
+def test_summarize_profile_for_role_generates_role_aware_top_summary() -> None:
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\n"
+            "Company: Charles Schwab\n"
+            "Need Python and CI quality ownership."
+        ),
+        experiences=experiences,
+        skills_by_category={
+            "Testing": ["Python", "Pytest", "Playwright"],
+        },
+    )
+
+    summarized = summarize_profile_for_role(resume)
+
+    assert summarized.profile.summary != profile.summary
+    assert "Software engineer specializing in" in summarized.profile.summary
+    # Acronym casing is now preserved: "Senior SDET" not "senior sdet"
+    assert "Senior SDET" in summarized.profile.summary
+    assert "Python" in summarized.profile.summary
+
+
+def test_summarize_profile_for_role_is_identity_when_summary_unchanged() -> None:
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    role = "Senior SDET"
+    seed_resume = assemble_baseline_resume(
+        profile=profile,
+        target_role=role,
+        target_company="",
+        job_context=jd_ingest.ingest_job_text("Job Title: Senior SDET"),
+        experiences=experiences,
+        skills_by_category={},
+    )
+    expected_summary = summarize_profile_for_role(seed_resume).profile.summary
+    profile_with_expected = type(profile)(
+        name=profile.name,
+        headline=profile.headline,
+        location=profile.location,
+        email=profile.email,
+        phone=profile.phone,
+        website=profile.website,
+        linkedin=profile.linkedin,
+        github=profile.github,
+        summary=expected_summary,
+        education_entries=profile.education_entries,
+        leadership_community_entries=profile.leadership_community_entries,
+    )
+    resume = assemble_baseline_resume(
+        profile=profile_with_expected,
+        target_role=role,
+        target_company="",
+        job_context=jd_ingest.ingest_job_text("Job Title: Senior SDET"),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    assert summarize_profile_for_role(resume) is resume
+
+
+def test_summarize_profile_for_role_enforces_minimum_word_count() -> None:
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={
+            "Testing": ["Python", "Pytest", "Playwright"],
+        },
+    )
+
+    summarized = summarize_profile_for_role(resume)
+    word_count = len(summarized.profile.summary.split())
+    min_words = math.ceil(
+        PROFILE_SUMMARY_MAX_WORDS * build_resume.PROFILE_SUMMARY_MIN_RATIO
+    )
+    assert min_words <= word_count <= PROFILE_SUMMARY_MAX_WORDS
+
+
 # ---------------------------------------------------------------------------
 # transform_for_role tests
 # ---------------------------------------------------------------------------
+
+
+def test_summarize_profile_for_role_truncates_summary_at_max_words(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify truncation honors both max words and the configured 80% minimum."""
+    max_words = 20
+    monkeypatch.setattr("scripts.build_resume.PROFILE_SUMMARY_MAX_WORDS", max_words)
+    monkeypatch.setattr(
+        "scripts.build_resume.PROFILE_SUMMARY_MIN_RATIO", PROFILE_SUMMARY_MIN_RATIO
+    )
+
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={
+            "Testing": [
+                "enterprise test automation framework architecture",
+                "distributed reliability engineering and quality gates",
+                "cross-platform UI API and service-layer diagnostics",
+            ]
+        },
+    )
+    result = summarize_profile_for_role(resume)
+    summary_words = result.profile.summary.split()
+
+    min_words = math.ceil(max_words * build_resume.PROFILE_SUMMARY_MIN_RATIO)
+    # Strict auditability: prove truncation happened and output stayed in bounds.
+    assert len(summary_words) == max_words, (
+        f"Expected truncation to exactly {max_words} words, got {len(summary_words)}"
+    )
+    assert len(summary_words) >= min_words, (
+        f"Summary has {len(summary_words)} words, min is {min_words}"
+    )
+    assert len(summary_words) <= max_words, (
+        f"Summary has {len(summary_words)} words, max is {max_words}"
+    )
+    assert result.profile.summary.endswith("."), (
+        f"Summary should end with period, got: {result.profile.summary[-10:]}"
+    )
+    assert not result.profile.summary.endswith(".."), (
+        f"Summary should not have double punctuation: {result.profile.summary[-10:]}"
+    )
+
+
+def test_generate_profile_summary_avoids_double_punctuation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify truncation keeps single terminal punctuation when a token already has it."""
+    max_words = 15
+    monkeypatch.setattr("scripts.build_resume.PROFILE_SUMMARY_MAX_WORDS", max_words)
+
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    long_skills = {
+        "Category": [
+            "large-scale UI API and service-layer reliability engineering",
+            "deterministic CI quality-gate architecture with deep diagnostics",
+            "cross-platform framework design for enterprise automation delivery",
+        ]
+    }
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category=long_skills,
+    )
+    result = summarize_profile_for_role(resume)
+
+    assert len(result.profile.summary.split()) == max_words
+    assert result.profile.summary.endswith("layers."), result.profile.summary
+    assert ".." not in result.profile.summary, (
+        f"Found double period in summary: {result.profile.summary}"
+    )
+    assert result.profile.summary.endswith("."), (
+        f"Summary should end with single period, got: {result.profile.summary[-3:]}"
+    )
+
+
+def test_generate_profile_summary_clamps_min_words_to_max(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("scripts.build_resume.PROFILE_SUMMARY_MAX_WORDS", 10)
+    monkeypatch.setattr("scripts.build_resume.PROFILE_SUMMARY_MIN_RATIO", 1.5)
+
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={
+            "Testing": [
+                "enterprise test automation framework architecture",
+                "distributed reliability engineering and quality gates",
+                "cross-platform UI API and service-layer diagnostics",
+            ]
+        },
+    )
+
+    result = summarize_profile_for_role(resume)
+    assert len(result.profile.summary.split()) == 10
 
 
 def test_transform_for_role_is_identity_without_job_context() -> None:
@@ -1453,3 +2021,110 @@ def test_transform_for_role_rejects_generic_hype_rewrites(
 
     transformed = transform_for_role(resume)
     assert transformed.experiences[0].bullets[0].text == first_bullet.text
+
+
+def test_get_base_role_uses_target_role_first() -> None:
+    """_get_base_role prefers target_role over all other sources."""
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Software Test Engineer | Python",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    # Should extract only the base part (before |)
+    assert _get_base_role(resume) == "Software Test Engineer"
+
+
+def test_get_base_role_extracts_before_pipe() -> None:
+    """_get_base_role correctly handles pipe-separated target roles."""
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET | Framework Architect",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    assert _get_base_role(resume) == "Senior SDET"
+
+
+def test_get_base_role_falls_back_to_display_headline() -> None:
+    """_get_base_role falls back to display_headline when target_role is empty."""
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    base_resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={},
+    )
+    resume = type(base_resume)(
+        profile=base_resume.profile,
+        target_role="",  # Empty target_role
+        target_company=base_resume.target_company,
+        display_headline="Lead Automation Engineer | Framework",
+        job_context=base_resume.job_context,
+        experiences=base_resume.experiences,
+        skills_by_category=base_resume.skills_by_category,
+        enrichment_by_bullet_id=base_resume.enrichment_by_bullet_id,
+    )
+
+    assert _get_base_role(resume) == "Lead Automation Engineer"
+
+
+def test_get_base_role_normalizes_whitespace() -> None:
+    """_get_base_role normalizes internal whitespace."""
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior  SDET  Engineer",  # Extra spaces
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    assert _get_base_role(resume) == "Senior SDET Engineer"
+
+
+def test_generate_profile_summary_preserves_acronym_casing() -> None:
+    """Profile summary should preserve SDET, QA, Python casing (not lowercase)."""
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="SDET",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    summary = build_resume.summarize_profile_for_role(resume).profile.summary
+    # SDET should not be lowercased to "sdet"
+    assert "sdet" not in summary.lower() or "SDET" in summary
+    assert (
+        "Software engineer specializing in SDET" in summary
+        or "Software engineer specializing in" in summary
+    )

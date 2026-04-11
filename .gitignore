@@ -13,6 +13,9 @@ __pycache__/
 *.pyo
 *.pyd
 
+# Node dependencies (markdownlint/npm local installs)
+node_modules/
+
 # JetBrains / PyCharm
 .idea/
 

@@ -19,6 +19,7 @@ python scripts/build_resume.py --processing-mode raw
 python scripts/build_resume.py --processing-mode processed
 python scripts/build_resume.py --job-url "https://www.linkedin.com/jobs/search-results/?currentJobId=4380299765&keywords=SDET"
 python scripts/build_resume.py --job-text-file "data/review/inputs/job_description.txt"
+python scripts/build_resume.py --output-dir sandbox/outputs/resume_runs/charles_schwab
 ```
 
 Artifacts (raw mode defaults):
@@ -44,6 +45,8 @@ Processing contract:
 - Baseline files should remain raw unless you explicitly opt into processed mode.
 - Processed-mode primary files use the `latest_resume_processed*` prefix.
 - A secondary HTML artifact is always generated as `latest_<template>_resume_<mode>.html`.
+- When target company metadata is available, company-scoped aliases are also emitted (for example `charles_schwab_resume_raw.html`).
+- For local iterative runs, prefer `--output-dir sandbox/outputs/...` to avoid committing generated artifacts.
 
 ## Headline and bottom sections
 

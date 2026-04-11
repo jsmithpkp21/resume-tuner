@@ -476,6 +476,11 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
     assert snapshot["job_context"]["job_id"] == "92422911552"
     assert snapshot["job_context"]["input_url"] == SCHWAB_JOB_URL
     assert snapshot["job_context"]["fetch_status"] == "fetched"
+    assert (output_dir / "charles_schwab_resume_raw.html").exists()
+    assert (output_dir / "charles_schwab_modern_resume_raw.html").exists()
+    assert (output_dir / "charles_schwab_resume_raw.md").exists()
+    assert (output_dir / "charles_schwab_resume_raw_ir_snapshot.json").exists()
+    assert (output_dir / "charles_schwab_resume_raw_ir_snapshot.txt").exists()
 
 
 def test_build_resume_cli_accepts_job_text_file(tmp_path: Path) -> None:

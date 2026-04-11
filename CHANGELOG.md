@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.5.3...v0.6.0) (2026-04-11)
+
+
+### Features
+
+* **resume:** add source-backed SDET bullets and data-driven summaries ([47b64f2](https://github.com/jsmithpkp21/resume-builder/commit/47b64f282fc9e875eb0a5c002177e2e755bef8ce))
+
+
+### Bug Fixes
+
+* **summary:** address PR review findings on role summaries ([1990ec9](https://github.com/jsmithpkp21/resume-builder/commit/1990ec920e68f72b30c85baa8a0fad0adc0429fb))
+
 ## [0.5.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.5.2...v0.5.3) (2026-04-11)
 
 

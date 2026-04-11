@@ -16,8 +16,8 @@ related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b01"
-text = "Transformed an inherited ADB/UI Automator-based system into a lightweight abstraction layer supporting Android-based embedded UI testing across PolyOS, Zoom, Teams, and Google Meet."
-skills = ["Python", "ADB", "Playwright"]
+text = "Transformed an inherited Python-Pytest-ADB-JUnit 4-UI Automator proof of concept into a lightweight abstraction layer supporting Android-based embedded UI testing across PolyOS, Zoom, Teams, and Google Meet."
+skills = ["Python", "Pytest", "Android UI automation (ADB)", "JUnit 4", "Android UI automation (UI Automator)"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "scalability"
 domain = "video"
@@ -49,6 +49,22 @@ domain = "video"
 id = "exp_hp_poly_architect_python_video_202306_b05"
 text = "Integrated framework execution into containerized GitHub Actions workflows, defining container requirements and collaborating with DevOps on image updates."
 skills = ["CI/CD", "GitHub Actions", "Developer Tooling"]
+impact_type = "reliability"
+domain = "video"
+
+[[experience.bullet_bank]]
+id = "exp_hp_poly_architect_python_video_202306_b06"
+text = "Manually characterized device behavior, selected high-value scenarios, and converted hand-verified tests into reusable automation patterns with initial fixtures for data-driven execution."
+skills = ["System testing", "Test planning", "Pytest", "Test data management"]
+categories = ["Testing & Validation", "Quality & Testing Strategy"]
+impact_type = "delivery-speed"
+domain = "video"
+
+[[experience.bullet_bank]]
+id = "exp_hp_poly_architect_python_video_202306_b07"
+text = "Triaged failures on pre-QA software drops and isolated root cause across automation code, Poly firmware, third-party controller apps, hardware, and network conditions to route defects to the correct owners."
+skills = ["Issue triage", "Defect isolation", "Root cause analysis", "Debugging"]
+categories = ["Debugging & Analysis", "Quality & Testing Strategy"]
 impact_type = "reliability"
 domain = "video"
 

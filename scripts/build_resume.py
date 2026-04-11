@@ -1109,7 +1109,7 @@ def summarize_for_role(resume: ResumeIR) -> ResumeIR:
     """Generate deterministic 1-2 line per-role summaries from selected bullets."""
     updated_experiences: list[Experience] = []
     changed = False
-    for experience in resume.experiences:
+    for experience in resume.experiences[2:]:
         generated_summary = _generate_role_summary(resume, experience)
         if (
             generated_summary
@@ -1148,8 +1148,7 @@ def _generate_profile_summary(resume: ResumeIR) -> str:
     role_label = _get_base_role(resume)
     if not role_label:
         role_label = derive_resume_title(resume).split("|", maxsplit=1)[0].strip()
-    role_label = role_label or "test automation engineer"
-    # Preserve original casing: do NOT lowercase role labels
+    role_label = role_label or "Engineer"
     skills = _collect_resume_skill_signals(resume)
     if len(skills) >= 3:
         focus_text = f"{skills[0]}, {skills[1]}, and {skills[2]}"
@@ -1160,15 +1159,19 @@ def _generate_profile_summary(resume: ResumeIR) -> str:
     else:
         focus_text = "framework architecture, CI quality gates, and defect isolation"
 
-    candidate = (
-        f"Software engineer specializing in {role_label}, delivering reliable automation "
-        f"across UI, API, and service layers. Core strengths include {focus_text}."
+    fragments = _build_profile_summary_fragments(
+        resume, role_label=role_label, focus_text=focus_text
     )
+    if not fragments:
+        return ""
+    candidate = fragments[0]
     words = candidate.split()
     max_words = max(1, int(PROFILE_SUMMARY_MAX_WORDS))
     min_words = min(max_words, max(1, math.ceil(max_words * PROFILE_SUMMARY_MIN_RATIO)))
     if len(words) < min_words:
-        candidate = _expand_profile_summary_to_min_words(candidate, resume, min_words)
+        candidate = _expand_profile_summary_to_min_words(
+            candidate, resume, min_words, fragments=fragments[1:]
+        )
         words = candidate.split()
     if len(words) > max_words:
         clipped_words = words[:max_words]
@@ -1181,26 +1184,68 @@ def _generate_profile_summary(resume: ResumeIR) -> str:
     return candidate
 
 
+def _build_profile_summary_fragments(
+    resume: ResumeIR, *, role_label: str, focus_text: str
+) -> list[str]:
+    fragments = [f"{role_label} with strengths in {focus_text}."]
+
+    for experience in resume.experiences:
+        summary = _shorten_sentence(
+            _summary_primary_clause(experience.general_role_description), max_words=24
+        )
+        if summary:
+            fragments.append(summary)
+        for bullet in experience.bullets[:1]:
+            bullet_summary = _shorten_sentence(
+                _summary_primary_clause(bullet.text), max_words=18
+            )
+            if bullet_summary:
+                fragments.append(bullet_summary)
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for fragment in fragments:
+        normalized = " ".join(fragment.split()).lower()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(fragment)
+    return deduped
+
+
 def _expand_profile_summary_to_min_words(
-    candidate: str, resume: ResumeIR, min_words: int
+    candidate: str,
+    resume: ResumeIR,
+    min_words: int,
+    *,
+    fragments: list[str] | None = None,
 ) -> str:
     """Deterministically expand short summaries to satisfy minimum word-count policy."""
-    additions = [
-        "Depth includes framework architecture, service-layer diagnostics, and dependable CI quality gates in production-like environments.",
-        "Recent delivery emphasizes cross-platform automation reliability, reproducible tooling, and actionable defect isolation for release confidence.",
-        "Leadership focus includes mentoring engineers, setting coding standards, and scaling maintainable test systems across distributed teams.",
-    ]
+    additions = list(fragments or [])
 
-    for experience in resume.experiences[:3]:
-        summary = _shorten_sentence(experience.general_role_description, max_words=16)
-        if summary:
-            additions.append(summary)
+    existing_sentences = {
+        " ".join(part.strip().split()).lower()
+        for part in re.split(r"(?<=[.!?])\s+", candidate)
+        if part.strip()
+    }
+
+    # Preserve deterministic order while removing duplicate sentences.
+    deduped_additions: list[str] = []
+    seen: set[str] = set()
+    for addition in additions:
+        normalized = " ".join(addition.split()).lower()
+        if not normalized or normalized in seen or normalized in existing_sentences:
+            continue
+        seen.add(normalized)
+        deduped_additions.append(addition)
 
     updated = candidate.rstrip()
     words = updated.split()
     index = 0
-    while len(words) < min_words and additions:
-        addition = additions[index % len(additions)].strip().rstrip(" ,;:")
+    while len(words) < min_words and deduped_additions:
+        addition = (
+            deduped_additions[index % len(deduped_additions)].strip().rstrip(" ,;:")
+        )
         if not addition.endswith((".", "!", "?")):
             addition += "."
         updated = f"{updated} {addition}".strip()
@@ -1278,37 +1323,29 @@ def _collect_resume_skill_signals(resume: ResumeIR) -> list[str]:
 
 
 def _generate_role_summary(resume: ResumeIR, experience: Experience) -> str:
-    role_sentence = _shorten_sentence(experience.general_role_description, max_words=14)
+    role_seed = _summary_primary_clause(experience.general_role_description)
+    role_sentence = _shorten_sentence(role_seed, max_words=24)
     if not role_sentence:
         role_sentence = _shorten_sentence(
             f"Delivered {experience.job_title} outcomes across {experience.company}.",
-            max_words=14,
+            max_words=24,
         )
 
-    skills = _collect_selected_skill_signals(experience)
-    target_label = _target_summary_label(resume)
-    if skills:
-        if len(skills) >= 2:
-            focus = f"{skills[0]} and {skills[1]}"
-        else:
-            focus = skills[0]
-        alignment = f"Focused on {focus} to match {target_label} priorities."
-    else:
-        alignment = (
-            f"Focused on high-impact delivery to match {target_label} priorities."
-        )
-
-    candidate = _fit_summary_layout(f"{role_sentence} {alignment}")
-    if _summary_is_distinct_from_bullets(candidate, experience.bullets):
-        return candidate
-
-    fallback = _fit_summary_layout(
-        f"{role_sentence} Aligned execution with {target_label} expectations."
-    )
-    if _summary_is_distinct_from_bullets(fallback, experience.bullets):
-        return fallback
+    role_only = _fit_summary_layout(role_sentence)
+    if _summary_is_distinct_from_bullets(role_only, experience.bullets):
+        return role_only
 
     return _fit_summary_layout(role_sentence)
+
+
+def _summary_primary_clause(text: str) -> str:
+    """Prefer the first clause to reduce clipped trailing fragments in summaries."""
+    cleaned = text.strip()
+    if not cleaned:
+        return ""
+    parts = re.split(r"[,;\u2014]\s*", cleaned, maxsplit=1)
+    primary = parts[0].strip()
+    return primary or cleaned
 
 
 def _collect_selected_skill_signals(experience: Experience) -> list[str]:

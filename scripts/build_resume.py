@@ -7,6 +7,9 @@ Pipeline stages (in order):
 3. trim_for_role            - select/reorder bullets by role relevance (LLM)
 4. enrich_data              - attach role-alignment metadata to bullets (LLM)
 5. trim_by_rules            - enforce layout rules: deduplication, diversity, caps
+6. summarize_for_role       - generate concise per-role summaries from selected bullets
+7. select_skills            - reduce skills matrix to role-relevant categories/signals
+8. summarize_profile_for_role - generate top-of-page role-aware summary text
 
 Note: a future post-layout overflow pass may further shorten wording after page-fit
 measurement for a specific output target (for example PDF/DOCX two-page limits).
@@ -25,6 +28,7 @@ import re
 import sys
 import tomllib
 from dataclasses import dataclass, field
+from dataclasses import replace as dc_replace
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +59,12 @@ DEFAULT_MAX_BULLETS_PER_EXPERIENCE = 4
 DEFAULT_MAX_TOTAL_BULLETS = 20
 DEFAULT_MAX_ACTION_WORD_OCCURRENCES = 2
 DEFAULT_MIN_BULLETS_PER_EXPERIENCE = 3
+SUMMARY_LINE_WIDTH = 72
+SUMMARY_MAX_LINES = 2
+SUMMARY_MAX_WORDS = 30
+# Calibrated from sandbox resume corpus: longest observed summary (107 words) + 5.
+PROFILE_SUMMARY_MAX_WORDS = 112
+PROFILE_SUMMARY_MIN_RATIO = 0.8
 LLM_ENABLED_ENV = "RESUME_BUILDER_LLM_ENABLED"
 LLM_FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"
 
@@ -314,13 +324,58 @@ def _extract_seniority(text: str) -> str:
 
 
 def _normalize_role_acronyms(text: str) -> str:
+    """Normalize role acronyms while preserving casing for output."""
+    # Replace SDET and QA variants, preserving the case structure
     normalized = re.sub(r"\bsdet\b", "SDET", text, flags=re.IGNORECASE)
     normalized = re.sub(r"\bqa\b", "QA", normalized, flags=re.IGNORECASE)
     return normalized
 
 
+def _get_base_role(resume: ResumeIR) -> str:
+    """Extract base role label from role-hint/target-role first, not rendered title.
+
+    Uses the priority: target_role > job_context.role_hint > display_headline > profile_headline
+    This ensures summaries use the original role input, not a formatted/derived version.
+    """
+    # Priority 1: explicit target_role parameter
+    target_role = resume.target_role.strip()
+    if target_role:
+        base = target_role
+        if "|" in base:
+            base = base.split("|", maxsplit=1)[0].strip()
+        return " ".join(base.split())
+
+    # Priority 2: job context role_hint (if available)
+    if resume.job_context is not None:
+        role_hint = str(resume.job_context.role_hint).strip()
+        if role_hint:
+            if "|" in role_hint:
+                role_hint = role_hint.split("|", maxsplit=1)[0].strip()
+            return " ".join(role_hint.split())
+
+    # Priority 3: display_headline
+    headline = resume.display_headline.strip()
+    if headline:
+        if "|" in headline:
+            headline = headline.split("|", maxsplit=1)[0].strip()
+        return " ".join(headline.split())
+
+    # Fallback: profile headline
+    profile_headline = resume.profile.headline.strip()
+    if profile_headline:
+        if "|" in profile_headline:
+            profile_headline = profile_headline.split("|", maxsplit=1)[0].strip()
+        return " ".join(profile_headline.split())
+
+    return ""
+
+
 def derive_resume_title(resume: ResumeIR) -> str:
-    """Build a seniority-aware role title for the top title block in templates."""
+    """Build a seniority-aware, role-shape-aware title for the top title block.
+
+    Uses general deterministic formatting rules instead of brittle special-cases.
+    Applies seniority prefix when detected and not already present.
+    """
     target_role = resume.target_role.strip()
     headline = resume.display_headline.strip() or resume.profile.headline.strip()
     base = target_role or headline
@@ -342,7 +397,8 @@ def derive_resume_title(resume: ResumeIR) -> str:
     ):
         base = f"{base} / {specialization}"
 
-    return _normalize_role_acronyms(base)
+    normalized_base = _normalize_role_acronyms(base)
+    return normalized_base
 
 
 def load_experiences(path: Path) -> tuple[Experience, ...]:
@@ -614,6 +670,23 @@ _GENERIC_HYPE_PHRASES = (
     "dynamic professional",
 )
 _TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9+/#-]*")
+_SUMMARY_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "as",
+    "at",
+    "for",
+    "from",
+    "in",
+    "into",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "with",
+}
 
 
 def _normalize_transformed_bullet_text(
@@ -1007,6 +1080,336 @@ def trim_by_rules(resume: ResumeIR) -> ResumeIR:
         skills_by_category=resume.skills_by_category,
         enrichment_by_bullet_id=filtered_enrichment,
     )
+
+
+def summarize_for_role(resume: ResumeIR) -> ResumeIR:
+    """Generate deterministic 1-2 line per-role summaries from selected bullets."""
+    updated_experiences: list[Experience] = []
+    changed = False
+    for experience in resume.experiences:
+        generated_summary = _generate_role_summary(resume, experience)
+        if (
+            generated_summary
+            and generated_summary != experience.general_role_description
+        ):
+            updated_experiences.append(
+                dc_replace(experience, general_role_description=generated_summary)
+            )
+            changed = True
+        else:
+            updated_experiences.append(experience)
+
+    if not changed:
+        return resume
+
+    return dc_replace(resume, experiences=tuple(updated_experiences))
+
+
+def summarize_profile_for_role(resume: ResumeIR) -> ResumeIR:
+    """Generate a concise top-of-page summary from processed resume content."""
+    generated_summary = _generate_profile_summary(resume)
+    if not generated_summary or generated_summary == resume.profile.summary:
+        return resume
+
+    updated_profile = dc_replace(resume.profile, summary=generated_summary)
+    return dc_replace(resume, profile=updated_profile)
+
+
+def _generate_profile_summary(resume: ResumeIR) -> str:
+    """Generate a concise top-of-page summary from processed resume content.
+
+    Uses the base role (from role-hint or target-role) for framing, not the
+    rendered title string, to avoid circular dependencies and preserve original intent.
+    Preserves acronym casing (e.g., SDET, QA, Python) in skill descriptions.
+    """
+    role_label = _get_base_role(resume)
+    if not role_label:
+        role_label = derive_resume_title(resume).split("|", maxsplit=1)[0].strip()
+    role_label = role_label or "test automation engineer"
+    # Preserve original casing: do NOT lowercase role labels
+    skills = _collect_resume_skill_signals(resume)
+    if len(skills) >= 3:
+        focus_text = f"{skills[0]}, {skills[1]}, and {skills[2]}"
+    elif len(skills) == 2:
+        focus_text = f"{skills[0]} and {skills[1]}"
+    elif skills:
+        focus_text = skills[0]
+    else:
+        focus_text = "framework architecture, CI quality gates, and defect isolation"
+
+    candidate = (
+        f"Software engineer specializing in {role_label}, delivering reliable automation "
+        f"across UI, API, and service layers. Core strengths include {focus_text}."
+    )
+    words = candidate.split()
+    max_words = max(1, int(PROFILE_SUMMARY_MAX_WORDS))
+    min_words = min(max_words, max(1, math.ceil(max_words * PROFILE_SUMMARY_MIN_RATIO)))
+    if len(words) < min_words:
+        candidate = _expand_profile_summary_to_min_words(candidate, resume, min_words)
+        words = candidate.split()
+    if len(words) > max_words:
+        clipped_words = words[:max_words]
+        truncated = " ".join(clipped_words).rstrip(" ,;:")
+        # Avoid double punctuation when appending period
+        if not truncated.endswith((".", "!", "?")):
+            candidate = truncated + "."
+        else:
+            candidate = truncated
+    return candidate
+
+
+def _expand_profile_summary_to_min_words(
+    candidate: str, resume: ResumeIR, min_words: int
+) -> str:
+    """Deterministically expand short summaries to satisfy minimum word-count policy."""
+    additions = [
+        "Depth includes framework architecture, service-layer diagnostics, and dependable CI quality gates in production-like environments.",
+        "Recent delivery emphasizes cross-platform automation reliability, reproducible tooling, and actionable defect isolation for release confidence.",
+        "Leadership focus includes mentoring engineers, setting coding standards, and scaling maintainable test systems across distributed teams.",
+    ]
+
+    for experience in resume.experiences[:3]:
+        summary = _shorten_sentence(experience.general_role_description, max_words=16)
+        if summary:
+            additions.append(summary)
+
+    updated = candidate.rstrip()
+    words = updated.split()
+    index = 0
+    while len(words) < min_words and additions:
+        addition = additions[index % len(additions)].strip().rstrip(" ,;:")
+        if not addition.endswith((".", "!", "?")):
+            addition += "."
+        updated = f"{updated} {addition}".strip()
+        words = updated.split()
+        index += 1
+    return updated
+
+
+def _collect_resume_skill_signals(resume: ResumeIR) -> list[str]:
+    scores: dict[str, float] = {}
+    bullet_hits: dict[str, int] = {}
+    related_hits: dict[str, int] = {}
+    curated_hits: dict[str, int] = {}
+    max_confidence: dict[str, float] = {}
+    display_candidates: dict[str, set[str]] = {}
+
+    def add_skill(
+        raw_skill: str,
+        *,
+        weight: float,
+        source: str,
+        confidence: float = 0.0,
+    ) -> None:
+        cleaned = raw_skill.strip()
+        if not cleaned:
+            return
+        lowered = cleaned.lower()
+        scores[lowered] = scores.get(lowered, 0.0) + weight
+        display_candidates.setdefault(lowered, set()).add(cleaned)
+
+        if source == "bullet":
+            bullet_hits[lowered] = bullet_hits.get(lowered, 0) + 1
+            max_confidence[lowered] = max(max_confidence.get(lowered, 0.0), confidence)
+        elif source == "related":
+            related_hits[lowered] = related_hits.get(lowered, 0) + 1
+        elif source == "curated":
+            curated_hits[lowered] = curated_hits.get(lowered, 0) + 1
+
+    # Primary relevance signal: selected bullets and enrichment confidence.
+    for experience in resume.experiences:
+        for bullet in experience.bullets:
+            confidence = _bullet_confidence(bullet, resume.enrichment_by_bullet_id)
+            weight = 1.0 + confidence
+            for skill in bullet.skills:
+                add_skill(
+                    skill,
+                    weight=weight,
+                    source="bullet",
+                    confidence=confidence,
+                )
+
+        for skill in experience.related_skills:
+            add_skill(skill, weight=0.25, source="related")
+
+    # Secondary deterministic signal from curated skills matrix categories.
+    for category in sorted(resume.skills_by_category):
+        for skill in resume.skills_by_category[category]:
+            add_skill(skill, weight=0.4, source="curated")
+
+    ranked = sorted(
+        scores,
+        key=lambda key: (
+            -scores[key],
+            -bullet_hits.get(key, 0),
+            -max_confidence.get(key, 0.0),
+            -related_hits.get(key, 0),
+            -curated_hits.get(key, 0),
+            key,
+        ),
+    )
+    return [
+        sorted(display_candidates[key], key=lambda value: (value.lower(), value))[0]
+        for key in ranked[:3]
+    ]
+
+
+def _generate_role_summary(resume: ResumeIR, experience: Experience) -> str:
+    role_sentence = _shorten_sentence(experience.general_role_description, max_words=14)
+    if not role_sentence:
+        role_sentence = _shorten_sentence(
+            f"Delivered {experience.job_title} outcomes across {experience.company}.",
+            max_words=14,
+        )
+
+    skills = _collect_selected_skill_signals(experience)
+    target_label = _target_summary_label(resume)
+    if skills:
+        if len(skills) >= 2:
+            focus = f"{skills[0]} and {skills[1]}"
+        else:
+            focus = skills[0]
+        alignment = f"Focused on {focus} to match {target_label} priorities."
+    else:
+        alignment = (
+            f"Focused on high-impact delivery to match {target_label} priorities."
+        )
+
+    candidate = _fit_summary_layout(f"{role_sentence} {alignment}")
+    if _summary_is_distinct_from_bullets(candidate, experience.bullets):
+        return candidate
+
+    fallback = _fit_summary_layout(
+        f"{role_sentence} Aligned execution with {target_label} expectations."
+    )
+    if _summary_is_distinct_from_bullets(fallback, experience.bullets):
+        return fallback
+
+    return _fit_summary_layout(role_sentence)
+
+
+def _collect_selected_skill_signals(experience: Experience) -> list[str]:
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    for bullet in experience.bullets:
+        for skill in bullet.skills:
+            cleaned = skill.strip()
+            lowered = cleaned.lower()
+            if not cleaned or lowered in seen:
+                continue
+            seen.add(lowered)
+            ordered.append(cleaned)
+            if len(ordered) >= 2:
+                return ordered
+
+    for skill in experience.related_skills:
+        cleaned = skill.strip()
+        lowered = cleaned.lower()
+        if not cleaned or lowered in seen:
+            continue
+        seen.add(lowered)
+        ordered.append(cleaned)
+        if len(ordered) >= 2:
+            return ordered
+    return ordered
+
+
+def _target_summary_label(resume: ResumeIR) -> str:
+    target_role = str(resume.target_role).strip()
+    if target_role:
+        return target_role
+    if resume.job_context is not None:
+        role_hint = str(resume.job_context.role_hint).strip()
+        if role_hint:
+            return role_hint
+    return "the target role"
+
+
+def _shorten_sentence(text: str, *, max_words: int) -> str:
+    words = text.strip().replace("\n", " ").split()
+    if not words:
+        return ""
+    clipped = words[:max_words]
+    sentence = " ".join(clipped).strip(" ,;:")
+    if sentence and sentence[-1] not in ".!?":
+        sentence = f"{sentence}."
+    return sentence
+
+
+def _summary_wrap_lines(
+    summary: str, *, line_width: int = SUMMARY_LINE_WIDTH
+) -> list[str]:
+    words = summary.split()
+    if not words:
+        return []
+    lines: list[str] = []
+    current: list[str] = []
+    for word in words:
+        candidate = " ".join([*current, word])
+        if current and len(candidate) > line_width:
+            lines.append(" ".join(current))
+            current = [word]
+        else:
+            current.append(word)
+    if current:
+        lines.append(" ".join(current))
+    return lines
+
+
+def _fit_summary_layout(summary: str) -> str:
+    words = summary.strip().replace("\n", " ").split()
+    if not words:
+        return ""
+
+    while len(words) > SUMMARY_MAX_WORDS:
+        words.pop()
+
+    while words:
+        candidate = " ".join(words).strip(" ,;:")
+        if candidate and candidate[-1] not in ".!?":
+            candidate = f"{candidate}."
+        lines = _summary_wrap_lines(candidate)
+        if len(lines) > SUMMARY_MAX_LINES:
+            words.pop()
+            continue
+        if len(lines) > 1 and any(len(line.split()) == 1 for line in lines[1:]):
+            words.pop()
+            continue
+        return candidate
+
+    return ""
+
+
+def _summary_is_distinct_from_bullets(
+    summary: str, bullets: tuple[Bullet, ...]
+) -> bool:
+    summary_norm = " ".join(summary.lower().split())
+    if not summary_norm:
+        return False
+    summary_tokens = {
+        token.lower()
+        for token in _TOKEN_PATTERN.findall(summary_norm)
+        if len(token) >= 4 and token.lower() not in _SUMMARY_STOPWORDS
+    }
+    for bullet in bullets:
+        bullet_norm = " ".join(bullet.text.lower().split())
+        if not bullet_norm:
+            continue
+        if summary_norm == bullet_norm:
+            return False
+        if summary_norm in bullet_norm or bullet_norm in summary_norm:
+            return False
+        bullet_tokens = {
+            token.lower()
+            for token in _TOKEN_PATTERN.findall(bullet_norm)
+            if len(token) >= 4 and token.lower() not in _SUMMARY_STOPWORDS
+        }
+        if summary_tokens and bullet_tokens:
+            overlap = len(summary_tokens & bullet_tokens) / len(summary_tokens)
+            if overlap >= 0.75:
+                return False
+    return True
 
 
 def _apply_rule_based_trimming(
@@ -1670,7 +2073,9 @@ def run_pipeline(args: argparse.Namespace) -> int:
         resume = trim_for_role(resume)
         resume = enrich_data(resume)
         resume = trim_by_rules(resume)
+        resume = summarize_for_role(resume)
         resume = select_skills(resume)
+        resume = summarize_profile_for_role(resume)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 

@@ -12,6 +12,7 @@ Templates can be extended to support different layouts:
 from __future__ import annotations
 
 import html
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -35,6 +36,34 @@ class TemplateContext:
 
 class ResumeTemplate(ABC):
     """Base class for resume templates."""
+
+    def _normalize_heading_text(self, value: str) -> str:
+        """Normalize text for deduplication, preserving semantic intent.
+
+        - Converts c++ to cpp, c# to csharp for consistent comparison
+        - Normalizes spaces, punctuation, and case
+        - Ensures that c++, cpp, C++, CPP all normalize to the same key
+        """
+        normalized = value.strip().lower()
+        # Semantic normalizations: c++ → cpp, c# → csharp
+        normalized = re.sub(r"c\+\+", "cpp", normalized)
+        normalized = re.sub(r"c#", "csharp", normalized)
+        # Then normalize punctuation and spacing
+        normalized = normalized.replace("|", " ").replace("/", " ")
+        return re.sub(r"[^a-z0-9]+", " ", normalized).strip()
+
+    def _render_headline(self, context: TemplateContext) -> str:
+        headline = context.headline.strip()
+        if not headline:
+            return ""
+        headline_norm = self._normalize_heading_text(headline)
+        title_norm = self._normalize_heading_text(context.resume_title)
+        # Suppress headline when it is equal to or a prefix/substring of the resume
+        # title (e.g. headline="Senior SDET", title="Senior SDET / Framework Architect")
+        # so the header never shows redundant role lines.
+        if headline_norm and title_norm and headline_norm in title_norm:
+            return ""
+        return f'<p class="headline">{html.escape(headline)}</p>'
 
     def _render_title_summary(self, context: TemplateContext) -> list[str]:
         return [
@@ -89,30 +118,30 @@ class DefaultTemplate(ResumeTemplate):
 
     def get_css(self) -> str:
         return """    body { font-family: Calibri, Arial, sans-serif; margin: 16px auto; width: 510pt; font-size: 11pt; line-height: 1.22; color: #111; }
-     .header { margin: 0; }
-     h1 { margin: 0 0 2px 0; font-size: 18pt; font-weight: 700; line-height: 1.15; }
-     .headline { margin: 0; font-size: 11pt; }
-     .contact { display: grid; grid-template-columns: 1fr; gap: 0; margin: 2px 0 0 0; font-size: 10.5pt; }
-     .contact-line { margin: 0; }
-     .target-role { margin: 1px 0 0 0; font-size: 10.5pt; }
-     .header-divider { border: 0; border-top: 1px solid #000; margin: 5px 0 6px 0; }
-     .resume-title { margin: 0; font-size: 11.5pt; font-weight: 700; }
-     .summary-text { margin: 2px 0 6px 0; font-size: 10.5pt; }
-     h2 { font-size: 12pt; font-weight: 700; text-transform: none; letter-spacing: 0; margin: 10px 0 4px 0; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
-     .company-line { margin: 0; display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5pt; line-height: 1.15; }
-     .company-line span { margin-left: auto; text-align: right; font-size: 10pt; color: #222; font-weight: 700; }
-     h3 { margin: 0; font-size: 11pt; font-weight: 700; }
-     h3.job-title-line { display: flex; justify-content: space-between; align-items: baseline; line-height: 1.15; }
-     h3 span { font-weight: 400; color: #222; text-align: right; margin-left: auto; font-size: 10pt; }
-     .dates { margin: 0; font-size: 10pt; color: #444; text-align: right; }
-     .role-summary { margin: 1px 0; font-size: 10.5pt; }
-     .related-skills { display: none; }
-     .skills-category { margin: 0 0 3px 0; font-size: 10.5pt; }
-     ul { margin: 1px 0 0 16px; padding: 0; }
-     li { margin: 1px 0; font-size: 10.5pt; }
-     .experience-item { margin-bottom: 6px; }
-     .info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center; }
-     .info-item p { margin: 1px 0; }"""
+    .header { margin: 0; }
+    h1 { margin: 0 0 2px 0; font-size: 18pt; font-weight: 700; line-height: 1.15; }
+    .headline { margin: 0; font-size: 11pt; }
+    .contact { display: grid; grid-template-columns: 1fr; gap: 0; margin: 2px 0 0 0; font-size: 10.5pt; }
+    .contact-line { margin: 0; }
+    .target-role { margin: 1px 0 0 0; font-size: 10.5pt; }
+    .header-divider { border: 0; border-top: 1px solid #000; margin: 5px 0 6px 0; }
+    .resume-title { margin: 0; font-size: 11.5pt; font-weight: 700; }
+    .summary-text { margin: 2px 0 6px 0; font-size: 10.5pt; }
+    h2 { font-size: 12pt; font-weight: 700; text-transform: none; letter-spacing: 0; margin: 10px 0 4px 0; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
+    .company-line { margin: 0; display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5pt; line-height: 1.15; }
+    .company-line span { margin-left: auto; text-align: right; font-size: 10pt; color: #222; font-weight: 700; }
+    h3 { margin: 0; font-size: 11pt; font-weight: 700; }
+    h3.job-title-line { display: flex; justify-content: space-between; align-items: baseline; line-height: 1.15; }
+    h3 span { font-weight: 400; color: #222; text-align: right; margin-left: auto; font-size: 10pt; }
+    .dates { margin: 0; font-size: 10pt; color: #444; text-align: right; }
+    .role-summary { margin: 1px 0; font-size: 10.5pt; }
+    .related-skills { display: none; }
+    .skills-category { margin: 0 0 3px 0; font-size: 10.5pt; }
+    ul { margin: 1px 0 0 16px; padding: 0; }
+    li { margin: 1px 0; font-size: 10.5pt; }
+    .experience-item { margin-bottom: 6px; }
+    .info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center; }
+    .info-item p { margin: 1px 0; }"""
 
     def render(self, context: TemplateContext) -> str:
         # Split contact info: location/email first line, LinkedIn/GitHub on second line
@@ -132,6 +161,7 @@ class DefaultTemplate(ResumeTemplate):
             links_line = " | ".join(links)
             contact_html_formatted += f'    <p class="contact-line">{links_line}</p>\n'
         contact_html_formatted += "  </div>"
+        headline_html = self._render_headline(context)
         return "\n".join(
             [
                 "<!doctype html>",
@@ -146,7 +176,7 @@ class DefaultTemplate(ResumeTemplate):
                 "</head>",
                 "<body>",
                 f"  <h1>{html.escape(context.name)}</h1>",
-                f'  <p class="headline">{html.escape(context.headline)}</p>',
+                f"  {headline_html}" if headline_html else "",
                 contact_html_formatted.rstrip(),
                 '  <hr class="header-divider" />',
                 *self._render_title_summary(context),
@@ -163,29 +193,30 @@ class ModernTemplate(ResumeTemplate):
 
     def get_css(self) -> str:
         return """    body { font-family: Calibri, Arial, sans-serif; margin: 16px auto; width: 510pt; font-size: 11pt; line-height: 1.22; color: #111; }
-     .header { text-align: center; margin: 0; }
-     h1 { margin: 0 0 2px 0; font-size: 18pt; font-weight: 700; line-height: 1.15; text-align: center; }
-     .contact { display: grid; grid-template-columns: 1fr; gap: 0; margin: 2px 0 0 0; font-size: 10.5pt; text-align: center; }
-     .contact-line { margin: 0; }
-     .target-role { margin: 1px 0 0 0; font-size: 10.5pt; text-align: center; }
-     .header-divider { border: 0; border-top: 1px solid #000; margin: 5px 0 6px 0; }
-     .resume-title { margin: 0; font-size: 11.5pt; font-weight: 700; text-align: center; }
-     .summary-text { margin: 2px 0 6px 0; text-align: center; font-size: 10.5pt; }
-     h2 { font-size: 12pt; font-weight: 700; text-transform: none; letter-spacing: 0; margin: 10px 0 4px 0; border-bottom: none; text-align: center; width: 100%; display: block; }
-     .company-line { margin: 0; display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5pt; text-align: left; line-height: 1.15; }
-     .company-line span { margin-left: auto; text-align: right; font-size: 10pt; color: #222; font-weight: 700; }
-     h3 { margin: 0; font-size: 11pt; font-weight: 700; }
-     h3.job-title-line { display: flex; justify-content: space-between; align-items: baseline; line-height: 1.15; }
-     h3 span { font-weight: 400; color: #222; text-align: right; margin-left: auto; font-size: 10pt; }
-     .dates { margin: 0; font-size: 10pt; color: #444; text-align: right; }
-     .role-summary { margin: 1px 0; font-size: 10.5pt; }
-     .related-skills { display: none; }
-     .skills-category { margin: 0 0 3px 0; font-size: 10.5pt; }
-     ul { margin: 1px 0 0 16px; padding: 0; }
-     li { margin: 1px 0; font-size: 10.5pt; }
-     .experience-item { margin-bottom: 6px; }
-     .info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center; }
-     .info-item p { margin: 1px 0; }"""
+    .header { text-align: center; margin: 0; }
+    h1 { margin: 0 0 2px 0; font-size: 18pt; font-weight: 700; line-height: 1.15; text-align: center; }
+    .headline { margin: 0; font-size: 11pt; text-align: center; }
+    .contact { display: grid; grid-template-columns: 1fr; gap: 0; margin: 2px 0 0 0; font-size: 10.5pt; text-align: center; }
+    .contact-line { margin: 0; }
+    .target-role { margin: 1px 0 0 0; font-size: 10.5pt; text-align: center; }
+    .header-divider { border: 0; border-top: 1px solid #000; margin: 5px 0 6px 0; }
+    .resume-title { margin: 0; font-size: 11.5pt; font-weight: 700; text-align: center; }
+    .summary-text { margin: 2px 0 6px 0; font-size: 10.5pt; text-align: center; }
+    h2 { font-size: 12pt; font-weight: 700; text-transform: none; letter-spacing: 0; margin: 10px 0 4px 0; border-bottom: none; text-align: center; width: 100%; display: block; }
+    .company-line { margin: 0; display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5pt; text-align: left; line-height: 1.15; }
+    .company-line span { margin-left: auto; text-align: right; font-size: 10pt; color: #222; font-weight: 700; }
+    h3 { margin: 0; font-size: 11pt; font-weight: 700; }
+    h3.job-title-line { display: flex; justify-content: space-between; align-items: baseline; line-height: 1.15; }
+    h3 span { font-weight: 400; color: #222; text-align: right; margin-left: auto; font-size: 10pt; }
+    .dates { margin: 0; font-size: 10pt; color: #444; text-align: right; }
+    .role-summary { margin: 1px 0; font-size: 10.5pt; }
+    .related-skills { display: none; }
+    .skills-category { margin: 0 0 3px 0; font-size: 10.5pt; text-align: center; }
+    ul { margin: 1px 0 0 16px; padding: 0; }
+    li { margin: 1px 0; font-size: 10.5pt; }
+    .experience-item { margin-bottom: 6px; }
+    .info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center; }
+    .info-item p { margin: 1px 0; }"""
 
     def render(self, context: TemplateContext) -> str:
         # Split contact info: location/email first line, LinkedIn/GitHub on second line
@@ -209,6 +240,7 @@ class ModernTemplate(ResumeTemplate):
                 f'      <p class="contact-line">{links_line}</p>\n'
             )
         contact_html_formatted += "    </div>"
+        headline_html = self._render_headline(context)
         return "\n".join(
             [
                 "<!doctype html>",
@@ -224,6 +256,7 @@ class ModernTemplate(ResumeTemplate):
                 "<body>",
                 '  <div class="header">',
                 f"    <h1>{html.escape(context.name)}</h1>",
+                f"    {headline_html}" if headline_html else "",
                 contact_html_formatted.rstrip(),
                 "  </div>",
                 '  <hr class="header-divider" />',

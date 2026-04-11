@@ -1,5 +1,5 @@
 {
-  "bullet_count": 20,
+  "bullet_count": 23,
   "enrichment_count": 0,
   "experience_count": 6,
   "profile": {
@@ -13,13 +13,13 @@
     "linkedin": "jonathan-j-smith-automation",
     "linkedin_url": "linkedin.com/in/jonathan-j-smith-automation",
     "location": "Temple, TX, 76502",
-    "name": "Jonathan Smith",
+    "name": "Jonathan J. Smith",
     "phone": "(512) 555-0142",
     "summary": "Baseline resume output generated from canonical data. Edit this summary manually for each target role while automation stages are added incrementally.",
     "website": ""
   },
-  "skills_category_count": 5,
-  "skills_count": 52,
+  "skills_category_count": 16,
+  "skills_count": 137,
   "target_company": "",
   "target_role": ""
 }

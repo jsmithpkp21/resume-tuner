@@ -1418,39 +1418,8 @@ def test_trim_by_rules_enforces_total_bullet_cap() -> None:
 
 def test_summarize_for_role_generates_distinct_summaries() -> None:
     profile = load_profile(PROFILE)
-    experiences = (
-        Experience(
-            id="exp-1",
-            job_title="Architect, Python Test Framework",
-            company="Contoso",
-            start_date="2024-01",
-            end_date="2025-01",
-            general_role_description="Owned framework strategy across shared quality initiatives.",
-            related_skills=("Python", "Pytest", "CI/CD"),
-            bullets=(
-                Bullet(
-                    id="b1",
-                    text="Designed framework abstractions for resilient UI and API automation.",
-                    skills=("Python", "Pytest"),
-                    impact_type="architecture",
-                    domain="automation",
-                ),
-                Bullet(
-                    id="b2",
-                    text="Integrated validation workflows into CI pipelines with quality gates.",
-                    skills=("CI/CD", "GitHub Actions"),
-                    impact_type="quality",
-                    domain="automation",
-                ),
-                Bullet(
-                    id="b3",
-                    text="Reduced triage time by improving diagnostics and test reliability tooling.",
-                    skills=("Python", "Logging"),
-                    impact_type="quality",
-                    domain="debugging",
-                ),
-            ),
-        ),
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
     )
     resume = assemble_baseline_resume(
         profile=profile,
@@ -1466,13 +1435,23 @@ def test_summarize_for_role_generates_distinct_summaries() -> None:
     )
 
     summarized = summarize_for_role(resume)
-    summary = summarized.experiences[0].general_role_description
-    assert summary.strip()
-    for bullet in summarized.experiences[0].bullets:
-        assert summary.strip().lower() != bullet.text.strip().lower()
-        assert summary.strip().lower() not in bullet.text.strip().lower()
-    assert "Focused on" not in summary
-    assert "Aligned execution" not in summary
+    changed = [
+        (before, after)
+        for before, after in zip(
+            resume.experiences, summarized.experiences, strict=True
+        )
+        if before.general_role_description != after.general_role_description
+    ]
+    assert changed
+
+    for _before, after in changed:
+        summary = after.general_role_description
+        assert summary.strip()
+        for bullet in after.bullets:
+            assert summary.strip().lower() != bullet.text.strip().lower()
+            assert summary.strip().lower() not in bullet.text.strip().lower()
+        assert "Focused on" not in summary
+        assert "Aligned execution" not in summary
 
 
 def test_summarize_for_role_enforces_two_line_layout_without_single_word_wraps() -> (

@@ -1109,7 +1109,7 @@ def summarize_for_role(resume: ResumeIR) -> ResumeIR:
     """Generate deterministic 1-2 line per-role summaries from selected bullets."""
     updated_experiences: list[Experience] = []
     changed = False
-    for experience in resume.experiences[2:]:
+    for experience in resume.experiences:
         generated_summary = _generate_role_summary(resume, experience)
         if (
             generated_summary
@@ -1332,10 +1332,26 @@ def _generate_role_summary(resume: ResumeIR, experience: Experience) -> str:
         )
 
     role_only = _fit_summary_layout(role_sentence)
-    if _summary_is_distinct_from_bullets(role_only, experience.bullets):
+    if (
+        role_only
+        and role_only != experience.general_role_description
+        and _summary_is_distinct_from_bullets(role_only, experience.bullets)
+    ):
         return role_only
 
-    return _fit_summary_layout(role_sentence)
+    if experience.bullets:
+        bullet_seed = _summary_primary_clause(experience.bullets[0].text)
+        bullet_sentence = _shorten_sentence(bullet_seed, max_words=14)
+        if bullet_sentence:
+            candidate = _fit_summary_layout(f"{role_sentence} {bullet_sentence}")
+            if (
+                candidate
+                and candidate != experience.general_role_description
+                and _summary_is_distinct_from_bullets(candidate, experience.bullets)
+            ):
+                return candidate
+
+    return role_only
 
 
 def _summary_primary_clause(text: str) -> str:

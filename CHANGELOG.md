@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.5.0...v0.5.1) (2026-04-11)
+
+
+### Bug Fixes
+
+* **summary:** address review feedback and restore check ([3927da5](https://github.com/jsmithpkp21/resume-builder/commit/3927da5d607e56f2f377ff8b7cccb3e793ee67ad))
+* **summary:** prevent fragmented role summary output ([df0419f](https://github.com/jsmithpkp21/resume-builder/commit/df0419f2bb6fbb162a847f825367442d1b034cf0))
+* **test:** assert non-empty summary in fragment regression ([620e2f3](https://github.com/jsmithpkp21/resume-builder/commit/620e2f39e522a2bfeb250698a953e9ea02b7d514))
+
 ## [0.5.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.4.0...v0.5.0) (2026-04-11)
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.5.1...v0.5.2) (2026-04-11)
+
+
+### Bug Fixes
+
+* **skills:** deduplicate category entries and enforce casing ([2986ddb](https://github.com/jsmithpkp21/resume-builder/commit/2986ddb2a159702d6d8bbf776496841247bc4347))
+* **test:** tighten skills duplicate contract assertions ([cad2f71](https://github.com/jsmithpkp21/resume-builder/commit/cad2f713f0516273aa4b8e4dfd31c088bd5d960b))
+
 ## [0.5.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.5.0...v0.5.1) (2026-04-11)
 
 

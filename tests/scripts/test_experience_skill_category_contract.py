@@ -50,6 +50,38 @@ def test_skills_matrix_has_single_nonempty_category_per_skill() -> None:
     assert mapping, "skills_matrix.csv must contain at least one skill"
 
 
+def test_skills_matrix_no_case_insensitive_duplicates_within_category() -> None:
+    """Guard against the same skill appearing twice under one category with different casing.
+
+    Example violation: 'Automation strategy' and 'Automation Strategy' both mapped to
+    'Automation & Framework Engineering' would be caught here.
+    """
+    category_to_lower: dict[str, dict[str, str]] = {}
+    duplicates: list[str] = []
+
+    with SKILLS_CSV.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for idx, row in enumerate(reader, start=2):
+            skill = (row.get("Skills") or "").strip()
+            category = (row.get("Category") or "").strip()
+            if not skill or not category:
+                continue
+            lower_key = skill.lower()
+            seen = category_to_lower.setdefault(category, {})
+            if lower_key in seen and seen[lower_key] != skill:
+                duplicates.append(
+                    f"Row {idx}: '{skill}' is a case variant of '{seen[lower_key]}' "
+                    f"in category '{category}'"
+                )
+            else:
+                seen[lower_key] = skill
+
+    assert not duplicates, (
+        "skills_matrix.csv contains case-insensitive duplicate skills within the same category:\n"
+        + "\n".join(duplicates)
+    )
+
+
 def test_all_experience_bullet_skills_exist_in_skills_matrix() -> None:
     skill_map = _load_skill_to_category()
     experiences = _load_experience()

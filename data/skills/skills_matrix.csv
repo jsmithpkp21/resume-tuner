@@ -21,20 +21,16 @@ Data-driven frameworks,Automation & Framework Architecture
 Java automation frameworks,Automation & Framework Architecture
 Orchestration design,Automation & Framework Architecture
 Page Object Model (POM),Automation & Framework Architecture
-Playwright (Python),Automation & Framework Architecture
 Python automation frameworks,Automation & Framework Architecture
 Reusable components,Automation & Framework Architecture
 Scalable UI/API automation,Automation & Framework Architecture
 Selenium WebDriver,Automation & Framework Architecture
 Test data management,Automation & Framework Architecture
 TestNG,Automation & Framework Architecture
-UI/model-agnostic design,Automation & Framework Architecture
 Automation,Automation & Framework Engineering
 Automation framework design,Automation & Framework Engineering
-Automation strategy,Automation & Framework Engineering
 Automation troubleshooting,Automation & Framework Engineering
 Device automation,Automation & Framework Engineering
-Framework design,Automation & Framework Engineering
 Orchestration,Automation & Framework Engineering
 Artifact management,CI/CD & Tooling
 CI/CD,CI/CD & Tooling
@@ -68,7 +64,6 @@ Observability,Debugging & Analysis
 Performance profiling,Debugging & Analysis
 Regression analysis,Debugging & Analysis
 Root cause analysis,Debugging & Analysis
-Distributed systems,Distributed Systems & Infrastructure
 Distributed tracing,Distributed Systems & Infrastructure
 Hybrid cloud interactions (on-prem <-> cloud),Distributed Systems & Infrastructure
 Multi-device automation labs,Distributed Systems & Infrastructure
@@ -104,7 +99,6 @@ JUnit 4,Testing & Validation
 JUnit 5,Testing & Validation
 Multi-environment compatibility testing,Testing & Validation
 Parallel execution,Testing & Validation
-PyTest,Testing & Validation
 Regression testing,Testing & Validation
 REST API testing,Testing & Validation
 Risk-based testing,Testing & Validation

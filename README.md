@@ -26,6 +26,7 @@ Generate a full editable baseline resume from canonical data:
 ```bash
 make active
 python scripts/build_resume.py
+python scripts/build_resume.py --output-dir sandbox/outputs/resume_runs/charles_schwab
 ```
 
 Default artifacts (raw mode):
@@ -43,6 +44,12 @@ Default artifacts (processed mode):
 - `data/review/outputs/baseline/latest_resume_processed.md`
 - `data/review/outputs/baseline/latest_resume_processed_ir_snapshot.json`
 - `data/review/outputs/baseline/latest_resume_processed_ir_snapshot.txt`
+
+Compatibility and local-output notes:
+
+- Legacy `latest_*` artifact names remain the primary contract for tests/docs.
+- When a target company is resolved (for example from `--job-url`), company-scoped aliases are also emitted (for example `charles_schwab_resume_raw.html`).
+- For day-to-day local runs, prefer `--output-dir sandbox/outputs/...`; `sandbox/` is git-ignored.
 
 ---
 

@@ -25,6 +25,7 @@ import logging
 import math
 import os
 import re
+import shutil
 import sys
 import tomllib
 from dataclasses import dataclass, field
@@ -1673,6 +1674,38 @@ def _display_company_header(company: str) -> str:
     return canonical
 
 
+def _slugify_output_label(value: str) -> str:
+    """Normalize artifact labels for cross-platform filenames."""
+    normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower())
+    normalized = re.sub(r"_+", "_", normalized).strip("_")
+    return normalized
+
+
+def _build_artifact_prefixes(
+    *, processing_mode: str, target_company: str
+) -> tuple[str, str]:
+    """Return (legacy_prefix, company_prefix) for dual-write artifacts."""
+    mode_suffix = "processed" if processing_mode == "processed" else "raw"
+    legacy_prefix = f"latest_resume_{mode_suffix}"
+    company_slug = _slugify_output_label(target_company)
+    if not company_slug:
+        return legacy_prefix, legacy_prefix
+    return legacy_prefix, f"{company_slug}_resume_{mode_suffix}"
+
+
+def _secondary_template_prefix(output_prefix: str, secondary_template: str) -> str:
+    """Return the secondary HTML prefix derived from a primary prefix.
+    Splits on the *last* _resume_ segment so that company slugs which
+    themselves contain the word "resume" (e.g. resume_corp_resume_raw) are
+    not mangled.
+    """
+    base, _, mode_suffix = output_prefix.rpartition("_resume_")
+    if not base:
+        # Fallback: prefix has no "_resume_" token; append template name.
+        return f"{output_prefix}_{secondary_template}"
+    return f"{base}_{secondary_template}_resume_{mode_suffix}"
+
+
 def render_html(
     resume: ResumeIR, output_path: Path, template_name: str = "default"
 ) -> None:
@@ -2079,10 +2112,9 @@ def run_pipeline(args: argparse.Namespace) -> int:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    output_prefix = (
-        "latest_resume_processed"
-        if args.processing_mode == "processed"
-        else "latest_resume_raw"
+    legacy_prefix, company_prefix = _build_artifact_prefixes(
+        processing_mode=args.processing_mode,
+        target_company=resolved_target_company,
     )
     # For processed mode, use modern template as primary; for raw, use default.
     primary_template = "modern" if args.processing_mode == "processed" else "default"
@@ -2090,14 +2122,23 @@ def run_pipeline(args: argparse.Namespace) -> int:
     if secondary_template == primary_template:
         secondary_template = "default" if primary_template == "modern" else "modern"
 
-    html_output = args.output_dir / f"{output_prefix}.html"
-    secondary_html_output = args.output_dir / output_prefix.replace(
-        "latest_resume_", f"latest_{secondary_template}_resume_"
+    html_output = args.output_dir / f"{legacy_prefix}.html"
+    secondary_html_output = (
+        args.output_dir
+        / f"{_secondary_template_prefix(legacy_prefix, secondary_template)}.html"
     )
-    secondary_html_output = secondary_html_output.with_suffix(".html")
-    md_output = args.output_dir / f"{output_prefix}.md"
-    ir_output = args.output_dir / f"{output_prefix}_ir_snapshot.json"
-    text_snapshot_output = args.output_dir / f"{output_prefix}_ir_snapshot.txt"
+    md_output = args.output_dir / f"{legacy_prefix}.md"
+    ir_output = args.output_dir / f"{legacy_prefix}_ir_snapshot.json"
+    text_snapshot_output = args.output_dir / f"{legacy_prefix}_ir_snapshot.txt"
+
+    company_html_output = args.output_dir / f"{company_prefix}.html"
+    company_secondary_html_output = (
+        args.output_dir
+        / f"{_secondary_template_prefix(company_prefix, secondary_template)}.html"
+    )
+    company_md_output = args.output_dir / f"{company_prefix}.md"
+    company_ir_output = args.output_dir / f"{company_prefix}_ir_snapshot.json"
+    company_text_snapshot_output = args.output_dir / f"{company_prefix}_ir_snapshot.txt"
 
     render_html(resume, html_output, template_name=primary_template)
     render_html(resume, secondary_html_output, template_name=secondary_template)
@@ -2106,6 +2147,14 @@ def run_pipeline(args: argparse.Namespace) -> int:
     write_ir_snapshot(resume, ir_output)
     write_text_snapshot(resume, text_snapshot_output)
 
+    if company_prefix != legacy_prefix:
+        shutil.copyfile(html_output, company_html_output)
+        shutil.copyfile(secondary_html_output, company_secondary_html_output)
+        if not args.skip_markdown:
+            shutil.copyfile(md_output, company_md_output)
+        shutil.copyfile(ir_output, company_ir_output)
+        shutil.copyfile(text_snapshot_output, company_text_snapshot_output)
+
     print(f"Resume output written to ({args.processing_mode} mode): {args.output_dir}")
     print(f"- {html_output}")
     print(f"- {secondary_html_output}")
@@ -2113,6 +2162,14 @@ def run_pipeline(args: argparse.Namespace) -> int:
         print(f"- {md_output}")
     print(f"- {ir_output}")
     print(f"- {text_snapshot_output}")
+    if company_prefix != legacy_prefix:
+        print("Company-scoped aliases:")
+        print(f"- {company_html_output}")
+        print(f"- {company_secondary_html_output}")
+        if not args.skip_markdown:
+            print(f"- {company_md_output}")
+        print(f"- {company_ir_output}")
+        print(f"- {company_text_snapshot_output}")
     return 0
 
 

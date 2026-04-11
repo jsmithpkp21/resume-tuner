@@ -51,7 +51,7 @@ def test_skills_matrix_has_single_nonempty_category_per_skill() -> None:
 
 
 def test_skills_matrix_no_case_insensitive_duplicates_within_category() -> None:
-    """Guard against the same skill appearing twice under one category with different casing.
+    """Guard against repeated skills within one category (exact or case-variant).
 
     Example violation: 'Automation strategy' and 'Automation Strategy' both mapped to
     'Automation & Framework Engineering' would be caught here.
@@ -61,23 +61,35 @@ def test_skills_matrix_no_case_insensitive_duplicates_within_category() -> None:
 
     with SKILLS_CSV.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
+        assert reader.fieldnames is not None
+        assert "Skills" in reader.fieldnames and "Category" in reader.fieldnames, (
+            "skills_matrix.csv must include Skills and Category headers"
+        )
+
         for idx, row in enumerate(reader, start=2):
             skill = (row.get("Skills") or "").strip()
             category = (row.get("Category") or "").strip()
-            if not skill or not category:
-                continue
+            assert skill, f"Row {idx}: Skills must not be empty"
+            assert category, f"Row {idx}: Category must not be empty"
+
             lower_key = skill.lower()
             seen = category_to_lower.setdefault(category, {})
-            if lower_key in seen and seen[lower_key] != skill:
-                duplicates.append(
-                    f"Row {idx}: '{skill}' is a case variant of '{seen[lower_key]}' "
-                    f"in category '{category}'"
-                )
-            else:
-                seen[lower_key] = skill
+            if lower_key in seen:
+                prior = seen[lower_key]
+                if prior == skill:
+                    duplicates.append(
+                        f"Row {idx}: '{skill}' is duplicated in category '{category}'"
+                    )
+                else:
+                    duplicates.append(
+                        f"Row {idx}: '{skill}' is a case variant of '{prior}' "
+                        f"in category '{category}'"
+                    )
+                continue
+            seen[lower_key] = skill
 
     assert not duplicates, (
-        "skills_matrix.csv contains case-insensitive duplicate skills within the same category:\n"
+        "skills_matrix.csv contains duplicate skills within the same category:\n"
         + "\n".join(duplicates)
     )
 

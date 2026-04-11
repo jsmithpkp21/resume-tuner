@@ -167,7 +167,7 @@ job_title = "Lead Technical Designer, Corporate Automation Initiative"
 company = "HP / Poly"
 start_date = "2015-06"
 end_date = "2019-06"
-general_role_description = "Provided senior-level architectural guidance and technical design leadership for a company-wide automation initiative, shaping early framework concepts, evaluating migration paths, and advising multiple product organizations."
+general_role_description = "Provided senior-level architectural guidance and technical design leadership for a cross-organization automation initiative, shaping early framework concepts, evaluating migration paths, and advising multiple product organizations without line-management authority."
 related_skills = ["Architecture", "Automation Strategy", "Python", "Prototype Design", "Logging", "Observability", "Distributed Systems"]
 related_skills_inferred = []
 
@@ -201,13 +201,13 @@ job_title = "Lead Framework Designer, Video SQA Automation"
 company = "HP / Poly"
 start_date = "2008-08"
 end_date = "2015-06"
-general_role_description = "Principal architect and long-term owner of the Video SQA automation framework, a system that supported ~16 endpoint models, 30-40 releases, and remained in active use for over a decade across global SQA teams."
+general_role_description = "Principal architect and long-term technical steward of the Video SQA automation framework, a system that supported ~16 endpoint models, 30-40 releases, and remained in active use for over a decade across global SQA teams."
 related_skills = ["Technical Leadership", "Mentoring", "Process Design", "Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design", "CI/CD", "Test reliability engineering", "Distributed Execution", "REST/SOAP Integration", "Telnet/CLI Automation", "Web UI Automation"]
 related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b01"
-text = "Led a distributed team of 15 engineers across four countries and five time zones, improving engineering quality and reducing new-test creation time by 30 percent."
+text = "Provided technical leadership for a distributed group of 15 engineers across four countries and five time zones, improving engineering quality and reducing new-test creation time by 30 percent."
 skills = ["Technical Leadership", "Mentoring", "Process Design"]
 categories = ["Technical Leadership", "Architecture"]
 impact_type = "mentoring"

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.3.1...v0.4.0) (2026-04-11)
+
+
+### Features
+
+* **resume:** calibrate profile summary word cap from sandbox resumes ([#53](https://github.com/jsmithpkp21/resume-builder/issues/53)) ([ec1f441](https://github.com/jsmithpkp21/resume-builder/commit/ec1f4413698a72119dd16b4cd0b74b4e0e2d4147))
+
 ## [0.3.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.3.0...v0.3.1) (2026-04-10)
 
 

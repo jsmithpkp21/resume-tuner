@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.4.0...v0.5.0) (2026-04-11)
+
+
+### Features
+
+* **resume:** add company output aliases and sandbox-first run guidance ([#55](https://github.com/jsmithpkp21/resume-builder/issues/55)) ([4f2f293](https://github.com/jsmithpkp21/resume-builder/commit/4f2f293833774b5985d905c663d7632d37b74a24))
+
 ## [0.4.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.3.1...v0.4.0) (2026-04-11)
 
 

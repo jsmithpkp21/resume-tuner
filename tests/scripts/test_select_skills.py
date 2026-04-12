@@ -458,3 +458,59 @@ def test_compute_category_industry_weights_fails_open_for_unknown_industry() -> 
         "Programming & Scripting": 0.0,
         "Security & Compliance": 0.0,
     }
+
+
+def test_compute_category_industry_weights_ignores_generic_zero_phrase() -> None:
+    resume = _DummyResume(
+        skills_by_category={
+            "Security & Compliance": ["Threat Modeling"],
+            "Platforms": ["Linux"],
+        },
+        job_context=_DummyJobContext(
+            description_excerpt="platform reliability with zero downtime targets",
+        ),
+    )
+
+    category_weights = _compute_category_industry_weights(
+        resume,
+        skills_by_category=resume.skills_by_category,
+    )
+
+    assert category_weights == {
+        "Security & Compliance": 0.0,
+        "Platforms": 0.0,
+    }
+
+
+def test_compute_category_industry_weights_jd_boost_uses_jd_excerpt_only() -> None:
+    shared_skills = {"Security & Compliance": ["Threat Modeling"]}
+
+    role_only_resume = _DummyResume(
+        skills_by_category=shared_skills,
+        target_role="Compliance Engineer",
+        job_context=_DummyJobContext(
+            description_excerpt="backend platform services",
+            company_research=_DummyCompanyResearch(industry_hint="Financial services"),
+        ),
+    )
+    role_only_weights = _compute_category_industry_weights(
+        role_only_resume,
+        skills_by_category=role_only_resume.skills_by_category,
+    )
+
+    jd_resume = _DummyResume(
+        skills_by_category=shared_skills,
+        target_role="Compliance Engineer",
+        job_context=_DummyJobContext(
+            description_excerpt="backend platform services with compliance controls",
+            company_research=_DummyCompanyResearch(industry_hint="Financial services"),
+        ),
+    )
+    jd_weights = _compute_category_industry_weights(
+        jd_resume,
+        skills_by_category=jd_resume.skills_by_category,
+    )
+
+    assert (
+        jd_weights["Security & Compliance"] > role_only_weights["Security & Compliance"]
+    )

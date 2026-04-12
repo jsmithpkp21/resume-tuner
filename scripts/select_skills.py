@@ -74,7 +74,7 @@ _INDUSTRY_PROFILE_KEYWORDS: dict[str, frozenset[str]] = {
             "soc",
             "threat",
             "vulnerability",
-            "zero",
+            "zero-trust",
         }
     ),
     "media": frozenset(
@@ -443,11 +443,17 @@ def _compute_category_industry_weights(
     skills_by_category: dict[str, list[str]],
 ) -> dict[str, float]:
     """Compute per-category industry relevance weight (static baseline + JD boost)."""
-    role_text, role_tokens = _extract_role_context(resume)
+    role_text, _role_tokens = _extract_role_context(resume)
     industry_text_parts: list[str] = [role_text]
+    jd_tokens: set[str] = set()
 
     job_context = getattr(resume, "job_context", None)
     if job_context is not None:
+        description_excerpt = str(
+            getattr(job_context, "description_excerpt", "") or ""
+        ).strip()
+        if description_excerpt:
+            jd_tokens = _tokenize_role_text(description_excerpt)
         company_research = getattr(job_context, "company_research", None)
         industry_hint = str(
             getattr(company_research, "industry_hint", "") or ""
@@ -472,7 +478,7 @@ def _compute_category_industry_weights(
                     continue
                 weight += base_weight
                 cue_tokens = _tokenize_role_text(cue)
-                if cue_tokens & role_tokens:
+                if cue_tokens & jd_tokens:
                     weight += _INDUSTRY_JD_BOOST_WEIGHT
         category_weights[category] = weight
     return category_weights
@@ -525,9 +531,10 @@ def _order_categories_by_relevance(
     """Return categories ordered by aggregate retained-skill relevance.
 
     Category order matters because renderers preserve mapping insertion order for
-    both HTML and Markdown output. Use aggregate skill score as the primary
-    signal, then the strongest single-skill score, and finally the original
-    category position for deterministic ties.
+    both HTML and Markdown output. Use aggregate skill score plus weighted
+    category industry signal as the primary key, then industry weight,
+    strongest single-skill score, and finally the original category position
+    for deterministic ties.
     """
     resolved_category_weights = (
         category_industry_weights if category_industry_weights is not None else {}

@@ -191,6 +191,14 @@ def load_font_pair(
     if reg_path and bld_path and reg_path.exists() and bld_path.exists():
         if _looks_like_calibri(reg_path) and _looks_like_calibri(bld_path):
             font_name = "Calibri"
+        elif require_calibri:
+            raise FileNotFoundError(
+                "Strict mode requires Calibri Regular/Bold files, but non-Calibri "
+                "paths were provided.\n"
+                f"Regular: {reg_path}\n"
+                f"Bold:    {bld_path}\n"
+                "Provide Calibri font paths or disable strict mode."
+            )
         else:
             font_name = "Custom font pair"
     elif require_calibri:

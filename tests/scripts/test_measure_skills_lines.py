@@ -50,7 +50,9 @@ def _get_fonts() -> tuple[Any, Any, str]:
     """Load font pair once for the whole module."""
     global _fonts_cache
     if _fonts_cache is None:
-        _fonts_cache = load_font_pair()
+        # Prevent caller shell env from forcing strict mode across this suite.
+        with patch.dict(os.environ, {"RESUME_FONT_STRICT": "0"}):
+            _fonts_cache = load_font_pair()
     return _fonts_cache
 
 
@@ -601,7 +603,8 @@ class TestFontStrictMode:
         with patch(
             "scripts.measure_skills_lines._find_calibri_path", return_value=None
         ):
-            font_reg, font_bold, font_name = load_font_pair(require_calibri=False)
+            with patch.dict(os.environ, {"RESUME_FONT_STRICT": "0"}):
+                font_reg, font_bold, font_name = load_font_pair(require_calibri=False)
             assert font_reg is not None
             assert font_bold is not None
             assert font_name != "Calibri"

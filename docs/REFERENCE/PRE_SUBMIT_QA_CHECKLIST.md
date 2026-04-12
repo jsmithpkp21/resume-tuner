@@ -73,8 +73,8 @@ Apply these additional checks when the target role is Senior SDET, QA Lead, or s
 | Defect | Where to look | Fix |
 |--------|---------------|-----|
 | Fragment summary ending in `to.` or `in.` | Profile summary | Regenerate with `--processing-mode processed` |
-| Duplicate action word in same role | First word of each bullet | Edit `experience_db.toml` bullet text |
+| Duplicate action word in same role | First word of each bullet | Edit `data/experience/experience_db.toml` bullet text |
 | Alphabetical skill categories | Skills section order | Confirm `--processing-mode processed` was used |
 | Generic role fallback in summary | Summary first line | Pass `--target-role` explicitly |
-| Ownership inflation | Bullets with "managed" or "oversaw" | Edit `experience_db.toml` bullet scope |
+| Ownership inflation | Bullets with "managed" or "oversaw" | Edit `data/experience/experience_db.toml` bullet scope |
 | Missing contact field | Header contact line | Update `data/profile/profile.toml` |

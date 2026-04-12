@@ -370,3 +370,33 @@ def test_select_skills_applies_importance_order_before_trimming() -> None:
     ordered_languages = packed_resume.skills_by_category.get("Languages", [])
     assert ordered_languages
     assert ordered_languages[0] == "Java"
+
+
+def test_select_skills_orders_categories_by_aggregate_role_relevance() -> None:
+    resume = _DummyResume(
+        skills_by_category={
+            "Platforms": ["Linux", "Docker", "Kubernetes"],
+            "Languages": ["Kotlin", "Python", "Java"],
+            "Tooling": ["CI/CD", "GitHub Actions", "Jenkins"],
+        },
+        experiences=(
+            _DummyExperience(
+                related_skills=("Java", "Java", "Python", "CI/CD"),
+                bullets=(
+                    _DummyBullet(skills=("Java",)),
+                    _DummyBullet(skills=("Java", "Python")),
+                    _DummyBullet(skills=("CI/CD",)),
+                ),
+            ),
+        ),
+        target_role="Senior Java Engineer",
+        job_context=_DummyJobContext(description_excerpt="Java backend testing CI/CD"),
+    )
+
+    packed_resume = select_skills(resume)
+
+    assert list(packed_resume.skills_by_category) == [
+        "Languages",
+        "Tooling",
+        "Platforms",
+    ]

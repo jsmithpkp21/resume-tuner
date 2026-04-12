@@ -390,6 +390,30 @@ def prioritize_skills_by_importance(
     return prioritized
 
 
+def _order_categories_by_relevance(
+    skills_by_category: dict[str, list[str]],
+    *,
+    skill_scores: dict[str, float],
+) -> dict[str, list[str]]:
+    """Return categories ordered by aggregate retained-skill relevance.
+
+    Category order matters because renderers preserve mapping insertion order for
+    both HTML and Markdown output. Use aggregate skill score as the primary
+    signal, then the strongest single-skill score, and finally the original
+    category position for deterministic ties.
+    """
+
+    indexed_categories = list(enumerate(skills_by_category.items()))
+    indexed_categories.sort(
+        key=lambda pair: (
+            -sum(skill_scores.get(skill, 0.0) for skill in pair[1][1]),
+            -max((skill_scores.get(skill, 0.0) for skill in pair[1][1]), default=0.0),
+            pair[0],
+        )
+    )
+    return {category: skills for _, (category, skills) in indexed_categories}
+
+
 def _removed_skill_char_count(
     before: dict[str, list[str]], after: dict[str, list[str]]
 ) -> int:
@@ -650,6 +674,10 @@ def select_skills(resume: Any) -> Any:
 
     skill_scores = _compute_skill_scores(resume)
     prioritized_skills = prioritize_skills_by_importance(resume, scores=skill_scores)
+    prioritized_skills = _order_categories_by_relevance(
+        prioritized_skills,
+        skill_scores=skill_scores,
+    )
 
     trimmed_skills = pack_skills_to_budget(
         prioritized_skills,
@@ -658,6 +686,10 @@ def select_skills(resume: Any) -> Any:
         target_min=TARGET_LINES_MIN,
         target_max=TARGET_LINES_MAX,
         target_category_max=TARGET_CATEGORY_MAX,
+        skill_scores=skill_scores,
+    )
+    trimmed_skills = _order_categories_by_relevance(
+        trimmed_skills,
         skill_scores=skill_scores,
     )
 

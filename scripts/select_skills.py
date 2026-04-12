@@ -430,8 +430,7 @@ def _infer_industry_profiles(industry_tokens: set[str]) -> tuple[str, ...]:
     return tuple(sorted(matched))
 
 
-def _category_matches_cue(category_tokens: set[str], cue: str) -> bool:
-    cue_tokens = _tokenize_role_text(cue)
+def _category_matches_cue(category_tokens: set[str], cue_tokens: set[str]) -> bool:
     if not cue_tokens:
         return False
     return bool(category_tokens & cue_tokens)
@@ -459,7 +458,7 @@ def _compute_category_industry_weights(
             getattr(company_research, "industry_hint", "") or ""
         ).strip()
         if industry_hint:
-            industry_tokens |= _tokenize_role_text(industry_hint.lower())
+            industry_tokens |= _tokenize_role_text(industry_hint)
 
     profiles = _infer_industry_profiles(industry_tokens)
     if not profiles:
@@ -473,10 +472,10 @@ def _compute_category_industry_weights(
             for cue, base_weight in _INDUSTRY_CATEGORY_BASE_WEIGHTS.get(
                 profile, {}
             ).items():
-                if not _category_matches_cue(category_tokens, cue):
+                cue_tokens = _tokenize_role_text(cue)
+                if not _category_matches_cue(category_tokens, cue_tokens):
                     continue
                 weight += base_weight
-                cue_tokens = _tokenize_role_text(cue)
                 if cue_tokens & jd_tokens:
                     weight += _INDUSTRY_JD_BOOST_WEIGHT
         category_weights[category] = weight

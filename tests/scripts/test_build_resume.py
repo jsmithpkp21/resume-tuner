@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import html as html_lib
 import io
 import json
 import logging
 import math
 import os
+import re
 import subprocess
 import sys
 from http.client import HTTPMessage
@@ -36,6 +38,12 @@ from scripts.build_resume import (
     trim_for_role,
 )
 from scripts.jd_ingest import FetchedPage, ingest_job_context
+from scripts.measure_skills_lines import (
+    TARGET_LINES_MAX,
+    TARGET_LINES_MIN,
+    load_font_pair,
+    measure_skills_section,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "build_resume.py"
@@ -45,6 +53,21 @@ SCHWAB_JOB_URL = (
     "sr-sdet-workplace-services-engineering/33727/92422911552"
 )
 SCHWAB_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "job_pages" / "schwab_sr_sdet.html"
+
+
+def _extract_skills_by_category_from_html(html_text: str) -> dict[str, list[str]]:
+    """Parse rendered skills paragraphs back into category -> skills lists."""
+    skills_by_category: dict[str, list[str]] = {}
+    matches = re.findall(
+        r'<p class="skills-category"><strong>([^<]+):</strong>\s*(.*?)</p>',
+        html_text,
+        flags=re.S,
+    )
+    for category, body in matches:
+        clean = re.sub(r"<[^>]+>", "", body)
+        skills = [skill.strip() for skill in clean.split("•") if skill.strip()]
+        skills_by_category[html_lib.unescape(category)] = skills
+    return skills_by_category
 
 
 def test_load_profile_reads_profile_table() -> None:
@@ -300,6 +323,28 @@ def test_build_resume_cli_processed_mode_applies_filtering(tmp_path: Path) -> No
     assert raw_count > processed_count
     raw_md = (raw_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
     assert "Programming & Scripting" in raw_md
+
+    # Issue #42 e2e assertion: processed rendered skills stay in 11-13 lines.
+    processed_html = (processed_dir / "latest_resume_processed.html").read_text(
+        encoding="utf-8"
+    )
+    processed_skills = _extract_skills_by_category_from_html(processed_html)
+    assert processed_skills, (
+        "Expected parsed skills categories in processed HTML output"
+    )
+
+    font_regular, font_bold, font_name = load_font_pair(require_calibri=False)
+    report = measure_skills_section(
+        processed_skills,
+        font_regular=font_regular,
+        font_bold=font_bold,
+        font_name=font_name,
+    )
+    total_lines = int(report["summary"]["total_lines"])
+    assert TARGET_LINES_MIN <= total_lines <= TARGET_LINES_MAX, (
+        f"Expected processed skills lines in {TARGET_LINES_MIN}-{TARGET_LINES_MAX}; "
+        f"got {total_lines}"
+    )
 
 
 def test_build_resume_cli_modern_template_renders_centered_header(

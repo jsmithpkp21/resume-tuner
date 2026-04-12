@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.7.0...v0.7.1) (2026-04-12)
+
+
+### Bug Fixes
+
+* **skills:** order categories by role relevance ([49f1af1](https://github.com/jsmithpkp21/resume-builder/commit/49f1af1e770cdc78af87fb595de3e7ca90fe1cbf))
+
+
+### Documentation
+
+* **guidance:** add application guidance checklist for issue 61 ([b113ac4](https://github.com/jsmithpkp21/resume-builder/commit/b113ac4e160ed8620c7bc3f6a99cd52a74dfee28)), closes [#61](https://github.com/jsmithpkp21/resume-builder/issues/61)
+* **guidance:** resolve PR 74 review feedback ([f816374](https://github.com/jsmithpkp21/resume-builder/commit/f816374070d7b9e4f8616c8a5cff3e95db433a2b))
+
 ## [0.7.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.6.0...v0.7.0) (2026-04-12)
 
 

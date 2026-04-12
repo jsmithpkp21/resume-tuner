@@ -1189,16 +1189,12 @@ def _build_profile_summary_fragments(
 ) -> list[str]:
     fragments = [f"{role_label} with strengths in {focus_text}."]
 
-    for experience in resume.experiences:
-        summary = _shorten_sentence(
-            _summary_primary_clause(experience.general_role_description), max_words=24
-        )
+    for exp_index, experience in enumerate(resume.experiences):
+        summary = _shorten_sentence(experience.general_role_description, max_words=30)
         if summary:
             fragments.append(summary)
-        for bullet in experience.bullets[:1]:
-            bullet_summary = _shorten_sentence(
-                _summary_primary_clause(bullet.text), max_words=18
-            )
+        if exp_index < 2 and experience.bullets:
+            bullet_summary = _shorten_sentence(experience.bullets[0].text, max_words=18)
             if bullet_summary:
                 fragments.append(bullet_summary)
 
@@ -1242,10 +1238,8 @@ def _expand_profile_summary_to_min_words(
     updated = candidate.rstrip()
     words = updated.split()
     index = 0
-    while len(words) < min_words and deduped_additions:
-        addition = (
-            deduped_additions[index % len(deduped_additions)].strip().rstrip(" ,;:")
-        )
+    while len(words) < min_words and index < len(deduped_additions):
+        addition = deduped_additions[index].strip().rstrip(" ,;:")
         if not addition.endswith((".", "!", "?")):
             addition += "."
         updated = f"{updated} {addition}".strip()
@@ -1331,27 +1325,17 @@ def _generate_role_summary(resume: ResumeIR, experience: Experience) -> str:
             max_words=24,
         )
 
-    role_only = _fit_summary_layout(role_sentence)
-    if (
-        role_only
-        and role_only != experience.general_role_description
-        and _summary_is_distinct_from_bullets(role_only, experience.bullets)
-    ):
+    role_only = _fit_summary_layout(role_sentence, allow_single_word_wrap=True)
+    if role_only:
         return role_only
 
     if experience.bullets:
         bullet_seed = _summary_primary_clause(experience.bullets[0].text)
-        bullet_sentence = _shorten_sentence(bullet_seed, max_words=14)
+        bullet_sentence = _shorten_sentence(bullet_seed, max_words=20)
         if bullet_sentence:
-            candidate = _fit_summary_layout(f"{role_sentence} {bullet_sentence}")
-            if (
-                candidate
-                and candidate != experience.general_role_description
-                and _summary_is_distinct_from_bullets(candidate, experience.bullets)
-            ):
-                return candidate
+            return _fit_summary_layout(bullet_sentence, allow_single_word_wrap=True)
 
-    return role_only
+    return ""
 
 
 def _summary_primary_clause(text: str) -> str:
@@ -1445,7 +1429,7 @@ def _summary_wrap_lines(
     return lines
 
 
-def _fit_summary_layout(summary: str) -> str:
+def _fit_summary_layout(summary: str, *, allow_single_word_wrap: bool = False) -> str:
     words = summary.strip().replace("\n", " ").split()
     if not words:
         return ""
@@ -1464,7 +1448,11 @@ def _fit_summary_layout(summary: str) -> str:
         if len(lines) > SUMMARY_MAX_LINES:
             words.pop()
             continue
-        if len(lines) > 1 and any(len(line.split()) == 1 for line in lines[1:]):
+        if (
+            not allow_single_word_wrap
+            and len(lines) > 1
+            and any(len(line.split()) == 1 for line in lines[1:])
+        ):
             words.pop()
             continue
         return candidate

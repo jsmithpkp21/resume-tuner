@@ -1642,6 +1642,9 @@ def test_summarize_for_role_avoids_clipped_clause_tail_fragments() -> None:
             "Lead Technical Designer, Corporate Automation Initiative"
         ]
     )
+    assert summaries_by_title["Technical Advisor / SDET, Headset Team"].endswith(
+        "framework."
+    )
 
 
 def test_summarize_profile_for_role_generates_role_aware_top_summary() -> None:

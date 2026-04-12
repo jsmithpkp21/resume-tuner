@@ -16,7 +16,7 @@ related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b01"
-text = "Transformed an inherited Python-Pytest-ADB-JUnit 4-UI Automator proof of concept into a lightweight abstraction layer supporting Android-based embedded UI testing across PolyOS, Zoom, Teams, and Google Meet."
+text = "Transformed an inherited proof-of-concept stack (Python, Pytest, ADB, JUnit 4, and UI Automator) into a lightweight abstraction layer supporting Android-based embedded UI testing across PolyOS, Zoom, Teams, and Google Meet."
 skills = ["Python", "Pytest", "Android UI automation (ADB)", "JUnit 4", "Android UI automation (UI Automator)"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "scalability"

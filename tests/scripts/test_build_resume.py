@@ -65,7 +65,11 @@ def _extract_skills_by_category_from_html(html_text: str) -> dict[str, list[str]
     )
     for category, body in matches:
         clean = re.sub(r"<[^>]+>", "", body)
-        skills = [skill.strip() for skill in clean.split("•") if skill.strip()]
+        skills = [
+            html_lib.unescape(skill.strip())
+            for skill in clean.split("•")
+            if skill.strip()
+        ]
         skills_by_category[html_lib.unescape(category)] = skills
     return skills_by_category
 

@@ -276,13 +276,13 @@ Layout & Output Generator (Issues 14, 16 / #14, #16)
 - **Goal**: Map canonical job titles to audience-appropriate target-facing titles and generate
   role summaries per experience entry.
 - **Tasks**:
-  1. Define config/title_map.toml format and load logic.
-  2. Implement title mapper using JD profile role type.
-  3. Implement role summary generator using canonical description + selected bullets + JD profile.
-  4. Emit generated titles and summaries to decision report.
-  5. Ensure canonical data is never mutated.
+  1. Implement generic title framing rules from canonical title + target role context.
+  2. Implement role summary generator using canonical description + selected bullets + JD context.
+  3. Emit generated titles and summaries to decision report.
+  4. Ensure canonical data is never mutated.
+  5. Keep custom title mapping as optional follow-up (not required for initial close).
 - **Acceptance criteria**:
-  - Target-facing title generated per experience entry per target role.
+  - Target-facing title generated per experience entry per target role using generic rules.
   - Role summary generated per experience entry.
   - Both captured in decision report artifact.
   - experience_db.toml unchanged after generation run.

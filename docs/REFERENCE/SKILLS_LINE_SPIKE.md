@@ -72,7 +72,7 @@ new line when the accumulated width exceeds `TEXT_WIDTH_PT = 510.65`.
 Current state with all 16 categories and 137 skills:
 
 ```
-Skills section: 39 wrapped lines  [✗ over budget (target 10–12)]
+Skills section: 39 wrapped lines  [✗ over budget (target 11–13)]
 
 Category                                   Skills  Lines  Wrap trigger
 ──────────────────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ Testing & Validation                           28      6  •
 ### After: projected 6-category targeted selection (example)
 
 Selecting 6 high-signal categories with trimmed skill lists per the #42
-design (6–7 categories, ~10–12 lines target):
+design (6–7 categories, ~11–13 lines target):
 
 | Category (example selection) | Est. Skills | Est. Lines |
 |---|---|---|
@@ -107,7 +107,7 @@ design (6–7 categories, ~10–12 lines target):
 | Programming & Scripting | 7 | 1 |
 | Debugging & Analysis | 6 | 2 |
 | AI-Driven Engineering | 4 | 1 |
-| **Total** | **42** | **~9–11** |
+| **Total** | **42** | **~11–13** |
 
 Exact line counts for any candidate selection can be computed in < 1 ms by
 calling `measure_skills_section()` with the filtered `skills_by_category` dict.
@@ -172,7 +172,7 @@ selection.**
 4. **Persist the artifact:** Write `skills_measurement.json` next to the IR
    snapshot for audit/diff traceability on each run.
 
-5. **Target:** 10–12 lines, typically 6–7 categories.
+5. **Target:** 11–13 lines, typically 6–7 categories.
 
 ---
 

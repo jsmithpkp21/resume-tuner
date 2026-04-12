@@ -163,9 +163,9 @@ def load_font_pair(
       4. Liberation Sans (metrically compatible with MS Office; used in CI)
       5. DejaVu Sans fallback (warns; ~3–5% metric difference)
 
-    Strict mode can be requested three ways (highest priority first):
-      1. ``require_calibri=True`` passed by the caller
-      2. ``RESUME_FONT_STRICT=1`` environment variable (applies to all callers)
+    Strict mode control:
+      1. ``RESUME_FONT_STRICT=1`` environment variable (global override)
+      2. ``require_calibri=True`` passed by the caller
       3. Default (False): graceful fallback to Liberation/DejaVu with warning
 
     Args:
@@ -173,12 +173,13 @@ def load_font_pair(
         bold_path: explicit path to Bold font
         require_calibri: if True, raise FileNotFoundError if Calibri unavailable;
                         if False, fall back to Liberation or DejaVu with warning.
-                        Overridden to True when RESUME_FONT_STRICT=1 is set.
+                        Forced to True when RESUME_FONT_STRICT=1 is set.
 
     Raises:
         FileNotFoundError: if require_calibri=True (or RESUME_FONT_STRICT=1) and
                            Calibri cannot be located.
     """
+    # Environment strict mode is a global override for CLI + library callers.
     if os.environ.get("RESUME_FONT_STRICT", "0").strip() == "1":
         require_calibri = True
     reg_path = regular_path or _find_calibri_path("Regular")

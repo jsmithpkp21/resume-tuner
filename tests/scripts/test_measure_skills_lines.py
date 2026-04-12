@@ -2,7 +2,7 @@
 
 Validates the three acceptance criteria from Issue #43:
   1. Repeated measurement of same inputs is deterministic.
-  2. Adding/removing one skill can shift line count by exactly 1.
+  2. Adding/removing one skill can shift line count by +/-1.
   3. The report structure is well-formed for downstream use by #42.
 """
 

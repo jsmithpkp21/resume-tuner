@@ -693,23 +693,6 @@ _GENERIC_HYPE_PHRASES = (
     "dynamic professional",
 )
 _TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9+/#-]*")
-_SUMMARY_STOPWORDS = {
-    "a",
-    "an",
-    "and",
-    "as",
-    "at",
-    "for",
-    "from",
-    "in",
-    "into",
-    "of",
-    "on",
-    "or",
-    "the",
-    "to",
-    "with",
-}
 
 
 def _normalize_transformed_bullet_text(
@@ -1216,7 +1199,7 @@ def _expand_profile_summary_to_min_words(
     *,
     fragments: list[str] | None = None,
 ) -> str:
-    """Deterministically expand short summaries to satisfy minimum word-count policy."""
+    """Deterministically expand summaries until they satisfy the minimum word policy."""
     additions = list(fragments or [])
 
     existing_sentences = {
@@ -1235,11 +1218,26 @@ def _expand_profile_summary_to_min_words(
         seen.add(normalized)
         deduped_additions.append(addition)
 
+    if not deduped_additions:
+        skills = _collect_resume_skill_signals(resume)
+        if len(skills) >= 2:
+            deduped_additions.append(f"Focus includes {skills[0]} and {skills[1]}.")
+        elif skills:
+            deduped_additions.append(f"Focus includes {skills[0]}.")
+        else:
+            role_label = _get_base_role(resume) or "Engineer"
+            deduped_additions.append(f"Focus includes {role_label} delivery.")
+
     updated = candidate.rstrip()
     words = updated.split()
     index = 0
-    while len(words) < min_words and index < len(deduped_additions):
-        addition = deduped_additions[index].strip().rstrip(" ,;:")
+    while len(words) < min_words and deduped_additions:
+        addition = (
+            deduped_additions[index % len(deduped_additions)].strip().rstrip(" ,;:")
+        )
+        if not addition:
+            index += 1
+            continue
         if not addition.endswith((".", "!", "?")):
             addition += "."
         updated = f"{updated} {addition}".strip()
@@ -1458,37 +1456,6 @@ def _fit_summary_layout(summary: str, *, allow_single_word_wrap: bool = False) -
         return candidate
 
     return ""
-
-
-def _summary_is_distinct_from_bullets(
-    summary: str, bullets: tuple[Bullet, ...]
-) -> bool:
-    summary_norm = " ".join(summary.lower().split())
-    if not summary_norm:
-        return False
-    summary_tokens = {
-        token.lower()
-        for token in _TOKEN_PATTERN.findall(summary_norm)
-        if len(token) >= 4 and token.lower() not in _SUMMARY_STOPWORDS
-    }
-    for bullet in bullets:
-        bullet_norm = " ".join(bullet.text.lower().split())
-        if not bullet_norm:
-            continue
-        if summary_norm == bullet_norm:
-            return False
-        if summary_norm in bullet_norm or bullet_norm in summary_norm:
-            return False
-        bullet_tokens = {
-            token.lower()
-            for token in _TOKEN_PATTERN.findall(bullet_norm)
-            if len(token) >= 4 and token.lower() not in _SUMMARY_STOPWORDS
-        }
-        if summary_tokens and bullet_tokens:
-            overlap = len(summary_tokens & bullet_tokens) / len(summary_tokens)
-            if overlap >= 0.75:
-                return False
-    return True
 
 
 def _apply_rule_based_trimming(

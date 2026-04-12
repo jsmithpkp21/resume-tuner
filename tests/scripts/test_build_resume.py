@@ -1763,6 +1763,61 @@ def test_summarize_profile_for_role_enforces_minimum_word_count() -> None:
     assert min_words <= word_count <= PROFILE_SUMMARY_MAX_WORDS
 
 
+def test_expand_profile_summary_to_min_words_rotates_sparse_fragments() -> None:
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={"Testing": ["Python", "Pytest"]},
+    )
+
+    candidate = "Senior SDET with strengths in Python."
+    min_words = 14
+    result = build_resume._expand_profile_summary_to_min_words(
+        candidate,
+        resume,
+        min_words,
+        fragments=["Improved test reliability through deterministic checks."],
+    )
+
+    assert len(result.split()) >= min_words
+
+
+def test_expand_profile_summary_to_min_words_uses_skill_fallback_without_fragments() -> (
+    None
+):
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={"Testing": ["Python"]},
+    )
+
+    candidate = "Senior SDET with strengths in Python."
+    min_words = 12
+    result = build_resume._expand_profile_summary_to_min_words(
+        candidate,
+        resume,
+        min_words,
+        fragments=[],
+    )
+
+    assert len(result.split()) >= min_words
+    assert "Focus includes" in result
+
+
 # ---------------------------------------------------------------------------
 # transform_for_role tests
 # ---------------------------------------------------------------------------

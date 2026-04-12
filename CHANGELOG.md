@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.8.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.7.3...v0.8.0) (2026-04-12)
+
+
+### Features
+
+* **font:** add RESUME_FONT_STRICT env var and --strict-font CLI flag ([1cda260](https://github.com/jsmithpkp21/resume-builder/commit/1cda260296ff2ba69b4bb29995a98d586538276f)), closes [#45](https://github.com/jsmithpkp21/resume-builder/issues/45)
+
+
+### Bug Fixes
+
+* **font:** enforce Calibri in strict mode for explicit paths ([4b9a981](https://github.com/jsmithpkp21/resume-builder/commit/4b9a9811ddb68dbc74fb41485164f22dd950eb94))
+
+
+### Documentation
+
+* **font:** align strict precedence and sensitivity wording ([0976f92](https://github.com/jsmithpkp21/resume-builder/commit/0976f92cc14cd071201411a4b2bfa56d59a3a142))
+
 ## [0.7.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.7.2...v0.7.3) (2026-04-12)
 
 

@@ -26,8 +26,8 @@ These are concrete actions to reduce the impact of the uncontrollables above.
 - **Role title alignment**: Use the `--target-role` flag (or set a target role in the JD text
   file) so the processed resume headline and summary mirror the JD's exact title wording.
 - **Skills section ordering**: Run `--processing-mode processed` to activate role-aware skill
-  selection (`select_skills` stage). Category ordering follows relevance score rather than
-  alphabetical order.
+  selection (`select_skills` stage). Category ordering follows aggregate relevance score rather
+  than alphabetical order.
 
 ### Intent and framing
 - **Senior SDET scope clarifier**: When the target role says "Senior SDET" or "QA Lead",

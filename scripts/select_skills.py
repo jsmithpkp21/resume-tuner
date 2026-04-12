@@ -443,8 +443,8 @@ def _compute_category_industry_weights(
     skills_by_category: dict[str, list[str]],
 ) -> dict[str, float]:
     """Compute per-category industry relevance weight (static baseline + JD boost)."""
-    role_text, _role_tokens = _extract_role_context(resume)
-    industry_text_parts: list[str] = [role_text]
+    _role_text, role_tokens = _extract_role_context(resume)
+    industry_tokens: set[str] = set(role_tokens)
     jd_tokens: set[str] = set()
 
     job_context = getattr(resume, "job_context", None)
@@ -459,9 +459,8 @@ def _compute_category_industry_weights(
             getattr(company_research, "industry_hint", "") or ""
         ).strip()
         if industry_hint:
-            industry_text_parts.append(industry_hint.lower())
+            industry_tokens |= _tokenize_role_text(industry_hint.lower())
 
-    industry_tokens = _tokenize_role_text(" ".join(industry_text_parts))
     profiles = _infer_industry_profiles(industry_tokens)
     if not profiles:
         return {category: 0.0 for category in skills_by_category}

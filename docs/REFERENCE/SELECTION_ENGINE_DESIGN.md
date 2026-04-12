@@ -174,7 +174,7 @@ Skills categories are ranked with a deterministic hybrid signal before packing/t
 High-level ordering score:
 
 ```text
-category_score = aggregate_skill_score + (industry_category_weight * INDUSTRY_SIGNAL_WEIGHT)
+category_score = aggregate_skill_score + (industry_category_weight * _INDUSTRY_SIGNAL_WEIGHT)
 ```
 
 Tie-breaks remain deterministic: industry weight, strongest single-skill score, then original

@@ -128,3 +128,4 @@ bash scripts/sync_tooling.sh main .
 ## Related
 
 - [tooling repo](https://github.com/jsmithpkp21/tooling) — Source of shared scripts and config
+- [Application Guidance](docs/REFERENCE/APPLICATION_GUIDANCE.md) — Uncontrollables, mitigations, and pre-submit checklist

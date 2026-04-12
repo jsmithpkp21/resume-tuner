@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.6.0...v0.7.0) (2026-04-12)
+
+
+### Features
+
+* **resume:** improve processed summary readability ([d34ecd6](https://github.com/jsmithpkp21/resume-builder/commit/d34ecd64c1385c9c941923f7506cfdfa6616673c))
+
+
+### Bug Fixes
+
+* **resume:** address summary review follow-ups ([092d5a7](https://github.com/jsmithpkp21/resume-builder/commit/092d5a777d6adc23b9a1895c4ff7925de66118d7))
+
 ## [0.6.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.5.3...v0.6.0) (2026-04-11)
 
 

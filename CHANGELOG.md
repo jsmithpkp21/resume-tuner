@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.7.1...v0.7.2) (2026-04-12)
+
+
+### Documentation
+
+* **qa:** add pre-submit QA checklist for issue [#63](https://github.com/jsmithpkp21/resume-builder/issues/63) ([0ae934b](https://github.com/jsmithpkp21/resume-builder/commit/0ae934b5d69666539b3aeb079972ef15e214dc5d))
+* **qa:** address PR [#76](https://github.com/jsmithpkp21/resume-builder/issues/76) wording review notes ([ee9f6ad](https://github.com/jsmithpkp21/resume-builder/commit/ee9f6adb6a1d688a4de19e36d1df144323c2d42e))
+* **qa:** clarify canonical experience_db path ([0056f21](https://github.com/jsmithpkp21/resume-builder/commit/0056f212d2b552b7a69cd4cb6613ddd429ca21c7))
+
 ## [0.7.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.7.0...v0.7.1) (2026-04-12)
 
 

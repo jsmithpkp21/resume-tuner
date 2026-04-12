@@ -627,3 +627,20 @@ class TestFontStrictMode:
                 font_reg, font_bold, font_name = load_font_pair(require_calibri=False)
                 assert font_reg is not None
                 assert font_name != "Calibri"
+
+    def test_strict_mode_rejects_non_calibri_explicit_paths(
+        self, tmp_path: Path
+    ) -> None:
+        """Strict mode must fail when explicit font paths are not Calibri files."""
+        regular_path = tmp_path / "custom-regular.ttf"
+        bold_path = tmp_path / "custom-bold.ttf"
+        regular_path.write_bytes(b"fake")
+        bold_path.write_bytes(b"fake")
+
+        with patch.dict(os.environ, {"RESUME_FONT_STRICT": "0"}):
+            with pytest.raises(FileNotFoundError, match="Strict mode requires Calibri"):
+                load_font_pair(
+                    regular_path=regular_path,
+                    bold_path=bold_path,
+                    require_calibri=True,
+                )

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.7.2...v0.7.3) (2026-04-12)
+
+
+### Bug Fixes
+
+* **skills:** remove redundant industry hint normalization ([02e5e40](https://github.com/jsmithpkp21/resume-builder/commit/02e5e4059bb510df5c14f135ba09b1aa2707f26f))
+* **skills:** resolve PR [#78](https://github.com/jsmithpkp21/resume-builder/issues/78) review comments ([d66ce0e](https://github.com/jsmithpkp21/resume-builder/commit/d66ce0e024846fbafb1657c1609ca7b37e921849))
+
 ## [0.7.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.7.1...v0.7.2) (2026-04-12)
 
 

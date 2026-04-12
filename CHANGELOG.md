@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.9.0...v0.10.0) (2026-04-12)
+
+
+### Features
+
+* **title:** implement generic issue [#30](https://github.com/jsmithpkp21/resume-builder/issues/30) framing and reporting ([81d244c](https://github.com/jsmithpkp21/resume-builder/commit/81d244c20456edfd27123720833dbc41b5377f66))
+
 ## [0.9.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.8.1...v0.9.0) (2026-04-12)
 
 

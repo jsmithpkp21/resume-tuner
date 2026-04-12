@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.8.0...v0.8.1) (2026-04-12)
+
+
+### Bug Fixes
+
+* **skills:** resolve PR [#82](https://github.com/jsmithpkp21/resume-builder/issues/82) follow-up review comments ([1dc0cb0](https://github.com/jsmithpkp21/resume-builder/commit/1dc0cb0eeb17d169004b44b074d51c626dbccbe4))
+* **skills:** resolve PR [#82](https://github.com/jsmithpkp21/resume-builder/issues/82) review comments ([261845b](https://github.com/jsmithpkp21/resume-builder/commit/261845b9f52f936f710e22ba752d194ed46c3b19))
+
 ## [0.8.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.7.3...v0.8.0) (2026-04-12)
 
 

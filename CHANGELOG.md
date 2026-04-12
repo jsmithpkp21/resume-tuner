@@ -3,6 +3,11 @@
 ## [0.7.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.7.1...v0.7.2) (2026-04-12)
 
 
+### Features
+
+* **skills:** add hybrid industry relevance signal to category ranking (Issue [#48](https://github.com/jsmithpkp21/resume-builder/issues/48))
+
+
 ### Documentation
 
 * **qa:** add pre-submit QA checklist for issue [#63](https://github.com/jsmithpkp21/resume-builder/issues/63) ([0ae934b](https://github.com/jsmithpkp21/resume-builder/commit/0ae934b5d69666539b3aeb079972ef15e214dc5d))

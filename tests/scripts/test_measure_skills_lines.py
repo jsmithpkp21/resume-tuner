@@ -2,15 +2,17 @@
 
 Validates the three acceptance criteria from Issue #43:
   1. Repeated measurement of same inputs is deterministic.
-  2. Adding/removing one skill can shift line count by exactly ±1.
+  2. Adding/removing one skill can shift line count by exactly 1.
   3. The report structure is well-formed for downstream use by #42.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import patch
 
 import pytest
 
@@ -576,3 +578,49 @@ class TestKerning:
         blocked_csv = Path("sandbox") / "skills_matrix.csv"
         with pytest.raises(ValueError, match="blocked runtime directory"):
             load_skills_by_category(blocked_csv)
+
+
+# ---------------------------------------------------------------------------
+# Issue #45: font strict-mode / fallback regression tests
+# ---------------------------------------------------------------------------
+
+
+class TestFontStrictMode:
+    """Regression tests for Issue #45: explicit strict vs. fallback font behaviour."""
+
+    def test_load_font_pair_strict_raises_when_calibri_missing(self) -> None:
+        """require_calibri=True must raise FileNotFoundError when Calibri is absent."""
+        with patch(
+            "scripts.measure_skills_lines._find_calibri_path", return_value=None
+        ):
+            with pytest.raises(FileNotFoundError, match="Calibri font not found"):
+                load_font_pair(require_calibri=True)
+
+    def test_load_font_pair_fallback_succeeds_without_calibri(self) -> None:
+        """require_calibri=False must return a non-Calibri font when Calibri is absent."""
+        with patch(
+            "scripts.measure_skills_lines._find_calibri_path", return_value=None
+        ):
+            font_reg, font_bold, font_name = load_font_pair(require_calibri=False)
+            assert font_reg is not None
+            assert font_bold is not None
+            assert font_name != "Calibri"
+
+    def test_env_var_font_strict_triggers_require_calibri(self) -> None:
+        """RESUME_FONT_STRICT=1 env var must behave identically to require_calibri=True."""
+        with patch(
+            "scripts.measure_skills_lines._find_calibri_path", return_value=None
+        ):
+            with patch.dict(os.environ, {"RESUME_FONT_STRICT": "1"}):
+                with pytest.raises(FileNotFoundError, match="Calibri font not found"):
+                    load_font_pair(require_calibri=False)  # caller leaves it False
+
+    def test_env_var_font_strict_zero_does_not_force_require(self) -> None:
+        """RESUME_FONT_STRICT=0 (or unset) must not force strict mode."""
+        with patch(
+            "scripts.measure_skills_lines._find_calibri_path", return_value=None
+        ):
+            with patch.dict(os.environ, {"RESUME_FONT_STRICT": "0"}):
+                font_reg, font_bold, font_name = load_font_pair(require_calibri=False)
+                assert font_reg is not None
+                assert font_name != "Calibri"

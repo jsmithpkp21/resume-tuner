@@ -29,6 +29,13 @@ Font discovery (in order):
    3. Liberation Sans (metrically ~1% compatible with Calibri; installed in Docker CI)
    4. DejaVu Sans fallback (warns; metrics differ ~3–5% from Calibri)
 
+Font strict mode:
+  By default the script falls back gracefully to Liberation or DejaVu when
+  Calibri is unavailable (safe for CI).  To require exact Calibri metrics:
+    CLI:  --strict-font
+    Env:  RESUME_FONT_STRICT=1  (applies to both CLI and library callers)
+  Strict mode raises FileNotFoundError immediately if Calibri is not found.
+
 Outputs:
   - stdout: summary table (category → line count, wrap trigger words)
   - default: data/review/outputs/skills_line_measurement/skills_measurement.json
@@ -45,6 +52,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -155,15 +163,24 @@ def load_font_pair(
       4. Liberation Sans (metrically compatible with MS Office; used in CI)
       5. DejaVu Sans fallback (warns; ~3–5% metric difference)
 
+    Strict mode can be requested three ways (highest priority first):
+      1. ``require_calibri=True`` passed by the caller
+      2. ``RESUME_FONT_STRICT=1`` environment variable (applies to all callers)
+      3. Default (False): graceful fallback to Liberation/DejaVu with warning
+
     Args:
         regular_path: explicit path to Regular font
         bold_path: explicit path to Bold font
         require_calibri: if True, raise FileNotFoundError if Calibri unavailable;
                         if False, fall back to Liberation or DejaVu with warning.
+                        Overridden to True when RESUME_FONT_STRICT=1 is set.
 
     Raises:
-        FileNotFoundError: if require_calibri=True and Calibri cannot be located.
+        FileNotFoundError: if require_calibri=True (or RESUME_FONT_STRICT=1) and
+                           Calibri cannot be located.
     """
+    if os.environ.get("RESUME_FONT_STRICT", "0").strip() == "1":
+        require_calibri = True
     reg_path = regular_path or _find_calibri_path("Regular")
     bld_path = bold_path or _find_calibri_path("Bold")
 
@@ -530,13 +547,25 @@ def _parse_args() -> argparse.Namespace:
             "Calibri has 26,706 kern pairs; impact is 0–8 pt per line at 11pt."
         ),
     )
+    p.add_argument(
+        "--strict-font",
+        action="store_true",
+        default=False,
+        help=(
+            "Require Calibri font; raise an error if Calibri is not found instead of "
+            "falling back to Liberation/DejaVu. Equivalent to setting "
+            "RESUME_FONT_STRICT=1 in the environment."
+        ),
+    )
     return p.parse_args()
 
 
 def main() -> int:
     args = _parse_args()
 
-    font_regular, font_bold, font_name = load_font_pair(require_calibri=False)
+    font_regular, font_bold, font_name = load_font_pair(
+        require_calibri=args.strict_font
+    )
     text_width_pt = args.text_width_in * 72
 
     kern_table: KernTable | None = None

@@ -14,6 +14,7 @@ from scripts.select_skills import (
     TARGET_CATEGORY_MAX,
     TARGET_LINES_MAX,
     TARGET_LINES_MIN,
+    _compute_category_industry_weights,
     _section_layout,
     _wrap_widths,
     estimate_line_count,
@@ -267,6 +268,12 @@ class _DummyExperience:
 class _DummyJobContext:
     role_hint: str = ""
     description_excerpt: str = ""
+    company_research: object | None = None
+
+
+@dataclass(frozen=True)
+class _DummyCompanyResearch:
+    industry_hint: str = ""
 
 
 def test_prioritize_skills_by_importance_uses_frequency_and_role_relevance() -> None:
@@ -400,3 +407,54 @@ def test_select_skills_orders_categories_by_aggregate_role_relevance() -> None:
         "Tooling",
         "Platforms",
     ]
+
+
+def test_select_skills_applies_hybrid_industry_weighting_for_categories() -> None:
+    resume = _DummyResume(
+        skills_by_category={
+            "Programming & Scripting": ["Python", "Java"],
+            "Security & Compliance": ["Threat Modeling", "SOC2"],
+            "CI/CD & Tooling": ["GitHub Actions", "Jenkins"],
+        },
+        experiences=(
+            _DummyExperience(
+                related_skills=("Java",),
+                bullets=(
+                    _DummyBullet(skills=("Java",)),
+                    _DummyBullet(skills=("Python",)),
+                ),
+            ),
+        ),
+        target_role="Software Engineer",
+        job_context=_DummyJobContext(
+            description_excerpt="payments risk controls and compliance automation",
+            company_research=_DummyCompanyResearch(industry_hint="Financial services"),
+        ),
+    )
+
+    packed_resume = select_skills(resume)
+
+    assert list(packed_resume.skills_by_category)[0] == "Security & Compliance"
+
+
+def test_compute_category_industry_weights_fails_open_for_unknown_industry() -> None:
+    resume = _DummyResume(
+        skills_by_category={
+            "Programming & Scripting": ["Python"],
+            "Security & Compliance": ["Threat Modeling"],
+        },
+        job_context=_DummyJobContext(
+            description_excerpt="domain specific requirements",
+            company_research=_DummyCompanyResearch(industry_hint="Unknown domain"),
+        ),
+    )
+
+    category_weights = _compute_category_industry_weights(
+        resume,
+        skills_by_category=resume.skills_by_category,
+    )
+
+    assert category_weights == {
+        "Programming & Scripting": 0.0,
+        "Security & Compliance": 0.0,
+    }

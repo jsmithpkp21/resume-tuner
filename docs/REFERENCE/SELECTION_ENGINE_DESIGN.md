@@ -155,6 +155,30 @@ else (mismatch):                                    -> 0.4  (penalized, not excl
 2. Prefer bullets where role_audience matches jd_profile.role_type.
 3. Always include at least 3 bullets per role (fallback to lower-scoring if needed).
 4. Preserve deterministic order: same inputs produce same output.
+
+### Category Ranking: Hybrid Industry Relevance (Issue #48)
+
+Skills categories are ranked with a deterministic hybrid signal before packing/trimming:
+
+1. **Static baseline profile weights**
+   - Use curated industry profiles (`fintech`, `security`, `media`) inferred from:
+     - target role + role hint + JD excerpt
+     - deterministic company-research `industry_hint` when available
+   - Apply per-category baseline weights (for example, `security`/`compliance` cues in FinTech).
+2. **JD boost modifiers**
+   - Add a small boost when JD tokens overlap the category cue that triggered a baseline weight.
+3. **Fail-open behavior**
+   - If no industry profile matches, category industry weights are neutral (`0.0`) and existing
+     evidence-based ordering remains unchanged.
+
+High-level ordering score:
+
+```text
+category_score = aggregate_skill_score + (industry_category_weight * INDUSTRY_SIGNAL_WEIGHT)
+```
+
+Tie-breaks remain deterministic: industry weight, strongest single-skill score, then original
+category position.
 ### Related Issues
 - **Issue 22** (#22): Bullet selection engine (extend to use role_audience and JD profile)
 ---

@@ -41,11 +41,80 @@ _ROLE_STOPWORDS = {
 _BULLET_COUNT_WEIGHT = 2.0
 _RELATED_SKILL_WEIGHT = 1.0
 _ROLE_RELEVANCE_WEIGHT = 3.0
+_INDUSTRY_SIGNAL_WEIGHT = 4.0
+_INDUSTRY_JD_BOOST_WEIGHT = 0.4
 SKILLS_SEPARATOR = " • "
 _DEFAULT_ANCHOR_SKILLS = frozenset({"Python", "Java"})
 _PROTECTED_SKILL_SCORE_FLOOR = 4.0
 _PROTECTED_CATEGORY_DROP_PENALTY = 400.0
 _PROTECTED_SKILL_DROP_PENALTY = 150.0
+
+_INDUSTRY_PROFILE_KEYWORDS: dict[str, frozenset[str]] = {
+    "fintech": frozenset(
+        {
+            "bank",
+            "banking",
+            "capital",
+            "compliance",
+            "finance",
+            "financial",
+            "fintech",
+            "fraud",
+            "payment",
+            "payments",
+            "risk",
+            "trading",
+        }
+    ),
+    "security": frozenset(
+        {
+            "cybersecurity",
+            "identity",
+            "security",
+            "soc",
+            "threat",
+            "vulnerability",
+            "zero",
+        }
+    ),
+    "media": frozenset(
+        {
+            "audio",
+            "broadcast",
+            "codec",
+            "conference",
+            "media",
+            "streaming",
+            "video",
+            "voice",
+        }
+    ),
+}
+
+_INDUSTRY_CATEGORY_BASE_WEIGHTS: dict[str, dict[str, float]] = {
+    "fintech": {
+        "security": 1.2,
+        "compliance": 1.0,
+        "risk": 0.8,
+        "quality": 0.7,
+        "automation": 0.7,
+        "ci/cd": 0.5,
+    },
+    "security": {
+        "security": 1.2,
+        "compliance": 0.8,
+        "network": 0.6,
+        "reliability": 0.6,
+        "automation": 0.5,
+    },
+    "media": {
+        "media": 1.0,
+        "video": 0.9,
+        "audio": 0.9,
+        "network": 0.7,
+        "automation": 0.5,
+    },
+}
 
 
 def join_skills(skills: Iterable[str]) -> str:
@@ -352,6 +421,63 @@ def _skill_role_relevance(skill: str, role_text: str, role_tokens: set[str]) -> 
     return exact_phrase_bonus + overlap_ratio
 
 
+def _infer_industry_profiles(industry_tokens: set[str]) -> tuple[str, ...]:
+    """Infer deterministic industry profiles from role/JD/company tokens."""
+    matched: list[str] = []
+    for profile, keywords in _INDUSTRY_PROFILE_KEYWORDS.items():
+        if industry_tokens & keywords:
+            matched.append(profile)
+    return tuple(sorted(matched))
+
+
+def _category_matches_cue(category_tokens: set[str], cue: str) -> bool:
+    cue_tokens = _tokenize_role_text(cue)
+    if not cue_tokens:
+        return False
+    return bool(category_tokens & cue_tokens)
+
+
+def _compute_category_industry_weights(
+    resume: Any,
+    *,
+    skills_by_category: dict[str, list[str]],
+) -> dict[str, float]:
+    """Compute per-category industry relevance weight (static baseline + JD boost)."""
+    role_text, role_tokens = _extract_role_context(resume)
+    industry_text_parts: list[str] = [role_text]
+
+    job_context = getattr(resume, "job_context", None)
+    if job_context is not None:
+        company_research = getattr(job_context, "company_research", None)
+        industry_hint = str(
+            getattr(company_research, "industry_hint", "") or ""
+        ).strip()
+        if industry_hint:
+            industry_text_parts.append(industry_hint.lower())
+
+    industry_tokens = _tokenize_role_text(" ".join(industry_text_parts))
+    profiles = _infer_industry_profiles(industry_tokens)
+    if not profiles:
+        return {category: 0.0 for category in skills_by_category}
+
+    category_weights: dict[str, float] = {}
+    for category in skills_by_category:
+        category_tokens = _tokenize_role_text(category)
+        weight = 0.0
+        for profile in profiles:
+            for cue, base_weight in _INDUSTRY_CATEGORY_BASE_WEIGHTS.get(
+                profile, {}
+            ).items():
+                if not _category_matches_cue(category_tokens, cue):
+                    continue
+                weight += base_weight
+                cue_tokens = _tokenize_role_text(cue)
+                if cue_tokens & role_tokens:
+                    weight += _INDUSTRY_JD_BOOST_WEIGHT
+        category_weights[category] = weight
+    return category_weights
+
+
 def prioritize_skills_by_importance(
     resume: Any, *, scores: dict[str, float] | None = None
 ) -> dict[str, list[str]]:
@@ -394,6 +520,7 @@ def _order_categories_by_relevance(
     skills_by_category: dict[str, list[str]],
     *,
     skill_scores: dict[str, float],
+    category_industry_weights: dict[str, float] | None = None,
 ) -> dict[str, list[str]]:
     """Return categories ordered by aggregate retained-skill relevance.
 
@@ -402,11 +529,21 @@ def _order_categories_by_relevance(
     signal, then the strongest single-skill score, and finally the original
     category position for deterministic ties.
     """
+    resolved_category_weights = (
+        category_industry_weights if category_industry_weights is not None else {}
+    )
 
     indexed_categories = list(enumerate(skills_by_category.items()))
     indexed_categories.sort(
         key=lambda pair: (
-            -sum(skill_scores.get(skill, 0.0) for skill in pair[1][1]),
+            -(
+                sum(skill_scores.get(skill, 0.0) for skill in pair[1][1])
+                + (
+                    resolved_category_weights.get(pair[1][0], 0.0)
+                    * _INDUSTRY_SIGNAL_WEIGHT
+                )
+            ),
+            -resolved_category_weights.get(pair[1][0], 0.0),
             -max((skill_scores.get(skill, 0.0) for skill in pair[1][1]), default=0.0),
             pair[0],
         )
@@ -674,9 +811,14 @@ def select_skills(resume: Any) -> Any:
 
     skill_scores = _compute_skill_scores(resume)
     prioritized_skills = prioritize_skills_by_importance(resume, scores=skill_scores)
+    category_industry_weights = _compute_category_industry_weights(
+        resume,
+        skills_by_category=prioritized_skills,
+    )
     prioritized_skills = _order_categories_by_relevance(
         prioritized_skills,
         skill_scores=skill_scores,
+        category_industry_weights=category_industry_weights,
     )
 
     trimmed_skills = pack_skills_to_budget(
@@ -691,6 +833,7 @@ def select_skills(resume: Any) -> Any:
     trimmed_skills = _order_categories_by_relevance(
         trimmed_skills,
         skill_scores=skill_scores,
+        category_industry_weights=category_industry_weights,
     )
 
     from dataclasses import replace as dataclass_replace

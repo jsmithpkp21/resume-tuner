@@ -276,7 +276,9 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert " • " in text_snapshot
 
 
-def test_build_resume_cli_processed_mode_applies_filtering(tmp_path: Path) -> None:
+def test_build_resume_cli_processed_mode_applies_filtering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     raw_dir = tmp_path / "raw"
     processed_dir = tmp_path / "processed"
 
@@ -337,6 +339,7 @@ def test_build_resume_cli_processed_mode_applies_filtering(tmp_path: Path) -> No
         "Expected parsed skills categories in processed HTML output"
     )
 
+    monkeypatch.setenv("RESUME_FONT_STRICT", "0")
     font_regular, font_bold, font_name = load_font_pair(require_calibri=False)
     report = measure_skills_section(
         processed_skills,

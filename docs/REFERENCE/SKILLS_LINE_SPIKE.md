@@ -110,7 +110,7 @@ design (6–7 categories, ~11–13 lines target):
 | **Total** | **42** | **~9** |
 
 > **Note:** These per-category line estimates are illustrative, not formula-derived.
-> With real profile data the packing algorithm targets **11–13\u202f lines** total
+> With real profile data the packing algorithm targets **11–13 lines** total
 > (see `TARGET_LINES_MIN`/`TARGET_LINES_MAX` in `measure_skills_lines.py`).
 
 Exact line counts for any candidate selection can be computed in < 1 ms by

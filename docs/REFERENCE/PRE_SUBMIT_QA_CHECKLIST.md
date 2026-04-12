@@ -12,7 +12,7 @@ python scripts/build_resume.py \
   --output-dir data/review/outputs/latest_application
 ```
 Open `data/review/outputs/latest_application/latest_resume_processed.html` in a browser
-and `latest_resume_processed.md` in a text editor. All checks below apply to that output.
+and `data/review/outputs/latest_application/latest_resume_processed.md` in a text editor. All checks below apply to that output.
 ---
 ## 2. Profile summary
 - [ ] Summary is present and not the raw profile default (check for a role-targeted opening
@@ -36,7 +36,7 @@ and `latest_resume_processed.md` in a text editor. All checks below apply to tha
 ---
 ## 5. JD keyword coverage
 - [ ] The target role title appears in the resume header (generated from `--target-role`).
-- [ ] At least two of the JD'''s top three repeated technical terms appear in the top-third
+- [ ] At least two of the JD's top three repeated technical terms appear in the top-third
   of the resume (header, summary, or first-role bullets).
 - [ ] Skills section includes at least one skill from each major requirement area in the JD.
 ---

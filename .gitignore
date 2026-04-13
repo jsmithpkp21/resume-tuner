@@ -31,6 +31,8 @@ Thumbs.db
 sandbox/
 
 # Generated review artifacts
+data/review/
+# Legacy explicit entries kept for readability while migrating review outputs to sandbox
 data/review/packets/
 # Visual diff working files (regenerated each run)
 data/review/outputs/visual_diff/

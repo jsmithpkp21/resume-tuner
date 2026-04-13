@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from http.client import HTTPMessage
 from pathlib import Path
 from typing import Any
@@ -2131,6 +2132,71 @@ def test_transform_for_role_is_identity_when_llm_disabled() -> None:
     )
     # Neither RESUME_BUILDER_LLM_ENABLED nor RESUME_BUILDER_LLM_FIXTURE are set.
     assert transform_for_role(resume) is resume
+
+
+def _assert_llm_stage_skips_empty_job_context_signals(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    stage: Callable[[build_resume.ResumeIR], build_resume.ResumeIR],
+    stage_name: str,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="",
+        target_company="",
+        job_context=jd_ingest.JobContext(
+            input_url="https://example.com/jobs/123",
+            normalized_url="https://example.com/jobs/123",
+            source="company-site",
+            role_hint="",
+            company_name="",
+            job_id="123",
+            fetch_status="fetch_failed",
+            page_title="",
+            description_excerpt="",
+            notes=(),
+            company_research=None,
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    def fail_if_called() -> Any:
+        raise AssertionError(f"{stage_name} should not initialize LLMClient")
+
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", fail_if_called)
+
+    result = stage(resume)
+
+    assert result is resume
+    assert result.experiences == resume.experiences
+    assert result.enrichment_by_bullet_id == resume.enrichment_by_bullet_id
+
+
+def test_transform_for_role_skips_empty_job_context_signals_even_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _assert_llm_stage_skips_empty_job_context_signals(
+        monkeypatch,
+        stage=transform_for_role,
+        stage_name="transform_for_role",
+    )
+
+
+def test_trim_for_role_skips_empty_job_context_signals_even_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _assert_llm_stage_skips_empty_job_context_signals(
+        monkeypatch,
+        stage=trim_for_role,
+        stage_name="trim_for_role",
+    )
 
 
 def test_transform_for_role_rewrites_bullet_text(

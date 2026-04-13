@@ -130,3 +130,4 @@ bash scripts/sync_tooling.sh main .
 - [tooling repo](https://github.com/jsmithpkp21/tooling) — Source of shared scripts and config
 - [Application Guidance](docs/REFERENCE/APPLICATION_GUIDANCE.md) — Uncontrollables, mitigations, and pre-submit checklist
 - [Pre-Submit QA Checklist](docs/REFERENCE/PRE_SUBMIT_QA_CHECKLIST.md) — Fast QA gate before each application (5 min, includes Senior SDET addendum)
+- [Public Settings Runbook](docs/REFERENCE/PUBLIC_SETTINGS_RUNBOOK.md) — #99 checklist for rewrite window, GitHub settings, and public visibility flip

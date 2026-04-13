@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.10.1...v0.10.2) (2026-04-13)
+
+
+### Bug Fixes
+
+* **security:** reduce dns rebinding window in fetch path ([7c76e82](https://github.com/jsmithpkp21/resume-builder/commit/7c76e82fa6d898d2b1bd99d2122415c81cd6009e))
+
 ## [0.10.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.10.0...v0.10.1) (2026-04-13)
 
 

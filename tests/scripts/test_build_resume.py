@@ -644,6 +644,42 @@ def test_build_resume_cli_accepts_job_text_file(tmp_path: Path) -> None:
     )
 
 
+def test_build_resume_cli_job_text_without_company_omits_company_research(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "job_text_without_company"
+    job_text_file = tmp_path / "job_description.txt"
+    job_text_file.write_text(
+        "Job Title: Senior SDET\nLooking for a Senior SDET focused on CI reliability.\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(output_dir),
+            "--job-text-file",
+            str(job_text_file),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    snapshot = json.loads(
+        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+    )
+
+    assert snapshot["target_role"] == "Senior SDET"
+    assert snapshot["target_company"] == ""
+    assert snapshot["job_context"]["company_name"] == ""
+    assert "company_research" not in snapshot["job_context"]
+
+
 def test_ingest_job_context_rejects_blocked_fixture_env_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

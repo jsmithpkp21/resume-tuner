@@ -1040,8 +1040,11 @@ def test_ingest_job_context_rejects_hostname_resolving_to_private_ip(
         lambda _hostname: (ipaddress.ip_address("10.0.0.5"),),
     )
 
+    def fail_fetcher(_: str) -> FetchedPage:
+        raise AssertionError("fetcher should not be called for private-DNS rejection")
+
     with pytest.raises(ValueError, match="non-public IP"):
-        ingest_job_context("https://jobs.example.com/123")
+        ingest_job_context("https://jobs.example.com/123", fetcher=fail_fetcher)
 
 
 def test_ingest_job_context_rejects_hostname_with_mixed_public_and_private_dns(
@@ -1056,8 +1059,11 @@ def test_ingest_job_context_rejects_hostname_with_mixed_public_and_private_dns(
         ),
     )
 
+    def fail_fetcher(_: str) -> FetchedPage:
+        raise AssertionError("fetcher should not be called for mixed-DNS rejection")
+
     with pytest.raises(ValueError, match="non-public IP"):
-        ingest_job_context("https://jobs.example.com/123")
+        ingest_job_context("https://jobs.example.com/123", fetcher=fail_fetcher)
 
 
 def test_ingest_job_context_rejects_hostname_resolving_to_ipv4_mapped_loopback(
@@ -1069,8 +1075,13 @@ def test_ingest_job_context_rejects_hostname_resolving_to_ipv4_mapped_loopback(
         lambda _hostname: (ipaddress.ip_address("::ffff:127.0.0.1"),),
     )
 
+    def fail_fetcher(_: str) -> FetchedPage:
+        raise AssertionError(
+            "fetcher should not be called for mapped-loopback DNS rejection"
+        )
+
     with pytest.raises(ValueError, match="non-public IP"):
-        ingest_job_context("https://jobs.example.com/123")
+        ingest_job_context("https://jobs.example.com/123", fetcher=fail_fetcher)
 
 
 def test_ingest_job_context_truncates_fetched_description_excerpt() -> None:

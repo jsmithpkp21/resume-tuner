@@ -8,11 +8,13 @@ This runbook covers:
 1. GitHub repository/security settings that should be in place before the visibility flip.
 2. Rewrite-window controls so history cleanup is coordinated and auditable.
 3. Post-flip validation checks.
+
 ## Preconditions
 
 - The active execution branch strategy is `epic/99-public-readiness` with child branches merged into epic first.
 - Current HEAD sanitization changes are merged into `epic/99-public-readiness`.
 - The owner has approved proceeding with the public-readiness window.
+
 ## 1) GitHub Settings Checklist (Before Public)
 
 Complete these in repository Settings before changing visibility:
@@ -28,6 +30,7 @@ Complete these in repository Settings before changing visibility:
 - [ ] Confirm no static credentials are stored in workflows/scripts.
 - [ ] Enable secret scanning and push protection where available for this repository visibility/tier.
 - [ ] If secret scanning or push protection is unavailable, record the limitation and compensating controls on issue #99.
+
 ## 2) Rewrite Window Checklist
 
 Use a short maintenance window for the full rewrite.
@@ -38,6 +41,7 @@ Use a short maintenance window for the full rewrite.
 - [ ] Force-push rewritten refs.
 - [ ] Verify removed paths/content are no longer present in history.
 - [ ] Post collaborator reset instructions (fresh clone or hard reset guidance).
+
 ## 3) Post-Rewrite Validation
 
 - [ ] `main` and `epic/99-public-readiness` point to expected commits.
@@ -45,6 +49,7 @@ Use a short maintenance window for the full rewrite.
 - [ ] No blocked/sensitive paths are present in current tracked files.
 - [ ] Smoke-run key commands (`make check`, selected tests) succeed.
 - [ ] Issue #99 has explicit "go/no-go: approved" comment.
+
 ## 4) Visibility Flip + Post-Flip Smoke Check
 
 - [ ] Change repository visibility to public.
@@ -52,6 +57,7 @@ Use a short maintenance window for the full rewrite.
 - [ ] Confirm no private/sensitive docs or artifacts are exposed.
 - [ ] Confirm PR and branch protection still enforce expected policy.
 - [ ] Post final completion note on issue #99 with links to evidence.
+
 ## Evidence to attach on #99
 
 - Link to epic PR.

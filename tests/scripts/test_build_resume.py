@@ -408,6 +408,31 @@ def test_build_resume_cli_modern_template_renders_centered_header(
     )
 
 
+def test_build_resume_cli_processed_mode_does_not_mutate_experience_db(
+    tmp_path: Path,
+) -> None:
+    experience_db = REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    before_bytes = experience_db.read_bytes()
+
+    output_dir = tmp_path / "processed_immutability"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(output_dir),
+            "--processing-mode",
+            "processed",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert experience_db.read_bytes() == before_bytes
+
+
 def test_build_resume_cli_rejects_unknown_template(tmp_path: Path) -> None:
     output_dir = tmp_path / "invalid_template"
     result = subprocess.run(

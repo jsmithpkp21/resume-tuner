@@ -2409,6 +2409,58 @@ def test_enrich_data_runs_when_target_role_signal_exists(
     assert enriched.enrichment_by_bullet_id[first_bullet_id]["confidence"] == 0.88
 
 
+def test_enrich_data_runs_when_job_context_role_hint_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="",
+        target_company="",
+        job_context=jd_ingest.JobContext(
+            input_url="https://example.com/jobs/123",
+            normalized_url="https://example.com/jobs/123",
+            source="company-site",
+            role_hint="Senior SDET",
+            company_name="",
+            job_id="123",
+            fetch_status="fetch_failed",
+            page_title="",
+            description_excerpt="",
+            notes=(),
+            company_research=None,
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    monkeypatch.setattr(
+        "scripts.build_resume.LLMClient.from_env",
+        lambda *_args, **_kwargs: object(),
+    )
+
+    first_bullet_id = resume.experiences[0].bullets[0].id
+
+    def fake_enrich(
+        *, client: Any, resume: Any, experience: Any
+    ) -> dict[str, dict[str, object]]:
+        del client, resume, experience
+        return {first_bullet_id: {"confidence": 0.77, "tags": ["sdet"]}}
+
+    monkeypatch.setattr("scripts.build_resume._enrich_experience_bullets", fake_enrich)
+
+    enriched = enrich_data(resume)
+
+    assert enriched is not resume
+    assert enriched.experiences == resume.experiences
+    assert enriched.enrichment_by_bullet_id[first_bullet_id]["confidence"] == 0.77
+
+
 def test_transform_for_role_rewrites_bullet_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

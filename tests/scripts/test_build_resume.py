@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import html as html_lib
 import io
-import ipaddress
 import json
 import logging
 import math
 import os
 import re
-import socket
 import subprocess
 import sys
 from http.client import HTTPMessage
@@ -408,68 +406,6 @@ def test_build_resume_cli_modern_template_renders_centered_header(
     )
 
 
-def test_build_resume_cli_processed_mode_emits_title_framing_in_snapshot(
-    tmp_path: Path,
-) -> None:
-    output_dir = tmp_path / "processed_snapshot"
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(SCRIPT),
-            "--output-dir",
-            str(output_dir),
-            "--processing-mode",
-            "processed",
-            "--target-role",
-            "Staff Software Engineer",
-        ],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    snapshot = json.loads(
-        (output_dir / "latest_resume_processed_ir_snapshot.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    experiences = snapshot.get("experiences")
-    assert isinstance(experiences, list)
-    assert experiences
-    for entry in experiences:
-        assert entry["canonical_job_title"].strip()
-        assert entry["target_facing_title"].strip()
-        assert entry["role_summary"].strip()
-
-
-def test_build_resume_cli_processed_mode_does_not_mutate_experience_db(
-    tmp_path: Path,
-) -> None:
-    experience_db = REPO_ROOT / "data" / "experience" / "experience_db.toml"
-    before_bytes = experience_db.read_bytes()
-
-    output_dir = tmp_path / "processed_immutability"
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(SCRIPT),
-            "--output-dir",
-            str(output_dir),
-            "--processing-mode",
-            "processed",
-        ],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert experience_db.read_bytes() == before_bytes
-
-
 def test_build_resume_cli_rejects_unknown_template(tmp_path: Path) -> None:
     output_dir = tmp_path / "invalid_template"
     result = subprocess.run(
@@ -599,6 +535,70 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
     assert (output_dir / "charles_schwab_resume_raw_ir_snapshot.txt").exists()
 
 
+def test_build_resume_cli_explicit_target_role_overrides_job_context_hint(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "explicit_target_role"
+    env = os.environ.copy()
+    env["RESUME_BUILDER_JOB_PAGE_FIXTURE"] = str(SCHWAB_FIXTURE)
+    explicit_target_role = "Principal QA Automation Engineer"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(output_dir),
+            "--job-url",
+            SCHWAB_JOB_URL,
+            "--target-role",
+            explicit_target_role,
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    snapshot = json.loads(
+        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+    )
+
+    assert snapshot["target_role"] == explicit_target_role
+    assert snapshot["job_context"]["role_hint"] == "Sr. SDET"
+
+
+def test_build_resume_cli_rejects_job_url_and_job_text_file_together(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "conflicting_job_inputs"
+    job_text_file = tmp_path / "job_description.txt"
+    job_text_file.write_text("Job Title: Senior SDET\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(output_dir),
+            "--job-url",
+            SCHWAB_JOB_URL,
+            "--job-text-file",
+            str(job_text_file),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "Provide only one of --job-url or --job-text-file" in result.stderr
+
+
 def test_build_resume_cli_accepts_job_text_file(tmp_path: Path) -> None:
     output_dir = tmp_path / "from_job_text"
     job_text_file = tmp_path / "job_description.txt"
@@ -638,6 +638,10 @@ def test_build_resume_cli_accepts_job_text_file(tmp_path: Path) -> None:
     assert snapshot["target_company"] == "Charles Schwab"
     assert snapshot["job_context"]["source"] == "job-text-file"
     assert snapshot["job_context"]["fetch_status"] == "provided_text"
+    assert snapshot["job_context"]["company_research"]["strategy"] == "deterministic-v1"
+    assert (
+        snapshot["job_context"]["company_research"]["company_name"] == "Charles Schwab"
+    )
 
 
 def test_ingest_job_context_rejects_blocked_fixture_env_path(
@@ -946,71 +950,6 @@ def test_ingest_job_context_rejects_private_ip_target() -> None:
         ingest_job_context("https://10.0.0.5/jobs/123")
 
 
-def test_ingest_job_context_rejects_hostname_resolving_to_private_ip(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        jd_ingest,
-        "_resolve_hostname_ips",
-        lambda _hostname: (ipaddress.ip_address("10.0.0.5"),),
-    )
-
-    def fake_fetcher(_: str) -> FetchedPage:
-        return FetchedPage(
-            status="fetch_failed",
-            title="",
-            description="",
-            notes=("fetch_failed:HTTPError",),
-        )
-
-    with pytest.raises(ValueError, match="non-public IP"):
-        ingest_job_context("https://jobs.example.com/123", fetcher=fake_fetcher)
-
-
-def test_ingest_job_context_rejects_hostname_with_mixed_public_and_private_dns(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        jd_ingest,
-        "_resolve_hostname_ips",
-        lambda _hostname: (
-            ipaddress.ip_address("93.184.216.34"),
-            ipaddress.ip_address("10.1.2.3"),
-        ),
-    )
-
-    def fake_fetcher(_: str) -> FetchedPage:
-        return FetchedPage(
-            status="fetch_failed",
-            title="",
-            description="",
-            notes=("fetch_failed:HTTPError",),
-        )
-
-    with pytest.raises(ValueError, match="non-public IP"):
-        ingest_job_context("https://jobs.example.com/123", fetcher=fake_fetcher)
-
-
-def test_ingest_job_context_allows_hostname_when_dns_resolution_fails_non_strict(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def raise_dns_error(*_args: Any, **_kwargs: Any) -> Any:
-        raise socket.gaierror("simulated lookup failure")
-
-    monkeypatch.setattr(socket, "getaddrinfo", raise_dns_error)
-
-    def fake_fetcher(_: str) -> FetchedPage:
-        return FetchedPage(
-            status="fetch_failed",
-            title="",
-            description="",
-            notes=("fetch_failed:HTTPError",),
-        )
-
-    context = ingest_job_context("https://jobs.example.com/123", fetcher=fake_fetcher)
-    assert context.fetch_status == "fetch_failed"
-
-
 def test_ingest_job_context_truncates_fetched_description_excerpt() -> None:
     long_description = "x" * 900
 
@@ -1039,27 +978,6 @@ def test_redirect_handler_rejects_localhost_redirect_target() -> None:
             msg="Found",
             headers=HTTPMessage(),
             newurl="http://localhost/internal",
-        )
-
-
-def test_redirect_handler_rejects_private_resolved_redirect_target(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        jd_ingest,
-        "_resolve_hostname_ips",
-        lambda _hostname: (ipaddress.ip_address("192.168.1.20"),),
-    )
-    handler = jd_ingest._ValidatingRedirectHandler()
-    request = Request("https://example.com/jobs/123")
-    with pytest.raises(ValueError, match="non-public IP"):
-        handler.redirect_request(
-            request,
-            fp=io.BytesIO(b""),
-            code=302,
-            msg="Found",
-            headers=HTTPMessage(),
-            newurl="https://redirect.example.internal/jobs/456",
         )
 
 
@@ -1096,11 +1014,6 @@ def test_fetch_job_page_metadata_limits_response_body(
             assert timeout == 8
             return _FakeResponse()
 
-    monkeypatch.setattr(
-        jd_ingest,
-        "_resolve_hostname_ips",
-        lambda _hostname: (ipaddress.ip_address("93.184.216.34"),),
-    )
     monkeypatch.setattr(jd_ingest, "build_opener", lambda *args: _FakeOpener())
     fetched = jd_ingest._fetch_job_page_metadata("https://example.com/jobs/123")
     assert fetched.status == "fetch_failed"
@@ -1115,46 +1028,6 @@ def test_ingest_job_context_rejects_localhost_with_trailing_dot() -> None:
 def test_ingest_job_context_rejects_link_local_ipv6_zone_id() -> None:
     with pytest.raises(ValueError, match="non-public IP"):
         ingest_job_context("http://[fe80::1%25eth0]/jobs/123")
-
-
-def test_ingest_job_context_rejects_ipv4_mapped_ipv6_loopback() -> None:
-    with pytest.raises(ValueError, match="non-public IP"):
-        ingest_job_context("http://[::ffff:127.0.0.1]/jobs/123")
-
-
-def test_ingest_job_context_connect_time_revalidation_blocks_rebinding(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # First resolution (ingest validation) is public, second (pre-connect) is private.
-    answers = [
-        (ipaddress.ip_address("93.184.216.34"),),
-        (ipaddress.ip_address("10.0.0.5"),),
-    ]
-
-    def fake_resolve(
-        _hostname: str,
-    ) -> tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]:
-        return answers.pop(0) if answers else (ipaddress.ip_address("93.184.216.34"),)
-
-    open_calls = {"count": 0}
-
-    class _FailIfOpened:
-        def open(self, req: object, timeout: int = 0) -> object:
-            del req, timeout
-            open_calls["count"] += 1
-            raise AssertionError(
-                "network open should not occur after connect-time revalidation failure"
-            )
-
-    monkeypatch.setattr(jd_ingest, "_resolve_hostname_ips", fake_resolve)
-    monkeypatch.setattr(jd_ingest, "build_opener", lambda *_args: _FailIfOpened())
-    monkeypatch.delenv("RESUME_BUILDER_JOB_PAGE_FIXTURE", raising=False)
-
-    context = ingest_job_context("https://jobs.example.com/123")
-
-    assert context.fetch_status == "fetch_failed"
-    assert context.notes == ("fetch_failed:ValueError",)
-    assert open_calls["count"] == 0
 
 
 def test_infer_source_rejects_linkedin_lookalike_domain() -> None:

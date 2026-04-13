@@ -22,7 +22,8 @@ Complete these in repository Settings before changing visibility:
 - [ ] Required checks are enabled for merge to `main`.
 - [ ] At least one review approval is required on PRs.
 - [ ] Dismiss stale approvals on new commits.
-- [ ] Restrict force-push to `main` (rewrite window handled explicitly).
+- [ ] Restrict force-push to `main` by default.
+- [ ] Define an explicit rewrite-window exception path (admin-only temporary ruleset change or approved bypass) before executing history rewrite.
 - [ ] Enable Dependabot alerts.
 - [ ] Enable Dependabot security updates.
 - [ ] Enable and configure code scanning (CodeQL or equivalent) where applicable.
@@ -38,7 +39,9 @@ Use a short maintenance window for the full rewrite.
 - [ ] Pause non-#99 merges during the rewrite window.
 - [ ] Tag/backup current refs before rewrite.
 - [ ] Execute approved history rewrite plan.
+- [ ] Apply the approved temporary force-push exception for rewrite operations (admin-only, time-boxed).
 - [ ] Force-push rewritten refs.
+- [ ] Re-enable the default force-push restriction immediately after rewrite completes.
 - [ ] Verify removed paths/content are no longer present in history.
 - [ ] Post collaborator reset instructions (fresh clone or hard reset guidance).
 

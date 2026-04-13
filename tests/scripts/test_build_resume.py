@@ -647,6 +647,8 @@ def test_build_resume_cli_rejects_job_url_and_job_text_file_together(
     output_dir = tmp_path / "conflicting_job_inputs"
     job_text_file = tmp_path / "job_description.txt"
     job_text_file.write_text("Job Title: Senior SDET\n", encoding="utf-8")
+    env = os.environ.copy()
+    env["RESUME_BUILDER_JOB_PAGE_FIXTURE"] = str(SCHWAB_FIXTURE)
 
     result = subprocess.run(
         [
@@ -662,6 +664,8 @@ def test_build_resume_cli_rejects_job_url_and_job_text_file_together(
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        timeout=10,
+        env=env,
         check=False,
     )
 
@@ -1107,6 +1111,25 @@ def test_ingest_job_context_rejects_hostname_resolving_to_ipv4_mapped_loopback(
 
     with pytest.raises(ValueError, match="non-public IP"):
         ingest_job_context("https://jobs.example.com/123", fetcher=fail_fetcher)
+
+
+def test_ingest_job_context_allows_dns_lookup_failure_non_strict_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_getaddrinfo(*_args: object, **_kwargs: object) -> list[object]:
+        raise OSError("dns unavailable")
+
+    def fake_fetcher(_: str) -> FetchedPage:
+        return FetchedPage(
+            status="fetched",
+            title="Senior SDET - Contoso",
+            description="Role description",
+            notes=(),
+        )
+
+    monkeypatch.setattr("scripts.jd_ingest.socket.getaddrinfo", fake_getaddrinfo)
+    context = ingest_job_context("https://jobs.example.com/123", fetcher=fake_fetcher)
+    assert context.fetch_status == "fetched"
 
 
 def test_ingest_job_context_truncates_fetched_description_excerpt() -> None:

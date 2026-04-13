@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import html as html_lib
 import io
+import ipaddress
 import json
 import logging
 import math
 import os
 import re
+import socket
 import subprocess
 import sys
 from http.client import HTTPMessage
@@ -944,6 +946,71 @@ def test_ingest_job_context_rejects_private_ip_target() -> None:
         ingest_job_context("https://10.0.0.5/jobs/123")
 
 
+def test_ingest_job_context_rejects_hostname_resolving_to_private_ip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        jd_ingest,
+        "_resolve_hostname_ips",
+        lambda _hostname: (ipaddress.ip_address("10.0.0.5"),),
+    )
+
+    def fake_fetcher(_: str) -> FetchedPage:
+        return FetchedPage(
+            status="fetch_failed",
+            title="",
+            description="",
+            notes=("fetch_failed:HTTPError",),
+        )
+
+    with pytest.raises(ValueError, match="non-public IP"):
+        ingest_job_context("https://jobs.example.com/123", fetcher=fake_fetcher)
+
+
+def test_ingest_job_context_rejects_hostname_with_mixed_public_and_private_dns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        jd_ingest,
+        "_resolve_hostname_ips",
+        lambda _hostname: (
+            ipaddress.ip_address("93.184.216.34"),
+            ipaddress.ip_address("10.1.2.3"),
+        ),
+    )
+
+    def fake_fetcher(_: str) -> FetchedPage:
+        return FetchedPage(
+            status="fetch_failed",
+            title="",
+            description="",
+            notes=("fetch_failed:HTTPError",),
+        )
+
+    with pytest.raises(ValueError, match="non-public IP"):
+        ingest_job_context("https://jobs.example.com/123", fetcher=fake_fetcher)
+
+
+def test_ingest_job_context_allows_hostname_when_dns_resolution_fails_non_strict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_dns_error(*_args: Any, **_kwargs: Any) -> Any:
+        raise socket.gaierror("simulated lookup failure")
+
+    monkeypatch.setattr(socket, "getaddrinfo", raise_dns_error)
+
+    def fake_fetcher(_: str) -> FetchedPage:
+        return FetchedPage(
+            status="fetch_failed",
+            title="",
+            description="",
+            notes=("fetch_failed:HTTPError",),
+        )
+
+    context = ingest_job_context("https://jobs.example.com/123", fetcher=fake_fetcher)
+    assert context.fetch_status == "fetch_failed"
+
+
 def test_ingest_job_context_truncates_fetched_description_excerpt() -> None:
     long_description = "x" * 900
 
@@ -972,6 +1039,27 @@ def test_redirect_handler_rejects_localhost_redirect_target() -> None:
             msg="Found",
             headers=HTTPMessage(),
             newurl="http://localhost/internal",
+        )
+
+
+def test_redirect_handler_rejects_private_resolved_redirect_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        jd_ingest,
+        "_resolve_hostname_ips",
+        lambda _hostname: (ipaddress.ip_address("192.168.1.20"),),
+    )
+    handler = jd_ingest._ValidatingRedirectHandler()
+    request = Request("https://example.com/jobs/123")
+    with pytest.raises(ValueError, match="non-public IP"):
+        handler.redirect_request(
+            request,
+            fp=io.BytesIO(b""),
+            code=302,
+            msg="Found",
+            headers=HTTPMessage(),
+            newurl="https://redirect.example.internal/jobs/456",
         )
 
 

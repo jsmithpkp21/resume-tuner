@@ -14,6 +14,7 @@ from __future__ import annotations
 import ipaddress
 import os
 import re
+import socket
 from collections.abc import Callable
 from dataclasses import dataclass
 from html.parser import HTMLParser
@@ -245,18 +246,48 @@ def _validate_job_url(url: str) -> None:
     try:
         ip = ipaddress.ip_address(host_for_ip_check)
     except ValueError:
+        for resolved_ip in _resolve_hostname_ips(host_for_ip_check):
+            if _is_non_public_ip(resolved_ip):
+                raise ValueError(
+                    "job URL host cannot target non-public IP ranges"
+                ) from None
         return
 
     # Block non-public address classes to reduce SSRF blast radius.
-    if (
+    if _is_non_public_ip(ip):
+        raise ValueError("job URL host cannot target non-public IP ranges")
+
+
+def _resolve_hostname_ips(
+    hostname: str,
+) -> tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]:
+    try:
+        addrinfo = socket.getaddrinfo(hostname, None)
+    except OSError:
+        # Non-strict mode: allow validation to continue if DNS resolution fails.
+        return ()
+
+    resolved: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
+    for _family, _socktype, _proto, _canonname, sockaddr in addrinfo:
+        if not sockaddr:
+            continue
+        candidate = str(sockaddr[0]).split("%", maxsplit=1)[0]
+        try:
+            resolved.append(ipaddress.ip_address(candidate))
+        except ValueError:
+            continue
+    return tuple(resolved)
+
+
+def _is_non_public_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    return (
         ip.is_private
         or ip.is_loopback
         or ip.is_link_local
         or ip.is_multicast
         or ip.is_reserved
         or ip.is_unspecified
-    ):
-        raise ValueError("job URL host cannot target non-public IP ranges")
+    )
 
 
 def _truncate_excerpt(text: str, *, limit: int = _MAX_DESCRIPTION_EXCERPT) -> str:

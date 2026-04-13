@@ -536,6 +536,49 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
     assert (output_dir / "charles_schwab_resume_raw_ir_snapshot.txt").exists()
 
 
+def test_build_resume_cli_job_url_snapshot_contract_is_complete_and_deterministic(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "job_url_snapshot_contract"
+    env = os.environ.copy()
+    env["RESUME_BUILDER_JOB_PAGE_FIXTURE"] = str(SCHWAB_FIXTURE)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(output_dir),
+            "--job-url",
+            SCHWAB_JOB_URL,
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    snapshot = json.loads(
+        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+    )
+    job_context = snapshot["job_context"]
+
+    assert job_context["normalized_url"] == SCHWAB_JOB_URL
+    assert job_context["page_title"].strip() != ""
+    assert 0 < len(job_context["description_excerpt"]) <= 500
+    assert isinstance(job_context["notes"], list)
+    assert job_context["notes"] == ["fixture:schwab_sr_sdet.html"]
+
+    assert job_context["company_research"]["strategy"] == "deterministic-v1"
+    assert job_context["company_research"]["confidence"] == "low"
+    assert (
+        "Public listing signals only" in job_context["company_research"]["product_hint"]
+    )
+
+
 def test_build_resume_cli_explicit_target_role_overrides_job_context_hint(
     tmp_path: Path,
 ) -> None:

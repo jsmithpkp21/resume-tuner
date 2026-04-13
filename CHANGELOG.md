@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.10.0...v0.10.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* **security:** block dns-resolved private job hosts ([b14537f](https://github.com/jsmithpkp21/resume-builder/commit/b14537f87f575221c3f834de2d7334af9aaa5dd6))
+* **security:** block ipv4-mapped ipv6 private hosts ([4d2fe72](https://github.com/jsmithpkp21/resume-builder/commit/4d2fe72a37952ae3fa3e3973400c9dd8159cfd66))
+
 ## [0.10.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.9.0...v0.10.0) (2026-04-12)
 
 

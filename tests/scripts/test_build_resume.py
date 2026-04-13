@@ -1096,6 +1096,11 @@ def test_fetch_job_page_metadata_limits_response_body(
             assert timeout == 8
             return _FakeResponse()
 
+    monkeypatch.setattr(
+        jd_ingest,
+        "_resolve_hostname_ips",
+        lambda _hostname: (ipaddress.ip_address("93.184.216.34"),),
+    )
     monkeypatch.setattr(jd_ingest, "build_opener", lambda *args: _FakeOpener())
     fetched = jd_ingest._fetch_job_page_metadata("https://example.com/jobs/123")
     assert fetched.status == "fetch_failed"

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.10.2...v0.11.0) (2026-04-13)
+
+
+### Features
+
+* **resume:** align enrich gating with signal availability ([996231f](https://github.com/jsmithpkp21/resume-builder/commit/996231f3f82a21c72e7f8e817d8e5df8b2c1a8b7))
+
+
+### Bug Fixes
+
+* **resume:** honor role_hint in enrich_data gating ([06d11d4](https://github.com/jsmithpkp21/resume-builder/commit/06d11d4eade22076b03e8e993544a28cabcd2168))
+
 ## [0.10.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.10.1...v0.10.2) (2026-04-13)
 
 

@@ -16,12 +16,13 @@ Complete these in repository Settings before changing visibility:
 - [ ] At least one review approval is required on PRs.
 - [ ] Dismiss stale approvals on new commits.
 - [ ] Restrict force-push to `main` (rewrite window handled explicitly).
-- [ ] Enable secret scanning.
-- [ ] Enable push protection for secrets.
 - [ ] Enable Dependabot alerts.
 - [ ] Enable Dependabot security updates.
+- [ ] Enable and configure code scanning (CodeQL or equivalent) where applicable.
 - [ ] Confirm Actions default token permissions are least-privilege.
 - [ ] Confirm no static credentials are stored in workflows/scripts.
+- [ ] Enable secret scanning and push protection where available for this repository visibility/tier.
+- [ ] If secret scanning or push protection is unavailable, record the limitation and compensating controls on issue #99.
 ## 2) Rewrite Window Checklist
 Use a short maintenance window for the full rewrite.
 - [ ] Post a freeze note on issue #99 with planned start/end times.
@@ -35,7 +36,7 @@ Use a short maintenance window for the full rewrite.
 - [ ] `main` and `epic/99-public-readiness` point to expected commits.
 - [ ] PR checks pass after rewritten history is in place.
 - [ ] No blocked/sensitive paths are present in current tracked files.
-- [ ] Smoke-run key commands (`make check`, selected tests) succeeds.
+- [ ] Smoke-run key commands (`make check`, selected tests) succeed.
 - [ ] Issue #99 has explicit "go/no-go: approved" comment.
 ## 4) Visibility Flip + Post-Flip Smoke Check
 - [ ] Change repository visibility to public.

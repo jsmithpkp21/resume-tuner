@@ -1170,6 +1170,11 @@ def test_fetch_job_page_metadata_limits_response_body(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("RESUME_BUILDER_JOB_PAGE_FIXTURE", raising=False)
+    monkeypatch.setattr(
+        jd_ingest,
+        "_resolve_hostname_ips",
+        lambda _hostname: (ipaddress.ip_address("93.184.216.34"),),
+    )
 
     class _FakeHeaders:
         def get_content_charset(self) -> str:

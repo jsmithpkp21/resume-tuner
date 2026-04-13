@@ -483,6 +483,8 @@ def _fetch_job_page_metadata(url: str) -> FetchedPage:
     )
     opener = build_opener(_ValidatingRedirectHandler())
     try:
+        # Re-validate immediately before connect to reduce DNS rebinding window.
+        _validate_job_url(_normalize_url(url))
         with opener.open(request, timeout=8) as response:  # nosec B310 - user-supplied URL
             _validate_job_url(_normalize_url(response.geturl()))
             content_length_header = response.headers.get("Content-Length")

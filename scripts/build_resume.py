@@ -424,32 +424,6 @@ def derive_resume_title(resume: ResumeIR) -> str:
     return normalized_base
 
 
-def _generate_target_facing_title(resume: ResumeIR, experience: Experience) -> str:
-    """Generate a target-facing title using generic rules (no static mapping file).
-
-    Keeps canonical data untouched while producing an audience-oriented display label
-    for reporting artifacts.
-    """
-    canonical_title = " ".join(experience.job_title.split())
-    base_role = _normalize_role_acronyms(_get_base_role(resume))
-    if not base_role:
-        return canonical_title
-
-    # If canonical title already matches the target role framing, keep it.
-    if canonical_title.lower() == base_role.lower():
-        return canonical_title
-
-    # Preserve concise domain context from canonical titles where available.
-    focus = ""
-    if "," in canonical_title:
-        _, tail = canonical_title.split(",", maxsplit=1)
-        focus = " ".join(tail.split())
-
-    if focus and len(focus.split()) <= 8:
-        return f"{base_role} - {focus}"
-    return base_role
-
-
 def load_experiences(path: Path) -> tuple[Experience, ...]:
     payload = _read_toml(path)
     raw_experiences = payload.get("experience", [])
@@ -962,6 +936,11 @@ def enrich_data(resume: ResumeIR) -> ResumeIR:
         - Select/reorder bullets.
     """
     if resume.job_context is None:
+        return resume
+    if (
+        not resume.job_context.description_excerpt.strip()
+        and not resume.target_role.strip()
+    ):
         return resume
     if not _llm_stage_enabled():
         return resume
@@ -2035,16 +2014,6 @@ def write_ir_snapshot(resume: ResumeIR, output_path: Path) -> None:
             len(skills) for skills in resume.skills_by_category.values()
         ),
         "enrichment_count": len(resume.enrichment_by_bullet_id),
-        "experiences": [
-            {
-                "id": exp.id,
-                "canonical_job_title": exp.job_title,
-                "target_facing_title": _generate_target_facing_title(resume, exp),
-                "role_summary": exp.general_role_description,
-                "bullet_count": len(exp.bullets),
-            }
-            for exp in resume.experiences
-        ],
     }
     if resume.job_context is not None:
         payload["job_context"] = resume.job_context.to_dict()

@@ -2304,7 +2304,7 @@ def _assert_llm_stage_skips_empty_job_context_signals(
         skills_by_category={},
     )
 
-    def fail_if_called() -> Any:
+    def fail_if_called(*_args: Any, **_kwargs: Any) -> Any:
         raise AssertionError(f"{stage_name} should not initialize LLMClient")
 
     monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", fail_if_called)
@@ -2376,7 +2376,10 @@ def test_enrich_data_runs_when_target_role_signal_exists(
         skills_by_category={},
     )
 
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: object())
+    monkeypatch.setattr(
+        "scripts.build_resume.LLMClient.from_env",
+        lambda *_args, **_kwargs: object(),
+    )
 
     first_bullet_id = resume.experiences[0].bullets[0].id
 

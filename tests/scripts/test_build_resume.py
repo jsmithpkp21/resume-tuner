@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html as html_lib
 import io
+import ipaddress
 import json
 import logging
 import math
@@ -1030,6 +1031,48 @@ def test_ingest_job_context_rejects_private_ip_target() -> None:
         ingest_job_context("https://10.0.0.5/jobs/123")
 
 
+def test_ingest_job_context_rejects_hostname_resolving_to_private_ip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        jd_ingest,
+        "_resolve_hostname_ips",
+        lambda _hostname: (ipaddress.ip_address("10.0.0.5"),),
+    )
+
+    with pytest.raises(ValueError, match="non-public IP"):
+        ingest_job_context("https://jobs.example.com/123")
+
+
+def test_ingest_job_context_rejects_hostname_with_mixed_public_and_private_dns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        jd_ingest,
+        "_resolve_hostname_ips",
+        lambda _hostname: (
+            ipaddress.ip_address("93.184.216.34"),
+            ipaddress.ip_address("10.1.2.3"),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="non-public IP"):
+        ingest_job_context("https://jobs.example.com/123")
+
+
+def test_ingest_job_context_rejects_hostname_resolving_to_ipv4_mapped_loopback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        jd_ingest,
+        "_resolve_hostname_ips",
+        lambda _hostname: (ipaddress.ip_address("::ffff:127.0.0.1"),),
+    )
+
+    with pytest.raises(ValueError, match="non-public IP"):
+        ingest_job_context("https://jobs.example.com/123")
+
+
 def test_ingest_job_context_truncates_fetched_description_excerpt() -> None:
     long_description = "x" * 900
 
@@ -1059,6 +1102,57 @@ def test_redirect_handler_rejects_localhost_redirect_target() -> None:
             headers=HTTPMessage(),
             newurl="http://localhost/internal",
         )
+
+
+def test_redirect_handler_rejects_private_resolved_redirect_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        jd_ingest,
+        "_resolve_hostname_ips",
+        lambda _hostname: (ipaddress.ip_address("192.168.1.20"),),
+    )
+    handler = jd_ingest._ValidatingRedirectHandler()
+    request = Request("https://example.com/jobs/123")
+    with pytest.raises(ValueError, match="non-public IP"):
+        handler.redirect_request(
+            request,
+            fp=io.BytesIO(b""),
+            code=302,
+            msg="Found",
+            headers=HTTPMessage(),
+            newurl="https://redirect.example.internal/jobs/456",
+        )
+
+
+def test_fetch_job_page_metadata_revalidates_dns_before_connect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RESUME_BUILDER_JOB_PAGE_FIXTURE", raising=False)
+
+    resolutions = [
+        (ipaddress.ip_address("93.184.216.34"),),
+        (ipaddress.ip_address("10.0.0.5"),),
+    ]
+
+    def fake_resolve(
+        _hostname: str,
+    ) -> tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]:
+        return resolutions.pop(0)
+
+    class _FailIfOpened:
+        def open(self, req: object, timeout: int = 0) -> object:
+            del req, timeout
+            raise AssertionError(
+                "open() should not be called after revalidation failure"
+            )
+
+    monkeypatch.setattr(jd_ingest, "_resolve_hostname_ips", fake_resolve)
+    monkeypatch.setattr(jd_ingest, "build_opener", lambda *_args: _FailIfOpened())
+
+    context = ingest_job_context("https://jobs.example.com/123")
+    assert context.fetch_status == "fetch_failed"
+    assert context.notes == ("fetch_failed:ValueError",)
 
 
 def test_fetch_job_page_metadata_limits_response_body(

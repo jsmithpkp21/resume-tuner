@@ -937,10 +937,8 @@ def enrich_data(resume: ResumeIR) -> ResumeIR:
     """
     if resume.job_context is None:
         return resume
-    if (
-        not resume.job_context.description_excerpt.strip()
-        and not resume.target_role.strip()
-    ):
+    role_signal = resume.target_role.strip() or resume.job_context.role_hint.strip()
+    if not resume.job_context.description_excerpt.strip() and not role_signal:
         return resume
     if not _llm_stage_enabled():
         return resume

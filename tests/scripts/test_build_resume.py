@@ -1117,6 +1117,41 @@ def test_ingest_job_context_rejects_ipv4_mapped_ipv6_loopback() -> None:
         ingest_job_context("http://[::ffff:127.0.0.1]/jobs/123")
 
 
+def test_ingest_job_context_connect_time_revalidation_blocks_rebinding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # First resolution (ingest validation) is public, second (pre-connect) is private.
+    answers = [
+        (ipaddress.ip_address("93.184.216.34"),),
+        (ipaddress.ip_address("10.0.0.5"),),
+    ]
+
+    def fake_resolve(
+        _hostname: str,
+    ) -> tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]:
+        return answers.pop(0) if answers else (ipaddress.ip_address("93.184.216.34"),)
+
+    open_calls = {"count": 0}
+
+    class _FailIfOpened:
+        def open(self, req: object, timeout: int = 0) -> object:
+            del req, timeout
+            open_calls["count"] += 1
+            raise AssertionError(
+                "network open should not occur after connect-time revalidation failure"
+            )
+
+    monkeypatch.setattr(jd_ingest, "_resolve_hostname_ips", fake_resolve)
+    monkeypatch.setattr(jd_ingest, "build_opener", lambda *_args: _FailIfOpened())
+    monkeypatch.delenv("RESUME_BUILDER_JOB_PAGE_FIXTURE", raising=False)
+
+    context = ingest_job_context("https://jobs.example.com/123")
+
+    assert context.fetch_status == "fetch_failed"
+    assert context.notes == ("fetch_failed:ValueError",)
+    assert open_calls["count"] == 0
+
+
 def test_infer_source_rejects_linkedin_lookalike_domain() -> None:
     from scripts.jd_ingest import _infer_source
 

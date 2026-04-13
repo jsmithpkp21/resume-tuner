@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.11.0...v0.11.1) (2026-04-13)
+
+
+### Documentation
+
+* **repo:** add missing heading spacing in runbook ([d515939](https://github.com/jsmithpkp21/resume-builder/commit/d51593945e177ec1280e98305f81cd4d96f48709))
+* **repo:** add public settings runbook for issue 99 ([62fe7ff](https://github.com/jsmithpkp21/resume-builder/commit/62fe7ff55199f15d1cd2b32a5ab9cff63a0f7207))
+* **repo:** address additional runbook review comments ([cec5d5e](https://github.com/jsmithpkp21/resume-builder/commit/cec5d5e3923db94f2ddc6ddfbb82dbc8307529e0))
+* **repo:** address runbook review feedback ([a53c318](https://github.com/jsmithpkp21/resume-builder/commit/a53c318278ede5bd2c313df2bd3e19f8b6d0a219))
+* **repo:** clarify rewrite force-push exception flow ([f0de554](https://github.com/jsmithpkp21/resume-builder/commit/f0de554d8b32d17dfc05be2eb0bfb93e935deb2d))
+
 ## [0.11.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.10.2...v0.11.0) (2026-04-13)
 
 

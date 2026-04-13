@@ -1112,6 +1112,11 @@ def test_ingest_job_context_rejects_link_local_ipv6_zone_id() -> None:
         ingest_job_context("http://[fe80::1%25eth0]/jobs/123")
 
 
+def test_ingest_job_context_rejects_ipv4_mapped_ipv6_loopback() -> None:
+    with pytest.raises(ValueError, match="non-public IP"):
+        ingest_job_context("http://[::ffff:127.0.0.1]/jobs/123")
+
+
 def test_infer_source_rejects_linkedin_lookalike_domain() -> None:
     from scripts.jd_ingest import _infer_source
 

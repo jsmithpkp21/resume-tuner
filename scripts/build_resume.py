@@ -102,6 +102,11 @@ _LOCAL_PROFILE_OVERRIDE_FIELDS = {
     "github",
 }
 
+_LOCAL_PROFILE_SECTION_OVERRIDE_FIELDS = {
+    "education",
+    "leadership_community",
+}
+
 
 logger = logging.getLogger(__name__)
 
@@ -306,6 +311,17 @@ def _merge_profile_local_override(
         if field_name in local_profile:
             merged_profile[field_name] = local_profile[field_name]
     merged_payload["profile"] = merged_profile
+
+    for section_name in _LOCAL_PROFILE_SECTION_OVERRIDE_FIELDS:
+        if section_name not in local_payload:
+            continue
+        section_data = local_payload[section_name]
+        if not isinstance(section_data, list):
+            raise ValueError(
+                f"profile.local.toml {section_name} must use [[{section_name}]] entries"
+            )
+        merged_payload[section_name] = section_data
+
     return merged_payload
 
 

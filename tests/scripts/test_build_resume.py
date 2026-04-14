@@ -126,6 +126,12 @@ website = ""
 linkedin = "baseline-linkedin"
 github = "baseline-github"
 summary = "tracked summary"
+
+[[education]]
+degree = "Baseline Degree"
+
+[[leadership_community]]
+title = "Baseline Leadership"
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -141,6 +147,12 @@ phone = "222"
 linkedin = "local-linkedin"
 github = "local-github"
 summary = "should not override"
+
+[[education]]
+degree = "Local Degree"
+
+[[leadership_community]]
+title = "Local Leadership"
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -154,6 +166,9 @@ summary = "should not override"
     assert profile.github == "local-github"
     # Keep non-personal copy in tracked baseline profile.
     assert profile.summary == "tracked summary"
+    # Optional local sections replace tracked sections when present.
+    assert profile.education_entries[0].degree == "Local Degree"
+    assert profile.leadership_community_entries[0].title == "Local Leadership"
 
 
 def test_load_profile_rejects_blocked_path() -> None:
@@ -285,13 +300,13 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
         "<h2>Professional Experience</h2>"
     )
     assert ".header { text-align: center; margin: 0;" in modern_html_text
-    # Both templates center-align info-item sections.
+    # Both templates left-align info-item sections.
     assert (
-        ".info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center;"
+        ".info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: left;"
         in html_text
     )
     assert (
-        ".info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center;"
+        ".info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: left;"
         in modern_html_text
     )
     assert " • " in html_text
@@ -440,7 +455,7 @@ def test_build_resume_cli_modern_template_renders_centered_header(
         in html_text
     )
     assert (
-        ".info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center; }"
+        ".info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: left; }"
         in html_text
     )
     assert ".resume-title" in html_text
@@ -450,9 +465,9 @@ def test_build_resume_cli_modern_template_renders_centered_header(
     assert "<h2>Summary</h2>" not in html_text
     # Modern template must NOT re-emit the duplicate headline element
     assert '<p class="headline">' not in html_text
-    # Education / leadership sections must be center-aligned in the modern template
+    # Education / leadership sections must be left-aligned in the modern template
     assert (
-        ".info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center;"
+        ".info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: left;"
         in html_text
     )
 

@@ -140,7 +140,7 @@ class DefaultTemplate(ResumeTemplate):
     ul { margin: 1px 0 0 16px; padding: 0; }
     li { margin: 1px 0; font-size: 10.5pt; }
     .experience-item { margin-bottom: 6px; }
-    .info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center; }
+    .info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: left; }
     .info-item p { margin: 1px 0; }"""
 
     def render(self, context: TemplateContext) -> str:
@@ -215,7 +215,7 @@ class ModernTemplate(ResumeTemplate):
     ul { margin: 1px 0 0 16px; padding: 0; }
     li { margin: 1px 0; font-size: 10.5pt; }
     .experience-item { margin-bottom: 6px; }
-    .info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: center; }
+    .info-item { margin-bottom: 6px; font-size: 10.5pt; text-align: left; }
     .info-item p { margin: 1px 0; }"""
 
     def render(self, context: TemplateContext) -> str:

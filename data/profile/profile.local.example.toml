@@ -8,3 +8,42 @@ phone = ""
 website = ""
 linkedin = ""
 github = ""
+
+# Optional: include these sections only if you want local-only replacements.
+# Omitting these keeps tracked values from profile.toml.
+
+[[education]]
+degree = ""
+institution = ""
+location = ""
+date_range = ""
+notes = ""
+
+[[leadership_community]]
+title = ""
+organization = ""
+date_range = ""
+details = ""
+
+[[education]]
+degree = "Bachelor of Science (B.S.) Computer Science"
+institution = "Rochester Institute of Technology"
+location = "Rochester, NY"
+notes = "Coursework emphasis on software engineering and systems programming."
+
+[[leadership_community]]
+title = "Technical Mentor (Informal)"
+organization = "HP / Poly"
+date_range = "2008 - Present"
+details = "Provided continuous mentoring across teams through the transition from manual QA to automation engineering, including framework thinking, debugging practices, and test design guidance."
+
+[[leadership_community]]
+title = "CFO & Board Member, Cat Rescue"
+organization = "QA and Test Automation Communities"
+date_range = "2009-Present"
+details = "Co-manage finances, operations, and long term planning for a 15-year nonprofit rescue, enabling growth from 15–20 cats to a peak of 60."
+
+[[leadership_community]]
+title = "Phi Kappa Psi Fraternity"
+organization = "Philanthropy Chair"
+details = "Organized fundraising and community service events."

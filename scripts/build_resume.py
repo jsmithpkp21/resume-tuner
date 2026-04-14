@@ -293,6 +293,8 @@ def _merge_profile_local_override(
     path: Path, payload: dict[str, Any]
 ) -> dict[str, Any]:
     local_path = _profile_local_override_path(path)
+    if local_path.exists() and not local_path.is_file():
+        raise ValueError("profile.local.toml must be a regular file")
     if not local_path.exists():
         return payload
 

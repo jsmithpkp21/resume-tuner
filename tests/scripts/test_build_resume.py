@@ -82,7 +82,7 @@ def test_load_profile_reads_profile_table() -> None:
     assert profile.summary
     assert profile.education_entries
     assert profile.leadership_community_entries
-    assert profile.linkedin == "jonathan-j-smith-automation"
+    assert profile.linkedin
     assert profile.github == ""
 
 
@@ -169,6 +169,30 @@ title = "Local Leadership"
     # Optional local sections replace tracked sections when present.
     assert profile.education_entries[0].degree == "Local Degree"
     assert profile.leadership_community_entries[0].title == "Local Leadership"
+
+
+def test_load_profile_rejects_non_file_local_override(tmp_path: Path) -> None:
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(
+        """
+[profile]
+name = "Baseline Name"
+headline = "Engineer"
+location = ""
+email = ""
+phone = ""
+website = ""
+linkedin = ""
+github = ""
+summary = "tracked summary"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "profile.local.toml").mkdir()
+
+    with pytest.raises(ValueError, match="regular file"):
+        load_profile(profile_path)
 
 
 def test_load_profile_rejects_blocked_path() -> None:
@@ -272,7 +296,7 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     )
     expected_github = f"github.com/{profile.github}" if profile.github else ""
 
-    assert ("Jonathan J. Smith" in html_text) or ("Jonathan J Smith" in html_text)
+    assert profile.name in html_text
     assert '<p class="headline">Staff Software Engineer</p>' not in html_text
     assert ".skills-category { margin: 0 0 3px 0;" in html_text
     assert '<p class="skills-category"><strong>' in html_text

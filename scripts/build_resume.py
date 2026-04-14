@@ -292,6 +292,11 @@ def _profile_local_override_path(path: Path) -> Path:
 def _merge_profile_local_override(
     path: Path, payload: dict[str, Any]
 ) -> dict[str, Any]:
+    if path.name.endswith(LOCAL_PROFILE_SUFFIX):
+        raise ValueError(
+            f"{path.name} is already a local override file; pass the tracked base profile .toml path"
+        )
+
     local_path = _profile_local_override_path(path)
     if local_path.exists() and not local_path.is_file():
         raise ValueError(f"{local_path.name} must be a regular file")

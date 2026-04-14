@@ -223,6 +223,29 @@ summary = "tracked summary"
         load_profile(profile_path)
 
 
+def test_load_profile_rejects_local_override_as_base_path(tmp_path: Path) -> None:
+    local_profile_path = tmp_path / "profile.local.toml"
+    local_profile_path.write_text(
+        """
+[profile]
+name = "Local Name"
+headline = "Engineer"
+location = ""
+email = ""
+phone = ""
+website = ""
+linkedin = ""
+github = ""
+summary = ""
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="already a local override file"):
+        load_profile(local_profile_path)
+
+
 def test_load_profile_rejects_blocked_path() -> None:
     blocked = REPO_ROOT / "data" / "samples" / "profile.toml"
     with pytest.raises(ValueError, match="blocked runtime directory"):

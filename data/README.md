@@ -8,7 +8,7 @@ This directory contains the canonical starter inputs that the AI pipeline reads.
 - `experience/experience_db.toml`: structured canonical experience database (role metadata, bullet bank, role-level related skills)
 - `profile/profile.toml`: baseline resume profile data (name/contact/summary plus education and leadership/community sections)
   - Social fields are handle-only (`linkedin` slug after `/in/`, `github` username); output rendering adds static URL prefixes.
-  - Optional local override: `profile/profile.local.toml` can provide personal contact fields (`name`, `location`, `email`, `phone`, `website`, `linkedin`, `github`) and optional `[[education]]` / `[[leadership_community]]` section replacements without committing them.
+  - Optional local override: for `--profile <name>.toml`, the loader checks sibling `<name>.local.toml` (for the default this is `profile/profile.local.toml`) and merges personal fields (`name`, `location`, `email`, `phone`, `website`, `linkedin`, `github`) plus optional `[[education]]` / `[[leadership_community]]` replacements without committing them. Use `profile/profile.local.example.toml` as a starter.
 - `experience/experience_reconciliation_worksheet.csv`: pointer-based worksheet for one-by-one resume reconciliation (maps source rows to canonical role and bullet ids)
 - `manifests/starter_data_manifest.toml`: path contract for ingestion scripts
 - `samples/`: sanitized example resumes and cover letters used for layout/style reference during build-out (transitional, not required runtime input)

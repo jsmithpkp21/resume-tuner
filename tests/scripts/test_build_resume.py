@@ -284,10 +284,14 @@ domain = "automation"
 
 def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     output_dir = tmp_path / "baseline"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
     result = subprocess.run(
         [
             sys.executable,
             str(SCRIPT),
+            "--profile",
+            str(profile_path),
             "--output-dir",
             str(output_dir),
             "--target-role",
@@ -318,7 +322,7 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     md_text = md_path.read_text(encoding="utf-8")
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     text_snapshot = text_snapshot_path.read_text(encoding="utf-8")
-    profile = load_profile(PROFILE)
+    profile = load_profile(profile_path)
     expected_linkedin = (
         f"linkedin.com/in/{profile.linkedin}" if profile.linkedin else ""
     )

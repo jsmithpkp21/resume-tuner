@@ -327,6 +327,8 @@ def _merge_profile_local_override(
             raise ValueError(
                 f"{local_path.name} {section_name} must use [[{section_name}]] entries"
             )
+        if any(not isinstance(item, dict) for item in section_data):
+            raise ValueError(f"{local_path.name} {section_name} entries must be tables")
         merged_payload[section_name] = section_data
 
     return merged_payload

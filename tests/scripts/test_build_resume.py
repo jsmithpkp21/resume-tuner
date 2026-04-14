@@ -24,6 +24,8 @@ from scripts.build_resume import (
     PROFILE_SUMMARY_MIN_RATIO,
     Bullet,
     Experience,
+    _build_github_url,
+    _build_linkedin_url,
     _collect_resume_skill_signals,
     _display_company_header,
     _get_base_role,
@@ -246,6 +248,42 @@ summary = ""
         load_profile(local_profile_path)
 
 
+def test_load_profile_rejects_non_table_local_section_entry(tmp_path: Path) -> None:
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(
+        """
+[profile]
+name = "Baseline Name"
+headline = "Engineer"
+location = ""
+email = ""
+phone = ""
+website = ""
+linkedin = ""
+github = ""
+summary = "tracked summary"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    local_path = tmp_path / "profile.local.toml"
+    local_path.write_text(
+        """
+education = ["invalid-entry"]
+
+[profile]
+name = "Local Name"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError, match="profile.local.toml education entries must be tables"
+    ):
+        load_profile(profile_path)
+
+
 def test_load_profile_rejects_blocked_path() -> None:
     blocked = REPO_ROOT / "data" / "samples" / "profile.toml"
     with pytest.raises(ValueError, match="blocked runtime directory"):
@@ -346,10 +384,8 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     text_snapshot = text_snapshot_path.read_text(encoding="utf-8")
     profile = load_profile(profile_path)
-    expected_linkedin = (
-        f"linkedin.com/in/{profile.linkedin}" if profile.linkedin else ""
-    )
-    expected_github = f"github.com/{profile.github}" if profile.github else ""
+    expected_linkedin = _build_linkedin_url(profile.linkedin)
+    expected_github = _build_github_url(profile.github)
 
     assert profile.name in html_text
     assert '<p class="headline">Staff Software Engineer</p>' not in html_text

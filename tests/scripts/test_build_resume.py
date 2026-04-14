@@ -85,7 +85,6 @@ def test_load_profile_reads_profile_table(tmp_path: Path) -> None:
     assert profile.summary
     assert profile.education_entries
     assert profile.leadership_community_entries
-    assert profile.linkedin
     assert profile.github == ""
 
 

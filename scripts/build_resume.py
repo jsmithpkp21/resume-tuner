@@ -305,7 +305,7 @@ def _merge_profile_local_override(
 
     base_profile = payload.get("profile", {})
     if not isinstance(base_profile, dict):
-        raise ValueError("profile.toml must contain a [profile] table")
+        raise ValueError(f"{path.name} must contain a [profile] table")
 
     merged_payload = dict(payload)
     merged_profile = dict(base_profile)

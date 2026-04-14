@@ -53,6 +53,7 @@ else:
 
 
 DEFAULT_PROFILE = Path("data/profile/profile.toml")
+LOCAL_PROFILE_SUFFIX = ".local.toml"
 DEFAULT_EXPERIENCE_DB = Path("data/experience/experience_db.toml")
 DEFAULT_SKILLS_MATRIX = Path("data/skills/skills_matrix.csv")
 DEFAULT_OUTPUT_DIR = Path("data/review/outputs/baseline")
@@ -90,6 +91,16 @@ PROFILE_SUMMARY_MAX_WORDS = 112
 PROFILE_SUMMARY_MIN_RATIO = 0.8
 LLM_ENABLED_ENV = "RESUME_BUILDER_LLM_ENABLED"
 LLM_FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"
+
+_LOCAL_PROFILE_OVERRIDE_FIELDS = {
+    "name",
+    "location",
+    "email",
+    "phone",
+    "website",
+    "linkedin",
+    "github",
+}
 
 
 logger = logging.getLogger(__name__)
@@ -210,6 +221,7 @@ def _read_toml(path: Path) -> dict[str, Any]:
 
 def load_profile(path: Path) -> Profile:
     payload = _read_toml(path)
+    payload = _merge_profile_local_override(path, payload)
     data = payload.get("profile", {})
     if not isinstance(data, dict):
         raise ValueError("profile.toml must contain a [profile] table")
@@ -264,6 +276,37 @@ def load_profile(path: Path) -> Profile:
         education_entries=education_entries,
         leadership_community_entries=leadership_community_entries,
     )
+
+
+def _profile_local_override_path(path: Path) -> Path:
+    if path.name.endswith(".toml"):
+        return path.with_name(path.name[: -len(".toml")] + LOCAL_PROFILE_SUFFIX)
+    return path.with_name(path.name + LOCAL_PROFILE_SUFFIX)
+
+
+def _merge_profile_local_override(
+    path: Path, payload: dict[str, Any]
+) -> dict[str, Any]:
+    local_path = _profile_local_override_path(path)
+    if not local_path.exists():
+        return payload
+
+    local_payload = _read_toml(local_path)
+    local_profile = local_payload.get("profile", {})
+    if not isinstance(local_profile, dict):
+        raise ValueError("profile.local.toml must contain a [profile] table")
+
+    base_profile = payload.get("profile", {})
+    if not isinstance(base_profile, dict):
+        raise ValueError("profile.toml must contain a [profile] table")
+
+    merged_payload = dict(payload)
+    merged_profile = dict(base_profile)
+    for field_name in _LOCAL_PROFILE_OVERRIDE_FIELDS:
+        if field_name in local_profile:
+            merged_profile[field_name] = local_profile[field_name]
+    merged_payload["profile"] = merged_profile
+    return merged_payload
 
 
 def _normalize_linkedin_slug(value: str) -> str:

@@ -83,7 +83,7 @@ def test_load_profile_reads_profile_table() -> None:
     assert profile.education_entries
     assert profile.leadership_community_entries
     assert profile.linkedin == "jonathan-j-smith-automation"
-    assert profile.github == "jsmithpkp21"
+    assert profile.github == ""
 
 
 def test_load_profile_normalizes_url_like_social_inputs(tmp_path: Path) -> None:
@@ -108,6 +108,52 @@ summary = ""
     profile = load_profile(profile_path)
     assert profile.linkedin == "test-user"
     assert profile.github == "test-user"
+
+
+def test_load_profile_applies_local_override_for_personal_fields(
+    tmp_path: Path,
+) -> None:
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(
+        """
+[profile]
+name = "Baseline Name"
+headline = "Engineer"
+location = "Austin"
+email = "baseline@example.com"
+phone = "111"
+website = ""
+linkedin = "baseline-linkedin"
+github = "baseline-github"
+summary = "tracked summary"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    local_path = tmp_path / "profile.local.toml"
+    local_path.write_text(
+        """
+[profile]
+name = "Local Name"
+email = "local@example.com"
+phone = "222"
+linkedin = "local-linkedin"
+github = "local-github"
+summary = "should not override"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    profile = load_profile(profile_path)
+    assert profile.name == "Local Name"
+    assert profile.email == "local@example.com"
+    assert profile.phone == "222"
+    assert profile.linkedin == "local-linkedin"
+    assert profile.github == "local-github"
+    # Keep non-personal copy in tracked baseline profile.
+    assert profile.summary == "tracked summary"
 
 
 def test_load_profile_rejects_blocked_path() -> None:
@@ -205,13 +251,20 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     md_text = md_path.read_text(encoding="utf-8")
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     text_snapshot = text_snapshot_path.read_text(encoding="utf-8")
+    profile = load_profile(PROFILE)
+    expected_linkedin = (
+        f"linkedin.com/in/{profile.linkedin}" if profile.linkedin else ""
+    )
+    expected_github = f"github.com/{profile.github}" if profile.github else ""
 
     assert ("Jonathan J. Smith" in html_text) or ("Jonathan J Smith" in html_text)
     assert '<p class="headline">Staff Software Engineer</p>' not in html_text
     assert ".skills-category { margin: 0 0 3px 0;" in html_text
     assert '<p class="skills-category"><strong>' in html_text
-    assert "linkedin.com/in/jonathan-j-smith-automation" in html_text
-    assert "github.com/jsmithpkp21" in html_text
+    if expected_linkedin:
+        assert expected_linkedin in html_text
+    if expected_github:
+        assert expected_github in html_text
     assert "Architect, Python Test Framework (Video)" in html_text
     assert "HP / Poly (formerly Polycom), Austin, TX" in html_text
     assert (
@@ -249,15 +302,14 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
         "## Professional Experience"
     )
     assert " • " in md_text
-    assert "linkedin.com/in/jonathan-j-smith-automation" in md_text
-    assert "github.com/jsmithpkp21" in md_text
-    assert snapshot["profile"]["linkedin"] == "jonathan-j-smith-automation"
-    assert (
-        snapshot["profile"]["linkedin_url"]
-        == "linkedin.com/in/jonathan-j-smith-automation"
-    )
-    assert snapshot["profile"]["github"] == "jsmithpkp21"
-    assert snapshot["profile"]["github_url"] == "github.com/jsmithpkp21"
+    if expected_linkedin:
+        assert expected_linkedin in md_text
+    if expected_github:
+        assert expected_github in md_text
+    assert snapshot["profile"]["linkedin"] == profile.linkedin
+    assert snapshot["profile"]["linkedin_url"] == expected_linkedin
+    assert snapshot["profile"]["github"] == profile.github
+    assert snapshot["profile"]["github_url"] == expected_github
     assert "Programming & Scripting" in md_text
     assert "Python" in md_text
     assert "Java" in md_text
@@ -268,11 +320,8 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert "education:" in text_snapshot
     assert "leadership_community:" in text_snapshot
     assert "job_context:" in text_snapshot
-    assert (
-        "profile.linkedin_url: linkedin.com/in/jonathan-j-smith-automation"
-        in text_snapshot
-    )
-    assert "profile.github_url: github.com/jsmithpkp21" in text_snapshot
+    assert f"profile.linkedin_url: {expected_linkedin}" in text_snapshot
+    assert f"profile.github_url: {expected_github}" in text_snapshot
     assert text_snapshot.index("summary:") < text_snapshot.index("skills:")
     assert text_snapshot.index("skills:") < text_snapshot.index("experience:")
     assert " • " in text_snapshot

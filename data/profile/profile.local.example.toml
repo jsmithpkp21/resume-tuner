@@ -1,0 +1,10 @@
+[profile]
+# Local-only overrides for personal contact details.
+# Copy to profile.local.toml and fill with real values.
+name = ""
+location = ""
+email = ""
+phone = ""
+website = ""
+linkedin = ""
+github = ""

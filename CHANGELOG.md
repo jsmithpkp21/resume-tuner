@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.12.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.11.1...v0.12.0) (2026-04-14)
+
+
+### Features
+
+* **profile:** support local-only personal overrides ([31f8c19](https://github.com/jsmithpkp21/resume-builder/commit/31f8c1978f868728efbb81035d95c9f1da188aea))
+
+
+### Bug Fixes
+
+* **profile:** address latest PR review comments ([dac73a6](https://github.com/jsmithpkp21/resume-builder/commit/dac73a64d3a9867b8774ba2a23083d490aa8db0b))
+* **profile:** address PR review feedback ([9e4729b](https://github.com/jsmithpkp21/resume-builder/commit/9e4729b43ae7722172091d0b3d68f7ed5e6e4b7f))
+* **profile:** address remaining PR comments ([ec71057](https://github.com/jsmithpkp21/resume-builder/commit/ec71057e7206f3828fa6b8286eaad120174a0b7a))
+* **profile:** allow local section overrides and left-align info blocks ([824831c](https://github.com/jsmithpkp21/resume-builder/commit/824831ca39647c8dd37120ea4e26304a9fc514e3))
+* **profile:** make baseline test deterministic ([d365406](https://github.com/jsmithpkp21/resume-builder/commit/d36540685436e4c12e92201087962e8ec2803ee4))
+* **profile:** reject local override as base profile ([cbad9fd](https://github.com/jsmithpkp21/resume-builder/commit/cbad9fdf6ea48cee76b44f2ec506f30a98226816))
+* **profile:** validate local section overrides ([42c612a](https://github.com/jsmithpkp21/resume-builder/commit/42c612ac95ab9046ee81661a44306810e2a9b8a3))
+
 ## [0.11.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.11.0...v0.11.1) (2026-04-13)
 
 

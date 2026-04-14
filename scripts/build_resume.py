@@ -294,14 +294,14 @@ def _merge_profile_local_override(
 ) -> dict[str, Any]:
     local_path = _profile_local_override_path(path)
     if local_path.exists() and not local_path.is_file():
-        raise ValueError("profile.local.toml must be a regular file")
+        raise ValueError(f"{local_path.name} must be a regular file")
     if not local_path.exists():
         return payload
 
     local_payload = _read_toml(local_path)
     local_profile = local_payload.get("profile", {})
     if not isinstance(local_profile, dict):
-        raise ValueError("profile.local.toml must contain a [profile] table")
+        raise ValueError(f"{local_path.name} must contain a [profile] table")
 
     base_profile = payload.get("profile", {})
     if not isinstance(base_profile, dict):
@@ -320,7 +320,7 @@ def _merge_profile_local_override(
         section_data = local_payload[section_name]
         if not isinstance(section_data, list):
             raise ValueError(
-                f"profile.local.toml {section_name} must use [[{section_name}]] entries"
+                f"{local_path.name} {section_name} must use [[{section_name}]] entries"
             )
         merged_payload[section_name] = section_data
 

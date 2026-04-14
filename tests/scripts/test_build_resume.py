@@ -76,8 +76,11 @@ def _extract_skills_by_category_from_html(html_text: str) -> dict[str, list[str]
     return skills_by_category
 
 
-def test_load_profile_reads_profile_table() -> None:
-    profile = load_profile(PROFILE)
+def test_load_profile_reads_profile_table(tmp_path: Path) -> None:
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    profile = load_profile(profile_path)
     assert profile.name
     assert profile.summary
     assert profile.education_entries
@@ -192,6 +195,32 @@ summary = "tracked summary"
     (tmp_path / "profile.local.toml").mkdir()
 
     with pytest.raises(ValueError, match="regular file"):
+        load_profile(profile_path)
+
+
+def test_load_profile_local_override_error_mentions_derived_filename(
+    tmp_path: Path,
+) -> None:
+    profile_path = tmp_path / "candidate-profile.toml"
+    profile_path.write_text(
+        """
+[profile]
+name = "Baseline Name"
+headline = "Engineer"
+location = ""
+email = ""
+phone = ""
+website = ""
+linkedin = ""
+github = ""
+summary = "tracked summary"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "candidate-profile.local.toml").mkdir()
+
+    with pytest.raises(ValueError, match="candidate-profile.local.toml"):
         load_profile(profile_path)
 
 

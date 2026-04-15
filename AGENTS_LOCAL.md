@@ -19,7 +19,7 @@ File paths surfaced by the editor use Windows UNC format:
 - `\\wsl$\Ubuntu\home\<user>\projects\<repo>\...`
 
 Always convert these to native Linux paths before any file edit or git operation:
-- `//wsl.localhost/Ubuntu/home/<user>/projects/<repo>/...` -> `/home/<user>/projects/<repo>/...`
+- `\\wsl.localhost\Ubuntu\home\<user>\projects\<repo>\...` -> `/home/<user>/projects/<repo>/...`
 - `\\wsl$\Ubuntu\home\<user>\projects\<repo>\...` -> `/home/<user>/projects/<repo>/...`
 
 Rules enforced for every session:

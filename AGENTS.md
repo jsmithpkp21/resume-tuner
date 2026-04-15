@@ -18,13 +18,19 @@ pytest -q tests/scripts/test_consumer_contract.py
 - Use a two-phase flow: (1) inspect + propose plan, (2) implement only after `plan ready`.
 - If requirements conflict, ask for clarification before changing files.
 
+## Local Overrides (`AGENTS_LOCAL.md`)
+- `AGENTS.md` remains the synced baseline contract from tooling.
+- `AGENTS_LOCAL.md` is optional and consumer/local-branch owned for repo-specific overrides or additions.
+- When both files exist, apply `AGENTS.md` first, then apply `AGENTS_LOCAL.md` as additive/override guidance.
+- Never add `AGENTS_LOCAL.md` to `.tooling-sync-manifest.toml`; it must remain outside managed sync to avoid drift churn.
+
 ## Project Purpose
 - `tooling` is the upstream source for shared automation consumed by repos like `base_repo`.
 - The core contract is deterministic environments plus managed sync: this repo defines files, consumers apply them.
 
 ## Architecture You Need First
 - Environment lifecycle is shell-first: `scripts/create_env.sh` creates and `scripts/verify_env.sh` verifies against metadata.
-- Sync is allow-list driven: `.tooling-sync-manifest.toml` is the only list of managed files; consumers record applied state in `.tooling-sync-manifest.lock`.
+- Sync is allow-list driven: tooling source repo `.tooling-sync-manifest.toml` is the only list of managed files; consumers record applied state in `.tooling-sync-manifest.lock`.
 - `scripts/sync_tooling.sh` is bootstrap/security-sensitive (path traversal checks, symlink protections, lock-writing, stale-file handling).
 - `pyproject.toml` is tooling-owned config input; consumers should generate their `pyproject.toml` via `scripts/merge_pyproject.py` + `.pyproject.meta.toml`.
 - Service boundary matters: tooling changes flow outward through sync; consumer identity files do not flow back automatically.
@@ -33,7 +39,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 - Local bootstrap: `make setup`.
 - Daily quality loop: `make lint`, `make test`, `make check`.
 - Contract checks before release/sync: `make drift-check`, `make version-check`, `make action-pin-check`, `make docs-check`.
-- Validate sync behavior after manifest/script edits: run `tests/scripts/test_sync_tooling_regressions.py`.
+- Validate sync behavior after manifest/script edits: in tooling source run `tests/scripts/test_sync_tooling_regressions.py`; in consumers run `pytest -q tests/scripts/test_consumer_contract.py`.
 - Docker parity path: `make docker-up` then run normal make targets inside container.
 
 ## Repo-Specific Conventions
@@ -50,7 +56,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 - Keep changes minimal and scoped; do not bundle unrelated refactors in the same PR.
 - Treat `pyproject.toml` as generated in consumers: update `.pyproject.meta.toml` or tooling inputs and regenerate via `scripts/merge_pyproject.py`.
 - Preserve sync security invariants in `scripts/sync_tooling.sh` (path traversal checks, symlink protections, fail-closed behavior) and add tests for any behavior change.
-- When changing managed-file scope, update `.tooling-sync-manifest.toml`, related docs (for example `FILE_DISTRIBUTION.md`), and regression coverage in `tests/scripts/test_sync_tooling_regressions.py` together.
+- When changing managed-file scope, update tooling `.tooling-sync-manifest.toml`, related docs (for example `FILE_DISTRIBUTION.md`), and regression coverage in tooling `tests/scripts/test_sync_tooling_regressions.py`; then sync consumers and validate with `make drift-check` and `pytest -q tests/scripts/test_consumer_contract.py`.
 - Validate touched areas with targeted tests first, then run broader repo checks (`make lint`, `make test`, or `make check` as appropriate).
 - Prefer issue-linked branches when work maps to an issue: `make branch ISSUE=<num>` creates `<type>/<issue>-<slug>` from labels and title.
 - When presenting multiple implementation options, include concise pros and cons for each option so trade-offs are explicit.
@@ -59,7 +65,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 
 ## Integration Points
 - Consumer sync path: sibling `../tooling` checkout or explicit `TOOLING_DIR`; GitHub-source sync mode intentionally fails fast.
-- Managed-file scope is explicit: update `.tooling-sync-manifest.toml` whenever shared files are added/removed.
+- Managed-file scope is explicit: update tooling `.tooling-sync-manifest.toml` whenever shared files are added/removed, then sync those changes into consumers.
 - CI/workflow behavior is repo-name dynamic (see `docs/REFERENCE/DYNAMIC_WORKFLOWS.md`, `.github/workflows/*.yml`).
 - Release metadata integration: sync can update consumer `.release-please-config.json` from `.pyproject.meta.toml` package name.
 
@@ -67,34 +73,12 @@ pytest -q tests/scripts/test_consumer_contract.py
 
 - When reviewing a PR whose branch starts with `copilot/`, the changes were authored by GitHub Copilot's SWE agent. Post review comments directed at `@copilot` so the agent receives and acts on the feedback.
 - When you (the agent) authored the changes yourself, implement fixes directly in the branch without @copilot direction. The rule of thumb: if `git log` shows your own commit, fix it; if the branch starts with `copilot/`, comment at @copilot.
-- Post PR-thread replies only for GitHub review comments/threads; do not mirror chat-only guidance to PR threads unless the user explicitly asks.
-- For every review thread (including resolved/outdated), post a short status update when work is done so audit history is explicit.
-- If a review item is deferred or needs clarification, add a PR-thread comment stating why, open a follow-up issue, and include the issue link in that thread.
-- If a deferred item is picked up later, add a follow-up thread comment linking both the issue and the fixing PR/commit.
-
-## WSL Path Handling (Windows + WSL Workspace)
-This workspace runs on WSL (Ubuntu) but is opened from a Windows JetBrains editor.
-File paths surfaced by the editor use Windows UNC format:
-    \\wsl.localhost\Ubuntu\home\<user>\projects\<repo>\...
-    \\wsl$\Ubuntu\home\<user>\projects\<repo>\...
-**Always convert these to native Linux paths before any file edit or git operation:**
-    //wsl.localhost/Ubuntu/home/<user>/projects/<repo>/...  →  /home/<user>/projects/<repo>/...
-    \\wsl$\Ubuntu\home\<user>\projects\<repo>\...   →  /home/<user>/projects/<repo>/...
-Rules enforced for every session:
-- When calling `replace_string_in_file`, `insert_edit_into_file`, or `create_file`, always pass
-  the `/home/<user>/...` path — never the UNC path. UNC writes do not reliably reach the Linux
-  filesystem that git tracks.
-- When running git or shell commands, always use the native Linux path (`/home/<user>/projects/<repo>`).
-- Use `python3` with `subprocess` (not shell heredocs via `run_in_terminal`) for git operations
-  so output is reliably captured and not swallowed by the prompt.
-- After any file-tool edit, verify with Python: `open('/home/<user>/.../<file>').read()` to confirm
-  the write landed on the Linux filesystem before staging or committing.
 
 ## Files to Read Before Editing Core Logic
 - `Makefile`
 - `scripts/sync_tooling.sh`
-- `.tooling-sync-manifest.toml`
+- `.tooling-sync-manifest.lock`
 - `FILE_DISTRIBUTION.md`
 - `docs/REFERENCE/SYNC_MANIFEST.md`
 - `docs/REFERENCE/PYPROJECT_ARCHITECTURE.md`
-- `tests/scripts/test_sync_tooling_regressions.py`
+- `tests/scripts/test_consumer_contract.py`

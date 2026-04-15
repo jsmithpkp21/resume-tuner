@@ -4,7 +4,7 @@
       "sha256": "ac1ba68ad3d1e1cc5863378e67d61d911e82316163bc59a56de08d4ade3a99cb"
     },
     ".github/copilot-instructions.md": {
-      "sha256": "6d7ed9289766a0b1bd0998ce513344eb9aa269c455f295e4e8b1b0435aaf54a0"
+      "sha256": "ea6c48ae1233aaa88d7faaece2b7fb52ddfc936aeed04bdc1863fab4d3a2627a"
     },
     ".github/workflow-action-lock.json": {
       "sha256": "fef3dccbdfcef812bace29965102d6f48a4312f26882899ceb93557cbc47d7c6"
@@ -37,7 +37,7 @@
       "sha256": "685f55f5dc1993f49ea4b68d8b35ddda207def419bd980d3b0f549ec77cc887e"
     },
     "AGENTS.md": {
-      "sha256": "3b2cd2e3e2797e3dcb2740e7c009a6439eee4a886120ca077a8bceb8ff9b0e7a"
+      "sha256": "c305456625fdbe6475204d29252002943a90ad46ad278319872b735765619608"
     },
     "CODING_STANDARDS.md": {
       "sha256": "a119ba8ab7e5440b248716040e80b22aa90e296a24b6bbbfc3a2ff24556cf51d"

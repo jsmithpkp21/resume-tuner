@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.12.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.12.0...v0.12.1) (2026-04-15)
+
+
+### Bug Fixes
+
+* **docs:** align WSL path format examples (use backslash UNC in from column) ([c2017a1](https://github.com/jsmithpkp21/resume-builder/commit/c2017a1e6c7c0cccd0ddee3465b1a40e3f6564ab))
+* **docs:** clarify tooling owns manifest in consumer agent guidance ([d2385f6](https://github.com/jsmithpkp21/resume-builder/commit/d2385f6da32176ee5bb8f0aad82e97073795b8a5))
+* **sync:** update lock hashes for AGENTS and copilot instructions ([13b4c20](https://github.com/jsmithpkp21/resume-builder/commit/13b4c20d741ed8033ea2356f36e0379f49eb61a0))
+* **version:** align VERSION with release-please manifest ([dfa3146](https://github.com/jsmithpkp21/resume-builder/commit/dfa31462f42acaef00ac81859366ebed73cf2ef0))
+
+
+### Documentation
+
+* **sync:** align consumer agent guidance with tooling contract ([27892ca](https://github.com/jsmithpkp21/resume-builder/commit/27892ca5fbb055aa43810fa7b34f032bcc4dafcc))
+
 ## [0.12.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.11.1...v0.12.0) (2026-04-14)
 
 

@@ -16,7 +16,7 @@
 - `AGENTS.md` is the synced baseline guidance.
 - `AGENTS_LOCAL.md` is optional and local/consumer owned for repo-specific additions or overrides.
 - Apply `AGENTS.md` first, then `AGENTS_LOCAL.md` when present.
-- Keep `AGENTS_LOCAL.md` out of `.tooling-sync-manifest.toml` so local guidance is never overwritten by sync.
+- Keep `AGENTS_LOCAL.md` out of tooling's `.tooling-sync-manifest.toml` so local guidance is never overwritten by sync.
 
 ## Quick Commands
 

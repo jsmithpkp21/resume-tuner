@@ -22,7 +22,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 - `AGENTS.md` remains the synced baseline contract from tooling.
 - `AGENTS_LOCAL.md` is optional and consumer/local-branch owned for repo-specific overrides or additions.
 - When both files exist, apply `AGENTS.md` first, then apply `AGENTS_LOCAL.md` as additive/override guidance.
-- Never add `AGENTS_LOCAL.md` to `.tooling-sync-manifest.toml`; it must remain outside managed sync to avoid drift churn.
+- Never add `AGENTS_LOCAL.md` to tooling's `.tooling-sync-manifest.toml`; it must remain outside managed sync to avoid drift churn.
 
 ## Project Purpose
 - `tooling` is the upstream source for shared automation consumed by repos like `base_repo`.

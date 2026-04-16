@@ -18,6 +18,13 @@ APPROX_QUANTIFIER_RE = re.compile(
     r"\b(about|approximately|roughly|around|up to)\b|~",
     re.IGNORECASE,
 )
+MEASURABLE_OUTCOME_PERCENT_PATTERN = re.compile(
+    r"\b\d+(?:\.\d+)?\s*(?:%|percent|x)\b", re.IGNORECASE
+)
+MEASURABLE_OUTCOME_VERB_PATTERN = re.compile(
+    r"\b(reduced|improved|increased|decreased|cut|saved|boosted|eliminated|doubled|tripled|accelerated|scaled|grew)\b",
+    re.IGNORECASE,
+)
 
 # ---------------------------------------------------------------------------
 # Runtime blocked-input guard (#20) — shared implementation
@@ -31,6 +38,18 @@ if __package__ in {None, ""}:
 else:
     from scripts._runtime_guard import (
         assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
+    )
+
+
+def _has_measurable_outcome(text: str) -> bool:
+    normalized = " ".join(text.split()).strip()
+    if not normalized:
+        return False
+    if MEASURABLE_OUTCOME_PERCENT_PATTERN.search(normalized):
+        return True
+    return bool(
+        MEASURABLE_OUTCOME_VERB_PATTERN.search(normalized)
+        and re.search(r"\b\d+(?:\.\d+)?\b", normalized)
     )
 
 
@@ -276,6 +295,20 @@ def canonical_bullet_findings(experiences: list[dict[str, Any]]) -> list[Finding
                         fix_target_file="data/experience/experience_db.toml",
                         fix_target_id=bullet_id,
                         suggested_action="Review wording; tighten, expand, or de-quantify based on source evidence.",
+                    )
+                )
+            if not _has_measurable_outcome(text):
+                findings.append(
+                    Finding(
+                        review_item_id=f"B:{bullet_id}",
+                        severity="warning",
+                        issue_type="bullet_missing_measurable_outcome",
+                        source_resume_id="canonical",
+                        canonical_experience_id=exp_id,
+                        evidence="No measurable outcome signal detected",
+                        fix_target_file="data/experience/experience_db.toml",
+                        fix_target_id=bullet_id,
+                        suggested_action="Add action + scope + measurable result language where evidence exists.",
                     )
                 )
     return findings

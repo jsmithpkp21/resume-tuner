@@ -29,6 +29,7 @@ from scripts.build_resume import (
     _collect_resume_skill_signals,
     _display_company_header,
     _get_base_role,
+    _has_measurable_outcome,
     _summary_wrap_lines,
     assemble_baseline_resume,
     derive_resume_title,
@@ -610,6 +611,53 @@ def test_build_resume_cli_processed_mode_does_not_mutate_experience_db(
     )
     assert result.returncode == 0, result.stderr
     assert experience_db.read_bytes() == before_bytes
+
+
+def test_has_measurable_outcome_detects_quantified_impact_language() -> None:
+    assert _has_measurable_outcome("Reduced flaky failures by 37 percent.")
+    assert _has_measurable_outcome("Improved pipeline runtime 2x after refactor.")
+    assert not _has_measurable_outcome(
+        "Improved framework quality through better architecture decisions."
+    )
+
+
+def test_build_resume_cli_processed_mode_emits_gap_summary_for_job_text(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "processed_gap"
+    job_text_file = tmp_path / "job_text.txt"
+    job_text_file.write_text(
+        (
+            "Staff SDET focused on fraud prevention, risk analytics, and payments APIs. "
+            "Expect deep CI/CD, observability, and compliance automation ownership."
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--output-dir",
+            str(output_dir),
+            "--processing-mode",
+            "processed",
+            "--job-text-file",
+            str(job_text_file),
+            "--skip-markdown",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    gap_summary_path = output_dir / "latest_resume_processed_gap_summary.json"
+    assert gap_summary_path.exists()
+    payload = json.loads(gap_summary_path.read_text(encoding="utf-8"))
+    assert "missing_terms" in payload
+    assert isinstance(payload["missing_terms"], list)
 
 
 def test_build_resume_cli_rejects_unknown_template(tmp_path: Path) -> None:

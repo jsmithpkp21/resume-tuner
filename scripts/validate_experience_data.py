@@ -7,6 +7,7 @@ Usage:
 """
 
 import csv
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,27 @@ if __package__ in {None, ""}:
 else:
     from scripts._runtime_guard import (
         assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
+    )
+
+
+_MEASURABLE_OUTCOME_PERCENT_PATTERN = re.compile(
+    r"\b\d+(?:\.\d+)?\s*(?:%|percent|x)\b", re.IGNORECASE
+)
+_MEASURABLE_OUTCOME_VERB_PATTERN = re.compile(
+    r"\b(reduced|improved|increased|decreased|cut|saved|boosted|eliminated|doubled|tripled|accelerated|scaled|grew)\b",
+    re.IGNORECASE,
+)
+
+
+def has_measurable_outcome(text: str) -> bool:
+    normalized = " ".join(text.split()).strip()
+    if not normalized:
+        return False
+    if _MEASURABLE_OUTCOME_PERCENT_PATTERN.search(normalized):
+        return True
+    return bool(
+        _MEASURABLE_OUTCOME_VERB_PATTERN.search(normalized)
+        and re.search(r"\b\d+(?:\.\d+)?\b", normalized)
     )
 
 
@@ -91,6 +113,13 @@ def validate_experience_data(
             # Warn if no domain
             if not bullet.get("domain"):
                 warnings.append(f"{bullet_id}: missing 'domain' field")
+
+            # Warn for weak canonical bullets that lack measurable outcome language.
+            text = str(bullet.get("text", ""))
+            if text and not has_measurable_outcome(text):
+                warnings.append(
+                    f"{bullet_id}: consider adding measurable outcome language"
+                )
 
     return errors, warnings
 

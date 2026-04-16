@@ -761,6 +761,33 @@ _GENERIC_HYPE_PHRASES = (
     "dynamic professional",
 )
 _TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9+/#-]*")
+_MEASURABLE_OUTCOME_PERCENT_PATTERN = re.compile(
+    r"\b\d+(?:\.\d+)?\s*(?:%|percent|x)\b", re.IGNORECASE
+)
+_MEASURABLE_OUTCOME_VERB_PATTERN = re.compile(
+    r"\b(reduced|improved|increased|decreased|cut|saved|boosted|eliminated|doubled|tripled|accelerated|scaled|grew)\b",
+    re.IGNORECASE,
+)
+_GAP_TOKEN_PATTERN = re.compile(r"[a-z0-9][a-z0-9+/#.-]*")
+_GAP_TOKEN_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "in",
+    "is",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "with",
+}
 
 
 def _normalize_transformed_bullet_text(
@@ -973,7 +1000,103 @@ def _score_bullet_relevance(
         if not bullet_id:
             continue
         parsed_scores[bullet_id] = _coerce_relevance_score(item.get("score"))
-    return parsed_scores
+    return _apply_measurable_outcome_boost(experience=experience, scores=parsed_scores)
+
+
+def _has_measurable_outcome(text: str) -> bool:
+    normalized = " ".join(text.split()).strip()
+    if not normalized:
+        return False
+    if _MEASURABLE_OUTCOME_PERCENT_PATTERN.search(normalized):
+        return True
+    return bool(
+        _MEASURABLE_OUTCOME_VERB_PATTERN.search(normalized)
+        and re.search(r"\b\d+(?:\.\d+)?\b", normalized)
+    )
+
+
+def _apply_measurable_outcome_boost(
+    *, experience: Experience, scores: dict[str, float]
+) -> dict[str, float]:
+    """Boost bullets with measurable outcomes so high-signal evidence sorts earlier."""
+    boosted: dict[str, float] = dict(scores)
+    for bullet in experience.bullets:
+        base_score = boosted.get(bullet.id, 0.0)
+        if _has_measurable_outcome(bullet.text):
+            boosted[bullet.id] = _coerce_relevance_score(base_score + 0.5)
+        else:
+            boosted[bullet.id] = _coerce_relevance_score(base_score)
+    return boosted
+
+
+def _tokenize_gap_terms(text: str) -> list[str]:
+    tokens: list[str] = []
+    for raw_token in _GAP_TOKEN_PATTERN.findall(text.lower()):
+        token = raw_token.strip("._-")
+        if len(token) < 3 or token in _GAP_TOKEN_STOPWORDS:
+            continue
+        tokens.append(token)
+    return tokens
+
+
+def write_gap_summary(resume: ResumeIR, output_path: Path) -> None:
+    """Write missing high-value JD terms not yet covered by selected skills/bullets."""
+    description_excerpt = ""
+    role_hint = ""
+    if resume.job_context is not None:
+        description_excerpt = resume.job_context.description_excerpt.strip()
+        role_hint = resume.job_context.role_hint.strip()
+
+    job_terms = _tokenize_gap_terms(
+        " ".join(
+            part
+            for part in [
+                description_excerpt,
+                role_hint,
+                resume.target_role,
+                resume.target_company,
+            ]
+            if part.strip()
+        )
+    )
+    job_term_counts: dict[str, int] = {}
+    for term in job_terms:
+        job_term_counts[term] = job_term_counts.get(term, 0) + 1
+
+    covered_terms: set[str] = set()
+    for skills in resume.skills_by_category.values():
+        for skill in skills:
+            covered_terms.update(_tokenize_gap_terms(skill))
+    for experience in resume.experiences:
+        covered_terms.update(_tokenize_gap_terms(experience.general_role_description))
+        for skill in experience.related_skills:
+            covered_terms.update(_tokenize_gap_terms(skill))
+        for bullet in experience.bullets:
+            covered_terms.update(_tokenize_gap_terms(bullet.text))
+            for skill in bullet.skills:
+                covered_terms.update(_tokenize_gap_terms(skill))
+
+    missing_terms = [
+        {"term": term, "count": count}
+        for term, count in sorted(
+            job_term_counts.items(), key=lambda item: (-item[1], item[0])
+        )
+        if term not in covered_terms
+    ]
+
+    payload = {
+        "target_role": resume.target_role,
+        "target_company": resume.target_company,
+        "job_term_count": len(job_terms),
+        "unique_job_terms": len(job_term_counts),
+        "covered_term_count": sum(
+            1 for term in job_term_counts if term in covered_terms
+        ),
+        "missing_terms": missing_terms,
+    }
+    output_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def _coerce_relevance_score(raw: object) -> float:
@@ -2255,6 +2378,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
     company_md_output = args.output_dir / f"{company_prefix}.md"
     company_ir_output = args.output_dir / f"{company_prefix}_ir_snapshot.json"
     company_text_snapshot_output = args.output_dir / f"{company_prefix}_ir_snapshot.txt"
+    gap_output = args.output_dir / f"{legacy_prefix}_gap_summary.json"
+    company_gap_output = args.output_dir / f"{company_prefix}_gap_summary.json"
 
     render_html(resume, html_output, template_name=primary_template)
     render_html(resume, secondary_html_output, template_name=secondary_template)
@@ -2262,6 +2387,13 @@ def run_pipeline(args: argparse.Namespace) -> int:
         render_markdown(resume, md_output)
     write_ir_snapshot(resume, ir_output)
     write_text_snapshot(resume, text_snapshot_output)
+    should_emit_gap_summary = (
+        args.processing_mode == "processed"
+        and resume.job_context is not None
+        and bool(resume.job_context.description_excerpt.strip())
+    )
+    if should_emit_gap_summary:
+        write_gap_summary(resume, gap_output)
 
     if company_prefix != legacy_prefix:
         shutil.copyfile(html_output, company_html_output)
@@ -2270,6 +2402,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
             shutil.copyfile(md_output, company_md_output)
         shutil.copyfile(ir_output, company_ir_output)
         shutil.copyfile(text_snapshot_output, company_text_snapshot_output)
+        if should_emit_gap_summary:
+            shutil.copyfile(gap_output, company_gap_output)
 
     print(f"Resume output written to ({args.processing_mode} mode): {args.output_dir}")
     print(f"- {html_output}")
@@ -2278,6 +2412,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
         print(f"- {md_output}")
     print(f"- {ir_output}")
     print(f"- {text_snapshot_output}")
+    if should_emit_gap_summary:
+        print(f"- {gap_output}")
     if company_prefix != legacy_prefix:
         print("Company-scoped aliases:")
         print(f"- {company_html_output}")
@@ -2286,6 +2422,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
             print(f"- {company_md_output}")
         print(f"- {company_ir_output}")
         print(f"- {company_text_snapshot_output}")
+        if should_emit_gap_summary:
+            print(f"- {company_gap_output}")
     return 0
 
 

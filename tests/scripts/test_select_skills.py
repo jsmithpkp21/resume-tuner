@@ -446,6 +446,23 @@ def test_normalize_skill_near_dupes_prefers_shorter_variant_on_score_tie() -> No
     }
 
 
+def test_compute_skill_scores_includes_role_relevant_matrix_only_skills() -> None:
+    resume = _DummyResume(
+        skills_by_category={
+            "Architecture": ["Fraud Analytics", "Payments APIs"],
+        },
+        target_role="Senior SDET",
+        job_context=_DummyJobContext(
+            description_excerpt="Need fraud analytics and payments APIs experience."
+        ),
+    )
+
+    scores = _compute_skill_scores(resume)
+
+    assert scores["Fraud Analytics"] > 0.0
+    assert scores["Payments APIs"] > 0.0
+
+
 def test_select_skills_returns_new_dataclass_and_keeps_source_immutable() -> None:
     original = {
         "Automation": [f"skill_{idx}" for idx in range(40)],
@@ -459,6 +476,7 @@ def test_select_skills_returns_new_dataclass_and_keeps_source_immutable() -> Non
 
 
 def test_select_skills_applies_top_n_cap_before_trimming() -> None:
+    captured: dict[str, list[str]] = {}
     all_skills = [f"skill_{idx:02d}" for idx in range(TOP_N_SKILLS + 5)]
     resume = _DummyResume(
         skills_by_category={
@@ -474,8 +492,28 @@ def test_select_skills_applies_top_n_cap_before_trimming() -> None:
         ),
     )
 
-    packed_resume = select_skills(resume)
+    def fake_pack_skills_to_budget(
+        skills_by_category: dict[str, list[str]], **_kwargs: object
+    ) -> dict[str, list[str]]:
+        captured.update(
+            {category: list(skills) for category, skills in skills_by_category.items()}
+        )
+        return {
+            category: list(skills) for category, skills in skills_by_category.items()
+        }
 
+    original_pack = select_skills_module.pack_skills_to_budget
+    select_skills_module.pack_skills_to_budget = fake_pack_skills_to_budget
+    try:
+        packed_resume = select_skills(resume)
+    finally:
+        select_skills_module.pack_skills_to_budget = original_pack
+
+    assert captured
+    assert sum(len(skills) for skills in captured.values()) <= TOP_N_SKILLS
+    assert set(all_skills[TOP_N_SKILLS:]).isdisjoint(
+        skill for skills in captured.values() for skill in skills
+    )
     assert len(packed_resume.skills_by_category["Everything"]) <= TOP_N_SKILLS
     assert set(all_skills[TOP_N_SKILLS:]).isdisjoint(
         packed_resume.skills_by_category["Everything"]
@@ -508,6 +546,44 @@ def test_select_skills_normalizes_ci_cd_near_duplicates() -> None:
 
     assert "CI / CD" in flattened
     assert "CI/CD" not in flattened
+
+
+def test_select_skills_caps_unique_skills_after_normalizing_aliases(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(select_skills_module, "TOP_N_SKILLS", 3)
+    monkeypatch.setattr(
+        select_skills_module,
+        "pack_skills_to_budget",
+        lambda skills_by_category, **_kwargs: {
+            category: list(skills) for category, skills in skills_by_category.items()
+        },
+    )
+
+    resume = _DummyResume(
+        skills_by_category={
+            "Automation": ["CI/CD", "CI / CD", "Playwright", "GitHub Actions"],
+        },
+        experiences=(
+            _DummyExperience(
+                related_skills=("CI / CD", "Playwright", "GitHub Actions"),
+                bullets=(
+                    _DummyBullet(skills=("CI / CD",)),
+                    _DummyBullet(skills=("Playwright",)),
+                    _DummyBullet(skills=("GitHub Actions",)),
+                ),
+            ),
+        ),
+    )
+
+    packed_resume = select_skills(resume)
+    flattened = [
+        skill
+        for category_skills in packed_resume.skills_by_category.values()
+        for skill in category_skills
+    ]
+
+    assert flattened == ["CI / CD", "Playwright", "GitHub Actions"]
 
 
 def test_select_skills_applies_importance_order_before_trimming() -> None:

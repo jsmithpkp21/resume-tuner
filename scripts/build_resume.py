@@ -64,6 +64,8 @@ DEFAULT_MIN_BULLETS_PER_EXPERIENCE = 3
 SUMMARY_LINE_WIDTH = 72
 SUMMARY_MAX_LINES = 2
 SUMMARY_MAX_WORDS = 30
+PROFILE_SUMMARY_LINE_WIDTH = 115
+PROFILE_SUMMARY_MAX_LINES = 6
 # Prevent clipped summaries from ending on dangling connectors/fragments.
 _TRAILING_FRAGMENT_WORDS = {
     "a",
@@ -462,34 +464,17 @@ def _get_base_role(resume: ResumeIR) -> str:
 
 
 def derive_resume_title(resume: ResumeIR) -> str:
-    """Build a seniority-aware, role-shape-aware title for the top title block.
+    """Derive resume title from profile headline with deterministic formatting."""
+    profile_headline = " ".join(resume.profile.headline.strip().split())
+    if profile_headline:
+        normalized = re.sub(r"\s*\|\s*", " / ", profile_headline)
+        normalized = " ".join(normalized.split())
+        return _normalize_role_acronyms(normalized)
 
-    Uses general deterministic formatting rules instead of brittle special-cases.
-    Applies seniority prefix when detected and not already present.
-    """
-    target_role = resume.target_role.strip()
-    headline = resume.display_headline.strip() or resume.profile.headline.strip()
-    base = target_role or headline
-    if "|" in base:
-        base = base.split("|", maxsplit=1)[0].strip()
-    base = " ".join(base.split())
-    if not base:
-        return "Software Test Automation Engineer"
-
-    seniority = _extract_seniority(target_role) or _extract_seniority(headline)
-    if seniority and not _extract_seniority(base):
-        base = f"{seniority} {base}"
-
-    specialization = ""
-    if "|" in headline:
-        specialization = headline.split("|", maxsplit=1)[1].strip()
-    if specialization and not re.search(
-        r"\b(automation|test|quality|sdet|qa)\b", base, re.IGNORECASE
-    ):
-        base = f"{base} / {specialization}"
-
-    normalized_base = _normalize_role_acronyms(base)
-    return normalized_base
+    fallback = _get_base_role(resume)
+    if fallback:
+        return _normalize_role_acronyms(fallback)
+    return "Software Test Automation Engineer"
 
 
 def load_experiences(path: Path) -> tuple[Experience, ...]:
@@ -1358,7 +1343,25 @@ def _generate_profile_summary(resume: ResumeIR) -> str:
             candidate = truncated + "."
         else:
             candidate = truncated
-    return candidate
+    fitted = _fit_profile_summary_layout(candidate)
+    return fitted or candidate
+
+
+def _fit_profile_summary_layout(summary: str) -> str:
+    """Trim summary tail until it fits the six-line profile-summary layout budget."""
+    words = summary.strip().replace("\n", " ").split()
+    while words:
+        words = _trim_trailing_fragment_words(words)
+        if not words:
+            return ""
+        candidate = " ".join(words).strip(" ,;:")
+        if candidate and candidate[-1] not in ".!?":
+            candidate = f"{candidate}."
+        lines = _summary_wrap_lines(candidate, line_width=PROFILE_SUMMARY_LINE_WIDTH)
+        if len(lines) <= PROFILE_SUMMARY_MAX_LINES:
+            return candidate
+        words.pop()
+    return ""
 
 
 def _build_profile_summary_fragments(

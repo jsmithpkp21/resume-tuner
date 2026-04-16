@@ -20,6 +20,7 @@ import pytest
 
 from scripts import build_resume, jd_ingest
 from scripts.build_resume import (
+    PROFILE_SUMMARY_MAX_LINES,
     PROFILE_SUMMARY_MAX_WORDS,
     PROFILE_SUMMARY_MIN_RATIO,
     Bullet,
@@ -58,6 +59,7 @@ SCHWAB_JOB_URL = (
     "sr-sdet-workplace-services-engineering/33727/92422911552"
 )
 SCHWAB_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "job_pages" / "schwab_sr_sdet.html"
+PROFILE_RESUME_TITLE = "Software Engineer / Test Automation and Framework Architecture"
 
 
 def _extract_skills_by_category_from_html(html_text: str) -> dict[str, list[str]]:
@@ -405,7 +407,10 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert "<h2>Education</h2>" in html_text
     assert "<h2>Leadership &amp; Community</h2>" in html_text
     assert "<h2>Summary</h2>" not in html_text
-    assert '<p class="resume-title"><strong>Staff Software Engineer' in html_text
+    assert (
+        f'<p class="resume-title"><strong>{PROFILE_RESUME_TITLE}</strong></p>'
+        in html_text
+    )
     assert html_text.index('class="resume-title"') < html_text.index(
         "<h2>Key Skills and Expertise</h2>"
     )
@@ -705,7 +710,7 @@ def test_derive_resume_title_adds_missing_seniority_from_headline() -> None:
         enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
     )
 
-    assert derive_resume_title(adjusted) == "Staff SDET"
+    assert derive_resume_title(adjusted) == PROFILE_RESUME_TITLE
 
 
 def test_derive_resume_title_preserves_senior_sdet_without_special_expansion() -> None:
@@ -723,8 +728,7 @@ def test_derive_resume_title_preserves_senior_sdet_without_special_expansion() -
         skills_by_category={},
     )
 
-    # No special case: Senior SDET stays as Senior SDET
-    assert derive_resume_title(resume) == "Senior SDET"
+    assert derive_resume_title(resume) == PROFILE_RESUME_TITLE
 
 
 def test_display_company_header_maps_hp_poly_aliases() -> None:
@@ -775,7 +779,10 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
     )
 
     assert '<p class="headline">Sr. SDET</p>' not in html_text
-    assert '<p class="resume-title"><strong>Sr. SDET</strong></p>' in html_text
+    assert (
+        f'<p class="resume-title"><strong>{PROFILE_RESUME_TITLE}</strong></p>'
+        in html_text
+    )
     assert snapshot["target_role"] == "Sr. SDET"
     assert snapshot["target_company"] == "Charles Schwab"
     assert snapshot["job_context"]["source"] == "company-site"
@@ -1048,11 +1055,11 @@ def test_build_resume_cli_deduplicates_equivalent_headline_and_resume_title(
         not in default_html
     )
     assert (
-        '<p class="resume-title"><strong>Software Engineer / Test Automation and Framework Architecture</strong></p>'
+        f'<p class="resume-title"><strong>{PROFILE_RESUME_TITLE}</strong></p>'
         in modern_html
     )
     assert (
-        '<p class="resume-title"><strong>Software Engineer / Test Automation and Framework Architecture</strong></p>'
+        f'<p class="resume-title"><strong>{PROFILE_RESUME_TITLE}</strong></p>'
         in default_html
     )
 
@@ -2342,10 +2349,40 @@ def test_summarize_profile_for_role_enforces_minimum_word_count() -> None:
 
     summarized = summarize_profile_for_role(resume)
     word_count = len(summarized.profile.summary.split())
-    min_words = math.ceil(
-        PROFILE_SUMMARY_MAX_WORDS * build_resume.PROFILE_SUMMARY_MIN_RATIO
+    assert word_count <= PROFILE_SUMMARY_MAX_WORDS
+    wrapped_lines = _summary_wrap_lines(
+        summarized.profile.summary,
+        line_width=build_resume.PROFILE_SUMMARY_LINE_WIDTH,
     )
-    assert min_words <= word_count <= PROFILE_SUMMARY_MAX_WORDS
+    assert len(wrapped_lines) <= PROFILE_SUMMARY_MAX_LINES
+
+
+def test_summarize_profile_for_role_respects_six_line_layout_cap() -> None:
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Charles Schwab",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\n"
+            "Company: Charles Schwab\n"
+            "Need Python and CI quality ownership."
+        ),
+        experiences=experiences,
+        skills_by_category={
+            "Testing": ["Python", "Pytest", "Playwright"],
+        },
+    )
+
+    summarized = summarize_profile_for_role(resume)
+    wrapped_lines = _summary_wrap_lines(
+        summarized.profile.summary,
+        line_width=build_resume.PROFILE_SUMMARY_LINE_WIDTH,
+    )
+    assert len(wrapped_lines) <= PROFILE_SUMMARY_MAX_LINES
 
 
 def test_expand_profile_summary_to_min_words_rotates_sparse_fragments() -> None:

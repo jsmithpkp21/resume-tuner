@@ -406,7 +406,6 @@ def _compute_skill_scores(resume: Any) -> dict[str, float]:
     """
     role_text, role_tokens = _extract_role_context(resume)
     bullet_counts, related_counts = _collect_skill_usage_signals(resume)
-
     skills_by_category: dict[str, list[str]] = (
         getattr(resume, "skills_by_category", None) or {}
     )

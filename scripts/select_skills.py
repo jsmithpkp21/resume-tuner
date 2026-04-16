@@ -53,7 +53,6 @@ _SKILL_ALIAS_CANONICAL: dict[str, str] = {
     "cicd": "ci/cd",
     "ci/cd": "ci/cd",
     "ci-cd": "ci/cd",
-    "ci / cd": "ci/cd",
     "continuousintegration/continuousdelivery": "ci/cd",
     "continuousintegrationandcontinuousdelivery": "ci/cd",
 }
@@ -912,7 +911,7 @@ def pack_skills_to_budget(
 
 
 def select_skills(resume: Any) -> Any:
-    """Pipeline stage: apply Option A global top-N cap (issue #97) then trim skills to fit the issue #42 target range."""
+    """Pipeline stage: normalize near-duplicates, apply Option A global top-N cap (issue #97), then trim skills to fit the issue #42 target range."""
     from dataclasses import replace as dataclass_replace
 
     font_regular: Any | None = None
@@ -927,26 +926,26 @@ def select_skills(resume: Any) -> Any:
             logger.warning("skills packing fallback estimator enabled: %s", exc)
 
     skill_scores = _compute_skill_scores(resume)
-    capped_resume = dataclass_replace(
+    normalized_resume = dataclass_replace(
         resume,
-        skills_by_category=cap_skills_by_score(
+        skills_by_category=normalize_skill_near_dupes(
             resume.skills_by_category,
+            skill_scores,
+        ),
+    )
+    capped_resume = dataclass_replace(
+        normalized_resume,
+        skills_by_category=cap_skills_by_score(
+            normalized_resume.skills_by_category,
             skill_scores,
             top_n=TOP_N_SKILLS,
         ),
     )
-    normalized_resume = dataclass_replace(
-        capped_resume,
-        skills_by_category=normalize_skill_near_dupes(
-            capped_resume.skills_by_category,
-            skill_scores,
-        ),
-    )
     prioritized_skills = prioritize_skills_by_importance(
-        normalized_resume, scores=skill_scores
+        capped_resume, scores=skill_scores
     )
     category_industry_weights = _compute_category_industry_weights(
-        normalized_resume,
+        capped_resume,
         skills_by_category=prioritized_skills,
     )
     prioritized_skills = _order_categories_by_relevance(

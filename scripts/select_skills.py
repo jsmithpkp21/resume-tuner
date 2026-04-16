@@ -398,12 +398,24 @@ def _collect_skill_usage_signals(resume: Any) -> tuple[Counter[str], Counter[str
 
 
 def _compute_skill_scores(resume: Any) -> dict[str, float]:
-    """Compute weighted skill importance from usage and role relevance signals."""
+    """Compute weighted skill importance from usage and role relevance signals.
+
+    All skills present in the skills matrix receive a role-relevance score so
+    that the top-N cap (Issue #97) ranks by actual relevance rather than by
+    CSV position for skills that appear in no experience bullet or
+    related_skills list.
+    """
     role_text, role_tokens = _extract_role_context(resume)
     bullet_counts, related_counts = _collect_skill_usage_signals(resume)
 
+    all_matrix_skills: set[str] = {
+        skill
+        for skills in (getattr(resume, "skills_by_category", None) or {}).values()
+        for skill in skills
+    }
+
     scores: dict[str, float] = {}
-    for skill in set(bullet_counts) | set(related_counts):
+    for skill in set(bullet_counts) | set(related_counts) | all_matrix_skills:
         role_relevance = _skill_role_relevance(skill, role_text, role_tokens)
         scores[skill] = (
             bullet_counts[skill] * _BULLET_COUNT_WEIGHT

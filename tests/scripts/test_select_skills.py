@@ -16,6 +16,7 @@ from scripts.select_skills import (
     TARGET_LINES_MIN,
     TOP_N_SKILLS,
     _compute_category_industry_weights,
+    _compute_skill_scores,
     _section_layout,
     _wrap_widths,
     cap_skills_by_score,
@@ -380,6 +381,32 @@ def test_cap_skills_by_score_drops_empty_categories() -> None:
         "Languages": ["Python"],
         "Platforms": ["AWS"],
     }
+
+
+def test_compute_skill_scores_includes_matrix_skills_without_usage_signals() -> None:
+    """Skills absent from all bullets/related_skills still get a role-relevance score.
+
+    Regression for Issue #97 Option A: before this fix, skills not in any
+    experience entry fell back to 0.0 in the score map, causing the top-N cap
+    to keep them in arbitrary CSV order instead of by relevance.
+    """
+    resume = _DummyResume(
+        skills_by_category={
+            "Platforms": ["AWS", "GCP", "Azure"],
+        },
+        target_role="AWS cloud engineer",
+        experiences=(),
+    )
+
+    scores = _compute_skill_scores(resume)
+
+    # All matrix skills must be present in the score map.
+    assert "AWS" in scores
+    assert "GCP" in scores
+    assert "Azure" in scores
+    # The role-relevant skill (AWS) must outrank the others.
+    assert scores["AWS"] > scores["GCP"]
+    assert scores["AWS"] > scores["Azure"]
 
 
 def test_normalize_skill_near_dupes_keeps_highest_scored_variant() -> None:

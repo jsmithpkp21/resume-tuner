@@ -899,7 +899,7 @@ def pack_skills_to_budget(
 
 
 def select_skills(resume: Any) -> Any:
-    """Pipeline stage: trim skills to fit the issue #42 target range."""
+    """Pipeline stage: apply Option A global top-N cap (issue #97) then trim skills to fit the issue #42 target range."""
     from dataclasses import replace as dataclass_replace
 
     font_regular: Any | None = None
@@ -919,7 +919,7 @@ def select_skills(resume: Any) -> Any:
         skills_by_category=cap_skills_by_score(
             resume.skills_by_category,
             skill_scores,
-            TOP_N_SKILLS,
+            top_n=TOP_N_SKILLS,
         ),
     )
     normalized_resume = dataclass_replace(

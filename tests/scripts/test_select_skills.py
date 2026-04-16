@@ -14,9 +14,11 @@ from scripts.select_skills import (
     TARGET_CATEGORY_MAX,
     TARGET_LINES_MAX,
     TARGET_LINES_MIN,
+    TOP_N_SKILLS,
     _compute_category_industry_weights,
     _section_layout,
     _wrap_widths,
+    cap_skills_by_score,
     estimate_line_count,
     join_skills,
     pack_skills_to_budget,
@@ -339,6 +341,46 @@ def test_prioritize_skills_by_importance_warns_for_unknown_signal_skills(
     )
 
 
+def test_cap_skills_by_score_keeps_top_n() -> None:
+    skills_by_category = {
+        "Languages": ["Python", "Java"],
+        "Testing": ["Pytest", "Selenium"],
+        "Platforms": ["AWS"],
+    }
+    scores = {
+        "Python": 9.0,
+        "Selenium": 8.0,
+        "AWS": 7.0,
+        "Java": 6.0,
+        "Pytest": 5.0,
+    }
+
+    capped = cap_skills_by_score(skills_by_category, scores, top_n=3)
+
+    assert sum(len(skills) for skills in capped.values()) == 3
+    assert capped == {
+        "Languages": ["Python"],
+        "Testing": ["Selenium"],
+        "Platforms": ["AWS"],
+    }
+
+
+def test_cap_skills_by_score_drops_empty_categories() -> None:
+    skills_by_category = {
+        "Languages": ["Python"],
+        "Testing": ["Pytest"],
+        "Platforms": ["AWS"],
+    }
+    scores = {"Python": 9.0, "AWS": 8.0, "Pytest": 1.0}
+
+    capped = cap_skills_by_score(skills_by_category, scores, top_n=2)
+
+    assert capped == {
+        "Languages": ["Python"],
+        "Platforms": ["AWS"],
+    }
+
+
 def test_select_skills_returns_new_dataclass_and_keeps_source_immutable() -> None:
     original = {
         "Automation": [f"skill_{idx}" for idx in range(40)],
@@ -349,6 +391,30 @@ def test_select_skills_returns_new_dataclass_and_keeps_source_immutable() -> Non
     assert packed_resume is not resume
     assert isinstance(packed_resume, _DummyResume)
     assert resume.skills_by_category == original
+
+
+def test_select_skills_applies_top_n_cap_before_trimming() -> None:
+    all_skills = [f"skill_{idx:02d}" for idx in range(TOP_N_SKILLS + 5)]
+    resume = _DummyResume(
+        skills_by_category={
+            "Everything": all_skills,
+        },
+        experiences=(
+            _DummyExperience(
+                related_skills=tuple(all_skills[:TOP_N_SKILLS]),
+                bullets=tuple(
+                    _DummyBullet(skills=(skill,)) for skill in all_skills[:TOP_N_SKILLS]
+                ),
+            ),
+        ),
+    )
+
+    packed_resume = select_skills(resume)
+
+    assert len(packed_resume.skills_by_category["Everything"]) <= TOP_N_SKILLS
+    assert set(all_skills[TOP_N_SKILLS:]).isdisjoint(
+        packed_resume.skills_by_category["Everything"]
+    )
 
 
 def test_select_skills_applies_importance_order_before_trimming() -> None:

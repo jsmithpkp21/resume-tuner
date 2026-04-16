@@ -21,6 +21,7 @@ _MEASURE_BACKEND: Any | None | bool = False
 TARGET_LINES_MIN: int = 11
 TARGET_LINES_MAX: int = 13
 TARGET_CATEGORY_MAX: int = 9
+TOP_N_SKILLS: int = 40
 # Minimum skill count to preserve per category (to avoid empty categories)
 MIN_SKILLS_PER_CATEGORY: int = 1
 _CHAR_WIDTH_LIMIT: int = 92
@@ -402,6 +403,48 @@ def _compute_skill_scores(resume: Any) -> dict[str, float]:
             + role_relevance * _ROLE_RELEVANCE_WEIGHT
         )
     return scores
+
+
+def cap_skills_by_score(
+    skills_by_category: dict[str, list[str]],
+    scores: dict[str, float],
+    top_n: int = TOP_N_SKILLS,
+) -> dict[str, list[str]]:
+    """Keep only the highest-scoring skills across all categories."""
+    if top_n <= 0:
+        return {}
+
+    indexed_skills: list[tuple[float, int, str, int]] = []
+    global_index = 0
+    for category, skills in skills_by_category.items():
+        for skill_index, skill in enumerate(skills):
+            indexed_skills.append(
+                (scores.get(skill, 0.0), global_index, category, skill_index)
+            )
+            global_index += 1
+
+    if len(indexed_skills) <= top_n:
+        return {
+            category: list(skills) for category, skills in skills_by_category.items()
+        }
+
+    indexed_skills.sort(key=lambda item: (-item[0], item[1]))
+    kept_positions = {
+        (category, skill_index)
+        for _score, _global_index, category, skill_index in indexed_skills[:top_n]
+    }
+
+    capped_skills: dict[str, list[str]] = {}
+    for category, skills in skills_by_category.items():
+        retained = [
+            skill
+            for skill_index, skill in enumerate(skills)
+            if (category, skill_index) in kept_positions
+        ]
+        if retained:
+            capped_skills[category] = retained
+
+    return capped_skills
 
 
 def _skill_role_relevance(skill: str, role_text: str, role_tokens: set[str]) -> float:
@@ -803,6 +846,8 @@ def pack_skills_to_budget(
 
 def select_skills(resume: Any) -> Any:
     """Pipeline stage: trim skills to fit the issue #42 target range."""
+    from dataclasses import replace as dataclass_replace
+
     font_regular: Any | None = None
     font_bold: Any | None = None
     measure_backend = _load_measure_backend()
@@ -815,9 +860,19 @@ def select_skills(resume: Any) -> Any:
             logger.warning("skills packing fallback estimator enabled: %s", exc)
 
     skill_scores = _compute_skill_scores(resume)
-    prioritized_skills = prioritize_skills_by_importance(resume, scores=skill_scores)
-    category_industry_weights = _compute_category_industry_weights(
+    capped_resume = dataclass_replace(
         resume,
+        skills_by_category=cap_skills_by_score(
+            resume.skills_by_category,
+            skill_scores,
+            TOP_N_SKILLS,
+        ),
+    )
+    prioritized_skills = prioritize_skills_by_importance(
+        capped_resume, scores=skill_scores
+    )
+    category_industry_weights = _compute_category_industry_weights(
+        capped_resume,
         skills_by_category=prioritized_skills,
     )
     prioritized_skills = _order_categories_by_relevance(
@@ -840,7 +895,5 @@ def select_skills(resume: Any) -> Any:
         skill_scores=skill_scores,
         category_industry_weights=category_industry_weights,
     )
-
-    from dataclasses import replace as dataclass_replace
 
     return dataclass_replace(resume, skills_by_category=trimmed_skills)

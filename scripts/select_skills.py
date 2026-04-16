@@ -49,6 +49,14 @@ _DEFAULT_ANCHOR_SKILLS = frozenset({"Python", "Java"})
 _PROTECTED_SKILL_SCORE_FLOOR = 4.0
 _PROTECTED_CATEGORY_DROP_PENALTY = 400.0
 _PROTECTED_SKILL_DROP_PENALTY = 150.0
+_SKILL_ALIAS_CANONICAL: dict[str, str] = {
+    "cicd": "ci/cd",
+    "ci/cd": "ci/cd",
+    "ci-cd": "ci/cd",
+    "ci / cd": "ci/cd",
+    "continuousintegration/continuousdelivery": "ci/cd",
+    "continuousintegrationandcontinuousdelivery": "ci/cd",
+}
 
 _INDUSTRY_PROFILE_KEYWORDS: dict[str, frozenset[str]] = {
     "fintech": frozenset(
@@ -445,6 +453,52 @@ def cap_skills_by_score(
             capped_skills[category] = retained
 
     return capped_skills
+
+
+def _normalize_skill_near_dupe_key(skill: str) -> str:
+    """Build a deterministic key for collapsing near-duplicate skill labels."""
+    normalized = skill.strip().lower()
+    normalized = re.sub(r"\s+", " ", normalized)
+    normalized = re.sub(r"\s*/\s*", "/", normalized)
+    compact = normalized.replace(" ", "")
+    return _SKILL_ALIAS_CANONICAL.get(compact, compact)
+
+
+def normalize_skill_near_dupes(
+    skills_by_category: dict[str, list[str]],
+    scores: dict[str, float],
+) -> dict[str, list[str]]:
+    """Collapse near-duplicate skills, keeping the highest-scored variant."""
+    winners: dict[str, tuple[str, float, int]] = {}
+    global_index = 0
+    for _category, skills in skills_by_category.items():
+        for skill in skills:
+            key = _normalize_skill_near_dupe_key(skill)
+            candidate = (skill, scores.get(skill, 0.0), global_index)
+            winner = winners.get(key)
+            if winner is None or (candidate[1], -len(candidate[0]), -candidate[2]) > (
+                winner[1],
+                -len(winner[0]),
+                -winner[2],
+            ):
+                winners[key] = candidate
+            global_index += 1
+
+    deduped: dict[str, list[str]] = {}
+    emitted_keys: set[str] = set()
+    for category, skills in skills_by_category.items():
+        retained: list[str] = []
+        for skill in skills:
+            key = _normalize_skill_near_dupe_key(skill)
+            winner = winners.get(key)
+            if winner is None or key in emitted_keys or winner[0] != skill:
+                continue
+            retained.append(skill)
+            emitted_keys.add(key)
+        if retained:
+            deduped[category] = retained
+
+    return deduped
 
 
 def _skill_role_relevance(skill: str, role_text: str, role_tokens: set[str]) -> float:
@@ -868,11 +922,18 @@ def select_skills(resume: Any) -> Any:
             TOP_N_SKILLS,
         ),
     )
+    normalized_resume = dataclass_replace(
+        capped_resume,
+        skills_by_category=normalize_skill_near_dupes(
+            capped_resume.skills_by_category,
+            skill_scores,
+        ),
+    )
     prioritized_skills = prioritize_skills_by_importance(
-        capped_resume, scores=skill_scores
+        normalized_resume, scores=skill_scores
     )
     category_industry_weights = _compute_category_industry_weights(
-        capped_resume,
+        normalized_resume,
         skills_by_category=prioritized_skills,
     )
     prioritized_skills = _order_categories_by_relevance(

@@ -21,6 +21,7 @@ from scripts.select_skills import (
     cap_skills_by_score,
     estimate_line_count,
     join_skills,
+    normalize_skill_near_dupes,
     pack_skills_to_budget,
     prioritize_skills_by_importance,
     select_skills,
@@ -381,6 +382,43 @@ def test_cap_skills_by_score_drops_empty_categories() -> None:
     }
 
 
+def test_normalize_skill_near_dupes_keeps_highest_scored_variant() -> None:
+    skills_by_category = {
+        "Automation": ["CI/CD", "Playwright"],
+        "Tooling": ["CI / CD", "GitHub Actions"],
+    }
+    scores = {
+        "CI/CD": 2.0,
+        "CI / CD": 9.0,
+        "Playwright": 4.0,
+        "GitHub Actions": 3.0,
+    }
+
+    normalized = normalize_skill_near_dupes(skills_by_category, scores)
+
+    assert normalized == {
+        "Automation": ["Playwright"],
+        "Tooling": ["CI / CD", "GitHub Actions"],
+    }
+
+
+def test_normalize_skill_near_dupes_prefers_shorter_variant_on_score_tie() -> None:
+    skills_by_category = {
+        "Tooling": ["CI / CD", "CI/CD", "Jenkins"],
+    }
+    scores = {
+        "CI / CD": 5.0,
+        "CI/CD": 5.0,
+        "Jenkins": 1.0,
+    }
+
+    normalized = normalize_skill_near_dupes(skills_by_category, scores)
+
+    assert normalized == {
+        "Tooling": ["CI/CD", "Jenkins"],
+    }
+
+
 def test_select_skills_returns_new_dataclass_and_keeps_source_immutable() -> None:
     original = {
         "Automation": [f"skill_{idx}" for idx in range(40)],
@@ -415,6 +453,34 @@ def test_select_skills_applies_top_n_cap_before_trimming() -> None:
     assert set(all_skills[TOP_N_SKILLS:]).isdisjoint(
         packed_resume.skills_by_category["Everything"]
     )
+
+
+def test_select_skills_normalizes_ci_cd_near_duplicates() -> None:
+    resume = _DummyResume(
+        skills_by_category={
+            "Automation": ["CI/CD", "Playwright"],
+            "Tooling": ["CI / CD", "GitHub Actions"],
+        },
+        experiences=(
+            _DummyExperience(
+                related_skills=("CI / CD",),
+                bullets=(
+                    _DummyBullet(skills=("CI / CD",)),
+                    _DummyBullet(skills=("Playwright",)),
+                ),
+            ),
+        ),
+    )
+
+    packed_resume = select_skills(resume)
+    flattened = [
+        skill
+        for category_skills in packed_resume.skills_by_category.values()
+        for skill in category_skills
+    ]
+
+    assert "CI / CD" in flattened
+    assert "CI/CD" not in flattened
 
 
 def test_select_skills_applies_importance_order_before_trimming() -> None:

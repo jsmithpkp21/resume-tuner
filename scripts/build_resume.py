@@ -46,10 +46,16 @@ if __package__ in {None, ""}:
     from _runtime_guard import assert_not_blocked_runtime_input
     from jd_ingest import JobContext, ingest_job_context, ingest_job_text
     from llm_client import LLMClient
+    from measurable_outcomes import (
+        has_measurable_outcome as _shared_has_measurable_outcome,
+    )
 else:
     from scripts._runtime_guard import assert_not_blocked_runtime_input
     from scripts.jd_ingest import JobContext, ingest_job_context, ingest_job_text
     from scripts.llm_client import LLMClient
+    from scripts.measurable_outcomes import (
+        has_measurable_outcome as _shared_has_measurable_outcome,
+    )
 
 
 DEFAULT_PROFILE = Path("data/profile/profile.toml")
@@ -727,34 +733,6 @@ _GENERIC_HYPE_PHRASES = (
     "dynamic professional",
 )
 _TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9+/#-]*")
-_MEASURABLE_OUTCOME_PERCENT_PATTERN = re.compile(
-    r"\b\d+(?:\.\d+)?\s*(?:%|percent|x)\b", re.IGNORECASE
-)
-_MEASURABLE_OUTCOME_VERB_PATTERN = re.compile(
-    r"\b(?:"
-    r"reduc(?:e|ed|es|ing)|"
-    r"improv(?:e|ed|es|ing)|"
-    r"increas(?:e|ed|es|ing)|"
-    r"decreas(?:e|ed|es|ing)|"
-    r"cut(?:s|ting)?|"
-    r"sav(?:e|ed|es|ing)|"
-    r"boost(?:e|ed|es|ing)|"
-    r"eliminat(?:e|ed|es|ing)|"
-    r"doubl(?:e|ed|es|ing)|"
-    r"tripl(?:e|ed|es|ing)|"
-    r"accelerat(?:e|ed|es|ing)|"
-    r"scal(?:e|ed|es|ing)|"
-    r"grow(?:s|ing|n)?|grew"
-    r")\b",
-    re.IGNORECASE,
-)
-_MEASURABLE_OUTCOME_NUMBER_WORD_PATTERN = re.compile(
-    r"\b(one|two|three|four|five|six|seven|eight|nine|ten|"
-    r"eleven|twelve|thirteen|fourteen|fifteen|sixteen|"
-    r"seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|"
-    r"sixty|seventy|eighty|ninety|hundred)\b",
-    re.IGNORECASE,
-)
 _GAP_TOKEN_PATTERN = re.compile(r"[a-z0-9][a-z0-9+/#.-]*")
 _GAP_TOKEN_STOPWORDS = {
     "a",
@@ -991,18 +969,8 @@ def _score_bullet_relevance(
 
 
 def _has_measurable_outcome(text: str) -> bool:
-    normalized = " ".join(text.split()).strip()
-    if not normalized:
-        return False
-    if _MEASURABLE_OUTCOME_PERCENT_PATTERN.search(normalized):
-        return True
-    return bool(
-        _MEASURABLE_OUTCOME_VERB_PATTERN.search(normalized)
-        and (
-            re.search(r"\b\d+(?:\.\d+)?\b", normalized)
-            or _MEASURABLE_OUTCOME_NUMBER_WORD_PATTERN.search(normalized)
-        )
-    )
+    """Compatibility wrapper for shared measurable-outcome detection."""
+    return bool(_shared_has_measurable_outcome(text))
 
 
 def _apply_measurable_outcome_boost(

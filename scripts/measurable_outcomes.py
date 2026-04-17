@@ -6,7 +6,10 @@ from __future__ import annotations
 import re
 
 MEASURABLE_OUTCOME_PERCENT_PATTERN = re.compile(
-    r"\b\d+(?:\.\d+)?\s*(?:%|percent|x)\b", re.IGNORECASE
+    r"\b\d+(?:\.\d+)?\s*(?:percent|x)\b"  # word-boundary safe for word units
+    r"|"
+    r"\b\d+(?:\.\d+)?\s*%",  # % is not a word char; no trailing \b needed
+    re.IGNORECASE,
 )
 MEASURABLE_OUTCOME_VERB_PATTERN = re.compile(
     r"\b(?:"

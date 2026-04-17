@@ -6,6 +6,9 @@ from scripts.measurable_outcomes import has_measurable_outcome
 def test_has_measurable_outcome_accepts_percent_and_multiplier_patterns() -> None:
     assert has_measurable_outcome("Reduced runtime by 25 percent")
     assert has_measurable_outcome("Improved throughput 2x")
+    # percent-sign variant — \b does not apply after non-word char
+    assert has_measurable_outcome("Reduced errors by 30%")
+    assert has_measurable_outcome("Cut latency by 12.5%")
 
 
 def test_has_measurable_outcome_accepts_gerund_and_digit_patterns() -> None:

@@ -1011,8 +1011,6 @@ def write_gap_summary(resume: ResumeIR, output_path: Path) -> None:
             for part in [
                 description_excerpt,
                 role_hint,
-                resume.target_role,
-                resume.target_company,
             ]
             if part.strip()
         )

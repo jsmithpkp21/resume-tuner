@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.13.0...v0.13.1) (2026-04-17)
+
+
+### Bug Fixes
+
+* **heuristics:** address PR review comments ([df6ede3](https://github.com/jsmithpkp21/resume-builder/commit/df6ede3a4ed8224d4bb18074b7992e5f24f17f4a))
+* **tests:** import has_measurable_outcome from shared module ([9b56943](https://github.com/jsmithpkp21/resume-builder/commit/9b569434803d2b507c9e8c44ab98ea657339dfe8))
+
 ## [0.13.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.12.1...v0.13.0) (2026-04-17)
 
 

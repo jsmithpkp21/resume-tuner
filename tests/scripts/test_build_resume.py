@@ -391,7 +391,7 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     expected_github = _build_github_url(profile.github)
 
     assert profile.name in html_text
-    assert '<p class="headline">Staff Software Engineer</p>' not in html_text
+    assert '<p class="headline">Staff Software Engineer</p>' in html_text
     assert ".skills-category { margin: 0 0 3px 0;" in html_text
     assert '<p class="skills-category"><strong>' in html_text
     if expected_linkedin:
@@ -778,7 +778,7 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
         (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
 
-    assert '<p class="headline">Sr. SDET</p>' not in html_text
+    assert '<p class="headline">Sr. SDET</p>' in html_text
     assert (
         f'<p class="resume-title"><strong>{PROFILE_RESUME_TITLE}</strong></p>'
         in html_text
@@ -2331,7 +2331,7 @@ def test_summarize_profile_for_role_is_identity_when_summary_unchanged() -> None
     assert summarize_profile_for_role(resume) is resume
 
 
-def test_summarize_profile_for_role_enforces_minimum_word_count() -> None:
+def test_summarize_profile_for_role_enforces_layout_and_max_word_constraints() -> None:
     profile = load_profile(PROFILE)
     experiences = load_experiences(
         REPO_ROOT / "data" / "experience" / "experience_db.toml"

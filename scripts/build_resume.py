@@ -397,25 +397,6 @@ def resolve_headline(profile: Profile, target_role: str) -> str:
     return profile.headline
 
 
-_SENIORITY_PATTERNS: tuple[tuple[str, str], ...] = (
-    (r"\bsenior\s+staff\b", "Senior Staff"),
-    (r"\bsr\.?\s+staff\b", "Sr Staff"),
-    (r"\bstaff\b", "Staff"),
-    (r"\bprincipal\b", "Principal"),
-    (r"\bsenior\b", "Senior"),
-    (r"\bsr\.?\b", "Senior"),
-    (r"\blead\b", "Lead"),
-)
-
-
-def _extract_seniority(text: str) -> str:
-    lowered = text.lower()
-    for pattern, normalized in _SENIORITY_PATTERNS:
-        if re.search(pattern, lowered):
-            return normalized
-    return ""
-
-
 def _normalize_role_acronyms(text: str) -> str:
     """Normalize role acronyms while preserving casing for output."""
     # Replace SDET and QA variants, preserving the case structure

@@ -58,9 +58,6 @@ class ResumeTemplate(ABC):
             return ""
         headline_norm = self._normalize_heading_text(headline)
         title_norm = self._normalize_heading_text(context.resume_title)
-        target_role_norm = self._normalize_heading_text(context.target_role)
-        if target_role_norm and headline_norm and headline_norm in target_role_norm:
-            return ""
         # Suppress headline when it is equal to or a prefix/substring of the resume
         # title (e.g. headline="Senior SDET", title="Senior SDET / Framework Architect")
         # so the header never shows redundant role lines.

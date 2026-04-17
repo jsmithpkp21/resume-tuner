@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.13.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.12.1...v0.13.0) (2026-04-17)
+
+
+### Features
+
+* **generator:** add gap summary and measurable outcome targeting ([936c33e](https://github.com/jsmithpkp21/resume-builder/commit/936c33edd9904411bab34ca4725cc7cb663f5ee3))
+* **generator:** refine title and skills review follow-ups ([a62204f](https://github.com/jsmithpkp21/resume-builder/commit/a62204fc11b828c93bcb66527f31e0b7fd5d92ef))
+* **skills:** apply top-n cap before budget packing ([#97](https://github.com/jsmithpkp21/resume-builder/issues/97)) ([6ed4620](https://github.com/jsmithpkp21/resume-builder/commit/6ed46204805b1f01511fae59d829172682d6ab47))
+* **skills:** normalize near-duplicate skill labels ([#97](https://github.com/jsmithpkp21/resume-builder/issues/97)) ([10a42ed](https://github.com/jsmithpkp21/resume-builder/commit/10a42ed08d825828645d45d55f66b3ac70512148))
+
+
+### Bug Fixes
+
+* **generator:** address follow-up review comments ([856a2a9](https://github.com/jsmithpkp21/resume-builder/commit/856a2a93b55fc214fa1ce29c7c66c852eee218c5))
+* **heuristics:** broaden measurable outcome detection ([acbffaa](https://github.com/jsmithpkp21/resume-builder/commit/acbffaa6be1ac3e63939e0218e1f803c06d86924))
+* **skills:** ensure _compute_skill_scores covers all matrix skills for top-N cap ranking ([bca1c32](https://github.com/jsmithpkp21/resume-builder/commit/bca1c324363063eca414b45f5a5a6de90cc6505e))
+* **skills:** normalize dupes before cap, cover all matrix skills, drop dead alias ([28b0937](https://github.com/jsmithpkp21/resume-builder/commit/28b0937ea54e3cee4c12f119d77b1dd49710a7a9))
+* **skills:** use keyword arg for cap call and update select_skills docstring ([b662ff6](https://github.com/jsmithpkp21/resume-builder/commit/b662ff6209f9d881056c5805e03c8cdd20d1870b))
+
 ## [0.12.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.12.0...v0.12.1) (2026-04-15)
 
 

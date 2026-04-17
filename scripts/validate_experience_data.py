@@ -36,7 +36,28 @@ _MEASURABLE_OUTCOME_PERCENT_PATTERN = re.compile(
     r"\b\d+(?:\.\d+)?\s*(?:%|percent|x)\b", re.IGNORECASE
 )
 _MEASURABLE_OUTCOME_VERB_PATTERN = re.compile(
-    r"\b(reduced|improved|increased|decreased|cut|saved|boosted|eliminated|doubled|tripled|accelerated|scaled|grew)\b",
+    r"\b(?:"
+    r"reduc(?:e|ed|es|ing)|"
+    r"improv(?:e|ed|es|ing)|"
+    r"increas(?:e|ed|es|ing)|"
+    r"decreas(?:e|ed|es|ing)|"
+    r"cut(?:s|ting)?|"
+    r"sav(?:e|ed|es|ing)|"
+    r"boost(?:e|ed|es|ing)|"
+    r"eliminat(?:e|ed|es|ing)|"
+    r"doubl(?:e|ed|es|ing)|"
+    r"tripl(?:e|ed|es|ing)|"
+    r"accelerat(?:e|ed|es|ing)|"
+    r"scal(?:e|ed|es|ing)|"
+    r"grow(?:s|ing|n)?|grew"
+    r")\b",
+    re.IGNORECASE,
+)
+_MEASURABLE_OUTCOME_NUMBER_WORD_PATTERN = re.compile(
+    r"\b(one|two|three|four|five|six|seven|eight|nine|ten|"
+    r"eleven|twelve|thirteen|fourteen|fifteen|sixteen|"
+    r"seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|"
+    r"sixty|seventy|eighty|ninety|hundred)\b",
     re.IGNORECASE,
 )
 
@@ -49,7 +70,10 @@ def has_measurable_outcome(text: str) -> bool:
         return True
     return bool(
         _MEASURABLE_OUTCOME_VERB_PATTERN.search(normalized)
-        and re.search(r"\b\d+(?:\.\d+)?\b", normalized)
+        and (
+            re.search(r"\b\d+(?:\.\d+)?\b", normalized)
+            or _MEASURABLE_OUTCOME_NUMBER_WORD_PATTERN.search(normalized)
+        )
     )
 
 
@@ -115,7 +139,7 @@ def validate_experience_data(
                 warnings.append(f"{bullet_id}: missing 'domain' field")
 
             # Warn for weak canonical bullets that lack measurable outcome language.
-            text = str(bullet.get("text", ""))
+            text = str(bullet.get("text") or "").strip()
             if text and not has_measurable_outcome(text):
                 warnings.append(
                     f"{bullet_id}: consider adding measurable outcome language"

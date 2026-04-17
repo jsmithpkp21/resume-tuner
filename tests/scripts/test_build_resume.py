@@ -621,6 +621,12 @@ def test_build_resume_cli_processed_mode_does_not_mutate_experience_db(
 def test_has_measurable_outcome_detects_quantified_impact_language() -> None:
     assert _has_measurable_outcome("Reduced flaky failures by 37 percent.")
     assert _has_measurable_outcome("Improved pipeline runtime 2x after refactor.")
+    assert _has_measurable_outcome(
+        "Eliminating manual release tagging across 15 projects through automation."
+    )
+    assert _has_measurable_outcome(
+        "Reducing duplicate framework spike efforts by forty percent across teams."
+    )
     assert not _has_measurable_outcome(
         "Improved framework quality through better architecture decisions."
     )

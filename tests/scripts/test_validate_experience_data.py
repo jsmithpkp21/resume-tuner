@@ -103,4 +103,42 @@ def test_validate_experience_data_passes_for_valid_payload() -> None:
 def test_has_measurable_outcome_accepts_percent_and_multiplier_patterns() -> None:
     assert has_measurable_outcome("Reduced runtime by 25 percent")
     assert has_measurable_outcome("Improved throughput 2x")
+    assert has_measurable_outcome(
+        "Reducing duplicate framework spike efforts by forty percent across teams"
+    )
+    assert has_measurable_outcome(
+        "Eliminating manual release tagging across fifteen projects"
+    )
     assert not has_measurable_outcome("Improved readability and maintainability")
+
+
+def test_validate_experience_data_ignores_blank_or_none_like_text_values() -> None:
+    payload = {
+        "experience": [
+            {
+                "id": "exp_1",
+                "related_skills": ["Python"],
+                "bullet_bank": [
+                    {
+                        "id": "bullet_1",
+                        "text": None,
+                        "skills": ["Python"],
+                        "impact_type": "reliability",
+                        "domain": "video",
+                    },
+                    {
+                        "id": "bullet_2",
+                        "text": "   ",
+                        "skills": ["Python"],
+                        "impact_type": "reliability",
+                        "domain": "video",
+                    },
+                ],
+            }
+        ]
+    }
+
+    errors, warnings = validate_experience_data(payload, VALID_SKILLS)
+
+    assert errors == []
+    assert warnings == []

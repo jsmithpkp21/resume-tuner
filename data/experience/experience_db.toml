@@ -16,10 +16,18 @@ related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b01"
-text = "Transformed an inherited proof-of-concept stack (Python, Pytest, ADB, JUnit 4, and UI Automator) into a lightweight abstraction layer supporting Android-based embedded UI testing across PolyOS, Zoom, Teams, and Google Meet."
+text = "Built a lightweight abstraction layer from an inherited Python/Pytest/ADB/JUnit/UI-Automator proof of concept, enabling portable Android embedded UI testing across internal workflows and vendor ecosystems while reducing dependence on third-party-owned framework paths."
 skills = ["Python", "Pytest", "Android UI automation (ADB)", "JUnit 4", "Android UI automation (UI Automator)"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "scalability"
+domain = "video"
+
+[[experience.bullet_bank]]
+id = "exp_hp_poly_architect_python_video_202306_b01b"
+text = "Shifted vendor-equivalent testing pre-handoff, reducing third-party certification turnaround by ~50%, cutting new-vendor test bring-up from weeks to days, and reducing reusable test authoring time by ~50%."
+skills = ["Python", "System testing", "Test planning"]
+categories = ["Testing & Validation", "Quality & Testing Strategy"]
+impact_type = "delivery-speed"
 domain = "video"
 
 [[experience.bullet_bank]]
@@ -47,14 +55,14 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b05"
-text = "Integrated framework execution into containerized GitHub Actions workflows, defining container requirements and collaborating with DevOps on image updates."
+text = "Integrated new web UI automation into an existing containerized GitHub Actions structure, adding npx support to Docker and shifting web regression coverage from manual-only execution toward repeatable CI runs."
 skills = ["CI/CD", "GitHub Actions", "Developer Tooling"]
 impact_type = "reliability"
 domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b06"
-text = "Manually characterized device behavior, selected high-value scenarios, and converted hand-verified tests into reusable automation patterns with initial fixtures for data-driven execution."
+text = "Prioritized high-value acceptance scenarios (including Microsoft certification paths), manually characterized cross-provider controller UI differences, and converted core call workflows into reusable step-based automation with marker/fixture-driven JSON/YAML test data selection."
 skills = ["System testing", "Test planning", "Pytest", "Test data management"]
 categories = ["Testing & Validation", "Quality & Testing Strategy"]
 impact_type = "delivery-speed"
@@ -62,7 +70,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b07"
-text = "Triaged failures on pre-QA software drops and isolated root cause across automation code, Poly firmware, third-party controller apps, hardware, and network conditions to route defects to the correct owners."
+text = "Triaged pre-QA failures across automation, firmware, device configuration, and timing/network conditions-most often unannounced UI changes (including hidden object ID/name shifts)-to isolate root causes early, reduce retest churn, and let QA focus on validating ready features."
 skills = ["Issue triage", "Defect isolation", "Root cause analysis", "Debugging"]
 categories = ["Debugging & Analysis", "Quality & Testing Strategy"]
 impact_type = "reliability"
@@ -96,7 +104,7 @@ domain = "audio"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_advisor_sdet_audio_202105_b03"
-text = "Refactored legacy error handling that swallowed network exceptions, improving failure reporting and reducing debugging of most I/O issues from hours to minutes while isolating true product defects."
+text = "Refactored legacy error handling that swallowed I/O exceptions (`null`/`false`), enforcing fail-fast behavior at the point of failure and improving API retry/priority handling to expose true root causes and eliminate recurring false-negative test failures."
 skills = ["Python", "Debugging"]
 categories = ["Debugging & Analysis", "Test Reliability"]
 impact_type = "reliability"
@@ -205,7 +213,7 @@ domain = "corporate-platform"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_technical_designer_corp_automation_201506_b03"
-text = "Conducted framework assessments across three product organizations and eight-plus test groups to identify implementation gaps, gather concrete requirements, and drive actionable integration plans."
+text = "Conducted framework assessments across three product organizations and eight-plus test groups, identifying gaps and unifying database/control patterns; assessments directly informed subsequent team migrations to a unified framework approach and drove modularization of REST/third-party control logic into reusable Python libraries."
 skills = ["Logging", "Observability", "Distributed Systems"]
 categories = ["Debugging & Analysis", "Distributed Systems"]
 impact_type = "reliability"

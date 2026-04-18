@@ -151,7 +151,7 @@ company = "HP / Poly"
 start_date = "2019-06"
 end_date = "2020-03"
 general_role_description = "Led technical evaluation and design discussions for integrating multiple product groups into a shared corporate automation architecture, assessing REST-adapter models, language strategies, and cross-team feasibility."
-related_skills = ["Architecture", "Framework Design", "Technical Leadership", "Java", "Python", "Developer Tooling", "CI/CD", "Dependency Management", "Versioning automation"]
+related_skills = ["Architecture", "Framework Design", "Technical Leadership", "Java", "JUnit 5", "Developer Tooling", "CI/CD", "Dependency Management", "Versioning automation"]
 related_skills_inferred = []
 
 [[experience.bullet_bank]]
@@ -165,7 +165,7 @@ domain = "corporate-platform"
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_lead_framework_integration_201906_b02"
 text = "Decomposed a monolithic automation system into modular components and standardized package and project naming conventions, enabling distributed ownership and reducing build times by 75 percent."
-skills = ["Java", "Python", "Developer Tooling"]
+skills = ["Java", "Developer Tooling"]
 categories = ["Architecture", "Maintainability"]
 impact_type = "maintainability"
 domain = "corporate-platform"
@@ -192,7 +192,7 @@ company = "HP / Poly"
 start_date = "2015-06"
 end_date = "2019-06"
 general_role_description = "Provided senior-level architectural guidance and technical design leadership for a cross-organization automation initiative, shaping early framework concepts, evaluating migration paths, and advising multiple product organizations without line-management authority."
-related_skills = ["Architecture", "Automation Strategy", "Python", "Prototype Design", "Logging", "Observability", "Distributed Systems"]
+related_skills = ["Architecture", "Automation Strategy", "Java", "JUnit 4", "Prototype Design", "Logging", "Observability", "Distributed Systems"]
 related_skills_inferred = []
 
 [[experience.bullet_bank]]
@@ -206,14 +206,14 @@ domain = "corporate-platform"
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_technical_designer_corp_automation_201506_b02"
 text = "Built exploratory prototypes and design evaluations that informed cross-team architecture decisions and feasibility tradeoffs, reducing duplicate framework spike efforts by 40 percent across participating teams."
-skills = ["Python", "Prototype Design"]
+skills = ["Java", "Prototype Design"]
 categories = ["Architecture", "Technical Leadership"]
 impact_type = "delivery-speed"
 domain = "corporate-platform"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_technical_designer_corp_automation_201506_b03"
-text = "Conducted framework assessments across three product organizations and eight-plus test groups, identifying gaps and unifying database/control patterns; assessments directly informed subsequent team migrations to a unified framework approach and drove modularization of REST/third-party control logic into reusable Python libraries."
+text = "Conducted framework assessments across three product organizations and eight-plus test groups, identifying gaps and unifying database/control patterns; assessments directly informed subsequent team migrations to a unified framework approach and drove modularization of REST/third-party control logic into reusable Java libraries."
 skills = ["Logging", "Observability", "Distributed Systems"]
 categories = ["Debugging & Analysis", "Distributed Systems"]
 impact_type = "reliability"

@@ -2806,8 +2806,8 @@ def test_transform_for_role_rewrites_bullet_text(
 
     first_bullet_id = resume.experiences[0].bullets[0].id
     rewritten_text = (
-        "Transformed inherited ADB/UI Automator test flow into a lightweight "
-        "abstraction layer for Android-based embedded UI testing across PolyOS, "
+        "Built a lightweight abstraction layer from an inherited ADB/UI Automator "
+        "test flow, enabling Android-based embedded UI testing across PolyOS, "
         "Zoom, Teams, and Google Meet."
     )
 

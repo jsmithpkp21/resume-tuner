@@ -180,7 +180,7 @@ domain = "corporate-platform"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_lead_framework_integration_201906_b04"
-text = "Implemented semantic versioning automation to generate and version JAR artifacts from standardized commit messages, eliminating manual release tagging across 15 projects."
+text = "Implemented semantic versioning automation that, after CI checks passed, automatically generated and released versioned JAR artifacts from standardized commit messages across 15 projects, eliminating manual release tagging."
 skills = ["Java", "Versioning automation", "CI/CD"]
 impact_type = "delivery-speed"
 domain = "corporate-platform"

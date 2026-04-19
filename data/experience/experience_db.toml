@@ -11,7 +11,7 @@ company = "HP / Poly"
 start_date = "2023-06"
 end_date = "2026-01"
 general_role_description = "Designed and implemented next-generation Python automation framework for video products."
-related_skills = ["Python", "Playwright", "ADB", "Web UI Automation", "CI/CD", "GitHub Actions", "Quality gates", "Technical Leadership"]
+related_skills = ["Python", "Playwright", "ADB", "Web UI Automation", "Pytest", "Developer Tooling", "Technical Leadership", "Issue triage"]
 related_skills_inferred = []
 
 [[experience.bullet_bank]]
@@ -24,7 +24,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b01b"
-text = "Shifted vendor-equivalent testing pre-handoff, reducing third-party certification turnaround by ~50%, cutting new-vendor test bring-up from weeks to days, and reducing reusable test authoring time by ~50%."
+text = "Shifted vendor-equivalent testing pre-handoff, reducing third-party certification turnaround by 50 percent, cutting new-vendor test bring-up from weeks to days, and reducing reusable test authoring time by 50 percent."
 skills = ["Python", "System testing", "Test planning"]
 categories = ["Testing & Validation", "Quality & Testing Strategy"]
 impact_type = "delivery-speed"
@@ -49,7 +49,7 @@ domain = "video"
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b04"
 text = "Replaced duplicated test logic across hundreds of tests with shared helper code, reducing test code by 20 percent and enabling faster refactors and rollout of new test capabilities."
-skills = ["CI/CD", "Quality gates", "Developer Tooling", "Python"]
+skills = ["Python", "Developer Tooling", "Framework Design", "Reusable components"]
 impact_type = "reliability"
 domain = "video"
 
@@ -70,7 +70,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b07"
-text = "Triaged pre-QA failures across automation, firmware, device configuration, and timing/network conditions - most often unannounced UI changes - to isolate root causes early, reduce retest churn, and save the manual QA team about two weeks of wasted time per release cycle."
+text = "Triaged pre-QA failures across automation, firmware, device configuration, and timing/network conditions - most often unannounced UI changes - to isolate root causes early, reduce retest churn, and save the manual QA team two weeks of wasted time per release cycle."
 skills = ["Issue triage", "Defect isolation", "Root cause analysis", "Debugging"]
 categories = ["Debugging & Analysis", "Quality & Testing Strategy"]
 impact_type = "reliability"
@@ -104,7 +104,7 @@ domain = "audio"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_advisor_sdet_audio_202105_b03"
-text = "Refactored legacy error handling that swallowed I/O exceptions (`null`/`false`), enforcing fail-fast behavior at the point of failure and improving API retry/priority handling; improved overall test pass rate by up to 5 percent and reduced random hard-to-reproduce failures by ~40 percent."
+text = "Refactored legacy error handling that swallowed I/O exceptions (`null`/`false`), enforcing fail-fast behavior at the point of failure and improving API retry/priority handling; improved overall test pass rate by 5 percent or less and reduced random hard-to-reproduce failures by 40 percent."
 skills = ["Python", "Debugging"]
 categories = ["Debugging & Analysis", "Test Reliability"]
 impact_type = "reliability"
@@ -213,7 +213,7 @@ domain = "corporate-platform"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_technical_designer_corp_automation_201506_b03"
-text = "Conducted framework assessments across 3 product organizations and 8+ test groups, identifying gaps and unifying database/control patterns; assessments directly informed subsequent team migrations to a unified framework approach, improving migration readiness and driving modularization of REST/third-party control logic into reusable Java libraries."
+text = "Conducted framework assessments across 3 product organizations and at least 8 test groups, identifying gaps and unifying database/control patterns; assessments directly informed subsequent team migrations to a unified framework approach, improving migration readiness and driving modularization of REST/third-party control logic into reusable Java libraries."
 skills = ["Architecture", "Automation Strategy", "Java", "Framework Design"]
 categories = ["Architecture", "Automation & Frameworks"]
 impact_type = "reliability"
@@ -225,7 +225,7 @@ job_title = "Lead Framework Designer, Video SQA Automation"
 company = "HP / Poly"
 start_date = "2008-08"
 end_date = "2018-03"
-general_role_description = "Principal architect and long-term technical steward of the Video SQA automation framework, a system that supported ~16 endpoint models, 30-40 releases, and remained in active use for over a decade across global SQA teams."
+general_role_description = "Principal architect and long-term technical steward of the Video SQA automation framework, a system that supported 16 endpoint models, 30-40 releases, and remained in active use for over a decade across global SQA teams."
 related_skills = ["Technical Leadership", "Java", "JUnit 4", "JUnit 5", "Mentoring", "Process Design", "Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design", "CI/CD", "Test reliability engineering", "Distributed Execution", "REST/SOAP Integration", "Telnet/CLI Automation", "Web UI Automation"]
 related_skills_inferred = []
 
@@ -239,7 +239,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b02"
-text = "Designed a capability-driven framework architecture with UI-agnostic flows and shared model normalization across SOAP/REST and product variants, improving cross-product portability across hardware generations and ~16 endpoint models."
+text = "Designed a capability-driven framework architecture with UI-agnostic flows and shared model normalization across SOAP/REST and product variants, improving cross-product portability across hardware generations and 16 endpoint models."
 skills = ["Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design", "Java", "JUnit 4"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "scalability"
@@ -247,14 +247,14 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b03"
-text = "Architected a four-stage CI quality-gate pipeline — branch merge gates, full suite runs, main branch integration gates, and QA acceptance checks — with stability rules improving deterministic execution across 30+ releases."
+text = "Architected a four-stage CI quality-gate pipeline — branch merge gates, full suite runs, main branch integration gates, and QA acceptance checks — with stability rules improving deterministic execution across more than 30 releases."
 skills = ["CI/CD", "Test reliability engineering", "Distributed Execution"]
 impact_type = "reliability"
 domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b04"
-text = "Unified Telnet, REST, and Web execution into a single JUnit-based test flow, separated configuration UI from test UI logic, and added XML-driven get/set code generation that removed about one week of testing per UI per test cycle while reducing new API test additions to minutes."
+text = "Unified Telnet, REST, and Web execution into a single JUnit-based test flow, separated configuration UI from test UI logic, and added XML-driven get/set code generation that removed one week of testing per UI per test cycle while reducing new API test additions to minutes."
 skills = ["REST/SOAP Integration", "Telnet/CLI Automation", "Web UI Automation", "Java", "JUnit 4"]
 categories = ["Automation & Frameworks", "API Testing"]
 impact_type = "delivery-speed"
@@ -262,7 +262,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b05"
-text = "Led the transition from local combined logs to enterprise-grade remote logging, integrating automation with centralized log aggregation to preserve cross-system log context around crash windows — improving triage of low-frequency system failures where local logs were previously lost."
+text = "Led the transition from local combined logs to enterprise-grade remote logging, integrating automation with centralized log aggregation to preserve cross-system log context during crash windows — improving triage of low-frequency system failures where local logs were previously lost."
 skills = ["Logging", "Observability", "Distributed Systems", "Java"]
 categories = ["Debugging & Analysis", "Distributed Systems"]
 impact_type = "reliability"

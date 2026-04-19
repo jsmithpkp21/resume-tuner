@@ -49,14 +49,14 @@ domain = "video"
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b04"
 text = "Established coding standards, CI quality gates (flake8, mypy), and reproducible environment patterns."
-skills = ["CI/CD", "Quality gates", "Developer Tooling"]
+skills = ["CI/CD", "Quality gates", "Developer Tooling", "Python"]
 impact_type = "reliability"
 domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b05"
 text = "Integrated new web UI automation into an existing containerized GitHub Actions structure, adding npx support to Docker and shifting web regression coverage from manual-only execution toward repeatable CI runs."
-skills = ["CI/CD", "GitHub Actions", "Developer Tooling"]
+skills = ["CI/CD", "GitHub Actions", "Developer Tooling", "Docker"]
 impact_type = "reliability"
 domain = "video"
 
@@ -70,7 +70,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b07"
-text = "Triaged pre-QA failures across automation, firmware, device configuration, and timing/network conditions-most often unannounced UI changes (including hidden object ID/name shifts)-to isolate root causes early, reduce retest churn, and let QA focus on validating ready features."
+text = "Triaged pre-QA failures across automation, firmware, device configuration, and timing/network conditions - most often unannounced UI changes - to isolate root causes early, reduce retest churn, and let QA focus on validating ready features."
 skills = ["Issue triage", "Defect isolation", "Root cause analysis", "Debugging"]
 categories = ["Debugging & Analysis", "Quality & Testing Strategy"]
 impact_type = "reliability"
@@ -189,10 +189,10 @@ domain = "corporate-platform"
 id = "exp_hp_poly_lead_technical_designer_corp_automation_201506"
 job_title = "Lead Technical Designer, Corporate Automation Initiative"
 company = "HP / Poly"
-start_date = "2015-06"
+start_date = "2017-06"
 end_date = "2019-06"
 general_role_description = "Provided senior-level architectural guidance and technical design leadership for a cross-organization automation initiative, shaping early framework concepts, evaluating migration paths, and advising multiple product organizations without line-management authority."
-related_skills = ["Architecture", "Automation Strategy", "Java", "JUnit 4", "Prototype Design", "Logging", "Observability", "Distributed Systems"]
+related_skills = ["Architecture", "Automation Strategy", "Java", "JUnit 4", "Prototype Design", "Framework Design", "Technical Leadership"]
 related_skills_inferred = []
 
 [[experience.bullet_bank]]
@@ -214,8 +214,8 @@ domain = "corporate-platform"
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_technical_designer_corp_automation_201506_b03"
 text = "Conducted framework assessments across three product organizations and eight-plus test groups, identifying gaps and unifying database/control patterns; assessments directly informed subsequent team migrations to a unified framework approach and drove modularization of REST/third-party control logic into reusable Java libraries."
-skills = ["Logging", "Observability", "Distributed Systems"]
-categories = ["Debugging & Analysis", "Distributed Systems"]
+skills = ["Architecture", "Automation Strategy", "Java", "Framework Design"]
+categories = ["Architecture", "Automation & Frameworks"]
 impact_type = "reliability"
 domain = "corporate-platform"
 
@@ -224,23 +224,23 @@ id = "exp_hp_poly_lead_framework_designer_video_sqa_200808"
 job_title = "Lead Framework Designer, Video SQA Automation"
 company = "HP / Poly"
 start_date = "2008-08"
-end_date = "2015-06"
+end_date = "2018-03"
 general_role_description = "Principal architect and long-term technical steward of the Video SQA automation framework, a system that supported ~16 endpoint models, 30-40 releases, and remained in active use for over a decade across global SQA teams."
-related_skills = ["Technical Leadership", "Mentoring", "Process Design", "Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design", "CI/CD", "Test reliability engineering", "Distributed Execution", "REST/SOAP Integration", "Telnet/CLI Automation", "Web UI Automation"]
+related_skills = ["Technical Leadership", "Java", "JUnit 4", "JUnit 5", "Mentoring", "Process Design", "Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design", "CI/CD", "Test reliability engineering", "Distributed Execution", "REST/SOAP Integration", "Telnet/CLI Automation", "Web UI Automation"]
 related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b01"
 text = "Provided technical leadership for a distributed group of 15 engineers across four countries and five time zones, improving engineering quality and reducing new-test creation time by 30 percent."
-skills = ["Technical Leadership", "Mentoring", "Process Design"]
+skills = ["Technical Leadership", "Mentoring", "Process Design", "Java", "JUnit 4"]
 categories = ["Technical Leadership", "Architecture"]
 impact_type = "mentoring"
 domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b02"
-text = "Designed a capability-driven, UI-agnostic, and model-agnostic architecture enabling cross-product portability across hardware generations."
-skills = ["Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design"]
+text = "Designed a capability-driven framework architecture with UI-agnostic flows and shared model normalization across SOAP/REST and product variants, enabling cross-product portability across hardware generations."
+skills = ["Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design", "Java", "JUnit 4"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "scalability"
 domain = "video"
@@ -254,8 +254,8 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b04"
-text = "Unified Telnet, REST, and Web execution into a single test flow, tripling the number of tests executable across interfaces."
-skills = ["REST/SOAP Integration", "Telnet/CLI Automation", "Web UI Automation"]
+text = "Unified Telnet, REST, and Web execution into a single JUnit-based test flow, separated configuration UI from test UI logic, and added XML-driven get/set code generation that removed about one week of testing per UI per test cycle while reducing new API test additions to minutes."
+skills = ["REST/SOAP Integration", "Telnet/CLI Automation", "Web UI Automation", "Java", "JUnit 4"]
 categories = ["Automation & Frameworks", "API Testing"]
 impact_type = "delivery-speed"
 domain = "video"
@@ -263,7 +263,15 @@ domain = "video"
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b05"
 text = "Led the transition from local combined logs to enterprise-grade remote logging, integrating automation with centralized log aggregation for crash-resilient cross-system observability."
-skills = ["Logging", "Observability", "Distributed Systems"]
+skills = ["Logging", "Observability", "Distributed Systems", "Java"]
 categories = ["Debugging & Analysis", "Distributed Systems"]
 impact_type = "reliability"
+domain = "video"
+
+[[experience.bullet_bank]]
+id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b06"
+text = "Drove the migration from JUnit 4 to JUnit 5 across the framework and test suite, adopting parameterized tests, extension-based lifecycle management, and improved assertion APIs — modernizing the test infrastructure while maintaining backward compatibility across existing test assets."
+skills = ["Java", "JUnit 4", "JUnit 5", "Framework Design", "Dependency Management"]
+categories = ["Automation & Frameworks", "Architecture"]
+impact_type = "maintainability"
 domain = "video"

@@ -19,8 +19,11 @@ APPROX_QUANTIFIER_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Aliases are matched with custom token-boundary regex to avoid false positives.
+# Include both "ci" (standalone mentions like "improving CI and automation")
+# and "ci/cd" (composite terms) — token-boundary matching prevents hits on "specific", "certification", etc.
 HIGH_SIGNAL_SKILL_ALIASES: dict[str, tuple[str, ...]] = {
-    "CI/CD": ("ci", "pipeline", "github actions", "jenkins", "quality gate"),
+    "CI/CD": ("ci", "ci/cd", "pipeline", "github actions", "jenkins", "quality gate"),
     "GitHub Actions": ("github actions",),
     "Docker": ("docker", "container", "containerized"),
 }
@@ -334,6 +337,14 @@ def canonical_bullet_findings(experiences: list[dict[str, Any]]) -> list[Finding
     return findings
 
 
+def _alias_matches(alias: str, normalized_text: str) -> bool:
+    """Match alias using custom token boundaries to avoid substring hits."""
+    # Use custom token boundaries so aliases only match standalone terms/phrases,
+    # while treating "/" as part of the token (for values like "ci/cd").
+    pattern = r"(?<![\w/])" + re.escape(alias) + r"(?![\w/])"
+    return bool(re.search(pattern, normalized_text, re.IGNORECASE))
+
+
 def bullet_skill_text_mismatch_skills(text: str, bullet: dict[str, Any]) -> list[str]:
     """Return high-signal skills that are listed but not evidenced in text."""
     normalized = str(text or "").lower()
@@ -343,7 +354,7 @@ def bullet_skill_text_mismatch_skills(text: str, bullet: dict[str, Any]) -> list
         aliases = HIGH_SIGNAL_SKILL_ALIASES.get(skill)
         if not aliases:
             continue
-        if not any(alias in normalized for alias in aliases):
+        if not any(_alias_matches(alias, normalized) for alias in aliases):
             missing.append(skill)
     return missing
 

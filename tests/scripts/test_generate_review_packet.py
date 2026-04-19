@@ -194,6 +194,26 @@ def test_bullet_skill_text_mismatch_skills_no_false_positive_when_evidenced() ->
     assert bullet_skill_text_mismatch_skills(text, bullet) == []
 
 
+def test_bullet_skill_text_mismatch_skills_embedded_substrings_do_not_count() -> None:
+    bullet = {"skills": ["CI/CD"]}
+    text = (
+        "Built specific decision support helpers for release reviews, "
+        "with pipeline automation for nightly gates."
+    )
+    assert bullet_skill_text_mismatch_skills(text, bullet) == []
+
+    ci_cd_text = "CI/CD regression automation now runs in nightly gates."
+    assert bullet_skill_text_mismatch_skills(ci_cd_text, bullet) == []
+
+    bare_ci_text = (
+        "Architected and drove Java migration, improving CI and automation stability."
+    )
+    assert bullet_skill_text_mismatch_skills(bare_ci_text, bullet) == []
+
+    missing_text = "Built specific decision support helpers for release reviews."
+    assert bullet_skill_text_mismatch_skills(missing_text, bullet) == ["CI/CD"]
+
+
 def test_parse_note_reason_codes_for_will_not_fix() -> None:
     note = "source-lacks-quant; downstream-impact-unknown"
     assert (

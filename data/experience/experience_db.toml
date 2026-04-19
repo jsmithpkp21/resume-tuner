@@ -122,7 +122,7 @@ related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_advisor_sdet_headset_202003_b01"
-text = "Provided architectural guidance, code reviews, and hands-on development support for six engineers."
+text = "Provided architectural guidance, code reviews, and hands-on development support while mentoring six engineers."
 skills = ["Python", "Code Review", "Technical Leadership"]
 categories = ["Technical Leadership", "Architecture"]
 impact_type = "mentoring"
@@ -172,7 +172,7 @@ domain = "corporate-platform"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_lead_framework_integration_201906_b03"
-text = "Architected and drove the Java 8 to 12 migration across 15 projects and 3 product lines, resolving Java 9 module-system breaks, modernizing dependencies, and stabilizing CI and automation pipelines."
+text = "Architected and drove the Java 8 to 12 migration across 15 projects and 3 product lines, resolving Java 9 module-system breaks, modernizing dependencies, and improving CI and automation stability."
 skills = ["Java", "CI/CD", "Dependency Management"]
 categories = ["CI/CD", "Architecture"]
 impact_type = "delivery-speed"
@@ -197,7 +197,7 @@ related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_technical_designer_corp_automation_201506_b01"
-text = "Evaluated migration paths for unifying automation across Video, Audio, and Network organizations."
+text = "Evaluated migration paths for unifying automation across 3 organizations (Video, Audio, Network), improving alignment on a shared framework strategy."
 skills = ["Architecture", "Automation Strategy"]
 categories = ["Architecture", "Automation & Frameworks"]
 impact_type = "architecture"
@@ -213,7 +213,7 @@ domain = "corporate-platform"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_technical_designer_corp_automation_201506_b03"
-text = "Conducted framework assessments across three product organizations and eight-plus test groups, identifying gaps and unifying database/control patterns; assessments directly informed subsequent team migrations to a unified framework approach and drove modularization of REST/third-party control logic into reusable Java libraries."
+text = "Conducted framework assessments across 3 product organizations and 8+ test groups, identifying gaps and unifying database/control patterns; assessments directly informed subsequent team migrations to a unified framework approach, improving migration readiness and driving modularization of REST/third-party control logic into reusable Java libraries."
 skills = ["Architecture", "Automation Strategy", "Java", "Framework Design"]
 categories = ["Architecture", "Automation & Frameworks"]
 impact_type = "reliability"
@@ -239,7 +239,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b02"
-text = "Designed a capability-driven framework architecture with UI-agnostic flows and shared model normalization across SOAP/REST and product variants, enabling cross-product portability across hardware generations."
+text = "Designed a capability-driven framework architecture with UI-agnostic flows and shared model normalization across SOAP/REST and product variants, improving cross-product portability across hardware generations and ~16 endpoint models."
 skills = ["Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design", "Java", "JUnit 4"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "scalability"
@@ -247,7 +247,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b03"
-text = "Architected a four-stage CI quality-gate pipeline — branch merge gates, full suite runs, main branch integration gates, and QA acceptance checks — with stability rules enabling deterministic execution across 30+ releases."
+text = "Architected a four-stage CI quality-gate pipeline — branch merge gates, full suite runs, main branch integration gates, and QA acceptance checks — with stability rules improving deterministic execution across 30+ releases."
 skills = ["CI/CD", "Test reliability engineering", "Distributed Execution"]
 impact_type = "reliability"
 domain = "video"

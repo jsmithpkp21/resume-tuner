@@ -19,6 +19,12 @@ APPROX_QUANTIFIER_RE = re.compile(
     re.IGNORECASE,
 )
 
+HIGH_SIGNAL_SKILL_ALIASES: dict[str, tuple[str, ...]] = {
+    "CI/CD": ("ci", "pipeline", "github actions", "jenkins", "quality gate"),
+    "GitHub Actions": ("github actions",),
+    "Docker": ("docker", "container", "containerized"),
+}
+
 # ---------------------------------------------------------------------------
 # Runtime blocked-input guard (#20) — shared implementation
 # ---------------------------------------------------------------------------
@@ -303,7 +309,51 @@ def canonical_bullet_findings(experiences: list[dict[str, Any]]) -> list[Finding
                         suggested_action="Add action + scope + measurable result language where evidence exists.",
                     )
                 )
+
+            missing_skill_evidence = bullet_skill_text_mismatch_skills(text, bullet)
+            if missing_skill_evidence:
+                findings.append(
+                    Finding(
+                        review_item_id=f"B:{bullet_id}",
+                        severity="warning",
+                        issue_type="bullet_skill_text_mismatch",
+                        source_resume_id="canonical",
+                        canonical_experience_id=exp_id,
+                        evidence=(
+                            "High-signal skills without text evidence: "
+                            + ", ".join(missing_skill_evidence)
+                        ),
+                        fix_target_file="data/experience/experience_db.toml",
+                        fix_target_id=bullet_id,
+                        suggested_action=(
+                            "Add explicit textual evidence for listed high-signal skills "
+                            "or remove mismatched skills."
+                        ),
+                    )
+                )
     return findings
+
+
+def bullet_skill_text_mismatch_skills(text: str, bullet: dict[str, Any]) -> list[str]:
+    """Return high-signal skills that are listed but not evidenced in text."""
+    normalized = str(text or "").lower()
+    listed = [str(skill) for skill in bullet.get("skills", [])]
+    missing: list[str] = []
+    for skill in listed:
+        aliases = HIGH_SIGNAL_SKILL_ALIASES.get(skill)
+        if not aliases:
+            continue
+        if not any(alias in normalized for alias in aliases):
+            missing.append(skill)
+    return missing
+
+
+def parse_note_reason_codes(note_decision: str, note: str) -> str:
+    """Extract semicolon-delimited reason codes for will-not-fix notes."""
+    if note_decision.strip().lower() != "will_not_fix":
+        return ""
+    tokens = [token.strip() for token in note.split(";") if token.strip()]
+    return "; ".join(tokens)
 
 
 def coverage_snapshot(
@@ -376,11 +426,14 @@ def write_fix_queue(
                 "note_status",
                 "note_decision",
                 "note",
+                "note_reason_codes",
             ],
         )
         writer.writeheader()
         for finding in actionable:
             note = notes_by_id.get(finding.review_item_id, {})
+            note_decision = (note.get("decision") or "").strip()
+            note_text = (note.get("note") or "").strip()
             writer.writerow(
                 {
                     "priority": "P0" if finding.severity == "blocker" else "P1",
@@ -390,8 +443,11 @@ def write_fix_queue(
                     "fix_target_id": finding.fix_target_id,
                     "suggested_action": finding.suggested_action,
                     "note_status": (note.get("status") or "pending").strip(),
-                    "note_decision": (note.get("decision") or "").strip(),
-                    "note": (note.get("note") or "").strip(),
+                    "note_decision": note_decision,
+                    "note": note_text,
+                    "note_reason_codes": parse_note_reason_codes(
+                        note_decision, note_text
+                    ),
                 }
             )
 

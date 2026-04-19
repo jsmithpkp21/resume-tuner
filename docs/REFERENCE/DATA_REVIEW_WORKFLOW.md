@@ -47,6 +47,10 @@ Running the generator creates:
 - `updated_by`: reviewer name/initials
 - `updated_at`: ISO timestamp
 
+When `decision` is `will_not_fix`, store reason codes in `note` as semicolon-delimited tokens,
+for example: `source-lacks-quant; downstream-impact-unknown`.
+`fix_queue.csv` surfaces these in `note_reason_codes`.
+
 ### Tagged notes
 
 Start your note with a tag to categorize observations:
@@ -87,3 +91,9 @@ pytest -q tests/scripts/test_experience_skill_category_contract.py
 - Keep canonical runtime sources authoritative.
 - Keep worksheet as audit/provenance.
 - Use notes store for human decisions so review history remains diffable.
+
+## Additional warning semantics
+
+- `bullet_skill_text_mismatch` is warning-only and checks a small set of explicit tooling
+  skills (`CI/CD`, `GitHub Actions`, `Docker`) against bullet text.
+- Resolve by either adding explicit text evidence for the skill or removing the mismatched skill.

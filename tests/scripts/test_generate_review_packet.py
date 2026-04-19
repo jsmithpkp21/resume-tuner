@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 
 from scripts.generate_review_packet import (
+    bullet_skill_text_mismatch_skills,
+    parse_note_reason_codes,
     read_csv_rows,
     read_experiences,
     read_notes,
@@ -50,6 +52,11 @@ def test_generate_review_packet_outputs_artifacts(tmp_path: Path) -> None:
     assert reader.fieldnames is not None
     assert "review_item_id" in reader.fieldnames
     assert all("review_item_id" in row for row in rows)
+
+    with (output_dir / "fix_queue.csv").open(newline="", encoding="utf-8") as handle:
+        queue_reader = csv.DictReader(handle)
+        assert queue_reader.fieldnames is not None
+        assert "note_reason_codes" in queue_reader.fieldnames
 
 
 def test_read_csv_rows_with_non_blocked_temp_path(tmp_path: Path) -> None:
@@ -173,3 +180,27 @@ def test_generate_review_packet_without_sandbox_dependency(tmp_path: Path) -> No
     assert result.returncode == 0, f"stderr: {result.stderr}"
     assert output_dir.exists()
     assert (output_dir / "findings.csv").exists()
+
+
+def test_bullet_skill_text_mismatch_skills_flags_only_high_signal_missing() -> None:
+    bullet = {"skills": ["CI/CD", "Docker", "Developer Tooling"]}
+    text = "Built shared helper code and pipeline workflows."
+    assert bullet_skill_text_mismatch_skills(text, bullet) == ["Docker"]
+
+
+def test_bullet_skill_text_mismatch_skills_no_false_positive_when_evidenced() -> None:
+    bullet = {"skills": ["CI/CD", "GitHub Actions", "Docker"]}
+    text = "Integrated Docker into an existing GitHub Actions pipeline for repeatable runs."
+    assert bullet_skill_text_mismatch_skills(text, bullet) == []
+
+
+def test_parse_note_reason_codes_for_will_not_fix() -> None:
+    note = "source-lacks-quant; downstream-impact-unknown"
+    assert (
+        parse_note_reason_codes("will_not_fix", note)
+        == "source-lacks-quant; downstream-impact-unknown"
+    )
+
+
+def test_parse_note_reason_codes_ignores_non_will_not_fix() -> None:
+    assert parse_note_reason_codes("rewrite", "source-lacks-quant") == ""

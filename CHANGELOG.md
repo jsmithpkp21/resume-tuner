@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.14.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.13.1...v0.14.0) (2026-04-19)
+
+
+### Features
+
+* **data:** finalize experience bullet and skill alignment ([776b261](https://github.com/jsmithpkp21/resume-builder/commit/776b261562989d370dee531d22b80ed44f89e8e5))
+* **review:** add skill-text mismatch warning and reason-code parsing ([ccfca3b](https://github.com/jsmithpkp21/resume-builder/commit/ccfca3b483d48396a75a285af85ead9c7b9a849f))
+
+
+### Bug Fixes
+
+* **data:** apply agreed experience bullet updates ([35cd166](https://github.com/jsmithpkp21/resume-builder/commit/35cd1669640939a380e7b4716480dfac8f093d4f))
+
 ## [0.13.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.13.0...v0.13.1) (2026-04-17)
 
 

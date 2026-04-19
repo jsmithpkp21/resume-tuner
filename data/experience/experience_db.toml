@@ -48,7 +48,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b04"
-text = "Established coding standards, CI quality gates (flake8, mypy), and reproducible environment patterns."
+text = "Replaced duplicated test logic across hundreds of tests with shared helper code, reducing test code by 20 percent and enabling faster refactors and rollout of new test capabilities."
 skills = ["CI/CD", "Quality gates", "Developer Tooling", "Python"]
 impact_type = "reliability"
 domain = "video"
@@ -70,7 +70,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b07"
-text = "Triaged pre-QA failures across automation, firmware, device configuration, and timing/network conditions - most often unannounced UI changes - to isolate root causes early, reduce retest churn, and let QA focus on validating ready features."
+text = "Triaged pre-QA failures across automation, firmware, device configuration, and timing/network conditions - most often unannounced UI changes - to isolate root causes early, reduce retest churn, and save the manual QA team about two weeks of wasted time per release cycle."
 skills = ["Issue triage", "Defect isolation", "Root cause analysis", "Debugging"]
 categories = ["Debugging & Analysis", "Quality & Testing Strategy"]
 impact_type = "reliability"

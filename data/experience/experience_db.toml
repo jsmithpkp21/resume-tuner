@@ -104,7 +104,7 @@ domain = "audio"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_advisor_sdet_audio_202105_b03"
-text = "Refactored legacy error handling that swallowed I/O exceptions (`null`/`false`), enforcing fail-fast behavior at the point of failure and improving API retry/priority handling to expose true root causes and eliminate recurring false-negative test failures."
+text = "Refactored legacy error handling that swallowed I/O exceptions (`null`/`false`), enforcing fail-fast behavior at the point of failure and improving API retry/priority handling; improved overall test pass rate by up to 5 percent and reduced random hard-to-reproduce failures by ~40 percent."
 skills = ["Python", "Debugging"]
 categories = ["Debugging & Analysis", "Test Reliability"]
 impact_type = "reliability"
@@ -156,7 +156,7 @@ related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_lead_framework_integration_201906_b01"
-text = "Delivered a technical evaluation for integrating the Video automation framework into a unified corporate platform, including a reusable first implementation step that remained applicable regardless of final direction."
+text = "Delivered a reusable technical evaluation artifact for integrating the Video automation framework into a unified corporate platform, including a first implementation step designed to remain applicable across multiple possible integration directions."
 skills = ["Architecture", "Framework Design", "Technical Leadership"]
 categories = ["Architecture", "Automation & Frameworks"]
 impact_type = "architecture"
@@ -262,7 +262,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b05"
-text = "Led the transition from local combined logs to enterprise-grade remote logging, integrating automation with centralized log aggregation for crash-resilient cross-system observability."
+text = "Led the transition from local combined logs to enterprise-grade remote logging, integrating automation with centralized log aggregation to preserve cross-system log context around crash windows — improving triage of low-frequency system failures where local logs were previously lost."
 skills = ["Logging", "Observability", "Distributed Systems", "Java"]
 categories = ["Debugging & Analysis", "Distributed Systems"]
 impact_type = "reliability"

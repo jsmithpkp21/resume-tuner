@@ -55,8 +55,8 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b05"
-text = "Integrated new web UI automation into an existing containerized GitHub Actions structure, adding npx support to Docker and shifting web regression coverage from manual-only execution toward repeatable CI runs."
-skills = ["CI/CD", "GitHub Actions", "Developer Tooling", "Docker"]
+text = "Integrated new web UI automation into an existing containerized GitHub Actions workflow, added npx support to Docker, and shifted web regression execution from manual-only runs toward repeatable automated runs."
+skills = ["GitHub Actions", "Developer Tooling", "Docker"]
 impact_type = "reliability"
 domain = "video"
 

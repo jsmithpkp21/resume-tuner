@@ -738,6 +738,39 @@ def test_derive_resume_title_preserves_senior_sdet_without_special_expansion() -
     assert derive_resume_title(resume) == PROFILE_RESUME_TITLE
 
 
+def test_derive_resume_title_ignores_target_role_when_headline_is_blank() -> None:
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    blank_profile = type(profile)(
+        name=profile.name,
+        headline="",
+        location=profile.location,
+        email=profile.email,
+        phone=profile.phone,
+        website=profile.website,
+        linkedin=profile.linkedin,
+        github=profile.github,
+        summary=profile.summary,
+        education_entries=profile.education_entries,
+        leadership_community_entries=profile.leadership_community_entries,
+    )
+    resume = assemble_baseline_resume(
+        profile=blank_profile,
+        target_role="Graphcore Senior Principal Test Framework Software Engineer",
+        target_company="Graphcore",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior Principal Test Framework Software Engineer\n"
+            "Company: Graphcore"
+        ),
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    assert derive_resume_title(resume) == "Software Test Automation Engineer"
+
+
 def test_display_company_header_maps_hp_poly_aliases() -> None:
     cases = [
         ("HP / Poly", "HP / Poly (formerly Polycom), Austin, TX"),
@@ -2015,6 +2048,101 @@ def test_trim_by_rules_line_budget_keeps_all_within_budget() -> None:
     assert sum(len(experience.bullets) for experience in trimmed.experiences) == 24
     assert all(len(experience.bullets) >= 2 for experience in trimmed.experiences)
     assert len(trimmed.experiences[0].bullets) == 4
+
+
+def test_trim_by_rules_line_budget_removes_low_confidence_bullets_over_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(build_resume, "DEFAULT_MAX_BULLET_LINES", 4)
+
+    profile = load_profile(PROFILE)
+    exp_one = Experience(
+        id="exp-one",
+        job_title="Role One",
+        company="Company",
+        start_date="2020-01",
+        end_date="2021-01",
+        general_role_description="Role one summary.",
+        related_skills=(),
+        bullets=(
+            Bullet(
+                "one-high", "Built stable systems.", ("Python",), "impact", "domain"
+            ),
+            Bullet(
+                "one-mid", "Improved test diagnostics.", ("Pytest",), "impact", "domain"
+            ),
+            Bullet("one-low", "Documented edge cases.", ("Docs",), "impact", "domain"),
+        ),
+    )
+    exp_two = Experience(
+        id="exp-two",
+        job_title="Role Two",
+        company="Company",
+        start_date="2021-02",
+        end_date="2022-02",
+        general_role_description="Role two summary.",
+        related_skills=(),
+        bullets=(
+            Bullet(
+                "two-high",
+                "Automated core validation.",
+                ("Automation",),
+                "impact",
+                "domain",
+            ),
+            Bullet(
+                "two-mid",
+                "Expanded regression coverage.",
+                ("Testing",),
+                "impact",
+                "domain",
+            ),
+            Bullet(
+                "two-low",
+                "Tracked manual follow-up items.",
+                ("Analysis",),
+                "impact",
+                "domain",
+            ),
+        ),
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="",
+        target_company="",
+        job_context=None,
+        experiences=(exp_one, exp_two),
+        skills_by_category={},
+    )
+    resume = type(resume)(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=resume.experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id={
+            "one-high": {"confidence": 0.9},
+            "one-mid": {"confidence": 0.8},
+            "one-low": {"confidence": 0.1},
+            "two-high": {"confidence": 0.95},
+            "two-mid": {"confidence": 0.7},
+            "two-low": {"confidence": 0.2},
+        },
+    )
+
+    trimmed = trim_by_rules(resume)
+
+    assert [bullet.id for bullet in trimmed.experiences[0].bullets] == [
+        "one-high",
+        "one-mid",
+    ]
+    assert [bullet.id for bullet in trimmed.experiences[1].bullets] == [
+        "two-high",
+        "two-mid",
+    ]
+    assert all(len(experience.bullets) >= 2 for experience in trimmed.experiences)
 
 
 def test_summarize_for_role_generates_distinct_summaries() -> None:

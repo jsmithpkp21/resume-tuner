@@ -25,7 +25,6 @@ import logging
 import math
 import os
 import re
-import shutil
 import sys
 import tomllib
 from dataclasses import dataclass, field
@@ -454,16 +453,17 @@ def _get_base_role(resume: ResumeIR) -> str:
 
 
 def derive_resume_title(resume: ResumeIR) -> str:
-    """Derive resume title from profile headline with deterministic formatting."""
+    """Derive resume title from the tracked profile headline only.
+
+    Never fall back to target-role or job-context hints for visible output.
+    """
+
     profile_headline = " ".join(resume.profile.headline.strip().split())
     if profile_headline:
         normalized = re.sub(r"\s*\|\s*", " / ", profile_headline)
         normalized = " ".join(normalized.split())
         return _normalize_role_acronyms(normalized)
 
-    fallback = _get_base_role(resume)
-    if fallback:
-        return _normalize_role_acronyms(fallback)
     return "Software Test Automation Engineer"
 
 
@@ -1915,18 +1915,10 @@ def _slugify_output_label(value: str) -> str:
     return normalized
 
 
-def _build_artifact_prefixes(
-    *, processing_mode: str, target_company: str
-) -> tuple[str, str]:
-    """Return artifact prefixes without company-specific aliases.
-
-    target_company is intentionally ignored to avoid encoding
-    application-company details in resume artifact names.
-    """
-    del target_company
+def _build_artifact_prefix(*, processing_mode: str) -> str:
+    """Return the single company-agnostic artifact prefix for this mode."""
     mode_suffix = "processed" if processing_mode == "processed" else "raw"
-    legacy_prefix = f"latest_resume_{mode_suffix}"
-    return legacy_prefix, legacy_prefix
+    return f"latest_resume_{mode_suffix}"
 
 
 def _secondary_template_prefix(output_prefix: str, secondary_template: str) -> str:
@@ -2343,35 +2335,22 @@ def run_pipeline(args: argparse.Namespace) -> int:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    legacy_prefix, company_prefix = _build_artifact_prefixes(
-        processing_mode=args.processing_mode,
-        target_company=resolved_target_company,
-    )
+    output_prefix = _build_artifact_prefix(processing_mode=args.processing_mode)
     # For processed mode, use modern template as primary; for raw, use default.
     primary_template = "modern" if args.processing_mode == "processed" else "default"
     secondary_template = args.template
     if secondary_template == primary_template:
         secondary_template = "default" if primary_template == "modern" else "modern"
 
-    html_output = args.output_dir / f"{legacy_prefix}.html"
+    html_output = args.output_dir / f"{output_prefix}.html"
     secondary_html_output = (
         args.output_dir
-        / f"{_secondary_template_prefix(legacy_prefix, secondary_template)}.html"
+        / f"{_secondary_template_prefix(output_prefix, secondary_template)}.html"
     )
-    md_output = args.output_dir / f"{legacy_prefix}.md"
-    ir_output = args.output_dir / f"{legacy_prefix}_ir_snapshot.json"
-    text_snapshot_output = args.output_dir / f"{legacy_prefix}_ir_snapshot.txt"
-
-    company_html_output = args.output_dir / f"{company_prefix}.html"
-    company_secondary_html_output = (
-        args.output_dir
-        / f"{_secondary_template_prefix(company_prefix, secondary_template)}.html"
-    )
-    company_md_output = args.output_dir / f"{company_prefix}.md"
-    company_ir_output = args.output_dir / f"{company_prefix}_ir_snapshot.json"
-    company_text_snapshot_output = args.output_dir / f"{company_prefix}_ir_snapshot.txt"
-    gap_output = args.output_dir / f"{legacy_prefix}_gap_summary.json"
-    company_gap_output = args.output_dir / f"{company_prefix}_gap_summary.json"
+    md_output = args.output_dir / f"{output_prefix}.md"
+    ir_output = args.output_dir / f"{output_prefix}_ir_snapshot.json"
+    text_snapshot_output = args.output_dir / f"{output_prefix}_ir_snapshot.txt"
+    gap_output = args.output_dir / f"{output_prefix}_gap_summary.json"
 
     render_html(resume, html_output, template_name=primary_template)
     render_html(resume, secondary_html_output, template_name=secondary_template)
@@ -2387,16 +2366,6 @@ def run_pipeline(args: argparse.Namespace) -> int:
     if should_emit_gap_summary:
         write_gap_summary(resume, gap_output)
 
-    if company_prefix != legacy_prefix:
-        shutil.copyfile(html_output, company_html_output)
-        shutil.copyfile(secondary_html_output, company_secondary_html_output)
-        if not args.skip_markdown:
-            shutil.copyfile(md_output, company_md_output)
-        shutil.copyfile(ir_output, company_ir_output)
-        shutil.copyfile(text_snapshot_output, company_text_snapshot_output)
-        if should_emit_gap_summary:
-            shutil.copyfile(gap_output, company_gap_output)
-
     print(f"Resume output written to ({args.processing_mode} mode): {args.output_dir}")
     print(f"- {html_output}")
     print(f"- {secondary_html_output}")
@@ -2406,16 +2375,6 @@ def run_pipeline(args: argparse.Namespace) -> int:
     print(f"- {text_snapshot_output}")
     if should_emit_gap_summary:
         print(f"- {gap_output}")
-    if company_prefix != legacy_prefix:
-        print("Company-scoped aliases:")
-        print(f"- {company_html_output}")
-        print(f"- {company_secondary_html_output}")
-        if not args.skip_markdown:
-            print(f"- {company_md_output}")
-        print(f"- {company_ir_output}")
-        print(f"- {company_text_snapshot_output}")
-        if should_emit_gap_summary:
-            print(f"- {company_gap_output}")
     return 0
 
 

@@ -256,7 +256,7 @@ domain = "video"
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b07"
 text = "Designed a hardware-agnostic abstraction layer enabling a single test suite to validate across 16 endpoint models and multiple vendor ecosystems; capability-driven architecture decoupled test logic from hardware specifics, reducing hardware-specific test maintenance by 40 percent and making framework patterns directly portable to new device classes."
-skills = ["Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design", "Hardware abstraction"]
+skills = ["Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design", "Hardware Abstraction"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "scalability"
 domain = "video"

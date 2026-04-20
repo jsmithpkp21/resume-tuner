@@ -395,7 +395,10 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert "Staff Software Engineer" not in md_text
     assert PROFILE_RESUME_TITLE in html_text
     assert expected_linkedin in html_text
-    assert expected_github in html_text
+    if profile.github:
+        assert expected_github in html_text
+    else:
+        assert "https://github.com/" not in html_text
     assert "Architect, Python Test Framework (Video)" in html_text
     assert "HP / Poly (formerly Polycom), Austin, TX" in html_text
     assert (
@@ -1109,7 +1112,10 @@ def test_collect_resume_skill_signals_is_relevance_weighted_and_deterministic() 
         job_context=resume.job_context,
         experiences=resume.experiences,
         skills_by_category=resume.skills_by_category,
-        enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
+        enrichment_by_bullet_id={
+            "b-low": {"confidence": 0.1},
+            "b-high": {"confidence": 0.95},
+        },
     )
 
     assert _collect_resume_skill_signals(scored_resume)[:2] == [
@@ -1919,7 +1925,7 @@ def test_trim_by_rules_limits_action_word_repetition() -> None:
     assert designed_count == 2
 
 
-def test_trim_by_rules_enforces_total_bullet_cap() -> None:
+def test_trim_by_rules_line_budget_keeps_all_within_budget() -> None:
     profile = load_profile(PROFILE)
     experiences: list[Experience] = []
     enrichment_by_bullet_id: dict[str, dict[str, object]] = {}
@@ -2003,7 +2009,9 @@ def test_trim_by_rules_enforces_total_bullet_cap() -> None:
 
     trimmed = trim_by_rules(resume)
 
-    # No fixed total bullet cap: if content fits budget, keep all bullets.
+    # No fixed total bullet cap: line-budget trimming keeps all bullets whose
+    # estimated line count fits within DEFAULT_MAX_BULLET_LINES. When all content
+    # fits the budget, every bullet is retained.
     assert sum(len(experience.bullets) for experience in trimmed.experiences) == 24
     assert all(len(experience.bullets) >= 2 for experience in trimmed.experiences)
     assert len(trimmed.experiences[0].bullets) == 4

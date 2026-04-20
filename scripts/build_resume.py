@@ -821,16 +821,18 @@ def _passes_transform_guardrails(*, original_text: str, rewritten_text: str) -> 
 
 
 def trim_for_role(resume: ResumeIR) -> ResumeIR:
-    """Select and reorder bullets by role relevance without rewriting text.
+    """Rank bullets by role relevance without removing or rewriting them.
 
     Purpose:
-        Reduce each experience to the most role-relevant bullets.
+        Reorder each experience's bullets by descending LLM relevance score so
+        that downstream line-budget trimming (trim_by_rules) removes the
+        lowest-signal bullets first.
 
     Allowed:
-        - Keep a subset of bullets from each experience.
-        - Reorder kept bullets by descending relevance.
+        - Reorder bullets within each experience by descending relevance.
 
     Not allowed:
+        - Remove bullets (that is trim_by_rules' responsibility).
         - Rewrite bullet text.
         - Edit canonical source data.
     """
@@ -847,7 +849,7 @@ def trim_for_role(resume: ResumeIR) -> ResumeIR:
     try:
         client = LLMClient.from_env()
         trimmed_experiences = tuple(
-            _trim_experience_bullets(
+            _rank_experience_bullets(
                 client=client,
                 resume=resume,
                 experience=experience,
@@ -870,12 +872,16 @@ def trim_for_role(resume: ResumeIR) -> ResumeIR:
     )
 
 
-def _trim_experience_bullets(
+def _rank_experience_bullets(
     *,
     client: LLMClient,
     resume: ResumeIR,
     experience: Experience,
 ) -> Experience:
+    """Reorder bullets by descending relevance score; all bullets are kept.
+
+    Selection/removal of low-priority bullets is handled downstream by trim_by_rules.
+    """
     if len(experience.bullets) <= 1:
         return experience
 
@@ -1726,20 +1732,10 @@ def _limit_action_word_repetition(
 
 
 def _estimate_wrapped_line_count(text: str, line_width: int) -> int:
-    words = [word for word in text.split() if word]
-    if not words:
+    """Estimate wrapped line count by delegating to the shared wrap helper."""
+    if not text.strip():
         return 1
-    lines = 1
-    current_len = 0
-    for word in words:
-        word_len = len(word)
-        projected = word_len if current_len == 0 else current_len + 1 + word_len
-        if projected <= line_width:
-            current_len = projected
-            continue
-        lines += 1
-        current_len = word_len
-    return max(1, lines)
+    return max(1, len(_summary_wrap_lines(text, line_width=line_width)))
 
 
 def _estimate_total_bullet_lines(selected_by_experience: list[list[Bullet]]) -> int:

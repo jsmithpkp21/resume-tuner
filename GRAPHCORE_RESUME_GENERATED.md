@@ -1,26 +1,24 @@
 # Jonathan J Smith
 
-Graphcore Senior Principal Test Framework Software Engineer
+Software Engineer | Test Automation and Framework Architecture
 
 Temple, TX, 76502 | [jsmithpkp@yahoo.com](mailto:jsmithpkp@yahoo.com) | 512-799-8314 | [linkedin.com/in/jonathan-j-smith-automation](https://linkedin.com/in/jonathan-j-smith-automation)
 
-Target role: Graphcore Senior Principal Test Framework Software Engineer
-
 ## Summary
 
-Graphcore Senior Principal Test Framework Software Engineer with strengths in Python, Java, and Framework Design. Designed and implemented next-generation Python automation framework for video products. Built a lightweight abstraction layer from an inherited Python/Pytest/ADB/JUnit/UI-Automator proof of concept, enabling portable Android embedded UI testing. Guided Audio team migration into corporate automation framework. Standardized test patterns across suites, improving reuse by 25 percent and reducing maintenance overhead. Embedded with Headset team to accelerate adoption of a new Python test framework. Led technical evaluation and design discussions.
+Software Engineer / Test Automation and Framework Architecture with strengths in Java, Python, and Framework Design. Designed and implemented next-generation Python automation framework for video products. Shifted vendor-equivalent testing pre-handoff, reducing third-party certification turnaround by 50 percent, cutting new-vendor test bring-up from weeks. Guided Audio team migration into corporate automation framework. Standardized test patterns across suites, improving reuse by 25 percent and reducing maintenance overhead. Embedded with Headset team to accelerate adoption of a new Python test framework. Led technical evaluation and design discussions.
 
 ## Key Skills and Expertise
 
-- **Programming & Scripting:** Python • Java
-- **Testing & Validation:** JUnit 4 • Pytest • Test Lab Automation • JUnit 5 • System testing • Web UI Automation • Android UI automation (ADB) • Android UI automation (UI Automator) • ADB • REST/SOAP Integration
-- **CI/CD & Tooling:** Developer Tooling • CI/CD • Test reliability engineering • Dependency Management • GitHub Actions • Versioning automation • Debugging • AI-augmented test generation
+- **Programming & Scripting:** Java • Python
+- **CI/CD & Tooling:** CI/CD • Developer Tooling • Test reliability engineering • Versioning automation • Dependency Management • GitHub Actions • Defect isolation • Root cause analysis
 - **Collaboration & Engineering Practices:** Technical Leadership • Test planning • Mentoring • Code Review • Process Design
+- **Testing & Validation:** Pytest • JUnit 4 • System testing • JUnit 5 • Web UI Automation • Test Lab Automation • ADB • REST/SOAP Integration
 - **Automation & Framework Engineering:** Framework Design • Automation Strategy • Automation framework design
-- **Automation & Framework Architecture:** Automation Architecture • Capability-Driven Design • UI & Model-Agnostic Abstractions • Reusable components • Playwright • Test data management
-- **Architecture & Design:** Architecture • Prototype Design
+- **Architecture & Design:** Architecture • Prototype Design • Infrastructure • Docker
+- **Automation & Framework Architecture:** Test data management • Automation Architecture • Capability-Driven Design • UI & Model-Agnostic Abstractions • Reusable components • Playwright
 - **Distributed Systems & Infrastructure:** Distributed Execution • Issue triage
-- **Environments & Infrastructure:** Infrastructure • Docker
+- **Core Engineering Skills:** Debugging • AI-augmented test generation
 
 ## Professional Experience
 
@@ -31,11 +29,12 @@ Designed and implemented next-generation Python automation framework for video p
 
 Related skills: Python, Playwright, ADB, Web UI Automation, Pytest, Developer Tooling, Technical Leadership, Issue triage
 
-- Built a lightweight abstraction layer from an inherited Python/Pytest/ADB/JUnit/UI-Automator proof of concept, enabling portable Android embedded UI testing across internal workflows and vendor ecosystems while reducing dependence on third-party-owned framework paths.
 - Shifted vendor-equivalent testing pre-handoff, reducing third-party certification turnaround by 50 percent, cutting new-vendor test bring-up from weeks to days, and reducing reusable test authoring time by 50 percent.
 - Set long-term architectural direction and coding standards and mentored a group of five engineers, with two engineers progressing to module-owner responsibilities within two quarters.
 - Replaced duplicated test logic across hundreds of tests with shared helper code, reducing test code by 20 percent and enabling faster refactors and rollout of new test capabilities.
 - Integrated new web UI automation into an existing containerized GitHub Actions workflow, added npx support to Docker, and shifted web regression execution from manual-only runs toward repeatable automated runs.
+- Prioritized high-value acceptance scenarios (including Microsoft certification paths), manually characterized cross-provider controller UI differences, and converted core call workflows into reusable step-based automation with marker/fixture-driven JSON/YAML test data selection.
+- Triaged pre-QA failures across automation, firmware, device configuration, and timing/network conditions - most often unannounced UI changes - to isolate root causes early, reduce retest churn, and save the manual QA team two weeks of wasted time per release cycle.
 
 ### Technical Advisor / SDET, Audio Team | HP / Poly
 2021-05 - 2023-06
@@ -56,7 +55,6 @@ Embedded with Headset team to accelerate adoption of a new Python test framework
 Related skills: Python, Code Review, Technical Leadership, Distributed Execution, Test Lab Automation, Infrastructure, Automation Architecture
 
 - Provided architectural guidance, code reviews, and hands-on development support while mentoring six engineers.
-- Designed and deployed a remote-controlled USB headset test lab with ten automated stations and fifteen shared VMs, doubling automated test capacity and eliminating on-site dependency.
 - Enabled distributed engineers to run headset validation remotely through shared lab infrastructure, cutting ad-hoc lab setup time by 80 percent and improving day-to-day execution flexibility.
 
 ### Technical Lead, Corporate Framework Integration | HP / Poly
@@ -69,6 +67,7 @@ Related skills: Architecture, Framework Design, Technical Leadership, Java, JUni
 - Delivered a reusable technical evaluation artifact for integrating the Video automation framework into a unified corporate platform, including a first implementation step designed to remain applicable across multiple possible integration directions.
 - Decomposed a monolithic automation system into modular components and standardized package and project naming conventions, enabling distributed ownership and reducing build times by 75 percent.
 - Architected and drove the Java 8 to 12 migration across 15 projects and 3 product lines, resolving Java 9 module-system breaks, modernizing dependencies, and improving CI and automation stability.
+- Implemented semantic versioning automation that, after CI checks passed, automatically generated and released versioned JAR artifacts from standardized commit messages across 15 projects, eliminating manual release tagging.
 
 ### Lead Technical Designer, Corporate Automation Initiative | HP / Poly
 2017-06 - 2019-06

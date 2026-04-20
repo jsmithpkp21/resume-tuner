@@ -58,17 +58,11 @@ python scripts/build_resume.py \
 - `latest_resume_processed_ir_snapshot.json` — Internal representation (for debugging)
 - `latest_resume_processed_ir_snapshot.txt` — Text IR snapshot (for debugging)
 
-## Code Improvement Needed (Tier 2 - for tomorrow, Part B)
-The `build_resume.py` should NOT include target company names in the resume output.
-
-**Current problem:**
-- `--target-role` value is shown in the resume header (wrong)
-- No way to specify a professional title separate from target role
-
-**Solution:**
-- Add `--professional-title` parameter to `build_resume.py`
-- Update `resolve_headline()` to prioritize `--professional-title` over `--target-role`
-- Keep `--target-role` as INTERNAL ONLY for LLM optimization
-- Never show company names in output
-
-**See:** `CODE_FIX_PLAN_PART_B.md` for detailed implementation plan
+## Implementation Status (updated)
+The target-role headline leakage issue is resolved in current code:
+- `--target-role` is treated as an internal optimization hint
+- visible headline rendering does not display target-role/company text
+### Optional Future Enhancement
+A dedicated `--professional-title` argument is still a possible ergonomics improvement,
+but it is no longer required for the no-company-name output policy.
+**See:** `CODE_FIX_PLAN_PART_B.md` for historical context and optional follow-up scope.

@@ -7,7 +7,6 @@ on:
 permissions:
   contents: read
   issues: write
-  pull-requests: write
 
 jobs:
   kickoff:
@@ -20,9 +19,29 @@ jobs:
           script: |
             const pr = context.payload.pull_request;
             const shortSha = pr.head.sha.slice(0, 7);
+            const marker = `Auto-kickoff after push \`${shortSha}\`.`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              per_page: 100,
+            });
+
+            const alreadyPosted = comments.some((comment) => {
+              const body = typeof comment.body === 'string' ? comment.body : '';
+              const author = comment.user?.login ?? '';
+              return author === 'github-actions[bot]' && body.includes(marker);
+            });
+
+            if (alreadyPosted) {
+              core.info(`Kickoff already posted for ${shortSha}; skipping duplicate comment.`);
+              return;
+            }
+
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: pr.number,
-              body: `@copilot review\n\nAuto-kickoff after push \`${shortSha}\`.`,
+              body: `@copilot review\n\n${marker}`,
             });

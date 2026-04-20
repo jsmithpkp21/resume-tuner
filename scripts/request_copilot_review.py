@@ -35,22 +35,23 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _run_gh(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["gh", *args],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+def _run_gh(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            ["gh", *args],
+            check=check,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        raise RuntimeError(
+            "GitHub CLI (gh) not found or not executable. Install from https://cli.github.com/ "
+            "and ensure it is available on PATH."
+        ) from exc
 
 
 def _ensure_gh_auth() -> None:
-    status = subprocess.run(
-        ["gh", "auth", "status"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    status = _run_gh("auth", "status", check=False)
     if status.returncode == 0:
         return
 

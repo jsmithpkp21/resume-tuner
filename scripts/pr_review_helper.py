@@ -96,6 +96,21 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print phase timings to stderr",
     )
+    parser.add_argument(
+        "--expand-review-comments",
+        action="store_true",
+        help=("Explicitly enable per-review comment expansion (default behavior)."),
+    )
+    parser.add_argument(
+        "--skip-review-expansion",
+        action="store_false",
+        dest="expand_review_comments",
+        help=(
+            "Skip per-review comment expansion to avoid N+1 API calls on large PRs "
+            "(may miss review comments only visible via review-specific endpoints)."
+        ),
+    )
+    parser.set_defaults(expand_review_comments=True)
     return parser.parse_args()
 
 
@@ -168,19 +183,22 @@ def _current_login() -> str:
     return str(payload["login"])
 
 
-def _fetch_all_review_comments(repo: str, pr: int) -> list[dict[str, Any]]:
+def _fetch_all_review_comments(
+    repo: str, pr: int, *, expand_review_comments: bool = True
+) -> list[dict[str, Any]]:
     comments = _run_gh_json_paginated("api", f"repos/{repo}/pulls/{pr}/comments")
-    reviews = _run_gh_json_paginated("api", f"repos/{repo}/pulls/{pr}/reviews")
-
     merged_by_id: dict[int, dict[str, Any]] = {
         int(comment["id"]): comment for comment in comments
     }
-    for review in reviews:
-        review_id = int(review["id"])
-        for comment in _run_gh_json_paginated(
-            "api", f"repos/{repo}/pulls/{pr}/reviews/{review_id}/comments"
-        ):
-            merged_by_id[int(comment["id"])] = comment
+
+    if expand_review_comments:
+        reviews = _run_gh_json_paginated("api", f"repos/{repo}/pulls/{pr}/reviews")
+        for review in reviews:
+            review_id = int(review["id"])
+            for comment in _run_gh_json_paginated(
+                "api", f"repos/{repo}/pulls/{pr}/reviews/{review_id}/comments"
+            ):
+                merged_by_id[int(comment["id"])] = comment
 
     return sorted(
         merged_by_id.values(), key=lambda item: (item["created_at"], item["id"])
@@ -372,7 +390,11 @@ def main() -> int:
 
         phase_start = time.perf_counter()
         owner_login = args.owner_login or _current_login()
-        comments = _fetch_all_review_comments(args.repo, args.pr)
+        comments = _fetch_all_review_comments(
+            args.repo,
+            args.pr,
+            expand_review_comments=args.expand_review_comments,
+        )
         _print_timing(args.timing, "fetch", phase_start)
 
         phase_start = time.perf_counter()

@@ -5,6 +5,7 @@ import subprocess
 import pytest
 
 from scripts.pr_review_helper import (
+    _fetch_all_review_comments,
     _parse_iso8601,
     _run_gh_json,
     build_action_plan,
@@ -212,3 +213,71 @@ def test_run_gh_json_reports_missing_gh_binary(
 
     with pytest.raises(RuntimeError, match=r"GitHub CLI \(gh\) not found"):
         _run_gh_json("api", "user")
+
+
+def test_fetch_all_review_comments_can_skip_review_expansion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def fake_paginated(*args: str) -> list[dict[str, object]]:
+        endpoint = args[-1]
+        calls.append(endpoint)
+        if endpoint.endswith("/pulls/123/comments"):
+            return [
+                _comment(comment_id=101, body="root", created_at="2026-04-20T10:00:00Z")
+            ]
+        return []
+
+    monkeypatch.setattr(
+        "scripts.pr_review_helper._run_gh_json_paginated", fake_paginated
+    )
+
+    comments = _fetch_all_review_comments(
+        "owner/repo",
+        123,
+        expand_review_comments=False,
+    )
+
+    assert len(comments) == 1
+    assert calls == ["repos/owner/repo/pulls/123/comments"]
+
+
+def test_fetch_all_review_comments_expands_review_comment_endpoints_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def fake_paginated(*args: str) -> list[dict[str, object]]:
+        endpoint = args[-1]
+        calls.append(endpoint)
+        if endpoint.endswith("/pulls/123/comments"):
+            return [
+                _comment(comment_id=201, body="root", created_at="2026-04-20T10:00:00Z")
+            ]
+        if endpoint.endswith("/pulls/123/reviews"):
+            return [{"id": 42}]
+        if endpoint.endswith("/pulls/123/reviews/42/comments"):
+            return [
+                _comment(
+                    comment_id=202,
+                    body="fixing: review endpoint reply",
+                    created_at="2026-04-20T10:01:00Z",
+                    user="jsmithpkp21",
+                    in_reply_to_id=201,
+                )
+            ]
+        return []
+
+    monkeypatch.setattr(
+        "scripts.pr_review_helper._run_gh_json_paginated", fake_paginated
+    )
+
+    comments = _fetch_all_review_comments("owner/repo", 123)
+
+    assert {int(comment["id"]) for comment in comments} == {201, 202}
+    assert calls == [
+        "repos/owner/repo/pulls/123/comments",
+        "repos/owner/repo/pulls/123/reviews",
+        "repos/owner/repo/pulls/123/reviews/42/comments",
+    ]

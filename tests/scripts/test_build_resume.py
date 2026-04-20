@@ -3273,3 +3273,79 @@ def test_generate_profile_summary_avoids_meta_labels_and_duplicate_sentences() -
         )
         <= 1
     )
+
+
+def test_trim_by_rules_enforces_line_budget_with_overlong_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(build_resume, "DEFAULT_MAX_BULLET_LINES", 4)
+    profile = load_profile(PROFILE)
+    long_token = "x" * (build_resume.DEFAULT_BULLET_LINE_WIDTH + 40)
+    exp = Experience(
+        id="exp-overlong",
+        job_title="Senior SDET",
+        company="Contoso",
+        start_date="2020-01",
+        end_date="2024-01",
+        general_role_description="Role summary",
+        related_skills=("Python",),
+        bullets=(
+            Bullet(
+                "keep-1",
+                "Maintained CI quality gates.",
+                ("Python",),
+                "impact",
+                "domain",
+            ),
+            Bullet(
+                "keep-2",
+                "Improved framework reliability.",
+                ("Python",),
+                "impact",
+                "domain",
+            ),
+            Bullet(
+                "drop-long",
+                f"Introduced {long_token} for stress-testing parser behavior.",
+                ("Python",),
+                "impact",
+                "domain",
+            ),
+        ),
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="",
+        target_company="",
+        job_context=None,
+        experiences=(exp,),
+        skills_by_category={},
+    )
+    resume = type(resume)(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=resume.experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id={
+            "keep-1": {"confidence": 0.95},
+            "keep-2": {"confidence": 0.9},
+            "drop-long": {"confidence": 0.0},
+        },
+    )
+
+    trimmed = trim_by_rules(resume)
+
+    kept_ids = [bullet.id for bullet in trimmed.experiences[0].bullets]
+    assert kept_ids == ["keep-1", "keep-2"]
+
+
+def test_estimate_wrapped_line_count_counts_overlong_tokens() -> None:
+    line_width = build_resume.DEFAULT_BULLET_LINE_WIDTH
+    long_token = "x" * (line_width * 3 + 7)
+
+    estimated = build_resume._estimate_wrapped_line_count(long_token, line_width)
+
+    assert estimated == math.ceil(len(long_token) / line_width)

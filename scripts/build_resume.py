@@ -26,6 +26,7 @@ import math
 import os
 import re
 import sys
+import textwrap
 import tomllib
 from dataclasses import dataclass, field
 from dataclasses import replace as dc_replace
@@ -1584,9 +1585,24 @@ def _trim_trailing_fragment_words(words: list[str]) -> list[str]:
 def _summary_wrap_lines(
     summary: str, *, line_width: int = SUMMARY_LINE_WIDTH
 ) -> list[str]:
-    words = summary.split()
-    if not words:
+    raw_words = summary.split()
+    if not raw_words:
         return []
+
+    words: list[str] = []
+    for raw_word in raw_words:
+        if len(raw_word) <= line_width:
+            words.append(raw_word)
+            continue
+        words.extend(
+            textwrap.wrap(
+                raw_word,
+                width=line_width,
+                break_long_words=True,
+                break_on_hyphens=False,
+            )
+        )
+
     lines: list[str] = []
     current: list[str] = []
     for word in words:
@@ -1735,7 +1751,17 @@ def _estimate_wrapped_line_count(text: str, line_width: int) -> int:
     """Estimate wrapped line count by delegating to the shared wrap helper."""
     if not text.strip():
         return 1
-    return max(1, len(_summary_wrap_lines(text, line_width=line_width)))
+    if line_width <= 0:
+        return 1
+
+    wrapped_lines = len(_summary_wrap_lines(text, line_width=line_width))
+    # Guard against any future wrap-helper regressions by ensuring very long
+    # unbroken tokens always consume at least ceil(len(token) / width) lines.
+    long_token_lines = max(
+        (math.ceil(len(token) / line_width) for token in text.split()),
+        default=1,
+    )
+    return max(1, wrapped_lines, long_token_lines)
 
 
 def _estimate_total_bullet_lines(selected_by_experience: list[list[Bullet]]) -> int:

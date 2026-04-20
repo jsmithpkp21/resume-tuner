@@ -246,66 +246,6 @@ fix-pr-initial-commit:
 consumer-contract-test: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && pytest -q tests/scripts/test_consumer_contract.py"
 
-# PR review helper wrapper.
-# Scans or plans PR review comments and owner responses; may post fix/defer/wontfix status.
-# PR_REVIEW_* variables are prefixed to avoid environment variable collisions.
-# REPO_SLUG can override owner/repo derivation from git remote (default: auto-detect from gh repo view).
-# Usage examples:
-#   make pr-review-helper PR=123
-#   make pr-review-helper PR=123 PR_REVIEW_ROOT_IDS=3112407343,3112407397 PR_REVIEW_MODE=plan PR_REVIEW_ACTION=fix PR_REVIEW_TIMING=1
-#   make pr-review-helper PR=123 REPO_SLUG=owner/custom-repo
-PR_REVIEW_MODE ?= scan
-PR_REVIEW_ACTION ?= fix
-PR_REVIEW_CREATED_AFTER ?=
-PR_REVIEW_ROOT_IDS ?=
-PR_REVIEW_TIMING ?= 0
-REPO_SLUG ?=
-pr-review-helper: env
-	@if [ -z "$(PR)" ]; then \
-		echo "ERROR: PR is required. Usage: make pr-review-helper PR=<num> [PR_REVIEW_MODE=scan|plan] [PR_REVIEW_ACTION=fix|defer|wontfix] [PR_REVIEW_CREATED_AFTER=<iso8601>] [PR_REVIEW_ROOT_IDS=id1,id2] [PR_REVIEW_TIMING=1] [REPO_SLUG=owner/repo]"; \
-		exit 1; \
-	fi
-	@if ! echo "$(PR)" | grep -qE '^[1-9][0-9]*$$'; then \
-		echo "ERROR: PR must be a positive integer, got: '$(PR)'"; \
-		exit 1; \
-	fi
-	@if ! command -v gh >/dev/null 2>&1; then \
-		echo "ERROR: GitHub CLI (gh) not found or not in PATH."; \
-		echo "Install from https://cli.github.com/ or add to PATH."; \
-		exit 1; \
-	fi
-	@if ! gh auth status >/dev/null 2>&1; then \
-		echo "ERROR: gh is not authenticated. Run: gh auth login"; \
-		echo "If GITHUB_TOKEN is exported, verify it is valid or unset it (stale tokens override stored credentials)."; \
-		exit 1; \
-	fi
-	@if [ ! -f scripts/pr_review_helper.py ]; then \
-		echo "ERROR: scripts/pr_review_helper.py was not found in this repo."; \
-		echo "If this repo is a consumer, sync latest tooling updates, or add the helper first."; \
-		exit 1; \
-	fi
-	@MODE_VAL="$(PR_REVIEW_MODE)"; \
-	ACTION_VAL="$(PR_REVIEW_ACTION)"; \
-	if ! echo "$$MODE_VAL" | grep -qE '^(scan|plan)$$'; then \
-		echo "ERROR: PR_REVIEW_MODE must be one of: scan, plan. Got: '$$MODE_VAL'"; \
-		exit 1; \
-	fi; \
-	if ! echo "$$ACTION_VAL" | grep -qE '^(fix|defer|wontfix)$$'; then \
-		echo "ERROR: PR_REVIEW_ACTION must be one of: fix, defer, wontfix. Got: '$$ACTION_VAL'"; \
-		exit 1; \
-	fi
-	@REPO_SLUG_VAL="$(REPO_SLUG)"; \
-	if [ -z "$$REPO_SLUG_VAL" ]; then \
-		REPO_SLUG_VAL=$$(gh repo view --json nameWithOwner --jq .nameWithOwner); \
-	fi; \
-	bash -lc 'source "$(ENV_PATH)/bin/activate" && \
-		CMD=(python3 scripts/pr_review_helper.py --repo "'"$$REPO_SLUG_VAL"'" --pr "$(PR)"); \
-		if [ -n "$(PR_REVIEW_CREATED_AFTER)" ]; then CMD+=(--created-after "$(PR_REVIEW_CREATED_AFTER)"); fi; \
-		if [ -n "$(PR_REVIEW_ROOT_IDS)" ]; then CMD+=(--root-ids "$(PR_REVIEW_ROOT_IDS)"); fi; \
-		if [ "$(PR_REVIEW_TIMING)" = "1" ]; then CMD+=(--timing); fi; \
-		if [ "$(PR_REVIEW_MODE)" = "plan" ]; then CMD+=(--action-plan-json --default-action "$(PR_REVIEW_ACTION)"); else CMD+=(--json); fi; \
-		"$${CMD[@]}"'
-
 sync-tooling:
 	./scripts/sync_tooling.sh $(TOOLING_VERSION)
 

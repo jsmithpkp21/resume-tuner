@@ -26,11 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ${AWK_IMPL_PACKAGE} \
     nodejs \
     npm \
-    fonts-liberation \
-    fontconfig \
     && update-alternatives --set awk /usr/bin/gawk \
     && npm install -g markdownlint-cli@0.47.0 \
-    && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment in /opt (persistent across runs)

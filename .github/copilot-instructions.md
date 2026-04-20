@@ -11,13 +11,6 @@
 - Use a two-phase flow: (1) inspect + propose plan, (2) implement only after `plan ready`.
 - If requirements conflict, ask for clarification before changing files.
 
-## Local Overrides (`AGENTS_LOCAL.md`)
-
-- `AGENTS.md` is the synced baseline guidance.
-- `AGENTS_LOCAL.md` is optional and local/consumer owned for repo-specific additions or overrides.
-- Apply `AGENTS.md` first, then `AGENTS_LOCAL.md` when present.
-- Keep `AGENTS_LOCAL.md` out of tooling's `.tooling-sync-manifest.toml` so local guidance is never overwritten by sync.
-
 ## Quick Commands
 
 ```bash

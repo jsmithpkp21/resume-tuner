@@ -185,6 +185,14 @@ skills = ["Java", "Versioning automation", "CI/CD"]
 impact_type = "delivery-speed"
 domain = "corporate-platform"
 
+[[experience.bullet_bank]]
+id = "exp_hp_poly_technical_lead_framework_integration_201906_b05"
+text = "Automated production readiness validation across 15 projects by integrating CI gate checks with release sign-off workflows, reducing time-to-release by two weeks per cycle and eliminating manually tracked deployment blockers."
+skills = ["CI/CD", "Versioning automation", "Developer Tooling", "Framework Design"]
+categories = ["CI/CD", "Architecture"]
+impact_type = "delivery-speed"
+domain = "corporate-platform"
+
 [[experience]]
 id = "exp_hp_poly_lead_technical_designer_corp_automation_201506"
 job_title = "Lead Technical Designer, Corporate Automation Initiative"
@@ -249,6 +257,22 @@ domain = "video"
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b03"
 text = "Architected a four-stage CI quality-gate pipeline — branch merge gates, full suite runs, main branch integration gates, and QA acceptance checks — with stability rules improving deterministic execution across more than 30 releases."
 skills = ["CI/CD", "Test reliability engineering", "Distributed Execution"]
+impact_type = "reliability"
+domain = "video"
+
+[[experience.bullet_bank]]
+id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b07"
+text = "Designed a hardware-agnostic abstraction layer enabling a single test suite to validate across 16 endpoint models and multiple vendor ecosystems; capability-driven architecture decoupled test logic from hardware specifics, reducing hardware-specific test maintenance by 40 percent and making framework patterns directly portable to new device classes."
+skills = ["Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design", "Hardware abstraction"]
+categories = ["Automation & Frameworks", "Architecture"]
+impact_type = "scalability"
+domain = "video"
+
+[[experience.bullet_bank]]
+id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b08"
+text = "Built a test result aggregation pipeline that collected execution data across distributed stations, correlated failures against firmware versions and device configurations, and surfaced root-cause patterns to reduce triage time by 30 percent per release cycle."
+skills = ["Test data management", "Distributed Execution", "Test reliability engineering", "Debugging"]
+categories = ["Debugging & Analysis", "Distributed Systems"]
 impact_type = "reliability"
 domain = "video"
 

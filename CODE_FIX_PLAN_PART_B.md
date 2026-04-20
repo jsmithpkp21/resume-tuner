@@ -29,7 +29,7 @@ parser.add_argument(
     "--professional-title",
     type=str,
     default="",
-    help="Professional title for resume display (if not provided, uses profile headline or derives from target-role)"
+    help="Professional title for resume display (if not provided, uses profile headline)"
 )
 ```
 
@@ -54,6 +54,7 @@ def resolve_headline(profile: Profile, target_role: str, professional_title: str
         return professional_title.strip()
 
     # Priority 2: profile headline (DO NOT use target_role here)
+    # target_role is INTERNAL ONLY for LLM context
     return profile.headline
 ```
 
@@ -65,6 +66,7 @@ def _get_base_role(resume: ResumeIR) -> str:
 
     Uses the priority: target_role > job_context.role_hint > display_headline > profile_headline
     Note: target_role is for LLM context only, never shown in resume output.
+    Profile headline and professional_title are what users see.
     """
     # Priority 1: explicit target_role (for LLM, not display)
     # ... rest unchanged

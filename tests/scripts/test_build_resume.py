@@ -1618,7 +1618,7 @@ def test_ingest_job_context_linkedin_login_wall_falls_back_to_keywords(
     assert snapshot["job_context"]["role_hint"] == "SDET"
 
 
-def test_trim_for_role_keeps_subset_and_reorders_by_score(
+def test_trim_for_role_ranks_and_reorders_by_score(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")

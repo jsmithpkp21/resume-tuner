@@ -126,6 +126,17 @@ def _run_gh_json(*args: str) -> Any:
         raise RuntimeError(
             "GitHub CLI (gh) not found or could not be executed. Install it from https://cli.github.com/."
         ) from exc
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        stdout = (exc.stdout or "").strip()
+        message = [
+            f"GitHub API command failed (exit {exc.returncode}): {' '.join(exc.cmd)}",
+        ]
+        if stderr:
+            message.append(f"stderr: {stderr}")
+        if stdout:
+            message.append(f"stdout: {stdout}")
+        raise RuntimeError("\n".join(message)) from exc
     return json.loads(result.stdout)
 
 

@@ -35,7 +35,6 @@ python scripts/build_resume.py \
   --experience-db data/experience/experience_db.toml \
   --skills-matrix data/skills/skills_matrix.csv \
   --target-role "Graphcore Senior Principal Test Framework Software Engineer" \
-  --professional-title "Senior Staff Software Engineer, Test Automation & Framework Architecture" \
   --output-dir /tmp/graphcore_resume_output \
   --processing-mode processed
 ```
@@ -44,9 +43,9 @@ python scripts/build_resume.py \
 
 **Important:**
 - `--target-role` = INTERNAL ONLY (used for role-specific LLM optimizations)
-- `--professional-title` = What appears ON the resume (your actual title, may be conservative vs. target role)
+- Professional title appears on resume via your profile headline
 - Target company name is NEVER included in the output
-- Professional title reflects your actual level, may be lower than target role (justify gap in cover letter)
+- Profile headline reflects your actual level, may be conservative vs. target role (justify gap in cover letter)
 
 ## Notes
 - `latest_resume_processed.html` = Modern (centered) template

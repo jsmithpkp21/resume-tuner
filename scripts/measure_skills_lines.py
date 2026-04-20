@@ -83,14 +83,30 @@ _FONT_SIZE_PT: int = 11  # Calibri 11pt body text
 # font.getlength() → width in pixels @ 72 DPI = width in points.
 _PILLOW_SIZE: int = _FONT_SIZE_PT
 
-_LIBERATION_REGULAR: Path = Path(
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+_LIBERATION_FONT_PAIRS: tuple[tuple[Path, Path], ...] = (
+    (
+        Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
+        Path("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
+    ),
+    (
+        Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"),
+        Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
+    ),
+    (
+        Path("/usr/share/fonts/liberation/LiberationSans-Regular.ttf"),
+        Path("/usr/share/fonts/liberation/LiberationSans-Bold.ttf"),
+    ),
 )
-_LIBERATION_BOLD: Path = Path(
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+_DEJAVU_FONT_PAIRS: tuple[tuple[Path, Path], ...] = (
+    (
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+    ),
+    (
+        Path("/usr/share/fonts/dejavu/DejaVuSans.ttf"),
+        Path("/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"),
+    ),
 )
-_DEJAVU_REGULAR: Path = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
-_DEJAVU_BOLD: Path = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 SKILLS_SEPARATOR: str = " \u2022 "  # " • "  — matches Zebra_Resume.docx
 
 _REPO_ROOT: Path = Path(__file__).resolve().parent.parent
@@ -142,6 +158,16 @@ def _find_calibri_path(style: str = "Regular") -> Path | None:
     suffix = _suffix_map.get(style, "")
     wsl = Path(f"/mnt/c/Windows/Fonts/calibri{suffix}.ttf")
     return wsl if wsl.exists() else None
+
+
+def _resolve_font_pair(
+    candidates: tuple[tuple[Path, Path], ...],
+) -> tuple[Path, Path] | None:
+    """Return first existing (regular, bold) pair from candidate locations."""
+    for regular, bold in candidates:
+        if regular.exists() and bold.exists():
+            return regular, bold
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -215,33 +241,44 @@ def load_font_pair(
             "  3) Re-run:\n"
             "     python3 scripts/measure_skills_lines.py --kern"
         )
-    elif _LIBERATION_REGULAR.exists() and _LIBERATION_BOLD.exists():
-        font_name = "Liberation Sans (Calibri not found; metrics ≈ MS Office ±1%)"
-        print(
-            "INFO: Using Liberation Sans instead of Calibri. "
-            "Install Calibri to ~/.local/share/fonts/calibri/ for exact measurements.",
-            file=sys.stderr,
-        )
-        reg_path = _LIBERATION_REGULAR
-        bld_path = _LIBERATION_BOLD
     else:
-        if not (_DEJAVU_REGULAR.exists() and _DEJAVU_BOLD.exists()):
+        liberation_pair = _resolve_font_pair(_LIBERATION_FONT_PAIRS)
+        dejavu_pair = _resolve_font_pair(_DEJAVU_FONT_PAIRS)
+
+        if liberation_pair is not None:
+            reg_path, bld_path = liberation_pair
+            font_name = (
+                "Liberation Sans (Calibri not found; metrics ~= MS Office +/-1%)"
+            )
+            print(
+                "INFO: Using Liberation Sans instead of Calibri. "
+                "Install Calibri to ~/.local/share/fonts/calibri/ for exact measurements.",
+                file=sys.stderr,
+            )
+        elif dejavu_pair is not None:
+            reg_path, bld_path = dejavu_pair
+            font_name = "DejaVu Sans (Calibri not found -- metrics will differ ~3-5%)"
+            print(
+                "WARNING: Calibri and Liberation not found; falling back to DejaVu Sans. "
+                "Install Calibri to ~/.local/share/fonts/calibri/ for accurate measurements.",
+                file=sys.stderr,
+            )
+        else:
+            attempted_liberation = "\n".join(
+                f"    {regular}\n    {bold}" for regular, bold in _LIBERATION_FONT_PAIRS
+            )
+            attempted_dejavu = "\n".join(
+                f"    {regular}\n    {bold}" for regular, bold in _DEJAVU_FONT_PAIRS
+            )
             raise FileNotFoundError(
                 "No usable font pair found for skills measurement.\n"
                 "Checked (in order): Calibri, Liberation Sans, DejaVu Sans.\n"
-                "DejaVu fallback files are missing:\n"
-                f"  - {_DEJAVU_REGULAR}\n"
-                f"  - {_DEJAVU_BOLD}\n"
+                "Tried Liberation paths:\n"
+                f"{attempted_liberation}\n"
+                "Tried DejaVu paths:\n"
+                f"{attempted_dejavu}\n"
                 "Install Calibri (preferred) or install both Liberation/DejaVu font files."
             )
-        font_name = "DejaVu Sans (Calibri not found — metrics will differ ~3–5%)"
-        print(
-            "WARNING: Calibri and Liberation not found; falling back to DejaVu Sans. "
-            "Install Calibri to ~/.local/share/fonts/calibri/ for accurate measurements.",
-            file=sys.stderr,
-        )
-        reg_path = _DEJAVU_REGULAR
-        bld_path = _DEJAVU_BOLD
     try:
         return (
             ImageFont.truetype(str(reg_path), size=_PILLOW_SIZE),

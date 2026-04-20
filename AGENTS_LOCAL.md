@@ -6,6 +6,11 @@ Local overrides and branch-scoped guidance layered after `AGENTS.md`.
 - Parent rollout: tooling issue #216.
 - Consumer adoption: resume-builder issue #47.
 
+## Tooling Promotion Tracking (Required)
+- When adding/changing behavior in this consumer repo that is likely to be promoted to `tooling`, create a `tooling` issue first (before editing consumer files).
+- After landing the consumer-side change, update that tooling issue with exact details: file paths changed, rule text/logic added, and a short rationale.
+- Include the tooling issue link in related PR discussion so promotion work is easy to pick up later.
+
 ## PR Review Conventions (Resume-Builder Specific)
 - Post PR-thread replies only for GitHub review comments/threads; do not mirror chat-only guidance to PR threads unless the user explicitly asks.
 - For every review thread (including resolved/outdated), post a short status update when work is done so audit history is explicit.
@@ -27,4 +32,3 @@ Rules enforced for every session:
 - When running git or shell commands, always use the native Linux path (`/home/<user>/projects/<repo>`).
 - Use `python3` with `subprocess` (not shell heredocs via `run_in_terminal`) for git operations so output is reliably captured and not swallowed by the prompt.
 - After any file-tool edit, verify with Python: `open('/home/<user>/.../<file>').read()` to confirm the write landed on the Linux filesystem before staging or committing.
-

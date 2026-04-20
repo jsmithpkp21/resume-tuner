@@ -55,13 +55,7 @@ def _get_fonts() -> tuple[Any, Any, str]:
     if _fonts_cache is None:
         # Prevent caller shell env from forcing strict mode across this suite.
         with patch.dict(os.environ, {"RESUME_FONT_STRICT": "0"}):
-            try:
-                _fonts_cache = load_font_pair()
-            except FileNotFoundError as exc:
-                pytest.skip(
-                    f"No usable font found; install fonts-liberation or Calibri: {exc}"
-                )
-    assert _fonts_cache is not None
+            _fonts_cache = load_font_pair()
     return _fonts_cache
 
 

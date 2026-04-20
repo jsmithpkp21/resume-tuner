@@ -528,12 +528,7 @@ def test_build_resume_cli_processed_mode_applies_filtering(
     )
 
     monkeypatch.setenv("RESUME_FONT_STRICT", "0")
-    try:
-        font_regular, font_bold, font_name = load_font_pair(require_calibri=False)
-    except FileNotFoundError as exc:
-        pytest.skip(
-            f"No usable font found for skills line check (install Liberation or Calibri): {exc}"
-        )
+    font_regular, font_bold, font_name = load_font_pair(require_calibri=False)
     report = measure_skills_section(
         processed_skills,
         font_regular=font_regular,

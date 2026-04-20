@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.14.0...v0.14.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* **review:** use word-boundary matching for skill alias detection ([0fe280f](https://github.com/jsmithpkp21/resume-builder/commit/0fe280f0bd65613126264ef26efc5f2507150211))
+
 ## [0.14.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.13.1...v0.14.0) (2026-04-19)
 
 

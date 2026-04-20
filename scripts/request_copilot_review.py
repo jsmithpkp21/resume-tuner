@@ -74,11 +74,32 @@ def _kickoff_body(sha: str) -> str:
     return "@copilot review"
 
 
+def _fetch_issue_comments(repo: str, pr: int) -> list[dict[str, object]]:
+    """Fetch all issue comments using explicit per_page/page pagination.
+
+    Avoids ``--paginate`` which can emit one JSON document per page,
+    making ``json.loads`` of the combined stdout unreliable on large PRs.
+    """
+    page = 1
+    per_page = 100
+    merged: list[dict[str, object]] = []
+    while True:
+        endpoint = f"repos/{repo}/issues/{pr}/comments?per_page={per_page}&page={page}"
+        response = _run_gh("api", endpoint)
+        batch: list[dict[str, object]] = json.loads(response.stdout)
+        if not batch:
+            break
+        merged.extend(batch)
+        if len(batch) < per_page:
+            break
+        page += 1
+    return merged
+
+
 def _existing_kickoff_matches(
     *, repo: str, pr: int, expected_body: str, short_sha: str
 ) -> bool:
-    response = _run_gh("api", f"repos/{repo}/issues/{pr}/comments", "--paginate")
-    comments = json.loads(response.stdout)
+    comments = _fetch_issue_comments(repo, pr)
     for comment in reversed(comments):
         body = str(comment.get("body") or "")
         if expected_body == body:

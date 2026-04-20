@@ -24,7 +24,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 
 ## Architecture You Need First
 - Environment lifecycle is shell-first: `scripts/create_env.sh` creates and `scripts/verify_env.sh` verifies against metadata.
-- Sync is allow-list driven: `.tooling-sync-manifest.toml` is the only list of managed files; consumers record applied state in `.tooling-sync-manifest.lock`.
+- Sync is allow-list driven: `.tooling-sync-manifest.toml` (lives in the upstream `tooling` repo) is the source-of-truth allow-list; this consumer repo records the applied state in `.tooling-sync-manifest.lock`.
 - `scripts/sync_tooling.sh` is bootstrap/security-sensitive (path traversal checks, symlink protections, lock-writing, stale-file handling).
 - `pyproject.toml` is tooling-owned config input; consumers should generate their `pyproject.toml` via `scripts/merge_pyproject.py` + `.pyproject.meta.toml`.
 - Service boundary matters: tooling changes flow outward through sync; consumer identity files do not flow back automatically.
@@ -50,7 +50,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 - Keep changes minimal and scoped; do not bundle unrelated refactors in the same PR.
 - Treat `pyproject.toml` as generated in consumers: update `.pyproject.meta.toml` or tooling inputs and regenerate via `scripts/merge_pyproject.py`.
 - Preserve sync security invariants in `scripts/sync_tooling.sh` (path traversal checks, symlink protections, fail-closed behavior) and add tests for any behavior change.
-- When changing managed-file scope, update `.tooling-sync-manifest.toml`, related docs (for example `FILE_DISTRIBUTION.md`), and regression coverage in `tests/scripts/test_sync_tooling_regressions.py` together.
+- When changing managed-file scope, update the upstream `.tooling-sync-manifest.toml` (in the `tooling` repo), related docs (for example `FILE_DISTRIBUTION.md`), and regression coverage in `tests/scripts/test_sync_tooling_regressions.py` together.
 - Validate touched areas with targeted tests first, then run broader repo checks (`make lint`, `make test`, or `make check` as appropriate).
 - Prefer issue-linked branches when work maps to an issue: `make branch ISSUE=<num>` creates `<type>/<issue>-<slug>` from labels and title.
 - When presenting multiple implementation options, include concise pros and cons for each option so trade-offs are explicit.
@@ -59,7 +59,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 
 ## Integration Points
 - Consumer sync path: sibling `../tooling` checkout or explicit `TOOLING_DIR`; GitHub-source sync mode intentionally fails fast.
-- Managed-file scope is explicit: update `.tooling-sync-manifest.toml` whenever shared files are added/removed.
+- Managed-file scope is explicit: update `.tooling-sync-manifest.toml` in the upstream `tooling` repo whenever shared files are added/removed.
 - CI/workflow behavior is repo-name dynamic (see `docs/REFERENCE/DYNAMIC_WORKFLOWS.md`, `.github/workflows/*.yml`).
 - Release metadata integration: sync can update consumer `.release-please-config.json` from `.pyproject.meta.toml` package name.
 
@@ -71,7 +71,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 ## Files to Read Before Editing Core Logic
 - `Makefile`
 - `scripts/sync_tooling.sh`
-- `.tooling-sync-manifest.toml`
+- `.tooling-sync-manifest.lock` (applied-state lock in this repo; the source-of-truth manifest lives in the upstream `tooling` repo)
 - `FILE_DISTRIBUTION.md`
 - `docs/REFERENCE/SYNC_MANIFEST.md`
 - `docs/REFERENCE/PYPROJECT_ARCHITECTURE.md`

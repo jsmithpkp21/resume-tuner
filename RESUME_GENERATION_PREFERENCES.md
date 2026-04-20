@@ -1,8 +1,9 @@
 # Resume Generation Preferences
 
 ## CRITICAL: Company Name Policy
-- **NO COMPANY NAMES should EVER appear on the resume**
-- Graphcore (or any target company) is FOR THE COVER LETTER ONLY
+- **No TARGET company names should appear on the resume**
+- Graphcore (or any target company being applied to) is FOR THE COVER LETTER ONLY
+- Prior employer names in professional history (for example `HP / Poly`) remain expected resume content
 - The resume must stand on its own merits as a general professional document
 - If generated with `--target-role` that includes a company name, REMOVE IT
 

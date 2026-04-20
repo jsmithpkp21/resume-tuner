@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from scripts.pr_review_helper import summarize_review_threads
+import pytest
+
+from scripts.pr_review_helper import (
+    _parse_iso8601,
+    build_action_plan,
+    summarize_review_threads,
+)
 
 
 def _comment(
@@ -128,3 +134,66 @@ def test_summarize_review_threads_handles_reply_added_from_separate_comment_sour
     assert len(summaries) == 1
     assert summaries[0].root_id == 10
     assert summaries[0].status == "fixing"
+
+
+def test_summarize_review_threads_filters_specific_root_ids() -> None:
+    comments = [
+        _comment(comment_id=21, body="root a", created_at="2026-04-20T10:00:00Z"),
+        _comment(comment_id=22, body="root b", created_at="2026-04-20T11:00:00Z"),
+        _comment(
+            comment_id=23,
+            body="fixing: root b",
+            created_at="2026-04-20T11:01:00Z",
+            user="jsmithpkp21",
+            in_reply_to_id=22,
+        ),
+    ]
+
+    summaries = summarize_review_threads(
+        comments,
+        owner_login="jsmithpkp21",
+        root_ids={22},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].root_id == 22
+    assert summaries[0].status == "fixing"
+
+
+def test_build_action_plan_skips_threads_with_existing_owner_status() -> None:
+    comments = [
+        _comment(
+            comment_id=31, body="root unaddressed", created_at="2026-04-20T10:00:00Z"
+        ),
+        _comment(comment_id=32, body="root fixing", created_at="2026-04-20T11:00:00Z"),
+        _comment(
+            comment_id=33,
+            body="fixing: already acknowledged",
+            created_at="2026-04-20T11:01:00Z",
+            user="jsmithpkp21",
+            in_reply_to_id=32,
+        ),
+        _comment(comment_id=34, body="root fixed", created_at="2026-04-20T12:00:00Z"),
+        _comment(
+            comment_id=35,
+            body="fixed in abc123",
+            created_at="2026-04-20T12:01:00Z",
+            user="jsmithpkp21",
+            in_reply_to_id=34,
+        ),
+    ]
+    summaries = summarize_review_threads(comments, owner_login="jsmithpkp21")
+    plan = build_action_plan(summaries, default_action="fix")
+    by_id = {item.root_id: item for item in plan}
+
+    assert by_id[31].planned_action == "fixing"
+    assert by_id[31].should_reply_now is True
+    assert by_id[32].planned_action == "skip"
+    assert by_id[32].should_reply_now is False
+    assert by_id[34].planned_action == "skip"
+    assert by_id[34].should_reply_now is False
+
+
+def test_parse_iso8601_rejects_naive_timestamp() -> None:
+    with pytest.raises(ValueError, match="timezone"):
+        _parse_iso8601("2026-04-20T16:18:00")

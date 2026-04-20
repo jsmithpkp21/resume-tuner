@@ -111,7 +111,7 @@ Your resume should include:
 ---
 ## 🔗 References
 **Original Job Posting:**
-<https://job-boards.greenhouse.io/graphcore/jobs/8483256002>
+[Graphcore Senior Principal Test Framework Software Engineer](https://job-boards.greenhouse.io/graphcore/jobs/8483256002)
 **Company:** Graphcore (AI hardware, SoftBank Group subsidiary)
 **Role:** Senior Principal Test Framework Software Engineer
 **Location:** Austin, Texas

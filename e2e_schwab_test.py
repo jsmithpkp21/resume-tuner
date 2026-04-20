@@ -18,7 +18,7 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from build_resume import (  # noqa: E402
     DEFAULT_MAX_ACTION_WORD_OCCURRENCES,
-    DEFAULT_MAX_TOTAL_BULLETS,
+    DEFAULT_MAX_BULLET_LINES,
     DEFAULT_MIN_BULLETS_PER_EXPERIENCE,
 )
 
@@ -135,7 +135,7 @@ def main() -> int:
   - Enables downstream processing to track bullet relevance
 
 ✓ trim_by_rules() stage: Applies deterministic layout trimming
-  - Enforces bullet caps ({DEFAULT_MAX_TOTAL_BULLETS} total, 4 per experience max)
+  - Uses a line budget ({DEFAULT_MAX_BULLET_LINES} estimated bullet lines), not a fixed per-role count
   - Removes duplicate bullets
   - Limits action-word repetition to {DEFAULT_MAX_ACTION_WORD_OCCURRENCES} occurrences
   - Respects minimum {DEFAULT_MIN_BULLETS_PER_EXPERIENCE} bullets per experience

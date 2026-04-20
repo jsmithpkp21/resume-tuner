@@ -63,10 +63,12 @@ LOCAL_PROFILE_SUFFIX = ".local.toml"
 DEFAULT_EXPERIENCE_DB = Path("data/experience/experience_db.toml")
 DEFAULT_SKILLS_MATRIX = Path("data/skills/skills_matrix.csv")
 DEFAULT_OUTPUT_DIR = Path("data/review/outputs/baseline")
-DEFAULT_MAX_BULLETS_PER_EXPERIENCE = 4
-DEFAULT_MAX_TOTAL_BULLETS = 20
+# Role-level selection should not hard-cap bullets; keep all and rank by relevance.
+# Final output fitting is enforced by a line-budget pass.
+DEFAULT_BULLET_LINE_WIDTH = 108
+DEFAULT_MAX_BULLET_LINES = 52
 DEFAULT_MAX_ACTION_WORD_OCCURRENCES = 2
-DEFAULT_MIN_BULLETS_PER_EXPERIENCE = 3
+DEFAULT_MIN_BULLETS_PER_EXPERIENCE = 2
 SUMMARY_LINE_WIDTH = 72
 SUMMARY_MAX_LINES = 2
 SUMMARY_MAX_WORDS = 30
@@ -396,10 +398,11 @@ def _build_github_url(username: str) -> str:
 
 
 def resolve_headline(profile: Profile, target_role: str) -> str:
-    """Use target role as headline when provided, else keep profile headline."""
-    dynamic = target_role.strip()
-    if dynamic:
-        return dynamic
+    """Return profile headline for rendering.
+
+    target_role is an internal tailoring hint and must not appear in resume output.
+    """
+    del target_role
     return profile.headline
 
 
@@ -848,7 +851,6 @@ def trim_for_role(resume: ResumeIR) -> ResumeIR:
                 client=client,
                 resume=resume,
                 experience=experience,
-                max_bullets=DEFAULT_MAX_BULLETS_PER_EXPERIENCE,
             )
             for experience in resume.experiences
         )
@@ -873,9 +875,8 @@ def _trim_experience_bullets(
     client: LLMClient,
     resume: ResumeIR,
     experience: Experience,
-    max_bullets: int,
 ) -> Experience:
-    if len(experience.bullets) <= max_bullets:
+    if len(experience.bullets) <= 1:
         return experience
 
     scores = _score_bullet_relevance(
@@ -899,7 +900,7 @@ def _trim_experience_bullets(
         enumerate(experience.bullets),
         key=lambda pair: (-scores.get(pair[1].id, 0.0), pair[0]),
     )
-    trimmed = tuple(bullet for _, bullet in ranked_pairs[:max_bullets])
+    trimmed = tuple(bullet for _, bullet in ranked_pairs)
 
     return Experience(
         id=experience.id,
@@ -1274,13 +1275,12 @@ def summarize_profile_for_role(resume: ResumeIR) -> ResumeIR:
 def _generate_profile_summary(resume: ResumeIR) -> str:
     """Generate a concise top-of-page summary from processed resume content.
 
-    Uses the base role (from role-hint or target-role) for framing, not the
-    rendered title string, to avoid circular dependencies and preserve original intent.
+    Uses the rendered/profile resume title for framing.
+    target_role and job role hints are internal tailoring inputs and must not
+    leak into visible summary text.
     Preserves acronym casing (e.g., SDET, QA, Python) in skill descriptions.
     """
-    role_label = _get_base_role(resume)
-    if not role_label:
-        role_label = derive_resume_title(resume).split("|", maxsplit=1)[0].strip()
+    role_label = derive_resume_title(resume).split("|", maxsplit=1)[0].strip()
     role_label = role_label or "Engineer"
     skills = _collect_resume_skill_signals(resume)
     if len(skills) >= 3:
@@ -1638,10 +1638,10 @@ def _apply_rule_based_trimming(
         selected_by_experience,
         enrichment_by_bullet_id=enrichment_by_bullet_id,
     )
-    _enforce_total_bullet_cap(
+    _enforce_bullet_line_budget(
         selected_by_experience,
         enrichment_by_bullet_id=enrichment_by_bullet_id,
-        max_total_bullets=DEFAULT_MAX_TOTAL_BULLETS,
+        max_bullet_lines=DEFAULT_MAX_BULLET_LINES,
     )
 
     trimmed_experiences: list[Experience] = []
@@ -1725,13 +1725,38 @@ def _limit_action_word_repetition(
             ]
 
 
-def _enforce_total_bullet_cap(
+def _estimate_wrapped_line_count(text: str, line_width: int) -> int:
+    words = [word for word in text.split() if word]
+    if not words:
+        return 1
+    lines = 1
+    current_len = 0
+    for word in words:
+        word_len = len(word)
+        projected = word_len if current_len == 0 else current_len + 1 + word_len
+        if projected <= line_width:
+            current_len = projected
+            continue
+        lines += 1
+        current_len = word_len
+    return max(1, lines)
+
+
+def _estimate_total_bullet_lines(selected_by_experience: list[list[Bullet]]) -> int:
+    return sum(
+        _estimate_wrapped_line_count(bullet.text, DEFAULT_BULLET_LINE_WIDTH)
+        for bullets in selected_by_experience
+        for bullet in bullets
+    )
+
+
+def _enforce_bullet_line_budget(
     selected_by_experience: list[list[Bullet]],
     *,
     enrichment_by_bullet_id: dict[str, dict[str, object]],
-    max_total_bullets: int,
+    max_bullet_lines: int,
 ) -> None:
-    while sum(len(bullets) for bullets in selected_by_experience) > max_total_bullets:
+    while _estimate_total_bullet_lines(selected_by_experience) > max_bullet_lines:
         candidates: list[tuple[float, int, int, Bullet]] = []
         for exp_index, bullets in enumerate(selected_by_experience):
             if len(bullets) <= DEFAULT_MIN_BULLETS_PER_EXPERIENCE:
@@ -1897,13 +1922,15 @@ def _slugify_output_label(value: str) -> str:
 def _build_artifact_prefixes(
     *, processing_mode: str, target_company: str
 ) -> tuple[str, str]:
-    """Return (legacy_prefix, company_prefix) for dual-write artifacts."""
+    """Return artifact prefixes without company-specific aliases.
+
+    target_company is intentionally ignored to avoid encoding
+    application-company details in resume artifact names.
+    """
+    del target_company
     mode_suffix = "processed" if processing_mode == "processed" else "raw"
     legacy_prefix = f"latest_resume_{mode_suffix}"
-    company_slug = _slugify_output_label(target_company)
-    if not company_slug:
-        return legacy_prefix, legacy_prefix
-    return legacy_prefix, f"{company_slug}_resume_{mode_suffix}"
+    return legacy_prefix, legacy_prefix
 
 
 def _secondary_template_prefix(output_prefix: str, secondary_template: str) -> str:
@@ -2067,11 +2094,6 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
         _render_contact_markdown(resume.profile),
         "",
     ]
-
-    if resume.target_role.strip():
-        lines.extend([f"Target role: {resume.target_role}", ""])
-    if resume.target_company.strip():
-        lines.extend([f"Target company: {resume.target_company}", ""])
 
     lines.extend(
         [

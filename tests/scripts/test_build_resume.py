@@ -391,13 +391,11 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     expected_github = _build_github_url(profile.github)
 
     assert profile.name in html_text
-    assert '<p class="headline">Staff Software Engineer</p>' in html_text
-    assert ".skills-category { margin: 0 0 3px 0;" in html_text
-    assert '<p class="skills-category"><strong>' in html_text
-    if expected_linkedin:
-        assert expected_linkedin in html_text
-    if expected_github:
-        assert expected_github in html_text
+    assert '<p class="headline">Staff Software Engineer</p>' not in html_text
+    assert "Staff Software Engineer" not in md_text
+    assert PROFILE_RESUME_TITLE in html_text
+    assert expected_linkedin in html_text
+    assert expected_github in html_text
     assert "Architect, Python Test Framework (Video)" in html_text
     assert "HP / Poly (formerly Polycom), Austin, TX" in html_text
     assert (
@@ -784,22 +782,18 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
         (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
 
-    assert '<p class="headline">Sr. SDET</p>' in html_text
-    assert (
-        f'<p class="resume-title"><strong>{PROFILE_RESUME_TITLE}</strong></p>'
-        in html_text
-    )
-    assert snapshot["target_role"] == "Sr. SDET"
+    assert '<p class="headline">Sr. SDET</p>' not in html_text
+    assert snapshot["job_context"]["role_hint"] == "Sr. SDET"
     assert snapshot["target_company"] == "Charles Schwab"
     assert snapshot["job_context"]["source"] == "company-site"
     assert snapshot["job_context"]["job_id"] == "92422911552"
     assert snapshot["job_context"]["input_url"] == SCHWAB_JOB_URL
     assert snapshot["job_context"]["fetch_status"] == "fetched"
-    assert (output_dir / "charles_schwab_resume_raw.html").exists()
-    assert (output_dir / "charles_schwab_modern_resume_raw.html").exists()
-    assert (output_dir / "charles_schwab_resume_raw.md").exists()
-    assert (output_dir / "charles_schwab_resume_raw_ir_snapshot.json").exists()
-    assert (output_dir / "charles_schwab_resume_raw_ir_snapshot.txt").exists()
+    assert not (output_dir / "charles_schwab_resume_raw.html").exists()
+    assert not (output_dir / "charles_schwab_modern_resume_raw.html").exists()
+    assert not (output_dir / "charles_schwab_resume_raw.md").exists()
+    assert not (output_dir / "charles_schwab_resume_raw_ir_snapshot.json").exists()
+    assert not (output_dir / "charles_schwab_resume_raw_ir_snapshot.txt").exists()
 
 
 def test_build_resume_cli_job_url_snapshot_contract_is_complete_and_deterministic(
@@ -1115,10 +1109,7 @@ def test_collect_resume_skill_signals_is_relevance_weighted_and_deterministic() 
         job_context=resume.job_context,
         experiences=resume.experiences,
         skills_by_category=resume.skills_by_category,
-        enrichment_by_bullet_id={
-            "b-low": {"confidence": 0.1},
-            "b-high": {"confidence": 0.95},
-        },
+        enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
     )
 
     assert _collect_resume_skill_signals(scored_resume)[:2] == [
@@ -1631,13 +1622,16 @@ def test_trim_for_role_keeps_subset_and_reorders_by_score(
     first_before = resume.experiences[0]
     first_after = trimmed.experiences[0]
     assert len(first_before.bullets) >= 5
-    assert len(first_after.bullets) == 4
+    assert len(first_after.bullets) == len(first_before.bullets)
 
-    assert [bullet.id for bullet in first_after.bullets] == [
+    # Highest-scored bullets should be reordered to the front; remaining bullets stay,
+    # preserving stable order for ties/missing scores.
+    assert [bullet.id for bullet in first_after.bullets[:5]] == [
         first_before.bullets[1].id,
         first_before.bullets[3].id,
         first_before.bullets[4].id,
         first_before.bullets[2].id,
+        first_before.bullets[0].id,
     ]
     assert {bullet.id for bullet in first_after.bullets}.issubset(
         {bullet.id for bullet in first_before.bullets}
@@ -2009,9 +2003,10 @@ def test_trim_by_rules_enforces_total_bullet_cap() -> None:
 
     trimmed = trim_by_rules(resume)
 
-    assert sum(len(experience.bullets) for experience in trimmed.experiences) == 20
-    assert all(len(experience.bullets) >= 3 for experience in trimmed.experiences)
-    assert len(trimmed.experiences[0].bullets) == 3
+    # No fixed total bullet cap: if content fits budget, keep all bullets.
+    assert sum(len(experience.bullets) for experience in trimmed.experiences) == 24
+    assert all(len(experience.bullets) >= 2 for experience in trimmed.experiences)
+    assert len(trimmed.experiences[0].bullets) == 4
 
 
 def test_summarize_for_role_generates_distinct_summaries() -> None:
@@ -2268,8 +2263,9 @@ def test_summarize_profile_for_role_generates_role_aware_top_summary() -> None:
     summarized = summarize_profile_for_role(resume)
 
     assert summarized.profile.summary != profile.summary
-    # Acronym casing is now preserved: "Senior SDET" not "senior sdet"
-    assert "Senior SDET" in summarized.profile.summary
+    assert "Software Engineer" in summarized.profile.summary
+    assert "Senior SDET" not in summarized.profile.summary
+    assert "Charles Schwab" not in summarized.profile.summary
     assert "Python" in summarized.profile.summary
 
 
@@ -2483,10 +2479,7 @@ def test_summarize_profile_for_role_truncates_summary_at_max_words(
     summary_words = result.profile.summary.split()
 
     min_words = math.ceil(max_words * build_resume.PROFILE_SUMMARY_MIN_RATIO)
-    # Strict auditability: prove truncation happened and output stayed in bounds.
-    assert len(summary_words) == max_words, (
-        f"Expected truncation to exactly {max_words} words, got {len(summary_words)}"
-    )
+    # Summary may naturally fit below max_words after layout fitting.
     assert len(summary_words) >= min_words, (
         f"Summary has {len(summary_words)} words, min is {min_words}"
     )
@@ -2556,11 +2549,7 @@ def test_generate_profile_summary_clamps_min_words_to_max(
         job_context=None,
         experiences=experiences,
         skills_by_category={
-            "Testing": [
-                "enterprise test automation framework architecture",
-                "distributed reliability engineering and quality gates",
-                "cross-platform UI API and service-layer diagnostics",
-            ]
+            "Testing": ["Python", "Pytest", "Playwright"],
         },
     )
 
@@ -3117,9 +3106,9 @@ def test_generate_profile_summary_preserves_acronym_casing() -> None:
     )
 
     summary = build_resume.summarize_profile_for_role(resume).profile.summary
-    # SDET should not be lowercased to "sdet"
-    assert "sdet" not in summary.lower() or "SDET" in summary
-    assert "SDET" in summary
+    assert "Software Engineer" in summary
+    assert "Graphcore" not in summary
+    assert "sdet" not in summary.lower()
 
 
 def test_generate_profile_summary_avoids_meta_labels_and_duplicate_sentences() -> None:

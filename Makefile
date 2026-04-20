@@ -247,7 +247,7 @@ consumer-contract-test: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && pytest -q tests/scripts/test_consumer_contract.py"
 
 # PR review helper wrapper.
-# Scans or plans PR review comments and owner responses; may post fix/defer/wontfix status.
+# Scans and summarizes PR review comments and owner responses; read-only (does not post to GitHub).
 # PR_REVIEW_* variables are prefixed to avoid environment variable collisions.
 # REPO_SLUG can override owner/repo derivation (default: auto-detect from gh repo view --json nameWithOwner).
 # Usage examples:

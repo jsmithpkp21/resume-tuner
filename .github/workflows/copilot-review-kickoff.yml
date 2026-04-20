@@ -12,6 +12,9 @@ jobs:
   kickoff:
     name: Kick Off Copilot Review
     runs-on: ubuntu-24.04
+    # Only run for PRs from the same repo (not forks) to prevent
+    # base-repo privilege abuse via pull_request_target.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Post @copilot review kickoff comment
         uses: actions/github-script@v8.0.0

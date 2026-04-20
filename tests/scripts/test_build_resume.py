@@ -398,7 +398,7 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     if profile.github:
         assert expected_github in html_text
     else:
-        assert "https://github.com/" not in html_text
+        assert "github.com/" not in html_text
     assert "Architect, Python Test Framework (Video)" in html_text
     assert "HP / Poly (formerly Polycom), Austin, TX" in html_text
     assert (

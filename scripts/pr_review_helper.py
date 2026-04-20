@@ -100,12 +100,17 @@ def parse_args() -> argparse.Namespace:
 
 
 def _run_gh_json(*args: str) -> Any:
-    result = subprocess.run(
-        ["gh", *args],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        raise RuntimeError(
+            "GitHub CLI (gh) not found or could not be executed. Install it from https://cli.github.com/."
+        ) from exc
     return json.loads(result.stdout)
 
 
@@ -143,6 +148,10 @@ def _ensure_gh_auth() -> None:
             capture_output=True,
             text=True,
         )
+    except OSError as exc:
+        raise RuntimeError(
+            "GitHub CLI (gh) not found or could not be executed. Install it from https://cli.github.com/."
+        ) from exc
     except subprocess.CalledProcessError as exc:
         stderr = (exc.stderr or "").strip()
         message = [

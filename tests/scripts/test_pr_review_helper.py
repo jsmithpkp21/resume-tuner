@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import subprocess
+
 import pytest
 
 from scripts.pr_review_helper import (
     _parse_iso8601,
+    _run_gh_json,
     build_action_plan,
     summarize_review_threads,
 )
@@ -197,3 +200,15 @@ def test_build_action_plan_skips_threads_with_existing_owner_status() -> None:
 def test_parse_iso8601_rejects_naive_timestamp() -> None:
     with pytest.raises(ValueError, match="timezone"):
         _parse_iso8601("2026-04-20T16:18:00")
+
+
+def test_run_gh_json_reports_missing_gh_binary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise_oserror(*_args: object, **_kwargs: object) -> object:
+        raise FileNotFoundError("gh not found")
+
+    monkeypatch.setattr(subprocess, "run", _raise_oserror)
+
+    with pytest.raises(RuntimeError, match=r"GitHub CLI \(gh\) not found"):
+        _run_gh_json("api", "user")

@@ -3226,8 +3226,8 @@ def test_get_base_role_normalizes_whitespace() -> None:
     assert _get_base_role(resume) == "Senior SDET Engineer"
 
 
-def test_generate_profile_summary_preserves_acronym_casing() -> None:
-    """Profile summary should preserve SDET, QA, Python casing (not lowercase)."""
+def test_generate_profile_summary_omits_target_role_tokens() -> None:
+    """Profile summary should not leak target-role tokens into visible text."""
     profile = load_profile(PROFILE)
     experiences = load_experiences(
         REPO_ROOT / "data" / "experience" / "experience_db.toml"

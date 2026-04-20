@@ -11,6 +11,13 @@
 - Use a two-phase flow: (1) inspect + propose plan, (2) implement only after `plan ready`.
 - If requirements conflict, ask for clarification before changing files.
 
+## Local Overrides (`AGENTS_LOCAL.md`)
+
+- `AGENTS.md` is the synced baseline guidance.
+- `AGENTS_LOCAL.md` is optional and local/consumer owned for repo-specific additions or overrides.
+- Apply `AGENTS.md` first, then `AGENTS_LOCAL.md` when present.
+- Keep `AGENTS_LOCAL.md` out of `.tooling-sync-manifest.toml` so local guidance is never overwritten by sync.
+
 ## Quick Commands
 
 ```bash
@@ -27,7 +34,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 
 - Environment lifecycle is shell-first: `scripts/create_env.sh` creates and `scripts/verify_env.sh` verifies against metadata.
 - Sync is allow-list driven: `.tooling-sync-manifest.toml` is the only list of managed files; consumers record applied state in `.tooling-sync-manifest.lock`.
-- `pyproject.toml` is generated in consumers via `scripts/merge_pyproject.py` + `.pyproject.meta.toml`.
+- `pyproject.toml` is generated in consumers via `scripts/merge_pyproject.py` + `.pyproject.meta.toml`; tooling provides the config schema and template only.
 - Service boundary: tooling changes flow outward through sync; consumer identity files do not flow back automatically.
 
 ## Enforced Policies

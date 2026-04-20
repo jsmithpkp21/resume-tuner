@@ -4,7 +4,7 @@
       "sha256": "ac1ba68ad3d1e1cc5863378e67d61d911e82316163bc59a56de08d4ade3a99cb"
     },
     ".github/copilot-instructions.md": {
-      "sha256": "caa492462bc248f49e9e6c00cd2fa9952e3f2a65c28b81ca7cbbf70502c35c1c"
+      "sha256": "16c7d3ef015efce07eed2673e1f142c33efb156d8bab25ca89abed3526a6127c"
     },
     ".github/workflow-action-lock.json": {
       "sha256": "fef3dccbdfcef812bace29965102d6f48a4312f26882899ceb93557cbc47d7c6"
@@ -37,7 +37,7 @@
       "sha256": "685f55f5dc1993f49ea4b68d8b35ddda207def419bd980d3b0f549ec77cc887e"
     },
     "AGENTS.md": {
-      "sha256": "cba41c39c54ad5cd389812eaccf43130f1e0ba089a50949cf8f72af81f00f702"
+      "sha256": "bebc6391be978cb490ee17b605132c5a9c79caaccf63dbce1c569a7f792e464a"
     },
     "CODING_STANDARDS.md": {
       "sha256": "a119ba8ab7e5440b248716040e80b22aa90e296a24b6bbbfc3a2ff24556cf51d"
@@ -49,16 +49,16 @@
       "sha256": "8557f6089f53d4c88765bfc8df59a1c047eef317011cdf0d611bdaee7ca2dfd3"
     },
     "Dockerfile": {
-      "sha256": "3cde027961889206f2cd2c2d0124fef0cf51be08f9e0abf205c2b5aa1badd632"
+      "sha256": "aaab5d78fec4b7cc3d3c7e09e17fb12bd6786fa5506ef316ce123343f836630f"
     },
     "FILE_DISTRIBUTION.md": {
-      "sha256": "e6528e93dd5235e0d6869e5acbbcd8ba64574f84cf3ada0e18da5c6c818f29dc"
+      "sha256": "26204e91ec9ba9e96d3162853a8a376f754d7e999c6d8f3a5aae278c525d8316"
     },
     "MANIFESTO.md": {
       "sha256": "90441f19e84cb77a9f4302d50dd3e9178011f8d1e2e20df43775838711589783"
     },
     "Makefile": {
-      "sha256": "5efba872f5953485ed42d4c6525afefb21ef9cc1c5a17bacb22e902ed64a3a3a"
+      "sha256": "d72c8a740b60b933f471f680dea527d4cf3d11e8b72b0325dcd9c2507d96bbb1"
     },
     "commitlint.config.mjs": {
       "sha256": "2bd8a8ea01caa7ff68e9b9096007a80336a061de9f60ac3f06492eb8ef7a7ae0"
@@ -121,7 +121,7 @@
       "sha256": "e174c08c3b6107518a9395a54ecd3cefabcaed22663ef7087870a5472118f271"
     },
     "docs/REFERENCE/SYNC_MANIFEST.md": {
-      "sha256": "57834912ad45711b361debd10b8859757602fa975df2e06d99a41ac4c29b6041"
+      "sha256": "ecc598c73d8446bb92b2504bc21e078b8ac6d368ea33e5a27482927ba5cc40bb"
     },
     "docs/REFERENCE/WORKFLOW_AUTOMATION_PLAN.md": {
       "sha256": "a8776fb498dacca4552077ae3489ca3fceee2c225e6d3b36f92d5e104fff9b60"
@@ -223,9 +223,9 @@
       "sha256": "eac4b80328394dacc977662feaf2f59062fde36d33d5ab7976ffd9be407413f0"
     }
   },
-  "generated_at_utc": "2026-04-20T20:45:45Z",
-  "requested_ref": "v1.14.1",
-  "resolved_ref": "dea3447bb23e4a3ee89404b09d4a46388d75cdbf",
+  "generated_at_utc": "2026-04-20T21:05:17Z",
+  "requested_ref": "v1.15.0",
+  "resolved_ref": "99a42ec8e56bbf3eec6223ef6112689b791ff97f",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

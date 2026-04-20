@@ -47,12 +47,21 @@ _kern_loaded: bool = False
 
 
 def _get_fonts() -> tuple[Any, Any, str]:
-    """Load font pair once for the whole module."""
+    """Load font pair once for the whole module.
+    Skips the calling test gracefully when no usable font is installed
+    (e.g. in a bare CI image without fonts-liberation or Calibri).
+    """
     global _fonts_cache
     if _fonts_cache is None:
         # Prevent caller shell env from forcing strict mode across this suite.
         with patch.dict(os.environ, {"RESUME_FONT_STRICT": "0"}):
-            _fonts_cache = load_font_pair()
+            try:
+                _fonts_cache = load_font_pair()
+            except FileNotFoundError as exc:
+                pytest.skip(
+                    f"No usable font found; install fonts-liberation or Calibri: {exc}"
+                )
+    assert _fonts_cache is not None
     return _fonts_cache
 
 

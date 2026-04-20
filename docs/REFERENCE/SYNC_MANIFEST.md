@@ -201,6 +201,7 @@ synced. Each consumer project owns these files:
 | `pyproject.toml` | Generated per-project from `.pyproject.meta.toml` |
 | `.pyproject.meta.toml` | Consumer-specific project identity |
 | `tooling.toml` | Consumer-specific tooling config |
+| `AGENTS_LOCAL.md` | Optional consumer/local-branch overrides layered after synced `AGENTS.md` |
 | `README.md` | Consumer writes its own README |
 | `CHANGELOG.md` | Consumer maintains its own changelog |
 | `requirements.txt` | Consumer manages app/runtime dependencies; no tooling-managed overlay/sections |

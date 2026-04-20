@@ -40,6 +40,7 @@ The lock records **what is currently managed in that consumer**.
 - `pyproject.toml` (generated from project metadata + tooling config)
 - `.pyproject.meta.toml`
 - `tooling.toml`
+- `AGENTS_LOCAL.md` (optional local overrides/additions layered after `AGENTS.md`)
 - `README.md`
 - `CHANGELOG.md`
 - `requirements.txt`

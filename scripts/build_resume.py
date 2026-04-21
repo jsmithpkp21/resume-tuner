@@ -1793,6 +1793,14 @@ def _enforce_bullet_line_budget(
                     )
                 )
         if not candidates:
+            remaining_lines = _estimate_total_bullet_lines(selected_by_experience)
+            if remaining_lines > max_bullet_lines:
+                logging.warning(
+                    "Line-budget target not reached: estimated bullet lines=%s exceeds max=%s because all experiences are at the minimum bullets floor (%s).",
+                    remaining_lines,
+                    max_bullet_lines,
+                    DEFAULT_MIN_BULLETS_PER_EXPERIENCE,
+                )
             return
 
         # Sort: lowest confidence first; when tied, prefer trimming older roles

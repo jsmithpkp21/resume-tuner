@@ -3349,3 +3349,89 @@ def test_estimate_wrapped_line_count_counts_overlong_tokens() -> None:
     estimated = build_resume._estimate_wrapped_line_count(long_token, line_width)
 
     assert estimated == math.ceil(len(long_token) / line_width)
+
+
+def test_trim_by_rules_logs_when_line_budget_cannot_meet_floor(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(build_resume, "DEFAULT_MAX_BULLET_LINES", 1)
+    profile = load_profile(PROFILE)
+    exp_one = Experience(
+        id="exp-floor-1",
+        job_title="Role One",
+        company="Company",
+        start_date="2020-01",
+        end_date="2021-01",
+        general_role_description="Role one summary.",
+        related_skills=(),
+        bullets=(
+            Bullet(
+                "one-a", "Maintained CI quality gates.", ("Python",), "impact", "domain"
+            ),
+            Bullet(
+                "one-b", "Improved test diagnostics.", ("Pytest",), "impact", "domain"
+            ),
+        ),
+    )
+    exp_two = Experience(
+        id="exp-floor-2",
+        job_title="Role Two",
+        company="Company",
+        start_date="2021-02",
+        end_date="2022-02",
+        general_role_description="Role two summary.",
+        related_skills=(),
+        bullets=(
+            Bullet(
+                "two-a",
+                "Expanded regression coverage.",
+                ("Testing",),
+                "impact",
+                "domain",
+            ),
+            Bullet(
+                "two-b",
+                "Automated validation checks.",
+                ("Automation",),
+                "impact",
+                "domain",
+            ),
+        ),
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="",
+        target_company="",
+        job_context=None,
+        experiences=(exp_one, exp_two),
+        skills_by_category={},
+    )
+    resume = type(resume)(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=resume.experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id={
+            "one-a": {"confidence": 0.9},
+            "one-b": {"confidence": 0.8},
+            "two-a": {"confidence": 0.7},
+            "two-b": {"confidence": 0.6},
+        },
+    )
+    with caplog.at_level(logging.WARNING):
+        trimmed = trim_by_rules(resume)
+    assert all(
+        len(experience.bullets) == build_resume.DEFAULT_MIN_BULLETS_PER_EXPERIENCE
+        for experience in trimmed.experiences
+    )
+    remaining_lines = build_resume._estimate_total_bullet_lines(
+        [list(experience.bullets) for experience in trimmed.experiences]
+    )
+    assert remaining_lines > build_resume.DEFAULT_MAX_BULLET_LINES
+    assert any(
+        "Line-budget target not reached" in message for message in caplog.messages
+    )

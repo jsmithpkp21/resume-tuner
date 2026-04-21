@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.15.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.14.1...v0.15.0) (2026-04-21)
+
+
+### Features
+
+* **data:** add graphcore-targeted bullets to experience_db ([1169b95](https://github.com/jsmithpkp21/resume-builder/commit/1169b95e12072d3a01f34febf5b09dffebdd8378))
+* **resume:** enforce company-agnostic rendering and line-budget trimming ([aec9755](https://github.com/jsmithpkp21/resume-builder/commit/aec975550ce2a1c29ad1c9ea290aacc529a1a135))
+* **review:** add next-layer PR review helper workflow ([5f6d3c2](https://github.com/jsmithpkp21/resume-builder/commit/5f6d3c20b093feac2cbb08b17b27a1d9e2ac6dd0))
+* **review:** add PR review helper and address latest PR 123 comments ([6017aef](https://github.com/jsmithpkp21/resume-builder/commit/6017aefb06cf98c1b4f557a76f3f026eba41c327))
+* **scripts:** add copilot review kickoff helper ([9bc276f](https://github.com/jsmithpkp21/resume-builder/commit/9bc276f24c7ef0291f9a1d4052c0f25ac724852e))
+
+
+### Bug Fixes
+
+* address 4 new review comments on PR [#123](https://github.com/jsmithpkp21/resume-builder/issues/123) ([30a0da5](https://github.com/jsmithpkp21/resume-builder/commit/30a0da5e3407fb5157cd6eadd5be6b83d245133c))
+* **ci:** add fonts-liberation to Dockerfile and skip-guard font tests ([0064e14](https://github.com/jsmithpkp21/resume-builder/commit/0064e14488d7f68e6081bf04e9bc30a5249f9704))
+* **ci:** align kickoff/docs with company-agnostic policy and dedupe ([d24c06c](https://github.com/jsmithpkp21/resume-builder/commit/d24c06ca153687bbc5674c147a9eac460f844d5f))
+* **ci:** use pull_request_target for copilot kickoff ([f6e80c0](https://github.com/jsmithpkp21/resume-builder/commit/f6e80c0b83574ad6502ac085ebea79ad84644595))
+* **resume:** address 7 PR 123 review comments ([bf6a25f](https://github.com/jsmithpkp21/resume-builder/commit/bf6a25fe3580641fc56897d57e2123d19b40330b))
+* **review:** correct Makefile comment, tighten github assertion, add fork guard ([91279d2](https://github.com/jsmithpkp21/resume-builder/commit/91279d2a573c1057c8a26082115d0d1c9f3d1f95))
+* **review:** defer managed Makefile wording to tooling ([64d8b4a](https://github.com/jsmithpkp21/resume-builder/commit/64d8b4acd4fb10479322dab78830c648c4f7f3d5))
+* **review:** handle gh-missing errors and align test intent ([cc33eb8](https://github.com/jsmithpkp21/resume-builder/commit/cc33eb8da8d0b41e12d8e614181bb65c07b74d03))
+* **review:** handle long-token wrapping and add copilot kickoff ([0e8763e](https://github.com/jsmithpkp21/resume-builder/commit/0e8763e3e25419f48c74d24a9b5e17f1582c12f9))
+* **review:** harden kickoff/pr-review helpers and add unit coverage ([ed92998](https://github.com/jsmithpkp21/resume-builder/commit/ed92998f6a1b7ce4675a3052e481f7a1153d5470))
+* **review:** tighten kickoff duplicate matching and summary fallback label ([c135c0f](https://github.com/jsmithpkp21/resume-builder/commit/c135c0f089524d183d095310337a0c0744bd46cf))
+* **scripts:** include gh stderr/stdout context in kickoff helper failures ([10c6f35](https://github.com/jsmithpkp21/resume-builder/commit/10c6f356b41db5102907600b285139dca92b065c))
+* **scripts:** replace --paginate with explicit pagination in request_copilot_review ([32112ca](https://github.com/jsmithpkp21/resume-builder/commit/32112cae5e29df85080b6aecb9f6c71aa8c42e89))
+* **skills:** broaden fallback font path discovery for CI environments ([b54b69c](https://github.com/jsmithpkp21/resume-builder/commit/b54b69c05b5b6a61245070d4ade43f6411fca462))
+* **summary:** prevent empty-data fallback from leaking target role ([bed242d](https://github.com/jsmithpkp21/resume-builder/commit/bed242d02479cb1ec05fadfaa48a466212c1f57e))
+* **test:** remove graceful font skip guards - fail hard if fonts missing ([bc42173](https://github.com/jsmithpkp21/resume-builder/commit/bc42173ee14fa5394f92a1bc7ae2644c2867a96f))
+* **test:** skip skills line check gracefully when no font available in CI ([a50977d](https://github.com/jsmithpkp21/resume-builder/commit/a50977d7685fa595818cda514e2d7085435c54f9))
+* **trim:** warn when line budget cannot beat min-bullets floor ([947ccbd](https://github.com/jsmithpkp21/resume-builder/commit/947ccbdbc2a1ed10b888f327301513a0ca71a428))
+
+
+### Documentation
+
+* **graphcore:** add analysis, gap report, and generation preferences for issue 120 ([bfeb24d](https://github.com/jsmithpkp21/resume-builder/commit/bfeb24d5e905fdb1bfdfc253a981409c4a12cbb1))
+* **review:** align target-role docs with current headline behavior ([0d66117](https://github.com/jsmithpkp21/resume-builder/commit/0d661178ede7d970b948fa202f63fa2ef929c0fa))
+
 ## [0.14.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.14.0...v0.14.1) (2026-04-20)
 
 

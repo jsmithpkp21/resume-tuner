@@ -121,10 +121,10 @@ def _existing_kickoff_matches(
         # If SHA was provided, keep strict marker matching as before.
         if short_sha and normalized.endswith(f"Auto-kickoff after push `{short_sha}`."):
             return True
-        # Even without --sha, treat prior kickoff bodies/markers as duplicates.
-        if normalized.startswith("@copilot review"):
+        # Without --sha, broad kickoff markers are sufficient duplicate signals.
+        if not short_sha and normalized.startswith("@copilot review"):
             return True
-        if "Auto-kickoff after push `" in normalized:
+        if not short_sha and "Auto-kickoff after push `" in normalized:
             return True
     return False
 

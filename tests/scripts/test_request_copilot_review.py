@@ -90,6 +90,29 @@ def test_existing_kickoff_matches_detects_plain_kickoff_without_sha(
     )
 
 
+def test_existing_kickoff_matches_ignores_other_sha_when_sha_is_provided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "scripts.request_copilot_review._fetch_issue_comments",
+        lambda _repo, _pr: [
+            {
+                "id": 3,
+                "body": "@copilot review\n\nAuto-kickoff after push `abc1234`.",
+            }
+        ],
+    )
+    assert (
+        _existing_kickoff_matches(
+            repo="owner/repo",
+            pr=123,
+            expected_body="@copilot review\n\nAuto-kickoff after push `def5678`.",
+            short_sha="def5678",
+        )
+        is False
+    )
+
+
 def test_ensure_gh_auth_raises_with_remediation_when_unauthenticated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

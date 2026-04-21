@@ -1367,6 +1367,15 @@ def _build_profile_summary_fragments(
     return deduped
 
 
+def _summary_role_label_from_title(resume: ResumeIR) -> str:
+    """Extract a readable role label for fallback summary text."""
+    title = derive_resume_title(resume).strip()
+    if not title:
+        return "Engineer"
+    primary_segment = re.split(r"\s*(?:/|-|,)\s*", title, maxsplit=1)[0].strip()
+    return primary_segment or "Engineer"
+
+
 def _expand_profile_summary_to_min_words(
     candidate: str,
     resume: ResumeIR,
@@ -1400,8 +1409,7 @@ def _expand_profile_summary_to_min_words(
         elif skills:
             deduped_additions.append(f"Focus includes {skills[0]}.")
         else:
-            role_label = derive_resume_title(resume).split(" ", maxsplit=1)[0].strip()
-            role_label = role_label or "Engineer"
+            role_label = _summary_role_label_from_title(resume)
             deduped_additions.append(f"Focus includes {role_label} delivery.")
 
     updated = candidate.rstrip()

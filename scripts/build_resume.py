@@ -1400,7 +1400,8 @@ def _expand_profile_summary_to_min_words(
         elif skills:
             deduped_additions.append(f"Focus includes {skills[0]}.")
         else:
-            role_label = _get_base_role(resume) or "Engineer"
+            role_label = derive_resume_title(resume).split(" ", maxsplit=1)[0].strip()
+            role_label = role_label or "Engineer"
             deduped_additions.append(f"Focus includes {role_label} delivery.")
 
     updated = candidate.rstrip()

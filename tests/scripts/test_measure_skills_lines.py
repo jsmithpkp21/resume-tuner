@@ -48,8 +48,8 @@ _kern_loaded: bool = False
 
 def _get_fonts() -> tuple[Any, Any, str]:
     """Load font pair once for the whole module.
-    Skips the calling test gracefully when no usable font is installed
-    (e.g. in a bare CI image without fonts-liberation or Calibri).
+    This helper follows fail-fast behavior: if no usable font pair exists,
+    ``load_font_pair()`` raises ``FileNotFoundError`` and the test fails.
     """
     global _fonts_cache
     if _fonts_cache is None:

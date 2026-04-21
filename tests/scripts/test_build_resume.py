@@ -2583,6 +2583,31 @@ def test_expand_profile_summary_to_min_words_uses_skill_fallback_without_fragmen
 # ---------------------------------------------------------------------------
 
 
+def test_expand_profile_summary_to_min_words_does_not_leak_target_role_on_empty_data() -> (
+    None
+):
+    profile = load_profile(PROFILE)
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Graphcore Senior Principal Test Framework Software Engineer",
+        target_company="Graphcore",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Graphcore Senior Principal Test Framework Software Engineer\nCompany: Graphcore"
+        ),
+        experiences=(),
+        skills_by_category={},
+    )
+    candidate = "Software Engineer with strengths in automation."
+    result = build_resume._expand_profile_summary_to_min_words(
+        candidate,
+        resume,
+        min_words=12,
+        fragments=[],
+    )
+    assert "Focus includes" in result
+    assert "graphcore" not in result.lower()
+
+
 def test_summarize_profile_for_role_truncates_summary_at_max_words(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -102,9 +102,17 @@ def _existing_kickoff_matches(
     comments = _fetch_issue_comments(repo, pr)
     for comment in reversed(comments):
         body = str(comment.get("body") or "")
+        normalized = body.strip()
+        # Exact body match remains the strongest duplicate signal.
         if expected_body == body:
             return True
-        if short_sha and body.endswith(f"Auto-kickoff after push `{short_sha}`."):
+        # If SHA was provided, keep strict marker matching as before.
+        if short_sha and normalized.endswith(f"Auto-kickoff after push `{short_sha}`."):
+            return True
+        # Even without --sha, treat prior kickoff bodies/markers as duplicates.
+        if normalized.startswith("@copilot review"):
+            return True
+        if "Auto-kickoff after push `" in normalized:
             return True
     return False
 

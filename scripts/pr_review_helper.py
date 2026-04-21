@@ -115,9 +115,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def _run_gh_json(*args: str) -> Any:
+    cmd = ["gh", *args]
     try:
         result = subprocess.run(
-            ["gh", *args],
+            cmd,
             check=True,
             capture_output=True,
             text=True,
@@ -137,7 +138,16 @@ def _run_gh_json(*args: str) -> Any:
         if stdout:
             message.append(f"stdout: {stdout}")
         raise RuntimeError("\n".join(message)) from exc
-    return json.loads(result.stdout)
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        stdout = (result.stdout or "").strip()
+        snippet = stdout[:500]
+        raise RuntimeError(
+            "GitHub API response was not valid JSON for command: "
+            f"{' '.join(cmd)}\n"
+            f"stdout: {snippet}"
+        ) from exc
 
 
 def _run_gh_json_paginated(*args: str) -> list[dict[str, Any]]:
@@ -350,6 +360,17 @@ def build_action_plan(
             )
             continue
 
+        if summary.status == "replied":
+            plan.append(
+                ActionPlanItem(
+                    root_id=summary.root_id,
+                    current_status=summary.status,
+                    planned_action="skip",
+                    should_reply_now=False,
+                    rationale="Owner already replied without a recognized status prefix.",
+                )
+            )
+            continue
         mapped = {
             "fix": "fixing",
             "defer": "defer",

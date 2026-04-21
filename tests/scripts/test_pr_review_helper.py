@@ -281,3 +281,39 @@ def test_fetch_all_review_comments_expands_review_comment_endpoints_by_default(
         "repos/owner/repo/pulls/123/reviews",
         "repos/owner/repo/pulls/123/reviews/42/comments",
     ]
+
+
+def test_build_action_plan_skips_generic_replied_threads() -> None:
+    comments = [
+        _comment(comment_id=41, body="root replied", created_at="2026-04-20T10:00:00Z"),
+        _comment(
+            comment_id=42,
+            body="thanks, looking now",
+            created_at="2026-04-20T10:01:00Z",
+            user="jsmithpkp21",
+            in_reply_to_id=41,
+        ),
+    ]
+    summaries = summarize_review_threads(comments, owner_login="jsmithpkp21")
+    plan = build_action_plan(summaries, default_action="fix")
+    assert len(plan) == 1
+    assert plan[0].root_id == 41
+    assert plan[0].current_status == "replied"
+    assert plan[0].planned_action == "skip"
+    assert plan[0].should_reply_now is False
+
+
+def test_run_gh_json_reports_non_json_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=["gh", "api", "user"],
+            returncode=0,
+            stdout="not-json-response",
+            stderr="",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError, match="not valid JSON"):
+        _run_gh_json("api", "user")

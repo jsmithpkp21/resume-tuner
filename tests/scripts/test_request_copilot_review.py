@@ -9,6 +9,7 @@ from scripts.request_copilot_review import (
     _ensure_gh_auth,
     _existing_kickoff_matches,
     _fetch_issue_comments,
+    _run_gh,
 )
 
 
@@ -103,3 +104,24 @@ def test_ensure_gh_auth_raises_with_remediation_when_unauthenticated(
     )
     with pytest.raises(RuntimeError, match="gh auth login"):
         _ensure_gh_auth()
+
+
+def test_run_gh_raises_runtime_error_with_stderr_stdout_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.CalledProcessError(
+            returncode=1,
+            cmd=["gh", "api", "repos/owner/repo/issues/123/comments"],
+            stderr="api denied",
+            output="partial output",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="GitHub command failed") as exc_info:
+        _run_gh("api", "repos/owner/repo/issues/123/comments")
+
+    msg = str(exc_info.value)
+    assert "stderr: api denied" in msg
+    assert "stdout: partial output" in msg

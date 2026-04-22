@@ -1,50 +1,61 @@
 name: Copilot Review Kickoff
 
 on:
-  pull_request_target:
+  pull_request:
     types: [synchronize]
 
 permissions:
   contents: read
   issues: write
+  pull-requests: read
 
 jobs:
   kickoff:
     name: Kick Off Copilot Review
     runs-on: ubuntu-24.04
-    # Only run for PRs from the same repo (not forks) to prevent
-    # base-repo privilege abuse via pull_request_target.
+    # Only run for PRs from the same repo (not forks).
     if: github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Post @copilot review kickoff comment
+        continue-on-error: true
         uses: actions/github-script@v8.0.0
         with:
           script: |
             const pr = context.payload.pull_request;
             const shortSha = pr.head.sha.slice(0, 7);
             const marker = `Auto-kickoff after push \`${shortSha}\`.`;
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                per_page: 100,
+              });
 
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pr.number,
-              per_page: 100,
-            });
+              const existing = comments.find((comment) => {
+                const body = typeof comment.body === 'string' ? comment.body : '';
+                return body.includes(marker);
+              });
+              if (existing) {
+                core.info(`Copilot kickoff already exists for ${marker}; skipping duplicate.`);
+                return;
+              }
 
-            const alreadyPosted = comments.some((comment) => {
-              const body = typeof comment.body === 'string' ? comment.body : '';
-              const author = comment.user?.login ?? '';
-              return author === 'github-actions[bot]' && body.includes(marker);
-            });
-
-            if (alreadyPosted) {
-              core.info(`Kickoff already posted for ${shortSha}; skipping duplicate comment.`);
-              return;
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `@copilot review\n\n${marker}`,
+              });
+            } catch (error) {
+              const status = error?.status ?? error?.response?.status;
+              const message = String(error?.message || '');
+              const integrationDenied = /Resource not accessible by integration/i.test(message);
+              if (status === 403 || integrationDenied) {
+                core.notice(
+                  'Skipping Copilot kickoff: workflow token cannot access PR comments for this event.'
+                );
+                return;
+              }
+              throw error;
             }
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pr.number,
-              body: `@copilot review\n\n${marker}`,
-            });

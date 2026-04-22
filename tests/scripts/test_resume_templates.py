@@ -127,3 +127,13 @@ class TestNormalizeHeadingText:
     def test_extra_whitespace_collapsed(self) -> None:
         result = self.tmpl._normalize_heading_text("  Senior   Engineer  ")
         assert result == "senior engineer"
+
+
+def test_header_divider_has_blank_line_before_resume_title() -> None:
+    for template_class in (DefaultTemplate, ModernTemplate):
+        css = template_class().get_css()
+        normalized_css = "\n".join(line.lstrip() for line in css.splitlines())
+        assert (
+            ".header-divider { border: 0; border-top: 1px solid #000; margin: -1px 0 16px 0; }"
+            in normalized_css
+        )

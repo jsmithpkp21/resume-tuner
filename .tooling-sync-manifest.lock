@@ -37,7 +37,7 @@
       "sha256": "685f55f5dc1993f49ea4b68d8b35ddda207def419bd980d3b0f549ec77cc887e"
     },
     "AGENTS.md": {
-      "sha256": "bebc6391be978cb490ee17b605132c5a9c79caaccf63dbce1c569a7f792e464a"
+      "sha256": "0d3dccafcfc7f02e597ac16342ab2b65220e5fed74e813404a2a35672d0926e5"
     },
     "CODING_STANDARDS.md": {
       "sha256": "a119ba8ab7e5440b248716040e80b22aa90e296a24b6bbbfc3a2ff24556cf51d"
@@ -49,7 +49,7 @@
       "sha256": "8557f6089f53d4c88765bfc8df59a1c047eef317011cdf0d611bdaee7ca2dfd3"
     },
     "Dockerfile": {
-      "sha256": "aaab5d78fec4b7cc3d3c7e09e17fb12bd6786fa5506ef316ce123343f836630f"
+      "sha256": "da08c117f198d6c1428da09fd2efe1d2f97e6ecd98dcf245facc76a8cd68aaf3"
     },
     "FILE_DISTRIBUTION.md": {
       "sha256": "26204e91ec9ba9e96d3162853a8a376f754d7e999c6d8f3a5aae278c525d8316"
@@ -223,9 +223,9 @@
       "sha256": "eac4b80328394dacc977662feaf2f59062fde36d33d5ab7976ffd9be407413f0"
     }
   },
-  "generated_at_utc": "2026-04-20T21:05:17Z",
-  "requested_ref": "v1.15.0",
-  "resolved_ref": "99a42ec8e56bbf3eec6223ef6112689b791ff97f",
+  "generated_at_utc": "2026-04-22T21:30:55Z",
+  "requested_ref": "bc7b227",
+  "resolved_ref": "bc7b227f7292fa94dae042c701f3f0552469b16d",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

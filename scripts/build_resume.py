@@ -104,6 +104,7 @@ LLM_FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"
 
 _LOCAL_PROFILE_OVERRIDE_FIELDS = {
     "name",
+    "headline",
     "location",
     "email",
     "phone",
@@ -1287,7 +1288,7 @@ def _generate_profile_summary(resume: ResumeIR) -> str:
     leak into visible summary text.
     Preserves acronym casing (e.g., SDET, QA, Python) in skill descriptions.
     """
-    role_label = derive_resume_title(resume).split("|", maxsplit=1)[0].strip()
+    role_label = _summary_role_label_from_title(resume)
     role_label = role_label or "Engineer"
     skills = _collect_resume_skill_signals(resume)
     if len(skills) >= 3:
@@ -1345,7 +1346,8 @@ def _fit_profile_summary_layout(summary: str) -> str:
 def _build_profile_summary_fragments(
     resume: ResumeIR, *, role_label: str, focus_text: str
 ) -> list[str]:
-    fragments = [f"{role_label} with strengths in {focus_text}."]
+    normalized_role_label = " ".join(role_label.split()).strip() or "Engineer"
+    fragments = [f"{normalized_role_label} strengths include {focus_text}."]
 
     for exp_index, experience in enumerate(resume.experiences):
         summary = _shorten_sentence(experience.general_role_description, max_words=30)
@@ -1372,7 +1374,8 @@ def _summary_role_label_from_title(resume: ResumeIR) -> str:
     title = derive_resume_title(resume).strip()
     if not title:
         return "Engineer"
-    primary_segment = re.split(r"\s*(?:/|-|,)\s*", title, maxsplit=1)[0].strip()
+    # Keep hyphenated role words intact (e.g., "Full-stack Engineer").
+    primary_segment = re.split(r"\s*(?:/|,)\s*", title, maxsplit=1)[0].strip()
     return primary_segment or "Engineer"
 
 

@@ -27,9 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nodejs \
     npm \
     fonts-liberation \
-    fontconfig \
     && update-alternatives --set awk /usr/bin/gawk \
-    && fc-cache -fv \
     && npm install -g markdownlint-cli@0.47.0 \
     && rm -rf /var/lib/apt/lists/*
 

@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable
 from http.client import HTTPMessage
 from pathlib import Path
@@ -59,7 +60,31 @@ SCHWAB_JOB_URL = (
     "sr-sdet-workplace-services-engineering/33727/92422911552"
 )
 SCHWAB_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "job_pages" / "schwab_sr_sdet.html"
-PROFILE_RESUME_TITLE = "Software Engineer / Test Automation and Framework Architecture"
+_TRACKED_PROFILE_TMPDIR = tempfile.TemporaryDirectory(
+    prefix="resume-builder-profile-test-"
+)
+_TRACKED_PROFILE_PATH = Path(_TRACKED_PROFILE_TMPDIR.name) / "profile.toml"
+_TRACKED_PROFILE_PATH.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+CURRENT_PROFILE = load_profile(_TRACKED_PROFILE_PATH)
+PROFILE_HEADLINE = CURRENT_PROFILE.headline
+
+
+def _expected_resume_title(profile: build_resume.Profile) -> str:
+    return derive_resume_title(
+        build_resume.ResumeIR(
+            profile=profile,
+            target_role="",
+            target_company="",
+            display_headline="",
+            job_context=None,
+            experiences=(),
+            skills_by_category={},
+        )
+    )
+
+
+PROFILE_RESUME_TITLE = _expected_resume_title(CURRENT_PROFILE)
+PROFILE_PRIMARY_ROLE = PROFILE_RESUME_TITLE.split(" / ", maxsplit=1)[0]
 
 
 def _extract_skills_by_category_from_html(html_text: str) -> dict[str, list[str]]:
@@ -149,6 +174,7 @@ title = "Baseline Leadership"
         """
 [profile]
 name = "Local Name"
+headline = "Senior Staff Software Engineer"
 email = "local@example.com"
 phone = "222"
 linkedin = "local-linkedin"
@@ -167,6 +193,7 @@ title = "Local Leadership"
 
     profile = load_profile(profile_path)
     assert profile.name == "Local Name"
+    assert profile.headline == "Senior Staff Software Engineer"
     assert profile.email == "local@example.com"
     assert profile.phone == "222"
     assert profile.linkedin == "local-linkedin"
@@ -393,7 +420,7 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert profile.name in html_text
     assert '<p class="headline">Staff Software Engineer</p>' not in html_text
     assert "Staff Software Engineer" not in md_text
-    assert PROFILE_RESUME_TITLE in html_text
+    assert _expected_resume_title(profile) in html_text
     assert expected_linkedin in html_text
     if profile.github:
         assert expected_github in html_text
@@ -409,7 +436,7 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert "<h2>Leadership &amp; Community</h2>" in html_text
     assert "<h2>Summary</h2>" not in html_text
     assert (
-        f'<p class="resume-title"><strong>{PROFILE_RESUME_TITLE}</strong></p>'
+        f'<p class="resume-title"><strong>{_expected_resume_title(profile)}</strong></p>'
         in html_text
     )
     assert html_text.index('class="resume-title"') < html_text.index(
@@ -567,11 +594,13 @@ def test_build_resume_cli_modern_template_renders_centered_header(
     )
     assert '<div class="header">' in html_text
     assert ".header { text-align: center; margin: 0;" in html_text
-    assert "body { font-family: Calibri, Arial, sans-serif;" in html_text
+    assert "body { font-family: Carlito, Calibri, Arial, sans-serif;" in html_text
     assert "font-size: 11pt; line-height: 1.22;" in html_text
     assert "h2 { font-size: 12pt;" in html_text
     assert "text-align: center; width: 100%; display: block;" in html_text
-    assert "border-bottom: none;" in html_text
+    assert "border-bottom: 1px solid #ccc;" in html_text
+    assert "margin: 12px 0 16px 0;" in html_text
+    assert "padding-bottom: 0px;" in html_text
     assert (
         ".skills-category { margin: 0 0 3px 0; font-size: 10.5pt; text-align: center; }"
         in html_text
@@ -694,7 +723,7 @@ def test_build_resume_cli_rejects_unknown_template(tmp_path: Path) -> None:
 
 
 def test_derive_resume_title_adds_missing_seniority_from_headline() -> None:
-    profile = load_profile(PROFILE)
+    profile = load_profile(_TRACKED_PROFILE_PATH)
     experiences = load_experiences(
         REPO_ROOT / "data" / "experience" / "experience_db.toml"
     )
@@ -722,7 +751,7 @@ def test_derive_resume_title_adds_missing_seniority_from_headline() -> None:
 
 def test_derive_resume_title_preserves_senior_sdet_without_special_expansion() -> None:
     """Senior SDET is now treated as any other role, not specially expanded."""
-    profile = load_profile(PROFILE)
+    profile = load_profile(_TRACKED_PROFILE_PATH)
     experiences = load_experiences(
         REPO_ROOT / "data" / "experience" / "experience_db.toml"
     )
@@ -1063,6 +1092,8 @@ def test_build_resume_cli_deduplicates_equivalent_headline_and_resume_title(
         [
             sys.executable,
             str(SCRIPT),
+            "--profile",
+            str(_TRACKED_PROFILE_PATH),
             "--output-dir",
             str(output_dir),
             "--processing-mode",
@@ -1082,14 +1113,8 @@ def test_build_resume_cli_deduplicates_equivalent_headline_and_resume_title(
         encoding="utf-8"
     )
 
-    assert (
-        '<p class="headline">Software Engineer | Test Automation and Framework Architecture</p>'
-        not in modern_html
-    )
-    assert (
-        '<p class="headline">Software Engineer | Test Automation and Framework Architecture</p>'
-        not in default_html
-    )
+    assert f'<p class="headline">{PROFILE_HEADLINE}</p>' not in modern_html
+    assert f'<p class="headline">{PROFILE_HEADLINE}</p>' not in default_html
     assert (
         f'<p class="resume-title"><strong>{PROFILE_RESUME_TITLE}</strong></p>'
         in modern_html
@@ -2399,7 +2424,7 @@ def test_summarize_profile_for_role_generates_role_aware_top_summary() -> None:
     summarized = summarize_profile_for_role(resume)
 
     assert summarized.profile.summary != profile.summary
-    assert "Software Engineer" in summarized.profile.summary
+    assert PROFILE_PRIMARY_ROLE in summarized.profile.summary
     assert "Senior SDET" not in summarized.profile.summary
     assert "Charles Schwab" not in summarized.profile.summary
     assert "Python" in summarized.profile.summary
@@ -2423,8 +2448,8 @@ def test_summarize_profile_for_role_avoids_generic_specializing_phrase() -> None
 
     summarized = summarize_profile_for_role(resume)
 
-    assert "specializing in Software Engineer" not in summarized.profile.summary
-    assert "Software Engineer" in summarized.profile.summary
+    assert f"specializing in {PROFILE_PRIMARY_ROLE}" not in summarized.profile.summary
+    assert PROFILE_PRIMARY_ROLE in summarized.profile.summary
     assert "Target role:" not in summarized.profile.summary
     assert "Key skills:" not in summarized.profile.summary
 
@@ -3267,9 +3292,54 @@ def test_generate_profile_summary_omits_target_role_tokens() -> None:
     )
 
     summary = build_resume.summarize_profile_for_role(resume).profile.summary
-    assert "Software Engineer" in summary
+    assert "strengths include" in summary.lower()
     assert "Graphcore" not in summary
     assert "sdet" not in summary.lower()
+
+
+def test_summary_role_label_preserves_hyphenated_role_words() -> None:
+    profile = load_profile(_TRACKED_PROFILE_PATH)
+    custom_profile = type(profile)(
+        name=profile.name,
+        headline="Full-stack Engineer / Test Automation",
+        location=profile.location,
+        email=profile.email,
+        phone=profile.phone,
+        website=profile.website,
+        linkedin=profile.linkedin,
+        github=profile.github,
+        summary=profile.summary,
+        education_entries=profile.education_entries,
+        leadership_community_entries=profile.leadership_community_entries,
+    )
+    resume = build_resume.ResumeIR(
+        profile=custom_profile,
+        target_role="",
+        target_company="",
+        display_headline=custom_profile.headline,
+        job_context=None,
+        experiences=(),
+        skills_by_category={},
+    )
+    assert build_resume._summary_role_label_from_title(resume) == "Full-stack Engineer"
+
+
+def test_generate_profile_summary_does_not_repeat_full_resume_title() -> None:
+    profile = load_profile(_TRACKED_PROFILE_PATH)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={"Testing": ["Python", "Pytest", "Playwright"]},
+    )
+
+    summary = build_resume.summarize_profile_for_role(resume).profile.summary
+    assert derive_resume_title(resume) not in summary
 
 
 def test_generate_profile_summary_avoids_meta_labels_and_duplicate_sentences() -> None:

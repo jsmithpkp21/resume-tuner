@@ -51,6 +51,27 @@ Compatibility and local-output notes:
 - Company-scoped artifact aliases are no longer emitted; outputs remain company-agnostic under the `latest_*` contract.
 - For day-to-day local runs, prefer `--output-dir sandbox/outputs/...`; `sandbox/` is git-ignored.
 
+Export submission-ready DOCX and PDF in one run:
+
+```bash
+make active
+python scripts/export_resume_documents.py --processing-mode processed --output-dir sandbox/outputs/resume_runs/submission
+```
+
+Default export artifacts:
+
+- `sandbox/outputs/resume_runs/submission/company_resume.docx` (or `<company>_resume.docx` when `--company` is set)
+- `sandbox/outputs/resume_runs/submission/company_resume.pdf` (or `<company>_resume.pdf` when `--company` is set)
+- `sandbox/outputs/resume_runs/submission/latest_resume_processed.md` (always generated)
+- `sandbox/outputs/resume_runs/submission/latest_default_resume_processed.html` (when present, preferred as the DOCX/PDF render source for better block extraction)
+
+Export behavior notes:
+
+- The export command always runs the Markdown pipeline first.
+- DOCX/PDF rendering prefers the generated default-template HTML when available; otherwise it falls back to the processed Markdown.
+- Trailing connector fragments emit warnings to stderr for manual review.
+- PDF exports that exceed two pages fail with a non-zero exit so the submission page-limit guard is enforced.
+
 ---
 
 ## Quick Start

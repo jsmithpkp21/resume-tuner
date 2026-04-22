@@ -48,6 +48,28 @@ Processing contract:
 - Company-scoped aliases are not emitted; output naming remains company-agnostic (`latest_*`).
 - For local iterative runs, prefer `--output-dir sandbox/outputs/...` to avoid committing generated artifacts.
 
+## Submission export workflow
+
+Generate submission-ready DOCX and PDF artifacts from the same processed build output:
+
+```bash
+make active
+python scripts/export_resume_documents.py --processing-mode processed --output-dir sandbox/outputs/resume_runs/submission
+```
+
+Artifacts:
+
+- `sandbox/outputs/resume_runs/submission/company_resume.docx` (or `<company>_resume.docx` when `--company` is set)
+- `sandbox/outputs/resume_runs/submission/company_resume.pdf` (or `<company>_resume.pdf` when `--company` is set)
+- `sandbox/outputs/resume_runs/submission/latest_resume_processed.md` (always generated)
+- `sandbox/outputs/resume_runs/submission/latest_default_resume_processed.html` (when present, preferred as the DOCX/PDF render source)
+
+Submission export notes:
+
+- The export command runs the existing build pipeline once, then renders both document formats from the generated default-template HTML when available, with processed Markdown as the fallback source.
+- Trailing connector fragments emit warnings to stderr for manual review.
+- PDF exports that exceed two pages fail the export so the two-page submission limit is enforced.
+
 ## Headline and bottom sections
 
 - `--target-role "<job title>"` is used for internal tailoring context only and is not rendered into visible headline/title output.

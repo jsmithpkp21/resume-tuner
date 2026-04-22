@@ -39,7 +39,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 - Local bootstrap: `make setup`.
 - Daily quality loop: `make lint`, `make test`, `make check`.
 - Contract checks before release/sync: `make drift-check`, `make version-check`, `make action-pin-check`, `make docs-check`.
-- Validate sync behavior after manifest/script edits: in tooling source run `tests/scripts/test_sync_tooling_regressions.py`; in consumers run `pytest -q tests/scripts/test_consumer_contract.py`.
+- Validate sync behavior after manifest/script edits: run `tests/scripts/test_sync_tooling_regressions.py`.
 - Docker parity path: `make docker-up` then run normal make targets inside container.
 
 ## Repo-Specific Conventions
@@ -77,8 +77,8 @@ pytest -q tests/scripts/test_consumer_contract.py
 ## Files to Read Before Editing Core Logic
 - `Makefile`
 - `scripts/sync_tooling.sh`
-- `.tooling-sync-manifest.lock`
+- `.tooling-sync-manifest.toml`
 - `FILE_DISTRIBUTION.md`
 - `docs/REFERENCE/SYNC_MANIFEST.md`
 - `docs/REFERENCE/PYPROJECT_ARCHITECTURE.md`
-- `tests/scripts/test_consumer_contract.py`
+- `tests/scripts/test_sync_tooling_regressions.py`

@@ -24,3 +24,7 @@ tomli_w==1.0.0
 Pillow==12.2.0
 # fontTools kern table + TTF parsing (optional kerning precision for #43)
 fonttools==4.62.1
+
+# Document export (issue #16)
+python-docx==1.2.0
+reportlab==4.4.4

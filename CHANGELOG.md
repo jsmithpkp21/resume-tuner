@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.15.0...v0.15.1) (2026-04-22)
+
+
+### Bug Fixes
+
+* **ci:** harden copilot kickoff against integration 403 ([93bb2d3](https://github.com/jsmithpkp21/resume-builder/commit/93bb2d3f07b221972c160fe9f0d2648bbf280463))
+* **ci:** tighten kickoff dedupe and fail signaling ([11cb139](https://github.com/jsmithpkp21/resume-builder/commit/11cb13927459f5a95d7e3e870dbedc78401f63f5))
+
 ## [0.15.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.14.1...v0.15.0) (2026-04-21)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.15.1...v0.16.0) (2026-04-22)
+
+
+### Features
+
+* **export:** add submission-ready DOCX and PDF resume outputs ([#127](https://github.com/jsmithpkp21/resume-builder/issues/127)) ([df1f9f6](https://github.com/jsmithpkp21/resume-builder/commit/df1f9f6700695cb11430756a5b8ee90711a679de))
+
 ## [0.15.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.15.0...v0.15.1) (2026-04-22)
 
 

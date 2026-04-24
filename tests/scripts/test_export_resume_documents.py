@@ -632,6 +632,56 @@ def test_apply_post_layout_cleanup_preserves_html_header_divider_block() -> None
     assert ("divider", "") in blocks
 
 
+def test_html_block_parser_emits_bullet_for_skills_category_paragraph() -> None:
+    """HTML <p class="skills-category"> must produce ("bullet", text) so cleanup fires."""
+    html = """<!doctype html><html><body>
+<h2>Key Skills and Expertise</h2>
+<p class="skills-category"><strong>Collaboration:</strong> Mentoring • Coaching • Communication • Facilitation</p>
+</body></html>"""
+    blocks = export_resume_documents._iter_markdown_blocks(html)
+    assert any(kind == "bullet" and "Facilitation" in text for kind, text in blocks)
+
+
+def test_html_block_parser_emits_bullet_for_leadership_paragraphs() -> None:
+    """HTML <p> inside Leadership & Community section must produce ("bullet", text)."""
+    html = """<!doctype html><html><body>
+<h2>Leadership &amp; Community</h2>
+<section class="info-item">
+<p><strong>Mentoring Lead | Internal Community | 2020-Present</strong></p>
+<p>Supported peer growth circles.</p>
+</section>
+</body></html>"""
+    blocks = export_resume_documents._iter_markdown_blocks(html)
+    bullet_texts = [text for kind, text in blocks if kind == "bullet"]
+    assert any("Mentoring Lead" in t for t in bullet_texts)
+    assert any("peer growth circles" in t for t in bullet_texts)
+
+
+def test_apply_post_layout_cleanup_drops_leadership_mentoring_from_html_source() -> (
+    None
+):
+    """Cleanup must fire on HTML source (not just markdown) when mentoring is in experience."""
+    args = type(
+        "Args",
+        (),
+        {"target_role": "", "company": "", "job_text_file": None},
+    )()
+    html = """<!doctype html><html><body>
+<h2>Professional Experience</h2>
+<ul><li>Mentored six engineers across distributed teams.</li></ul>
+<h2>Leadership &amp; Community</h2>
+<section class="info-item">
+<p><strong>Mentoring Lead | Internal Community</strong></p>
+<p>Supported peer growth circles.</p>
+</section>
+</body></html>"""
+
+    cleaned = export_resume_documents._apply_post_layout_cleanup(html, args=args)
+
+    assert "Mentoring Lead | Internal Community" not in cleaned
+    assert "Supported peer growth circles" not in cleaned
+
+
 def test_pipeline_default_html_path_prefers_default_secondary_for_processed() -> None:
     args = type(
         "Args",

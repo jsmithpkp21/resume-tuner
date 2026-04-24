@@ -2956,7 +2956,13 @@ def test_expand_profile_summary_to_min_words_does_not_leak_target_role_on_empty_
 def test_summarize_profile_for_role_truncates_summary_at_max_words(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify truncation honors both max words and the configured 80% minimum."""
+    """Verify truncation respects max_words ceiling.
+
+    Sentence-boundary preservation means the result may fall below the configured
+    minimum-word floor (PROFILE_SUMMARY_MIN_RATIO) when incomplete trailing clauses
+    are dropped.  The hard constraints are: (a) at most max_words words, (b) ends
+    with terminal punctuation, and (c) no double-punctuation artefact.
+    """
     max_words = 20
     monkeypatch.setattr("scripts.build_resume.PROFILE_SUMMARY_MAX_WORDS", max_words)
     monkeypatch.setattr(

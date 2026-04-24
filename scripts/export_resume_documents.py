@@ -296,10 +296,15 @@ _HIDDEN_HTML_CLASS_TOKENS = {"related-skills"}
 class _ResumeHtmlBlockParser(HTMLParser):
     """Extract visible heading/paragraph/list blocks in DOM order."""
 
+    # h2 sections whose <p> children should be treated as bullet-like items
+    # so that post-layout cleanup rules apply uniformly across HTML and markdown.
+    _BULLET_P_SECTIONS = {"key skills and expertise", "leadership & community"}
+
     def __init__(self) -> None:
         super().__init__()
         self.blocks: list[tuple[str, str]] = []
         self._capture_stack: list[dict[str, Any]] = []
+        self._current_h2: str = ""
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         # Inline elements: inject bold markers / tab separator into current block
@@ -349,6 +354,7 @@ class _ResumeHtmlBlockParser(HTMLParser):
         if tag == "h1":
             self.blocks.append(("h1", text))
         elif tag == "h2":
+            self._current_h2 = text.strip().lower()
             self.blocks.append(("h2", text))
         elif tag == "h3":
             self.blocks.append(("h3", text))
@@ -356,6 +362,14 @@ class _ResumeHtmlBlockParser(HTMLParser):
             self.blocks.append(("bullet", text))
         elif "resume-title" in class_tokens:
             self.blocks.append(("title", text))
+        elif (
+            "skills-category" in class_tokens
+            or self._current_h2 in self._BULLET_P_SECTIONS
+        ):
+            # Treat skills rows and leadership/community paragraphs as bullets so
+            # that _apply_post_layout_cleanup rules fire identically for HTML and
+            # markdown sources.
+            self.blocks.append(("bullet", text))
         else:
             self.blocks.append(("p", text))
 

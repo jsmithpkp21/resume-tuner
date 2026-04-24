@@ -383,6 +383,9 @@ def _iter_markdown_blocks(md_text: str) -> list[tuple[str, str]]:
             blocks.append(("h2", line[3:].strip()))
         elif line.startswith("### "):
             blocks.append(("h3", line[4:].strip()))
+        elif line.startswith("[RESUME_TITLE] "):
+            title_text = line[len("[RESUME_TITLE] ") :].strip()
+            blocks.append(("title", _normalize_inline_text(title_text)))
         elif re.match(r"^\s*-\s+", line):
             blocks.append(("bullet", re.sub(r"^\s*-\s+", "", line, count=1).strip()))
         else:
@@ -467,6 +470,7 @@ def _apply_post_layout_cleanup(
     section = ""
     removed_mentoring = False
     removed_philanthropy = False
+    pending_leadership_detail_drop = False
     has_community_signal = _job_context_has_community_signal(args)
     philanthropy_terms = {
         "philanthropy",
@@ -502,6 +506,9 @@ def _apply_post_layout_cleanup(
             continue
 
         if section == "leadership & community" and kind == "bullet":
+            if pending_leadership_detail_drop:
+                pending_leadership_detail_drop = False
+                continue
             lowered = _normalize_inline_text(text).lower()
             if (
                 has_mentoring_in_experience
@@ -509,6 +516,7 @@ def _apply_post_layout_cleanup(
                 and "mentor" in lowered
             ):
                 removed_mentoring = True
+                pending_leadership_detail_drop = True
                 continue
             if (
                 not has_community_signal
@@ -516,6 +524,7 @@ def _apply_post_layout_cleanup(
                 and any(term in lowered for term in philanthropy_terms)
             ):
                 removed_philanthropy = True
+                pending_leadership_detail_drop = True
                 continue
             filtered_blocks.append((kind, text))
             continue
@@ -530,6 +539,8 @@ def _apply_post_layout_cleanup(
             lines.extend([f"## {text}", ""])
         elif kind == "h3":
             lines.extend([f"### {text}", ""])
+        elif kind == "title":
+            lines.extend([f"[RESUME_TITLE] {text}", ""])
         elif kind == "divider":
             lines.extend(["---", ""])
         elif kind == "bullet":

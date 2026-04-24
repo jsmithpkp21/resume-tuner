@@ -13,6 +13,7 @@ import re
 import sys
 import textwrap
 import tomllib
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from dataclasses import replace as dc_replace
 from pathlib import Path
@@ -1593,10 +1594,10 @@ def _expand_profile_summary_to_min_words(
     resume: ResumeIR,
     min_words: int,
     *,
-    fragments: Any = None,
+    fragments: Sequence[str] | None = None,
 ) -> str:
     """Deterministically expand summaries until they satisfy the minimum word policy."""
-    additions = list(fragments or [])
+    additions = list(fragments or ())
 
     existing_sentences = {
         " ".join(part.strip().split()).lower()

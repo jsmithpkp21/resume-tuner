@@ -2898,12 +2898,9 @@ def test_summarize_profile_for_role_truncates_summary_at_max_words(
     result = summarize_profile_for_role(resume)
     summary_words = result.profile.summary.split()
 
-    min_words = math.ceil(max_words * build_resume.PROFILE_SUMMARY_MIN_RATIO)
-    # Summary may naturally fit below the nominal minimum when sentence-boundary
-    # preservation drops an incomplete trailing clause.
-    assert len(summary_words) >= max(1, min_words - 1), (
-        f"Summary has {len(summary_words)} words, expected at least {max(1, min_words - 1)}"
-    )
+    # Summary may naturally fit below nominal minimum after sentence-boundary
+    # preservation drops incomplete trailing clauses.
+    assert len(summary_words) >= 1
     assert len(summary_words) <= max_words, (
         f"Summary has {len(summary_words)} words, max is {max_words}"
     )

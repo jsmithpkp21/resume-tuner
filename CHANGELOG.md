@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.16.1...v0.17.0) (2026-04-24)
+
+
+### Features
+
+* **achievements:** add hardware-agnostic abstraction to selected achievements ([#147](https://github.com/jsmithpkp21/resume-builder/issues/147)) ([2e1e939](https://github.com/jsmithpkp21/resume-builder/commit/2e1e939bc7bffc6f2cb0cda8a8d5a3133a8ca78e))
+
 ## [0.16.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.16.0...v0.16.1) (2026-04-24)
 
 

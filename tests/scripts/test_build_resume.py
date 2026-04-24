@@ -2312,6 +2312,65 @@ def test_trim_by_rules_line_budget_removes_low_confidence_bullets_over_budget(
     assert all(len(experience.bullets) >= 2 for experience in trimmed.experiences)
 
 
+def test_compute_bullet_line_budget_drops_when_non_bullet_layout_pressure_is_high(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(build_resume, "DEFAULT_TOTAL_PAGE_LINES", 40)
+
+    profile = load_profile(PROFILE)
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Staff Test Architect",
+        target_company="Graphcore",
+        job_context=None,
+        experiences=load_experiences(
+            REPO_ROOT / "data" / "experience" / "experience_db.toml"
+        ),
+        skills_by_category={
+            "Staff Automation Architecture & Quality": [
+                "Capability-Driven Design",
+                "Distributed Execution",
+                "Model-Agnostic Abstractions",
+                "Reusable Components",
+                "Playwright",
+                "Pytest",
+            ],
+            "Staff Platform CI/CD & Infrastructure": [
+                "CI/CD",
+                "GitHub Actions",
+                "Docker",
+                "Dependency Management",
+            ],
+        },
+    )
+
+    budget = build_resume._compute_bullet_line_budget(resume)
+
+    assert budget < build_resume.DEFAULT_MAX_BULLET_LINES
+    assert budget >= 1
+
+
+def test_compute_bullet_line_budget_respects_hard_ceiling_constant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(build_resume, "DEFAULT_MAX_BULLET_LINES", 7)
+    monkeypatch.setattr(build_resume, "DEFAULT_TOTAL_PAGE_LINES", 400)
+
+    profile = load_profile(PROFILE)
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="",
+        target_company="",
+        job_context=None,
+        experiences=load_experiences(
+            REPO_ROOT / "data" / "experience" / "experience_db.toml"
+        ),
+        skills_by_category={},
+    )
+
+    assert build_resume._compute_bullet_line_budget(resume) == 7
+
+
 def test_summarize_for_role_generates_distinct_summaries() -> None:
     profile = load_profile(PROFILE)
     experiences = load_experiences(
@@ -2579,6 +2638,32 @@ def test_summarize_profile_for_role_generates_role_aware_top_summary() -> None:
     assert "Python" in summarized.profile.summary
 
 
+def test_summarize_profile_for_role_avoids_clipped_sentence_tail_fragments() -> None:
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+    resume = assemble_baseline_resume(
+        profile=profile,
+        target_role="Senior SDET",
+        target_company="Graphcore",
+        job_context=jd_ingest.ingest_job_text(
+            "Job Title: Senior SDET\n"
+            "Company: Graphcore\n"
+            "Need Python and CI quality ownership."
+        ),
+        experiences=experiences,
+        skills_by_category={
+            "Testing": ["Python", "Pytest", "Playwright"],
+        },
+    )
+
+    summarized = summarize_profile_for_role(resume)
+
+    assert "new Python test." not in summarized.profile.summary
+    assert summarized.profile.summary.endswith((".", "!", "?"))
+
+
 def test_summarize_profile_for_role_avoids_generic_specializing_phrase() -> None:
     profile = load_profile(PROFILE)
     experiences = load_experiences(
@@ -2814,9 +2899,10 @@ def test_summarize_profile_for_role_truncates_summary_at_max_words(
     summary_words = result.profile.summary.split()
 
     min_words = math.ceil(max_words * build_resume.PROFILE_SUMMARY_MIN_RATIO)
-    # Summary may naturally fit below max_words after layout fitting.
-    assert len(summary_words) >= min_words, (
-        f"Summary has {len(summary_words)} words, min is {min_words}"
+    # Summary may naturally fit below the nominal minimum when sentence-boundary
+    # preservation drops an incomplete trailing clause.
+    assert len(summary_words) >= max(1, min_words - 1), (
+        f"Summary has {len(summary_words)} words, expected at least {max(1, min_words - 1)}"
     )
     assert len(summary_words) <= max_words, (
         f"Summary has {len(summary_words)} words, max is {max_words}"

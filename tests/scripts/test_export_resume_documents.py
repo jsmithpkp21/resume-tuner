@@ -10,7 +10,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from scripts import export_resume_documents
+from scripts import build_resume, export_resume_documents
 
 
 def test_run_generates_docx_and_pdf_from_same_markdown(
@@ -504,6 +504,98 @@ def test_iter_markdown_blocks_parses_indented_bullets_as_bullets() -> None:
 """
     blocks = export_resume_documents._iter_markdown_blocks(markdown)
     assert ("bullet", "Mentored team members") in blocks
+
+
+def test_apply_post_layout_cleanup_drops_last_skill_for_single_word_tail_wrap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(build_resume, "DEFAULT_BULLET_LINE_WIDTH", 24)
+
+    args = type(
+        "Args",
+        (),
+        {"target_role": "", "company": "", "job_text_file": None},
+    )()
+    markdown = """## Key Skills and Expertise
+
+- **Collaboration:** Mentoring, Coaching, Communication, Facilitation
+"""
+
+    cleaned = export_resume_documents._apply_post_layout_cleanup(markdown, args=args)
+
+    assert "Facilitation" not in cleaned
+    assert "Mentoring, Coaching, Communication" in cleaned
+
+
+def test_apply_post_layout_cleanup_trims_professional_bullet_single_word_tail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_has_single_word_wrap_tail",
+        lambda _text, *, line_width: True,
+    )
+
+    args = type(
+        "Args",
+        (),
+        {"target_role": "", "company": "", "job_text_file": None},
+    )()
+    markdown = """## Professional Experience
+
+- Built deterministic automation pipelines across teams quickly
+"""
+
+    cleaned = export_resume_documents._apply_post_layout_cleanup(markdown, args=args)
+
+    assert "teams quickly" not in cleaned
+    assert "Built deterministic automation pipelines across teams" in cleaned
+
+
+def test_apply_post_layout_cleanup_drops_leadership_mentoring_when_present_in_bullets() -> (
+    None
+):
+    args = type(
+        "Args",
+        (),
+        {"target_role": "", "company": "", "job_text_file": None},
+    )()
+    markdown = """## Professional Experience
+
+- Mentored six engineers across distributed teams.
+
+## Leadership & Community
+
+- **Mentoring Lead | Internal Community**
+- Supported peer growth circles.
+"""
+
+    cleaned = export_resume_documents._apply_post_layout_cleanup(markdown, args=args)
+
+    assert "Mentoring Lead | Internal Community" not in cleaned
+
+
+def test_apply_post_layout_cleanup_filters_philanthropy_without_company_signal() -> (
+    None
+):
+    args = type(
+        "Args",
+        (),
+        {
+            "target_role": "Staff Test Architect",
+            "company": "Graphcore",
+            "job_text_file": None,
+        },
+    )()
+    markdown = """## Leadership & Community
+
+- **Volunteer outreach board member**
+- Led local nonprofit robotics workshops.
+"""
+
+    cleaned = export_resume_documents._apply_post_layout_cleanup(markdown, args=args)
+
+    assert "Volunteer outreach board member" not in cleaned
 
 
 def test_pipeline_default_html_path_prefers_default_secondary_for_processed() -> None:

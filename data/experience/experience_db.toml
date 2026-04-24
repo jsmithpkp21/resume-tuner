@@ -32,7 +32,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b02"
-text = "Set long-term architectural direction and coding standards and mentored a group of five engineers, with two engineers progressing to module-owner responsibilities within two quarters."
+text = "Set long-term architectural direction and coding standards for the next-generation framework, establishing maintainable review expectations and module ownership boundaries across the team."
 skills = ["Python", "Technical Leadership"]
 categories = ["Architecture", "Technical Leadership"]
 impact_type = "mentoring"
@@ -232,7 +232,7 @@ related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b01"
-text = "Provided technical leadership for a distributed group of 15 engineers across four countries and five time zones, improving engineering quality and reducing new-test creation time by 30 percent."
+text = "Provided technical leadership for a distributed group of 15 engineers across four countries and five time zones, mentoring at least one engineer per location into first-line framework ownership while local successors grew into the next generation of framework architects, improving engineering quality and reducing new-test creation time by 30 percent."
 skills = ["Technical Leadership", "Mentoring", "Process Design", "Java", "JUnit 4"]
 categories = ["Technical Leadership", "Architecture"]
 impact_type = "mentoring"

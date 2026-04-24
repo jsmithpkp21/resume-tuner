@@ -52,6 +52,11 @@ DEFAULT_OUTPUT_DIR = Path("data/review/outputs/baseline")
 # Final output fitting is enforced by a line-budget pass.
 DEFAULT_BULLET_LINE_WIDTH = 108
 DEFAULT_MAX_BULLET_LINES = 52
+# Calibrated two-page line budget for pre-render trimming.
+# This value intentionally keeps processed output near full two-page utilization
+# under the current template while allowing dynamic reductions on high-pressure
+# layouts.
+DEFAULT_TOTAL_PAGE_LINES = 160
 DEFAULT_MAX_ACTION_WORD_OCCURRENCES = 2
 DEFAULT_MIN_BULLETS_PER_EXPERIENCE = 2
 SUMMARY_LINE_WIDTH = 72
@@ -1332,9 +1337,11 @@ def trim_by_rules(resume: ResumeIR) -> ResumeIR:
         constraints require small wording reductions, that should happen in a later
         overflow/layout stage after actual render measurement.
     """
+    max_bullet_lines = _compute_bullet_line_budget(resume)
     trimmed_experiences = _apply_rule_based_trimming(
         experiences=resume.experiences,
         enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
+        max_bullet_lines=max_bullet_lines,
     )
     if trimmed_experiences == resume.experiences:
         return resume
@@ -1430,8 +1437,7 @@ def _generate_profile_summary(resume: ResumeIR) -> str:
         )
         words = candidate.split()
     if len(words) > max_words:
-        clipped_words = words[:max_words]
-        truncated = " ".join(clipped_words).rstrip(" ,;:")
+        truncated = _truncate_to_n_words(candidate, max_words).rstrip(" ,;:")
         # Avoid double punctuation when appending period
         if not truncated.endswith((".", "!", "?")):
             candidate = truncated + "."
@@ -1452,14 +1458,22 @@ def _generate_profile_summary(resume: ResumeIR) -> str:
 
 def _fit_profile_summary_layout(summary: str) -> str:
     """Trim summary tail until it fits the six-line profile-summary layout budget."""
-    words = summary.strip().replace("\n", " ").split()
+    original_words = summary.strip().replace("\n", " ").split()
+    words = list(original_words)
     while words:
         words = _trim_trailing_fragment_words(words)
         if not words:
             return ""
         candidate = " ".join(words).strip(" ,;:")
         if candidate and candidate[-1] not in ".!?":
-            candidate = f"{candidate}."
+            if len(words) < len(original_words):
+                sentence_safe = _truncate_to_last_complete_sentence(candidate)
+                if sentence_safe:
+                    candidate = sentence_safe
+                else:
+                    candidate = f"{candidate}."
+            else:
+                candidate = f"{candidate}."
         lines = _summary_wrap_lines(candidate, line_width=PROFILE_SUMMARY_LINE_WIDTH)
         if len(lines) <= PROFILE_SUMMARY_MAX_LINES:
             return candidate
@@ -1469,7 +1483,30 @@ def _fit_profile_summary_layout(summary: str) -> str:
 
 def _truncate_to_n_words(text: str, n: int) -> str:
     words = text.split()
-    return " ".join(words[:n]) if words else ""
+    if not words:
+        return ""
+    if len(words) <= n:
+        return text
+
+    clipped = " ".join(words[:n]).strip()
+    if clipped.endswith((".", "!", "?")):
+        return clipped
+
+    sentence_matches = list(re.finditer(r".+?[.!?](?:\s+|$)", clipped))
+    if sentence_matches:
+        sentence_safe = sentence_matches[-1].group(0).strip()
+        if sentence_safe:
+            return sentence_safe
+
+    trimmed_words = _trim_trailing_fragment_words(clipped.split())
+    return " ".join(trimmed_words).strip()
+
+
+def _truncate_to_last_complete_sentence(text: str) -> str:
+    matches = list(re.finditer(r".+?[.!?](?:\s+|$)", text.strip()))
+    if not matches:
+        return ""
+    return text[: matches[-1].end()].strip()
 
 
 def _build_profile_summary_fragments(
@@ -1556,7 +1593,7 @@ def _expand_profile_summary_to_min_words(
     resume: ResumeIR,
     min_words: int,
     *,
-    fragments: list[str] | None = None,
+    fragments: Any = None,
 ) -> str:
     """Deterministically expand summaries until they satisfy the minimum word policy."""
     additions = list(fragments or [])
@@ -1836,6 +1873,7 @@ def _apply_rule_based_trimming(
     *,
     experiences: tuple[Experience, ...],
     enrichment_by_bullet_id: dict[str, dict[str, object]],
+    max_bullet_lines: int,
 ) -> tuple[Experience, ...]:
     selected_by_experience = [list(experience.bullets) for experience in experiences]
 
@@ -1847,7 +1885,7 @@ def _apply_rule_based_trimming(
     _enforce_bullet_line_budget(
         selected_by_experience,
         enrichment_by_bullet_id=enrichment_by_bullet_id,
-        max_bullet_lines=DEFAULT_MAX_BULLET_LINES,
+        max_bullet_lines=max_bullet_lines,
     )
 
     trimmed_experiences: list[Experience] = []
@@ -1954,6 +1992,150 @@ def _estimate_total_bullet_lines(selected_by_experience: list[list[Bullet]]) -> 
         for bullets in selected_by_experience
         for bullet in bullets
     )
+
+
+def _compute_bullet_line_budget(resume: ResumeIR) -> int:
+    """Estimate the bullet-line ceiling from non-bullet layout pressure.
+
+    This budget is a ceiling, not a fill target; downstream selection never adds
+    bullets solely because budget remains.
+    """
+    # Header block: name + display headline + contact + divider/title spacing.
+    header_lines = 4
+    title_line = 1
+    summary_lines = _estimate_wrapped_line_count(
+        resume.profile.summary,
+        PROFILE_SUMMARY_LINE_WIDTH,
+    )
+    section_header_lines = 2  # Summary + Key Skills
+    section_header_lines += 1  # Professional Experience
+    if resume.cross_org_architectural_leadership:
+        section_header_lines += 1
+    if resume.selected_achievements:
+        section_header_lines += 1
+    if resume.profile.education_entries:
+        section_header_lines += 1
+    if resume.profile.leadership_community_entries:
+        section_header_lines += 1
+
+    skills_lines = sum(
+        _estimate_wrapped_line_count(
+            f"{category}: {join_skills(skills)}",
+            DEFAULT_BULLET_LINE_WIDTH,
+        )
+        for category, skills in resume.skills_by_category.items()
+    )
+
+    cross_org_lines = sum(
+        _estimate_wrapped_line_count(item.text, DEFAULT_BULLET_LINE_WIDTH)
+        for item in resume.cross_org_architectural_leadership
+    )
+    selected_achievement_lines = sum(
+        _estimate_wrapped_line_count(item.text, DEFAULT_BULLET_LINE_WIDTH)
+        for item in resume.selected_achievements
+    )
+
+    role_header_lines = 0
+    for experience in resume.experiences:
+        role_header_lines += 2  # role heading + date line
+        role_header_lines += _estimate_wrapped_line_count(
+            experience.general_role_description,
+            SUMMARY_LINE_WIDTH,
+        )
+        if experience.related_skills:
+            role_header_lines += _estimate_wrapped_line_count(
+                ", ".join(experience.related_skills),
+                DEFAULT_BULLET_LINE_WIDTH,
+            )
+
+    education_lines = 0
+    for education_item in resume.profile.education_entries:
+        education_lines += 1
+        metadata = " | ".join(
+            part
+            for part in [
+                education_item.institution,
+                education_item.location,
+                education_item.date_range,
+            ]
+            if part.strip()
+        )
+        if metadata:
+            education_lines += _estimate_wrapped_line_count(
+                metadata,
+                DEFAULT_BULLET_LINE_WIDTH,
+            )
+        if education_item.notes.strip():
+            education_lines += _estimate_wrapped_line_count(
+                education_item.notes,
+                DEFAULT_BULLET_LINE_WIDTH,
+            )
+
+    leadership_lines = 0
+    for leadership_item in resume.profile.leadership_community_entries:
+        header = " | ".join(
+            part
+            for part in [
+                leadership_item.title,
+                leadership_item.organization,
+                leadership_item.date_range,
+            ]
+            if part.strip()
+        )
+        if header:
+            leadership_lines += _estimate_wrapped_line_count(
+                header,
+                DEFAULT_BULLET_LINE_WIDTH,
+            )
+        if leadership_item.details.strip():
+            leadership_lines += _estimate_wrapped_line_count(
+                leadership_item.details,
+                DEFAULT_BULLET_LINE_WIDTH,
+            )
+
+    non_bullet_lines = (
+        header_lines
+        + title_line
+        + summary_lines
+        + section_header_lines
+        + skills_lines
+        + cross_org_lines
+        + selected_achievement_lines
+        + role_header_lines
+        + education_lines
+        + leadership_lines
+    )
+
+    minimum_floor_lines = _estimate_minimum_required_bullet_lines(resume.experiences)
+    computed_budget = max(
+        minimum_floor_lines, DEFAULT_TOTAL_PAGE_LINES - non_bullet_lines
+    )
+
+    # Keep the historical constant as a deterministic safety cap. This allows
+    # tests/config to force an intentionally strict cap and verify floor warnings.
+    capped_budget = max(1, min(DEFAULT_MAX_BULLET_LINES, computed_budget))
+    logger.debug(
+        "Computed bullet-line budget=%s (non_bullet_lines=%s, floor=%s)",
+        capped_budget,
+        non_bullet_lines,
+        minimum_floor_lines,
+    )
+    return capped_budget
+
+
+def _estimate_minimum_required_bullet_lines(experiences: tuple[Experience, ...]) -> int:
+    """Estimate minimum bullet lines needed to satisfy per-experience bullet floor."""
+    total = 0
+    for experience in experiences:
+        if not experience.bullets:
+            continue
+        line_counts = sorted(
+            _estimate_wrapped_line_count(bullet.text, DEFAULT_BULLET_LINE_WIDTH)
+            for bullet in experience.bullets
+        )
+        keep_count = min(DEFAULT_MIN_BULLETS_PER_EXPERIENCE, len(line_counts))
+        total += sum(line_counts[:keep_count])
+    return total
 
 
 def _enforce_bullet_line_budget(

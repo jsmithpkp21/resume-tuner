@@ -390,6 +390,156 @@ def _iter_markdown_blocks(md_text: str) -> list[tuple[str, str]]:
     return blocks
 
 
+def _normalize_inline_text(text: str) -> str:
+    return " ".join(text.replace("**", "").split())
+
+
+def _has_single_word_wrap_tail(text: str, *, line_width: int) -> bool:
+    normalized = _normalize_inline_text(text)
+    wrapped = build_resume._summary_wrap_lines(normalized, line_width=line_width)
+    return len(wrapped) > 1 and len(wrapped[-1].split()) == 1
+
+
+def _drop_tail_skill_from_category_row(text: str) -> str:
+    match = re.match(r"^\*\*(.+?):\*\*\s*(.+)$", text)
+    if not match:
+        return text
+    category = match.group(1).strip()
+    skills_raw = [skill.strip() for skill in match.group(2).split(",") if skill.strip()]
+    if len(skills_raw) <= 1:
+        return text
+    return f"**{category}:** {', '.join(skills_raw[:-1])}"
+
+
+def _trim_trailing_word(text: str) -> str:
+    words = text.strip().split()
+    if len(words) <= 6:
+        return text
+    shortened = " ".join(words[:-1]).rstrip(" ,;:")
+    if text.strip().endswith((".", "!", "?")) and not shortened.endswith(
+        (".", "!", "?")
+    ):
+        shortened += "."
+    return shortened
+
+
+def _job_context_has_community_signal(args: argparse.Namespace) -> bool:
+    signal_terms = {
+        "community",
+        "dei",
+        "diversity",
+        "inclusion",
+        "activism",
+        "volunteer",
+        "philanthropy",
+        "outreach",
+        "nonprofit",
+    }
+    source_parts = [args.target_role or "", args.company or ""]
+    if args.job_text_file is not None and Path(args.job_text_file).exists():
+        source_parts.append(Path(args.job_text_file).read_text(encoding="utf-8"))
+    haystack = "\n".join(source_parts).lower()
+    return any(term in haystack for term in signal_terms)
+
+
+def _apply_post_layout_cleanup(
+    source_text: str,
+    *,
+    args: argparse.Namespace,
+) -> str:
+    """Deterministically tighten assembled blocks before DOCX/PDF render."""
+    blocks = _iter_markdown_blocks(source_text)
+    if not blocks:
+        return source_text
+
+    has_mentoring_in_experience = False
+    section = ""
+    for kind, text in blocks:
+        if kind == "h2":
+            section = text.strip().lower()
+            continue
+        if section == "professional experience" and kind == "bullet":
+            if "mentor" in _normalize_inline_text(text).lower():
+                has_mentoring_in_experience = True
+                break
+
+    filtered_blocks: list[tuple[str, str]] = []
+    section = ""
+    removed_mentoring = False
+    removed_philanthropy = False
+    has_community_signal = _job_context_has_community_signal(args)
+    philanthropy_terms = {
+        "philanthropy",
+        "volunteer",
+        "community",
+        "advocacy",
+        "outreach",
+        "nonprofit",
+    }
+
+    for kind, text in blocks:
+        if kind == "h2":
+            section = text.strip().lower()
+            filtered_blocks.append((kind, text))
+            continue
+
+        if section == "key skills and expertise" and kind == "bullet":
+            candidate = text
+            if _has_single_word_wrap_tail(
+                candidate, line_width=build_resume.DEFAULT_BULLET_LINE_WIDTH
+            ):
+                candidate = _drop_tail_skill_from_category_row(candidate)
+            filtered_blocks.append((kind, candidate))
+            continue
+
+        if section == "professional experience" and kind == "bullet":
+            candidate = text
+            if _has_single_word_wrap_tail(
+                candidate, line_width=build_resume.DEFAULT_BULLET_LINE_WIDTH
+            ):
+                candidate = _trim_trailing_word(candidate)
+            filtered_blocks.append((kind, candidate))
+            continue
+
+        if section == "leadership & community" and kind == "bullet":
+            lowered = _normalize_inline_text(text).lower()
+            if (
+                has_mentoring_in_experience
+                and not removed_mentoring
+                and "mentor" in lowered
+            ):
+                removed_mentoring = True
+                continue
+            if (
+                not has_community_signal
+                and not removed_philanthropy
+                and any(term in lowered for term in philanthropy_terms)
+            ):
+                removed_philanthropy = True
+                continue
+            filtered_blocks.append((kind, text))
+            continue
+
+        filtered_blocks.append((kind, text))
+
+    lines: list[str] = []
+    for kind, text in filtered_blocks:
+        if kind == "h1":
+            lines.extend([f"# {text}", ""])
+        elif kind == "h2":
+            lines.extend([f"## {text}", ""])
+        elif kind == "h3":
+            lines.extend([f"### {text}", ""])
+        elif kind == "divider":
+            lines.extend(["---", ""])
+        elif kind == "bullet":
+            lines.append(f"- {text}")
+        else:
+            lines.append(text)
+
+    return "\n".join(lines).strip() + "\n"
+
+
 # ---------------------------------------------------------------------------
 # DOCX renderer
 # ---------------------------------------------------------------------------
@@ -1008,6 +1158,10 @@ def run() -> int:
         if html_source_path.exists():
             render_source_text = html_source_path.read_text(encoding="utf-8")
             using_html_source = True
+        render_source_text = _apply_post_layout_cleanup(
+            render_source_text,
+            args=args,
+        )
         if _contains_trailing_connector_fragment(md_text):
             print(
                 "WARNING: assembled content contains trailing connector fragments; review final DOCX/PDF for awkward wraps",

@@ -8,6 +8,7 @@ falling back to the assembled markdown artifact otherwise.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -66,6 +67,14 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional DOCX file name override under --output-dir.",
     )
+    parser.add_argument(
+        "--allow-overflow-pdf",
+        action="store_true",
+        help=(
+            "Keep the generated PDF even when it exceeds the default two-page "
+            "submission guard. Useful for review/debug exports."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -117,13 +126,26 @@ def _require_reportlab() -> tuple[Any, Any, Any]:
     return LETTER, canvas, stringWidth
 
 
-def _find_carlito_path(style: str = "Regular") -> Path | None:
-    """Locate Carlito TTF via fontconfig, then common Linux font paths."""
+def _find_calibri_path(style: str = "Regular") -> Path | None:
+    """Locate exact Calibri TTF via WSL Windows mount, then fontconfig."""
+    file_map = {
+        "Regular": "calibri.ttf",
+        "Bold": "calibrib.ttf",
+    }
+    expected_file = file_map.get(style)
+    if expected_file is None:
+        return None
+
+    # Prefer exact Windows font files to avoid style substitutions like Calibri Light.
+    windows_path = Path("/mnt/c/Windows/Fonts") / expected_file
+    if windows_path.exists():
+        return windows_path
+
     try:
         result = subprocess.run(
             [
                 "fc-list",
-                f":family=Carlito:style={style}",
+                f":family=Calibri:style={style}",
                 "--format=%{file}\n",
             ],
             capture_output=True,
@@ -132,44 +154,41 @@ def _find_carlito_path(style: str = "Regular") -> Path | None:
         )
         for line in result.stdout.splitlines():
             path = Path(line.strip())
-            if path.exists():
+            if path.exists() and path.name.lower() == expected_file:
                 return path
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
-
-    file_map = {
-        "Regular": "Carlito-Regular.ttf",
-        "Bold": "Carlito-Bold.ttf",
-    }
-    expected_file = file_map.get(style)
-    if not expected_file:
-        return None
-    for base in (
-        Path("/usr/share/fonts/truetype/crosextra"),
-        Path("/usr/share/fonts/truetype/carlito"),
-    ):
-        candidate = base / expected_file
-        if candidate.exists():
-            return candidate
     return None
 
 
-def _require_carlito_pdf_fonts() -> tuple[str, str]:
-    """Register and return ReportLab font names for Carlito Regular/Bold."""
-    regular_path = _find_carlito_path("Regular")
-    bold_path = _find_carlito_path("Bold")
-    if regular_path is None or bold_path is None:
-        raise FileNotFoundError(
-            "Carlito font not found for PDF export.\n"
-            "This renderer requires exact Carlito metrics; no fallback fonts are allowed.\n\n"
-            "Fix:\n"
-            "  1) Install fontconfig and Carlito fonts:\n"
-            "     apt-get update && apt-get install -y fontconfig fonts-crosextra-carlito\n"
-            "     fc-cache -fv\n"
-            "  2) Verify discovery:\n"
-            "     fc-list ':family=Carlito' --format='%{file}\\n'\n"
-            "  3) Re-run PDF export."
+def _find_fontconfig_font_path(family: str, style: str) -> Path | None:
+    """Locate a font file from fontconfig for a given family/style pair."""
+    try:
+        result = subprocess.run(
+            [
+                "fc-list",
+                f":family={family}:style={style}",
+                "--format=%{file}\n",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+
+    for line in result.stdout.splitlines():
+        path = Path(line.strip())
+        if path.exists():
+            return path
+    return None
+
+
+def _require_calibri_pdf_fonts() -> tuple[str, str]:
+    """Register and return PDF font names, preferring Calibri then deterministic fallbacks."""
+    strict_calibri = os.getenv("RESUME_PDF_STRICT_CALIBRI", "0") == "1"
+    regular_path = _find_calibri_path("Regular")
+    bold_path = _find_calibri_path("Bold")
 
     try:
         from reportlab.pdfbase import pdfmetrics
@@ -179,14 +198,43 @@ def _require_carlito_pdf_fonts() -> tuple[str, str]:
             "reportlab is required for PDF export. Install dependencies from requirements.txt"
         ) from exc
 
-    regular_name = "Carlito"
-    bold_name = "Carlito-Bold"
+    regular_name = "Calibri"
+    bold_name = "Calibri-Bold"
     registered = set(pdfmetrics.getRegisteredFontNames())
-    if regular_name not in registered:
-        pdfmetrics.registerFont(TTFont(regular_name, str(regular_path)))
-    if bold_name not in registered:
-        pdfmetrics.registerFont(TTFont(bold_name, str(bold_path)))
-    return regular_name, bold_name
+
+    if regular_path is not None and bold_path is not None:
+        if regular_name not in registered:
+            pdfmetrics.registerFont(TTFont(regular_name, str(regular_path)))
+        if bold_name not in registered:
+            pdfmetrics.registerFont(TTFont(bold_name, str(bold_path)))
+        return regular_name, bold_name
+
+    if strict_calibri:
+        raise FileNotFoundError(
+            "Strict Calibri mode is enabled but exact Calibri fonts were not found.\n"
+            "Set RESUME_PDF_STRICT_CALIBRI=0 to allow fallback fonts, or install:\n"
+            "  /mnt/c/Windows/Fonts/calibri.ttf\n"
+            "  /mnt/c/Windows/Fonts/calibrib.ttf"
+        )
+
+    # CI/container fallback path keeps PDF export deterministic without proprietary fonts.
+    fallback_candidates = (
+        ("Carlito", "Carlito-Bold"),
+        ("Liberation Sans", "Liberation Sans Bold"),
+    )
+    for family_regular, family_bold in fallback_candidates:
+        fallback_regular = _find_fontconfig_font_path(family_regular, "Regular")
+        fallback_bold = _find_fontconfig_font_path(family_regular, "Bold")
+        if fallback_regular is None or fallback_bold is None:
+            continue
+        if family_regular not in registered:
+            pdfmetrics.registerFont(TTFont(family_regular, str(fallback_regular)))
+        if family_bold not in registered:
+            pdfmetrics.registerFont(TTFont(family_bold, str(fallback_bold)))
+        return family_regular, family_bold
+
+    # Final fallback avoids hard dependency on fontconfig/fc-list in minimal containers.
+    return "Helvetica", "Helvetica-Bold"
 
 
 def _pipeline_markdown_path(output_dir: Path, processing_mode: str) -> Path:
@@ -357,9 +405,21 @@ def _add_rich_runs(
         if not part:
             continue
         run = paragraph.add_run(part)
+        _set_docx_font_name(run, "Calibri")
         run.font.size = Pt(base_size_pt)
         # odd-indexed splits are the captured bold groups
         run.bold = bold_base or (i % 2 == 1)
+
+
+def _set_docx_font_name(target: Any, font_name: str) -> None:
+    """Force font name across Word script channels (ascii/hAnsi/eastAsia/cs)."""
+    from docx.oxml.ns import qn
+
+    target.font.name = font_name
+    rpr = target._element.get_or_add_rPr()
+    rfonts = rpr.get_or_add_rFonts()
+    for key in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+        rfonts.set(qn(key), font_name)
 
 
 def _render_docx(md_text: str, output_path: Path) -> None:
@@ -367,6 +427,7 @@ def _render_docx(md_text: str, output_path: Path) -> None:
     from docx.enum.text import WD_LINE_SPACING
 
     divider_after_pt = 12
+    bullet_hanging_indent_pt = 14.4  # 0.20in
 
     doc = Document()
     # Narrow margins to match HTML template (0.5in each side)
@@ -377,7 +438,7 @@ def _render_docx(md_text: str, output_path: Path) -> None:
         section.bottom_margin = Inches(0.5)
     # Base style
     normal = doc.styles["Normal"]
-    normal.font.name = "Carlito"
+    _set_docx_font_name(normal, "Calibri")
     normal.font.size = Pt(11)
 
     def add_paragraph_bottom_border(
@@ -411,7 +472,8 @@ def _render_docx(md_text: str, output_path: Path) -> None:
         """Match Word paragraph settings used in the approved sample output."""
         paragraph.paragraph_format.space_before = Pt(0)
         paragraph.paragraph_format.space_after = Pt(0)
-        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.AT_LEAST
+        # Keep body/list text at a fixed single-line equivalent to reduce drift.
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
         paragraph.paragraph_format.line_spacing = Pt(11)
 
     previous_paragraph: Any | None = None
@@ -424,22 +486,22 @@ def _render_docx(md_text: str, output_path: Path) -> None:
             p.paragraph_format.space_after = Pt(0)
             run = p.add_run(text)
             run.bold = True
-            run.font.name = "Carlito"
+            _set_docx_font_name(run, "Calibri")
             run.font.size = Pt(18)
             previous_paragraph = p
         elif kind == "h2":
             p = doc.add_paragraph()
-            p.paragraph_format.space_before = Pt(12)
+            p.paragraph_format.space_before = Pt(8)
             p.paragraph_format.space_after = Pt(0)
             run = p.add_run(text)
             run.bold = True
-            run.font.name = "Carlito"
+            _set_docx_font_name(run, "Calibri")
             run.font.size = Pt(12)
             add_paragraph_bottom_border(p, color="CCCCCC", size=8, space=0)
             previous_paragraph = p
         elif kind == "h3":
             p = doc.add_paragraph()
-            p.paragraph_format.space_before = Pt(0 if not seen_role_title else 6)
+            p.paragraph_format.space_before = Pt(0 if not seen_role_title else 4)
             p.paragraph_format.space_after = Pt(0)
             if "	" in text:
                 title_part, date_part = text.split("	", 1)
@@ -447,7 +509,7 @@ def _render_docx(md_text: str, output_path: Path) -> None:
                 date_plain = _strip_markdown_markup(date_part).strip()
                 run = p.add_run(title_plain)
                 run.bold = True
-                run.font.name = "Carlito"
+                _set_docx_font_name(run, "Calibri")
                 run.font.size = Pt(11)
                 # Right tab stop at content width (7.5 in = 10800 twips)
                 from docx.oxml import OxmlElement
@@ -462,12 +524,12 @@ def _render_docx(md_text: str, output_path: Path) -> None:
                 pPr.append(tabs_el)
                 date_run = p.add_run("	" + date_plain)
                 date_run.bold = False
-                date_run.font.name = "Carlito"
+                _set_docx_font_name(date_run, "Calibri")
                 date_run.font.size = Pt(11)
             else:
                 run = p.add_run(text)
                 run.bold = True
-                run.font.name = "Carlito"
+                _set_docx_font_name(run, "Calibri")
                 run.font.size = Pt(11)
             seen_role_title = True
             previous_paragraph = p
@@ -477,15 +539,15 @@ def _render_docx(md_text: str, output_path: Path) -> None:
             p.paragraph_format.space_after = Pt(2)
             run = p.add_run(_strip_markdown_markup(text))
             run.bold = True
-            run.font.name = "Carlito"
+            _set_docx_font_name(run, "Calibri")
             run.font.size = Pt(11)
             previous_paragraph = p
         elif kind == "bullet":
             p = doc.add_paragraph(style="List Bullet")
             apply_word_body_paragraph_settings(p)
-            # Override list-style hanging/negative indent so bullets align to 0.
-            p.paragraph_format.left_indent = Pt(0)
-            p.paragraph_format.first_line_indent = Pt(0)
+            # Force a deterministic hanging indent for wrapped bullet lines.
+            p.paragraph_format.left_indent = Pt(bullet_hanging_indent_pt)
+            p.paragraph_format.first_line_indent = Pt(-bullet_hanging_indent_pt)
             _add_rich_runs(p, text, 11)
             previous_paragraph = p
         elif kind == "divider":
@@ -508,7 +570,7 @@ def _render_docx(md_text: str, output_path: Path) -> None:
                 right_plain = _strip_markdown_markup(right_part).strip()
                 run = p.add_run(left_plain)
                 run.bold = True
-                run.font.name = "Carlito"
+                _set_docx_font_name(run, "Calibri")
                 run.font.size = Pt(11)
                 from docx.oxml import OxmlElement
                 from docx.oxml.ns import qn
@@ -522,17 +584,17 @@ def _render_docx(md_text: str, output_path: Path) -> None:
                 pPr.append(tabs_el)
                 date_run = p.add_run("	" + right_plain)
                 date_run.bold = True
-                date_run.font.name = "Carlito"
+                _set_docx_font_name(date_run, "Calibri")
                 date_run.font.size = Pt(11)
             elif (skills_parts := _split_skills_category_line(text)) is not None:
                 category, skills = skills_parts
                 cat_run = p.add_run(f"{category} ")
                 cat_run.bold = True
-                cat_run.font.name = "Carlito"
+                _set_docx_font_name(cat_run, "Calibri")
                 cat_run.font.size = Pt(11)
                 skills_run = p.add_run(skills)
                 skills_run.bold = False
-                skills_run.font.name = "Carlito"
+                _set_docx_font_name(skills_run, "Calibri")
                 skills_run.font.size = Pt(11)
             else:
                 _add_rich_runs(p, text, 11)
@@ -633,21 +695,23 @@ def _split_skills_category_line(text: str) -> tuple[str, str] | None:
     return match.group(1).strip(), match.group(2).strip()
 
 
-def _render_pdf(md_text: str, output_path: Path) -> None:
+def _render_pdf(
+    md_text: str, output_path: Path, *, enforce_page_limit: bool = True
+) -> None:
     import io as _io
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.unlink(missing_ok=True)
 
     LETTER, canvas_mod, _sw = _require_reportlab()
-    fn_regular, fn_bold = _require_carlito_pdf_fonts()
+    fn_regular, fn_bold = _require_calibri_pdf_fonts()
     buf = _io.BytesIO()
     pdf = canvas_mod.Canvas(buf, pagesize=LETTER)
     width, height = LETTER
     # Keep near-HTML width while preserving a stable two-page PDF envelope.
-    margin_x: float = 46
-    margin_top: float = 32
-    margin_bottom: float = 32
+    margin_x: float = 36
+    margin_top: float = 36
+    margin_bottom: float = 36
     y: float = height - margin_top
     page_count = 1
     content_width = width - 2 * margin_x
@@ -667,6 +731,12 @@ def _render_pdf(md_text: str, output_path: Path) -> None:
     def ensure_line_space(line_height: float) -> None:
         ensure_space(line_height)
 
+    def draw_text(
+        x: float, y_pos: float, value: str, font_name: str, font_size: int
+    ) -> None:
+        pdf.setFont(font_name, font_size)
+        pdf.drawString(x, y_pos, value)
+
     def draw_horizontal_rule(
         *, before_pts: float, after_pts: float, width: float = 1.0, gray: float = 0.0
     ) -> None:
@@ -684,27 +754,25 @@ def _render_pdf(md_text: str, output_path: Path) -> None:
         if kind == "h1":
             fn, fs, lh = fn_bold, 18, 15.2
             ensure_space(lh + 4)
-            pdf.setFont(fn, fs)
-            pdf.drawString(margin_x, y, plain)
+            draw_text(margin_x, y, plain, fn, fs)
             last_text_baseline_y = y
             y -= lh
         elif kind == "h2":
             fn, fs, lh = fn_bold, 12, 15
-            ensure_space(lh + 18)
-            y -= 6
-            pdf.setFont(fn, fs)
+            ensure_space(lh + 16)
+            y -= 5
             heading_y = y
-            pdf.drawString(margin_x, heading_y, plain)
+            draw_text(margin_x, heading_y, plain, fn, fs)
             last_text_baseline_y = heading_y
             line_y = heading_y - 2
             pdf.setStrokeColorRGB(0.8, 0.8, 0.8)
             pdf.setLineWidth(0.8)
             pdf.line(margin_x, line_y, margin_x + content_width, line_y)
-            y = line_y - 16
+            y = line_y - 14
         elif kind == "h3":
             fn_bold_name, fn_reg_name, fs, lh = fn_bold, fn_regular, 11, 13.2
-            ensure_space(lh + 3)
-            y -= 2  # space before job title
+            ensure_space(lh + 2)
+            y -= 1  # space before job title
             if "	" in text:
                 title_part, date_part = text.split("	", 1)
                 title_plain = _strip_markdown_markup(title_part).strip()
@@ -712,20 +780,17 @@ def _render_pdf(md_text: str, output_path: Path) -> None:
             else:
                 title_plain = plain
                 date_plain = None
-            pdf.setFont(fn_bold_name, fs)
-            pdf.drawString(margin_x, y, title_plain)
+            draw_text(margin_x, y, title_plain, fn_bold_name, fs)
             last_text_baseline_y = y
             if date_plain:
                 _sw = _require_reportlab()[2]
                 dw = _sw(date_plain, fn_reg_name, 11)
-                pdf.setFont(fn_reg_name, 11)
-                pdf.drawString(margin_x + content_width - dw, y, date_plain)
+                draw_text(margin_x + content_width - dw, y, date_plain, fn_reg_name, 11)
             y -= lh
         elif kind == "title":
             fn, fs, lh = fn_bold, 11, 13
             ensure_space(lh + 2)
-            pdf.setFont(fn, fs)
-            pdf.drawString(margin_x, y, plain)
+            draw_text(margin_x, y, plain, fn, fs)
             last_text_baseline_y = y
             y -= lh
         elif kind == "divider":
@@ -740,7 +805,7 @@ def _render_pdf(md_text: str, output_path: Path) -> None:
                 pdf.line(margin_x, line_y, margin_x + content_width, line_y)
                 y = line_y - 16
         elif kind == "bullet":
-            fn, fn_bold_name, fs, lh = fn_regular, fn_bold, 11, 12.2
+            fn, fn_bold_name, fs, lh = fn_regular, fn_bold, 11, 12.0
             bullet_x = margin_x + 1
             text_x = margin_x + 14
             avail = content_width - (text_x - margin_x)
@@ -754,11 +819,9 @@ def _render_pdf(md_text: str, output_path: Path) -> None:
                 if category_w + skills_w <= avail:
                     ensure_space(lh + 1)
                     ensure_line_space(lh)
-                    pdf.drawString(bullet_x, y, "•")
-                    pdf.setFont(fn_bold_name, fs)
-                    pdf.drawString(text_x, y, category_with_space)
-                    pdf.setFont(fn, fs)
-                    pdf.drawString(text_x + category_w, y, skills)
+                    draw_text(bullet_x, y, "•", fn, fs)
+                    draw_text(text_x, y, category_with_space, fn_bold_name, fs)
+                    draw_text(text_x + category_w, y, skills, fn, fs)
                     last_text_baseline_y = y
                     y -= lh
                 else:
@@ -774,19 +837,17 @@ def _render_pdf(md_text: str, output_path: Path) -> None:
                     for i, (bold_text, regular_text) in enumerate(wrapped_lines):
                         ensure_line_space(lh)
                         if i == 0:
-                            pdf.drawString(bullet_x, y, "•")
+                            draw_text(bullet_x, y, "•", fn, fs)
                         if bold_text:
-                            pdf.setFont(fn_bold_name, fs)
-                            pdf.drawString(text_x, y, bold_text)
+                            draw_text(text_x, y, bold_text, fn_bold_name, fs)
                         if regular_text:
                             bold_w = (
                                 _sw(bold_text, fn_bold_name, fs) if bold_text else 0
                             )
-                            pdf.setFont(fn, fs)
-                            pdf.drawString(text_x + bold_w, y, regular_text)
+                            draw_text(text_x + bold_w, y, regular_text, fn, fs)
                         last_text_baseline_y = y
                         y -= lh
-                y -= 0.4
+                y -= 0.2
             else:
                 text_font = fn
                 if "**" in text:
@@ -805,18 +866,17 @@ def _render_pdf(md_text: str, output_path: Path) -> None:
                 else:
                     lines = _wrap_text_for_pdf(plain, avail, text_font, fs)
                 ensure_space(len(lines) * lh + 1)
-                pdf.setFont(text_font, fs)
                 for i, line in enumerate(lines):
                     ensure_line_space(lh)
                     if i == 0:
-                        pdf.drawString(bullet_x, y, "•")
-                    pdf.drawString(text_x, y, line)
+                        draw_text(bullet_x, y, "•", text_font, fs)
+                    draw_text(text_x, y, line, text_font, fs)
                     last_text_baseline_y = y
                     y -= lh
-                y -= 0.4
+                y -= 0.2
         else:  # p — contact, date, role summary, company line, skills
-            fn, fn_bold_name, fs, lh = fn_regular, fn_bold, 11, 11.2
-            post_gap = 0 if not seen_divider else 0.4
+            fn, fn_bold_name, fs, lh = fn_regular, fn_bold, 11, 11.0
+            post_gap = 0 if not seen_divider else 0.2
             if "	" in text:
                 # Company line: "**Company, Location**	Date Range"
                 left_part, right_part = text.split("	", 1)
@@ -825,11 +885,11 @@ def _render_pdf(md_text: str, output_path: Path) -> None:
                 ensure_space(lh + 1)
                 _sw = _require_reportlab()[2]
                 rw = _sw(right_plain, fn_bold_name, 11)
-                pdf.setFont(fn_bold_name, fs)
-                pdf.drawString(margin_x, y, left_plain)
+                draw_text(margin_x, y, left_plain, fn_bold_name, fs)
                 last_text_baseline_y = y
-                pdf.setFont(fn_bold_name, 11)
-                pdf.drawString(margin_x + content_width - rw, y, right_plain)
+                draw_text(
+                    margin_x + content_width - rw, y, right_plain, fn_bold_name, 11
+                )
                 y -= lh
                 y -= post_gap
             elif (skills_parts := _split_skills_category_line(text)) is not None:
@@ -840,10 +900,8 @@ def _render_pdf(md_text: str, output_path: Path) -> None:
                 skills_w = _sw(skills, fn, fs)
                 ensure_space(lh + 1)
                 if category_w + skills_w <= content_width:
-                    pdf.setFont(fn_bold_name, fs)
-                    pdf.drawString(margin_x, y, category_with_space)
-                    pdf.setFont(fn, fs)
-                    pdf.drawString(margin_x + category_w, y, skills)
+                    draw_text(margin_x, y, category_with_space, fn_bold_name, fs)
+                    draw_text(margin_x + category_w, y, skills, fn, fs)
                     last_text_baseline_y = y
                     y -= lh
                 else:
@@ -859,14 +917,12 @@ def _render_pdf(md_text: str, output_path: Path) -> None:
                     for bold_text, regular_text in wrapped_lines:
                         ensure_line_space(lh)
                         if bold_text:
-                            pdf.setFont(fn_bold_name, fs)
-                            pdf.drawString(margin_x, y, bold_text)
+                            draw_text(margin_x, y, bold_text, fn_bold_name, fs)
                         if regular_text:
                             bold_w = (
                                 _sw(bold_text, fn_bold_name, fs) if bold_text else 0
                             )
-                            pdf.setFont(fn, fs)
-                            pdf.drawString(margin_x + bold_w, y, regular_text)
+                            draw_text(margin_x + bold_w, y, regular_text, fn, fs)
                         last_text_baseline_y = y
                         y -= lh
                 y -= post_gap
@@ -887,10 +943,9 @@ def _render_pdf(md_text: str, output_path: Path) -> None:
                             bold_text, content_width, fn_bold_name, fs
                         )
                         ensure_space(len(lines) * lh + 1)
-                        pdf.setFont(fn_bold_name, fs)
                         for line in lines:
                             ensure_line_space(lh)
-                            pdf.drawString(margin_x, y, line)
+                            draw_text(margin_x, y, line, fn_bold_name, fs)
                             last_text_baseline_y = y
                             y -= lh
                     else:
@@ -904,8 +959,7 @@ def _render_pdf(md_text: str, output_path: Path) -> None:
                             is_bold = i % 2 == 1
                             cur_fn = fn_bold_name if is_bold else fn
                             pw = _sw_fn(part_plain, cur_fn, fs)
-                            pdf.setFont(cur_fn, fs)
-                            pdf.drawString(x_cursor, y, part_plain)
+                            draw_text(x_cursor, y, part_plain, cur_fn, fs)
                             x_cursor += pw
                         last_text_baseline_y = y
                         y -= lh
@@ -913,15 +967,14 @@ def _render_pdf(md_text: str, output_path: Path) -> None:
                 else:
                     lines = _wrap_text_for_pdf(plain, content_width, fn, fs)
                     ensure_space(len(lines) * lh + 1)
-                    pdf.setFont(fn, fs)
                     for line in lines:
                         ensure_line_space(lh)
-                        pdf.drawString(margin_x, y, line)
+                        draw_text(margin_x, y, line, fn, fs)
                         last_text_baseline_y = y
                         y -= lh
                     y -= post_gap
     pdf.save()
-    if page_count > 2:
+    if enforce_page_limit and page_count > 2:
         output_path.unlink(missing_ok=True)
         raise RuntimeError(
             f"PDF exceeded two-page limit ({page_count} pages): {output_path}"
@@ -967,7 +1020,11 @@ def run() -> int:
         docx_output = Path(args.output_dir) / docx_name
         pdf_output = Path(args.output_dir) / pdf_name
         _render_docx(render_source_text, docx_output)
-        _render_pdf(render_source_text, pdf_output)
+        _render_pdf(
+            render_source_text,
+            pdf_output,
+            enforce_page_limit=not args.allow_overflow_pdf,
+        )
         removed_legacy_outputs = _remove_stale_legacy_exports(
             Path(args.output_dir), {docx_output, pdf_output}
         )

@@ -1,19 +1,4 @@
-#!/usr/bin/env python3
-"""Build a tailored resume artifact from canonical data.
-
-Pipeline stages (in order):
-1. assemble_baseline_resume - load all canonical experiences and bullets unchanged
-2. transform_for_role       - rewrite bullet text to match target role framing (LLM)
-3. trim_for_role            - select/reorder bullets by role relevance (LLM)
-4. enrich_data              - attach role-alignment metadata to bullets (LLM)
-5. trim_by_rules            - enforce layout rules: deduplication, diversity, caps
-6. summarize_for_role       - generate concise per-role summaries from selected bullets
-7. select_skills            - reduce skills matrix to role-relevant categories/signals
-8. summarize_profile_for_role - generate top-of-page role-aware summary text
-
-Note: a future post-layout overflow pass may further shorten wording after page-fit
-measurement for a specific output target (for example PDF/DOCX two-page limits).
-"""
+"""Build tailored resume outputs from profile, experience, and skills inputs."""
 
 from __future__ import annotations
 
@@ -155,6 +140,18 @@ class LeadershipCommunityEntry:
 
 
 @dataclass(frozen=True)
+class CrossOrgLeadershipEntry:
+    text: str
+    source_bullet_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class SelectedAchievementEntry:
+    text: str
+    source_bullet_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Bullet:
     id: str
     text: str
@@ -185,6 +182,12 @@ class ResumeIR:
     experiences: tuple[Experience, ...]
     skills_by_category: dict[str, list[str]]
     enrichment_by_bullet_id: dict[str, dict[str, object]] = field(default_factory=dict)
+    cross_org_architectural_leadership: tuple[CrossOrgLeadershipEntry, ...] = field(
+        default_factory=tuple
+    )
+    selected_achievements: tuple[SelectedAchievementEntry, ...] = field(
+        default_factory=tuple
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -521,6 +524,106 @@ def load_experiences(path: Path) -> tuple[Experience, ...]:
     return tuple(experiences)
 
 
+def load_cross_org_architectural_leadership(
+    path: Path,
+    *,
+    experiences: tuple[Experience, ...],
+) -> tuple[CrossOrgLeadershipEntry, ...]:
+    payload = _read_toml(path)
+    section = payload.get("cross_org_architectural_leadership", {})
+    if not isinstance(section, dict):
+        raise ValueError("cross_org_architectural_leadership must be a table")
+
+    raw_items = section.get("items", [])
+    if raw_items in (None, ""):
+        return ()
+    if not isinstance(raw_items, list):
+        raise ValueError(
+            "cross_org_architectural_leadership.items must use [[...items]] entries"
+        )
+
+    known_bullet_ids = {
+        bullet.id for experience in experiences for bullet in experience.bullets
+    }
+    entries: list[CrossOrgLeadershipEntry] = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            raise ValueError(
+                "Each [[cross_org_architectural_leadership.items]] entry must be a table"
+            )
+        text = str(item.get("text", "")).strip()
+        raw_ids = item.get("source_bullet_ids", [])
+        if not isinstance(raw_ids, list):
+            raise ValueError(
+                "cross_org_architectural_leadership.items.source_bullet_ids must be a list"
+            )
+        source_ids = tuple(
+            str(value).strip() for value in raw_ids if str(value).strip()
+        )
+        unknown = sorted(
+            source_id for source_id in source_ids if source_id not in known_bullet_ids
+        )
+        if unknown:
+            raise ValueError(
+                "Unknown cross_org_architectural_leadership source_bullet_ids: "
+                + ", ".join(unknown)
+            )
+        if text:
+            entries.append(
+                CrossOrgLeadershipEntry(text=text, source_bullet_ids=source_ids)
+            )
+    return tuple(entries)
+
+
+def load_selected_achievements(
+    path: Path,
+    *,
+    experiences: tuple[Experience, ...],
+) -> tuple[SelectedAchievementEntry, ...]:
+    payload = _read_toml(path)
+    section = payload.get("selected_achievements", {})
+    if not isinstance(section, dict):
+        raise ValueError("selected_achievements must be a table")
+
+    raw_items = section.get("items", [])
+    if raw_items in (None, ""):
+        return ()
+    if not isinstance(raw_items, list):
+        raise ValueError("selected_achievements.items must use [[...items]] entries")
+
+    known_bullet_ids = {
+        bullet.id for experience in experiences for bullet in experience.bullets
+    }
+    entries: list[SelectedAchievementEntry] = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            raise ValueError(
+                "Each [[selected_achievements.items]] entry must be a table"
+            )
+        text = str(item.get("text", "")).strip()
+        raw_ids = item.get("source_bullet_ids", [])
+        if not isinstance(raw_ids, list):
+            raise ValueError(
+                "selected_achievements.items.source_bullet_ids must be a list"
+            )
+        source_ids = tuple(
+            str(value).strip() for value in raw_ids if str(value).strip()
+        )
+        unknown = sorted(
+            source_id for source_id in source_ids if source_id not in known_bullet_ids
+        )
+        if unknown:
+            raise ValueError(
+                "Unknown selected_achievements source_bullet_ids: " + ", ".join(unknown)
+            )
+        if text:
+            entries.append(
+                SelectedAchievementEntry(text=text, source_bullet_ids=source_ids)
+            )
+
+    return tuple(entries)
+
+
 def load_skills_by_category(path: Path) -> dict[str, list[str]]:
     assert_not_blocked_runtime_input(path)
     skills_by_category: dict[str, list[str]] = {}
@@ -545,6 +648,8 @@ def assemble_baseline_resume(
     job_context: JobContext | None,
     experiences: tuple[Experience, ...],
     skills_by_category: dict[str, list[str]],
+    cross_org_architectural_leadership: tuple[CrossOrgLeadershipEntry, ...] = (),
+    selected_achievements: tuple[SelectedAchievementEntry, ...] = (),
 ) -> ResumeIR:
     """Assemble baseline IR with unchanged canonical content."""
     return ResumeIR(
@@ -556,6 +661,8 @@ def assemble_baseline_resume(
         experiences=experiences,
         skills_by_category=skills_by_category,
         enrichment_by_bullet_id={},
+        cross_org_architectural_leadership=cross_org_architectural_leadership,
+        selected_achievements=selected_achievements,
     )
 
 
@@ -613,6 +720,8 @@ def transform_for_role(resume: ResumeIR) -> ResumeIR:
         experiences=transformed_experiences,
         skills_by_category=resume.skills_by_category,
         enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
+        cross_org_architectural_leadership=resume.cross_org_architectural_leadership,
+        selected_achievements=resume.selected_achievements,
     )
 
 
@@ -871,6 +980,8 @@ def trim_for_role(resume: ResumeIR) -> ResumeIR:
         experiences=trimmed_experiences,
         skills_by_category=resume.skills_by_category,
         enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
+        cross_org_architectural_leadership=resume.cross_org_architectural_leadership,
+        selected_achievements=resume.selected_achievements,
     )
 
 
@@ -1123,6 +1234,8 @@ def enrich_data(resume: ResumeIR) -> ResumeIR:
         experiences=resume.experiences,
         skills_by_category=resume.skills_by_category,
         enrichment_by_bullet_id=merged,
+        cross_org_architectural_leadership=resume.cross_org_architectural_leadership,
+        selected_achievements=resume.selected_achievements,
     )
 
 
@@ -1244,6 +1357,8 @@ def trim_by_rules(resume: ResumeIR) -> ResumeIR:
         experiences=trimmed_experiences,
         skills_by_category=resume.skills_by_category,
         enrichment_by_bullet_id=filtered_enrichment,
+        cross_org_architectural_leadership=resume.cross_org_architectural_leadership,
+        selected_achievements=resume.selected_achievements,
     )
 
 
@@ -1323,7 +1438,16 @@ def _generate_profile_summary(resume: ResumeIR) -> str:
         else:
             candidate = truncated
     fitted = _fit_profile_summary_layout(candidate)
-    return fitted or candidate
+    # Ensure final summary is at most max_words after all processing
+    max_words = max(1, int(PROFILE_SUMMARY_MAX_WORDS))
+    final = fitted or candidate
+    final = _truncate_to_n_words(final, max_words)
+    # Strip trailing punctuation before adding period to avoid sequences like "Video,."
+    final = final.rstrip(" ,;:")
+    # Add period if missing
+    if final and not final.endswith((".", "!", "?")):
+        final += "."
+    return final
 
 
 def _fit_profile_summary_layout(summary: str) -> str:
@@ -1343,11 +1467,19 @@ def _fit_profile_summary_layout(summary: str) -> str:
     return ""
 
 
+def _truncate_to_n_words(text: str, n: int) -> str:
+    words = text.split()
+    return " ".join(words[:n]) if words else ""
+
+
 def _build_profile_summary_fragments(
     resume: ResumeIR, *, role_label: str, focus_text: str
 ) -> list[str]:
     normalized_role_label = " ".join(role_label.split()).strip() or "Engineer"
-    fragments = [f"{normalized_role_label} strengths include {focus_text}."]
+    fragments = [
+        _build_profile_scope_opening(resume, normalized_role_label),
+        f"Core strengths include {focus_text}.",
+    ]
 
     for exp_index, experience in enumerate(resume.experiences):
         summary = _shorten_sentence(experience.general_role_description, max_words=30)
@@ -1367,6 +1499,46 @@ def _build_profile_summary_fragments(
         seen.add(normalized)
         deduped.append(fragment)
     return deduped
+
+
+def _build_profile_scope_opening(resume: ResumeIR, role_label: str) -> str:
+    """Build a scope-first opening sentence for the profile summary."""
+    labels = _collect_profile_scope_labels(resume.experiences)
+    if len(labels) >= 3:
+        scope = f"{labels[0]}, {labels[1]}, and {labels[2]}"
+    elif len(labels) == 2:
+        scope = f"{labels[0]} and {labels[1]}"
+    elif labels:
+        scope = labels[0]
+    else:
+        scope = "multi-product"
+    return (
+        f"{role_label} delivering automation framework architecture across {scope} "
+        "product teams."
+    )
+
+
+def _collect_profile_scope_labels(experiences: tuple[Experience, ...]) -> list[str]:
+    """Extract deterministic scope labels from experience titles/descriptions."""
+    token_to_label = {
+        "video": "Video",
+        "audio": "Audio",
+        "headset": "Headset",
+        "network": "Network",
+    }
+    discovered: set[str] = set()
+    for experience in experiences:
+        haystack = (
+            f"{experience.job_title} {experience.general_role_description}".lower()
+        )
+        for token, label in token_to_label.items():
+            if token in haystack:
+                discovered.add(label)
+    return [
+        label
+        for label in ("Video", "Audio", "Headset", "Network")
+        if label in discovered
+    ]
 
 
 def _summary_role_label_from_title(resume: ResumeIR) -> str:
@@ -1992,7 +2164,7 @@ def render_html(
         block_end = block_start
         while block_end + 1 < len(resume.experiences) and _normalize_company_alias(
             resume.experiences[block_end + 1].company
-        ) == _normalize_company_alias(resume.experiences[block_start].company):
+        ) == _normalize_company_alias(resume.experiences[block_end].company):
             block_end += 1
         company_blocks[block_start] = (block_start, block_end)
         block_start = block_end + 1
@@ -2102,6 +2274,34 @@ def render_html(
             )
         )
 
+    cross_org_html: list[str] = []
+    for cross_org_entry in resume.cross_org_architectural_leadership:
+        cross_org_html.append(
+            "\n".join(
+                [
+                    '<section class="info-item">',
+                    "<ul>",
+                    f"<li>{_html_escape(cross_org_entry.text)}</li>",
+                    "</ul>",
+                    "</section>",
+                ]
+            )
+        )
+
+    selected_achievements_html: list[str] = []
+    for selected_achievement in resume.selected_achievements:
+        selected_achievements_html.append(
+            "\n".join(
+                [
+                    '<section class="info-item">',
+                    "<ul>",
+                    f"<li>{_html_escape(selected_achievement.text)}</li>",
+                    "</ul>",
+                    "</section>",
+                ]
+            )
+        )
+
     template = get_template(template_name)
     context = TemplateContext(
         name=resume.profile.name,
@@ -2115,6 +2315,8 @@ def render_html(
         experiences_html=experiences_html,
         education_html=education_html,
         leadership_html=leadership_html,
+        cross_org_html=cross_org_html,
+        selected_achievements_html=selected_achievements_html,
     )
     output_path.write_text(template.render(context), encoding="utf-8")
 
@@ -2142,6 +2344,16 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
 
     for category, skills in resume.skills_by_category.items():
         lines.append(f"- **{category}:** {join_skills(skills)}")
+
+    if resume.cross_org_architectural_leadership:
+        lines.extend(["", "## Cross-Org Architectural Leadership", ""])
+        for cross_org_entry in resume.cross_org_architectural_leadership:
+            lines.append(f"- {cross_org_entry.text}")
+
+    if resume.selected_achievements:
+        lines.extend(["", "## Selected Achievements", ""])
+        for selected_achievement in resume.selected_achievements:
+            lines.append(f"- {selected_achievement.text}")
 
     lines.extend(["", "## Professional Experience", ""])
 
@@ -2233,6 +2445,10 @@ def write_ir_snapshot(resume: ResumeIR, output_path: Path) -> None:
             len(skills) for skills in resume.skills_by_category.values()
         ),
         "enrichment_count": len(resume.enrichment_by_bullet_id),
+        "cross_org_architectural_leadership_count": len(
+            resume.cross_org_architectural_leadership
+        ),
+        "selected_achievements_count": len(resume.selected_achievements),
     }
     if resume.job_context is not None:
         payload["job_context"] = resume.job_context.to_dict()
@@ -2315,6 +2531,30 @@ def write_text_snapshot(resume: ResumeIR, output_path: Path) -> None:
             ]
         )
 
+    lines.extend(["", "cross_org_architectural_leadership:"])
+    if not resume.cross_org_architectural_leadership:
+        lines.append("- none")
+    else:
+        for cross_org_entry in resume.cross_org_architectural_leadership:
+            lines.extend(
+                [
+                    f"- text: {cross_org_entry.text}",
+                    f"  source_bullet_ids: {', '.join(cross_org_entry.source_bullet_ids)}",
+                ]
+            )
+
+    lines.extend(["", "selected_achievements:"])
+    if not resume.selected_achievements:
+        lines.append("- none")
+    else:
+        for selected_achievement in resume.selected_achievements:
+            lines.extend(
+                [
+                    f"- text: {selected_achievement.text}",
+                    f"  source_bullet_ids: {', '.join(selected_achievement.source_bullet_ids)}",
+                ]
+            )
+
     lines.extend(["", "job_context:"])
     if resume.job_context is None:
         lines.append("- none")
@@ -2338,6 +2578,14 @@ def write_text_snapshot(resume: ResumeIR, output_path: Path) -> None:
 def run_pipeline(args: argparse.Namespace) -> int:
     profile = load_profile(args.profile)
     experiences = load_experiences(args.experience_db)
+    cross_org_architectural_leadership = load_cross_org_architectural_leadership(
+        args.experience_db,
+        experiences=experiences,
+    )
+    selected_achievements = load_selected_achievements(
+        args.experience_db,
+        experiences=experiences,
+    )
     skills_by_category = load_skills_by_category(args.skills_matrix)
     job_url = args.job_url.strip()
     job_text_file = args.job_text_file
@@ -2369,6 +2617,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
         job_context=job_context,
         experiences=experiences,
         skills_by_category=skills_by_category,
+        cross_org_architectural_leadership=cross_org_architectural_leadership,
+        selected_achievements=selected_achievements,
     )
     if args.processing_mode == "processed":
         resume = transform_for_role(resume)

@@ -26,7 +26,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ${AWK_IMPL_PACKAGE} \
     nodejs \
     npm \
-    fonts-liberation \
     && update-alternatives --set awk /usr/bin/gawk \
     && npm install -g markdownlint-cli@0.47.0 \
     && rm -rf /var/lib/apt/lists/*

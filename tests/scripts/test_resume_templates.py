@@ -137,3 +137,65 @@ def test_header_divider_has_blank_line_before_resume_title() -> None:
             ".header-divider { border: 0; border-top: 1px solid #000; margin: -1px 0 16px 0; }"
             in normalized_css
         )
+
+
+def test_render_sections_includes_cross_org_heading_when_entries_exist() -> None:
+    for template_class in (DefaultTemplate, ModernTemplate):
+        tmpl = template_class()
+        ctx = _make_context(
+            skills_html=["<p>skills</p>"],
+            cross_org_html=["<section>cross-org</section>"],
+            experiences_html=["<section>experience</section>"],
+        )
+        sections = tmpl._render_sections(ctx)
+        joined = "\n".join(sections)
+        assert "<h2>Cross-Org Architectural Leadership</h2>" in joined
+        assert joined.index("<h2>Key Skills and Expertise</h2>") < joined.index(
+            "<h2>Cross-Org Architectural Leadership</h2>"
+        )
+        assert joined.index(
+            "<h2>Cross-Org Architectural Leadership</h2>"
+        ) < joined.index("<h2>Professional Experience</h2>")
+
+
+def test_render_sections_includes_selected_achievements_after_cross_org() -> None:
+    for template_class in (DefaultTemplate, ModernTemplate):
+        tmpl = template_class()
+        ctx = _make_context(
+            skills_html=["<p>skills</p>"],
+            cross_org_html=["<section>cross-org</section>"],
+            selected_achievements_html=["<section>achievement</section>"],
+            experiences_html=["<section>experience</section>"],
+        )
+        sections = tmpl._render_sections(ctx)
+        joined = "\n".join(sections)
+        assert "<h2>Selected Achievements</h2>" in joined
+        assert joined.index(
+            "<h2>Cross-Org Architectural Leadership</h2>"
+        ) < joined.index("<h2>Selected Achievements</h2>")
+        assert joined.index("<h2>Selected Achievements</h2>") < joined.index(
+            "<h2>Professional Experience</h2>"
+        )
+
+
+def test_render_sections_omits_cross_org_heading_when_no_entries() -> None:
+    for template_class in (DefaultTemplate, ModernTemplate):
+        tmpl = template_class()
+        ctx = _make_context(
+            skills_html=["<p>skills</p>"],
+            experiences_html=["<section>x</section>"],
+        )
+        sections = tmpl._render_sections(ctx)
+        assert "<h2>Cross-Org Architectural Leadership</h2>" not in "\n".join(sections)
+
+
+def test_render_sections_omits_selected_achievements_heading_when_no_entries() -> None:
+    for template_class in (DefaultTemplate, ModernTemplate):
+        tmpl = template_class()
+        ctx = _make_context(
+            skills_html=["<p>skills</p>"],
+            cross_org_html=["<section>cross-org</section>"],
+            experiences_html=["<section>x</section>"],
+        )
+        sections = tmpl._render_sections(ctx)
+        assert "<h2>Selected Achievements</h2>" not in "\n".join(sections)

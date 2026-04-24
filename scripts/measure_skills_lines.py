@@ -264,20 +264,21 @@ def load_font_pair(
                 file=sys.stderr,
             )
         else:
-            attempted_liberation = "\n".join(
-                f"    {regular}\n    {bold}" for regular, bold in _LIBERATION_FONT_PAIRS
+            # Final fallback: Pillow built-in TrueType font — always available, no
+            # external files required. Metrics differ from Calibri (~10-20%) so this
+            # path is only for CI/container environments without installed fonts.
+            print(
+                "WARNING: Calibri, Liberation Sans, and DejaVu Sans are all unavailable. "
+                "Falling back to Pillow built-in font for skills measurement. "
+                "Measurements will be less accurate. "
+                "Install Calibri or Liberation Sans for production-quality metrics.",
+                file=sys.stderr,
             )
-            attempted_dejavu = "\n".join(
-                f"    {regular}\n    {bold}" for regular, bold in _DEJAVU_FONT_PAIRS
-            )
-            raise FileNotFoundError(
-                "No usable font pair found for skills measurement.\n"
-                "Checked (in order): Calibri, Liberation Sans, DejaVu Sans.\n"
-                "Tried Liberation paths:\n"
-                f"{attempted_liberation}\n"
-                "Tried DejaVu paths:\n"
-                f"{attempted_dejavu}\n"
-                "Install Calibri (preferred) or install both Liberation/DejaVu font files."
+            builtin_font = ImageFont.load_default(size=_PILLOW_SIZE)
+            return (
+                builtin_font,
+                builtin_font,
+                "Pillow built-in (fallback; metrics approximate)",
             )
     try:
         return (

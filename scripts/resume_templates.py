@@ -14,7 +14,7 @@ from __future__ import annotations
 import html
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -32,6 +32,8 @@ class TemplateContext:
     experiences_html: list[str]  # Pre-rendered experience sections
     education_html: list[str]  # Pre-rendered education items
     leadership_html: list[str]  # Pre-rendered leadership items
+    cross_org_html: list[str] = field(default_factory=list)
+    selected_achievements_html: list[str] = field(default_factory=list)
 
 
 class ResumeTemplate(ABC):
@@ -83,9 +85,27 @@ class ResumeTemplate(ABC):
         sections = [
             "  <h2>Key Skills and Expertise</h2>",
             *context.skills_html,
-            "  <h2>Professional Experience</h2>",
-            *context.experiences_html,
         ]
+        if context.cross_org_html:
+            sections.extend(
+                [
+                    "  <h2>Cross-Org Architectural Leadership</h2>",
+                    *context.cross_org_html,
+                ]
+            )
+        if context.selected_achievements_html:
+            sections.extend(
+                [
+                    "  <h2>Selected Achievements</h2>",
+                    *context.selected_achievements_html,
+                ]
+            )
+        sections.extend(
+            [
+                "  <h2>Professional Experience</h2>",
+                *context.experiences_html,
+            ]
+        )
         if context.education_html:
             sections.extend(
                 [

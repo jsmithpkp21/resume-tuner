@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import io as io_mod
 import re
+import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 from zipfile import ZipFile
 
@@ -38,6 +40,7 @@ def test_run_generates_docx_and_pdf_from_same_markdown(
                 "template": "modern",
                 "pdf_filename": "resume.pdf",
                 "docx_filename": "resume.docx",
+                "allow_overflow_pdf": False,
             },
         )(),
     )
@@ -55,13 +58,78 @@ def test_run_generates_docx_and_pdf_from_same_markdown(
     def fake_render_docx(md_text: str, output_path: Path) -> None:
         output_path.write_text(md_text, encoding="utf-8")
 
-    def fake_render_pdf(md_text: str, output_path: Path) -> None:
+    def fake_render_pdf(
+        md_text: str, output_path: Path, *, enforce_page_limit: bool = True
+    ) -> None:
+        assert enforce_page_limit is True
         output_path.write_bytes(md_text.encode("utf-8"))
 
     monkeypatch.setattr(export_resume_documents, "_render_docx", fake_render_docx)
     monkeypatch.setattr(export_resume_documents, "_render_pdf", fake_render_pdf)
 
     assert export_resume_documents.run() == 0
+    assert (output_dir / "resume.docx").exists()
+    assert (output_dir / "resume.pdf").exists()
+
+
+def test_run_passes_allow_overflow_pdf_to_render_pdf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    markdown_path = output_dir / "latest_resume_processed.md"
+    markdown_path.write_text("# Test\n\n## Summary\n\n- bullet\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        export_resume_documents,
+        "parse_args",
+        lambda: type(
+            "Args",
+            (),
+            {
+                "profile": Path("data/profile/profile.toml"),
+                "experience_db": Path("data/experience/experience_db.toml"),
+                "skills_matrix": Path("data/skills/skills_matrix.csv"),
+                "job_url": "",
+                "job_text_file": None,
+                "target_role": "",
+                "company": "company",
+                "output_dir": output_dir,
+                "processing_mode": "processed",
+                "template": "modern",
+                "pdf_filename": "resume.pdf",
+                "docx_filename": "resume.docx",
+                "allow_overflow_pdf": True,
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_run_build_pipeline",
+        lambda _args: markdown_path,
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_contains_trailing_connector_fragment",
+        lambda _text: False,
+    )
+
+    seen: dict[str, bool] = {"enforce_page_limit": True}
+
+    def fake_render_docx(md_text: str, output_path: Path) -> None:
+        output_path.write_text(md_text, encoding="utf-8")
+
+    def fake_render_pdf(
+        md_text: str, output_path: Path, *, enforce_page_limit: bool = True
+    ) -> None:
+        seen["enforce_page_limit"] = enforce_page_limit
+        output_path.write_bytes(md_text.encode("utf-8"))
+
+    monkeypatch.setattr(export_resume_documents, "_render_docx", fake_render_docx)
+    monkeypatch.setattr(export_resume_documents, "_render_pdf", fake_render_pdf)
+
+    assert export_resume_documents.run() == 0
+    assert seen["enforce_page_limit"] is False
     assert (output_dir / "resume.docx").exists()
     assert (output_dir / "resume.pdf").exists()
 
@@ -93,6 +161,7 @@ def test_run_warns_when_trailing_fragment_guard_trips_but_still_exports(
                 "template": "modern",
                 "pdf_filename": "resume.pdf",
                 "docx_filename": "resume.docx",
+                "allow_overflow_pdf": False,
             },
         )(),
     )
@@ -110,7 +179,10 @@ def test_run_warns_when_trailing_fragment_guard_trips_but_still_exports(
     def fake_render_docx(md_text: str, output_path: Path) -> None:
         output_path.write_text(md_text, encoding="utf-8")
 
-    def fake_render_pdf(md_text: str, output_path: Path) -> None:
+    def fake_render_pdf(
+        md_text: str, output_path: Path, *, enforce_page_limit: bool = True
+    ) -> None:
+        assert enforce_page_limit is True
         output_path.write_bytes(md_text.encode("utf-8"))
 
     monkeypatch.setattr(export_resume_documents, "_render_docx", fake_render_docx)
@@ -170,6 +242,7 @@ def test_run_prefers_default_html_source_when_available(
                 "template": "modern",
                 "pdf_filename": "resume.pdf",
                 "docx_filename": "resume.docx",
+                "allow_overflow_pdf": False,
             },
         )(),
     )
@@ -190,7 +263,10 @@ def test_run_prefers_default_html_source_when_available(
         captured_sources.append(source_text)
         output_path.write_text("docx", encoding="utf-8")
 
-    def fake_render_pdf(source_text: str, output_path: Path) -> None:
+    def fake_render_pdf(
+        source_text: str, output_path: Path, *, enforce_page_limit: bool = True
+    ) -> None:
+        assert enforce_page_limit is True
         captured_sources.append(source_text)
         output_path.write_bytes(b"pdf")
 
@@ -258,8 +334,8 @@ def test_render_pdf_raises_when_output_exceeds_two_pages(
     )
     monkeypatch.setattr(
         export_resume_documents,
-        "_require_carlito_pdf_fonts",
-        lambda: ("Carlito", "Carlito-Bold"),
+        "_require_calibri_pdf_fonts",
+        lambda: ("Calibri", "Calibri-Bold"),
     )
 
     with pytest.raises(RuntimeError, match="PDF exceeded two-page limit"):
@@ -268,6 +344,48 @@ def test_render_pdf_raises_when_output_exceeds_two_pages(
     captured = capsys.readouterr()
     assert captured.err == ""
     assert not output_path.exists()
+
+
+def test_render_pdf_can_keep_overflow_pdf_for_review_exports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_path = tmp_path / "resume.pdf"
+    md_text = "\n".join(f"Paragraph {index}" for index in range(15))
+
+    class FakeCanvas:
+        def __init__(self, buf: io_mod.BytesIO, **_kwargs: object):
+            self._buf = buf
+
+        def showPage(self) -> None:
+            pass
+
+        def setFont(self, _font_name: str, _font_size: int) -> None:
+            pass
+
+        def drawString(self, _x: int, _y: int, _line: str) -> None:
+            pass
+
+        def save(self) -> None:
+            self._buf.write(b"%PDF-FAKE")
+
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_require_reportlab",
+        lambda: (
+            (300, 150),
+            type("CanvasModule", (), {"Canvas": FakeCanvas}),
+            lambda text, _font_name, _font_size: len(text),
+        ),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_require_calibri_pdf_fonts",
+        lambda: ("Calibri", "Calibri-Bold"),
+    )
+
+    export_resume_documents._render_pdf(md_text, output_path, enforce_page_limit=False)
+
+    assert output_path.read_bytes() == b"%PDF-FAKE"
 
 
 def test_render_pdf_removes_stale_output_when_renderer_fails_early(
@@ -326,6 +444,47 @@ def test_require_reportlab_includes_import_error_details(
         RuntimeError, match=r"reportlab.*Import error: No module named 'reportlab'"
     ):
         export_resume_documents._require_reportlab()
+
+
+def test_require_calibri_pdf_fonts_falls_back_to_helvetica_without_fontconfig(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakePdfMetrics:
+        @staticmethod
+        def getRegisteredFontNames() -> list[str]:
+            return []
+
+        @staticmethod
+        def registerFont(_font: object) -> None:
+            return None
+
+    class FakeTTFont:
+        def __init__(self, _name: str, _path: str) -> None:
+            return None
+
+    reportlab_module = ModuleType("reportlab")
+    pdfbase_module: Any = ModuleType("reportlab.pdfbase")
+    ttfonts_module: Any = ModuleType("reportlab.pdfbase.ttfonts")
+    pdfbase_module.pdfmetrics = FakePdfMetrics
+    ttfonts_module.TTFont = FakeTTFont
+    monkeypatch.setitem(sys.modules, "reportlab", reportlab_module)
+    monkeypatch.setitem(sys.modules, "reportlab.pdfbase", pdfbase_module)
+    monkeypatch.setitem(sys.modules, "reportlab.pdfbase.ttfonts", ttfonts_module)
+
+    monkeypatch.setenv("RESUME_PDF_STRICT_CALIBRI", "0")
+    monkeypatch.setattr(
+        export_resume_documents, "_find_calibri_path", lambda _style: None
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_find_fontconfig_font_path",
+        lambda _family, _style: None,
+    )
+
+    regular, bold = export_resume_documents._require_calibri_pdf_fonts()
+
+    assert regular == "Helvetica"
+    assert bold == "Helvetica-Bold"
 
 
 def test_iter_html_blocks_captures_header_divider() -> None:
@@ -389,6 +548,7 @@ def test_run_uses_company_snake_case_default_filenames(
                 "template": "modern",
                 "pdf_filename": None,
                 "docx_filename": None,
+                "allow_overflow_pdf": False,
             },
         )(),
     )
@@ -409,7 +569,10 @@ def test_run_uses_company_snake_case_default_filenames(
         captured.append(output_path)
         output_path.write_text("docx", encoding="utf-8")
 
-    def fake_render_pdf(_source_text: str, output_path: Path) -> None:
+    def fake_render_pdf(
+        _source_text: str, output_path: Path, *, enforce_page_limit: bool = True
+    ) -> None:
+        assert enforce_page_limit is True
         captured.append(output_path)
         output_path.write_bytes(b"pdf")
 
@@ -452,6 +615,7 @@ def test_run_removes_stale_legacy_latest_resume_export_aliases(
                 "template": "modern",
                 "pdf_filename": None,
                 "docx_filename": None,
+                "allow_overflow_pdf": False,
             },
         )(),
     )
@@ -469,7 +633,10 @@ def test_run_removes_stale_legacy_latest_resume_export_aliases(
     def fake_render_docx(_source_text: str, output_path: Path) -> None:
         output_path.write_text("fresh docx", encoding="utf-8")
 
-    def fake_render_pdf(_source_text: str, output_path: Path) -> None:
+    def fake_render_pdf(
+        _source_text: str, output_path: Path, *, enforce_page_limit: bool = True
+    ) -> None:
+        assert enforce_page_limit is True
         output_path.write_bytes(b"fresh pdf")
 
     monkeypatch.setattr(export_resume_documents, "_render_docx", fake_render_docx)
@@ -550,17 +717,17 @@ def test_render_pdf_draws_section_rule_immediately_under_heading(
     )
     monkeypatch.setattr(
         export_resume_documents,
-        "_require_carlito_pdf_fonts",
-        lambda: ("Carlito", "Carlito-Bold"),
+        "_require_calibri_pdf_fonts",
+        lambda: ("Calibri", "Calibri-Bold"),
     )
 
     export_resume_documents._render_pdf(
         "## Section Heading\n\nBody paragraph\n", output_path
     )
 
-    assert heading_positions == [754]
-    assert line_positions == [752]
-    assert body_positions == [736]
+    assert heading_positions == [751]
+    assert line_positions == [749]
+    assert body_positions == [735]
     assert output_path.read_bytes() == b"%PDF-FAKE"
 
 
@@ -616,8 +783,8 @@ def test_render_pdf_header_divider_uses_same_text_to_line_offset_as_h2(
     )
     monkeypatch.setattr(
         export_resume_documents,
-        "_require_carlito_pdf_fonts",
-        lambda: ("Carlito", "Carlito-Bold"),
+        "_require_calibri_pdf_fonts",
+        lambda: ("Calibri", "Calibri-Bold"),
     )
 
     html = """<!doctype html><html><body>
@@ -718,8 +885,8 @@ def test_render_pdf_renders_fully_bold_markdown_bullets_in_bold_font(
     )
     monkeypatch.setattr(
         export_resume_documents,
-        "_require_carlito_pdf_fonts",
-        lambda: ("Carlito", "Carlito-Bold"),
+        "_require_calibri_pdf_fonts",
+        lambda: ("Calibri", "Calibri-Bold"),
     )
 
     markdown = """## Leadership & Community
@@ -733,15 +900,15 @@ def test_render_pdf_renders_fully_bold_markdown_bullets_in_bold_font(
     rendered_lines = [entry for entry in draws if entry[0] != "•"]
     assert (
         "Technical Mentor (Informal) | HP / Poly | 2008 - Present",
-        "Carlito-Bold",
+        "Calibri-Bold",
     ) in rendered_lines
     assert any(
-        "CFO & Board Member, Cat Rescue" in line and font_name == "Carlito-Bold"
+        "CFO & Board Member, Cat Rescue" in line and font_name == "Calibri-Bold"
         for line, font_name in rendered_lines
     )
     assert (
         "Phi Kappa Psi Fraternity | Philanthropy Chair",
-        "Carlito-Bold",
+        "Calibri-Bold",
     ) in rendered_lines
 
 
@@ -788,8 +955,8 @@ def test_render_pdf_renders_bold_skills_prefix_inside_bullet_lines(
     )
     monkeypatch.setattr(
         export_resume_documents,
-        "_require_carlito_pdf_fonts",
-        lambda: ("Carlito", "Carlito-Bold"),
+        "_require_calibri_pdf_fonts",
+        lambda: ("Calibri", "Calibri-Bold"),
     )
 
     markdown = """## Skills
@@ -799,8 +966,8 @@ def test_render_pdf_renders_bold_skills_prefix_inside_bullet_lines(
     export_resume_documents._render_pdf(markdown, output_path)
 
     rendered_lines = [entry for entry in draws if entry[0] != "•"]
-    assert ("Programming & Scripting: ", "Carlito-Bold") in rendered_lines
-    assert ("Java • Python", "Carlito") in rendered_lines
+    assert ("Programming & Scripting: ", "Calibri-Bold") in rendered_lines
+    assert ("Java • Python", "Calibri") in rendered_lines
 
 
 def test_wrap_skills_category_for_pdf_uses_mixed_font_budget(
@@ -820,8 +987,8 @@ def test_wrap_skills_category_for_pdf_uses_mixed_font_budget(
         "Programming & Scripting: ",
         "Java Python TypeScript",
         max_width=30,
-        fn_bold="Carlito-Bold",
-        fn_regular="Carlito",
+        fn_bold="Calibri-Bold",
+        fn_regular="Calibri",
         font_size=11,
     )
 
@@ -848,8 +1015,8 @@ def test_wrap_skills_category_for_pdf_handles_overlong_prefix(
         "Very Long Category Prefix: ",
         "Java Python",
         max_width=10,
-        fn_bold="Carlito-Bold",
-        fn_regular="Carlito",
+        fn_bold="Calibri-Bold",
+        fn_regular="Calibri",
         font_size=11,
     )
 
@@ -882,7 +1049,7 @@ Summary paragraph for spacing baseline.
         'w:before="0"',
         'w:after="0"',
         'w:line="220"',
-        'w:lineRule="atLeast"',
+        'w:lineRule="exact"',
     )
     paragraphs: list[str] = re.findall(r"<w:p\b[^>]*>.*?</w:p>", xml, re.DOTALL)
 
@@ -907,8 +1074,9 @@ Summary paragraph for spacing baseline.
     bullet_block = paragraph_containing("Bullet text for experience spacing.")
     for token in expected_spacing_tokens:
         assert token in bullet_block
-    assert "w:hanging" not in bullet_block
-    assert ('w:left="0"' in bullet_block) or ('w:start="0"' in bullet_block)
+    # Bullet paragraphs use a deterministic 0.20in hanging indent (288 twips).
+    assert 'w:left="288"' in bullet_block
+    assert ('w:hanging="288"' in bullet_block) or ('w:firstLine="-288"' in bullet_block)
 
 
 def test_render_docx_role_title_spacing_first_and_following(tmp_path: Path) -> None:
@@ -938,6 +1106,6 @@ Role summary two.
     assert 'w:after="0"' in first_role_block
 
     second_role_block = paragraph_containing("Second Role")
-    # 6pt before in DOCX XML twips (6 * 20 = 120)
-    assert 'w:before="120"' in second_role_block
+    # 4pt before in DOCX XML twips (4 * 20 = 80)
+    assert 'w:before="80"' in second_role_block
     assert 'w:after="0"' in second_role_block

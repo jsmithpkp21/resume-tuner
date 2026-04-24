@@ -24,7 +24,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b01b"
-text = "Shifted vendor-equivalent testing pre-handoff, reducing third-party certification turnaround by 50 percent, cutting new-vendor test bring-up from weeks to days, and reducing reusable test authoring time by 50 percent."
+text = "Moved vendor-equivalent testing pre-handoff across certification workflows, cutting third-party turnaround 50%, reducing new-vendor bring-up from weeks to days, and lowering reusable test authoring time 50%."
 skills = ["Python", "System testing", "Test planning"]
 categories = ["Testing & Validation", "Quality & Testing Strategy"]
 impact_type = "delivery-speed"
@@ -70,7 +70,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b07"
-text = "Triaged pre-QA failures across automation, firmware, device configuration, and timing/network conditions - most often unannounced UI changes - to isolate root causes early, reduce retest churn, and save the manual QA team two weeks of wasted time per release cycle."
+text = "Established pre-QA triage across automation, firmware, configuration, and timing/network conditions (especially unannounced UI changes) for manual QA handoffs, saving two weeks of retest churn per release cycle."
 skills = ["Issue triage", "Defect isolation", "Root cause analysis", "Debugging"]
 categories = ["Debugging & Analysis", "Quality & Testing Strategy"]
 impact_type = "reliability"
@@ -104,7 +104,7 @@ domain = "audio"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_advisor_sdet_audio_202105_b03"
-text = "Refactored legacy error handling that swallowed I/O exceptions (`null`/`false`), enforcing fail-fast behavior at the point of failure and improving API retry/priority handling; improved overall test pass rate by 5 percent or less and reduced random hard-to-reproduce failures by 40 percent."
+text = "Re-architected legacy error handling to fail fast on swallowed I/O exceptions (`null`/`false`) across API retry/priority paths, improving pass rate by up to 5% and cutting hard-to-reproduce random failures 40%."
 skills = ["Python", "Debugging"]
 categories = ["Debugging & Analysis", "Test Reliability"]
 impact_type = "reliability"
@@ -117,7 +117,7 @@ company = "HP / Poly"
 start_date = "2020-03"
 end_date = "2021-05"
 general_role_description = "Embedded with Headset team to accelerate adoption of a new Python test framework."
-related_skills = ["Python", "Code Review", "Technical Leadership", "Distributed Execution", "Test Lab Automation", "Infrastructure", "Automation Architecture"]
+related_skills = ["Python", "Code Review", "Technical Leadership", "Distributed Execution", "Test Lab Automation", "Distributed Lab Infrastructure", "Automation Architecture"]
 related_skills_inferred = []
 
 [[experience.bullet_bank]]
@@ -139,7 +139,7 @@ domain = "headset"
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_advisor_sdet_headset_202003_b03"
 text = "Enabled distributed engineers to run headset validation remotely through shared lab infrastructure, cutting ad-hoc lab setup time by 80 percent and improving day-to-day execution flexibility."
-skills = ["Automation Architecture", "Infrastructure"]
+skills = ["Automation Architecture", "Distributed Lab Infrastructure"]
 categories = ["Architecture", "Test Reliability"]
 impact_type = "delivery-speed"
 domain = "headset"
@@ -164,7 +164,7 @@ domain = "corporate-platform"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_lead_framework_integration_201906_b02"
-text = "Decomposed a monolithic automation system into modular components and standardized package and project naming conventions, enabling distributed ownership and reducing build times by 75 percent."
+text = "Decomposed a monolithic automation system into modular components with standardized package/project conventions across teams, enabling distributed ownership and reducing build times 75%."
 skills = ["Java", "Developer Tooling"]
 categories = ["Architecture", "Maintainability"]
 impact_type = "maintainability"
@@ -206,7 +206,7 @@ domain = "corporate-platform"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_technical_designer_corp_automation_201506_b02"
-text = "Built exploratory prototypes and design evaluations that informed cross-team architecture decisions and feasibility tradeoffs, reducing duplicate framework spike efforts by 40 percent across participating teams."
+text = "Built exploratory prototypes and design evaluations to guide cross-team architecture and feasibility tradeoffs across participating teams, reducing duplicate framework spike efforts 40%."
 skills = ["Java", "Prototype Design"]
 categories = ["Architecture", "Technical Leadership"]
 impact_type = "delivery-speed"
@@ -292,3 +292,46 @@ skills = ["Java", "JUnit 4", "JUnit 5", "Framework Design", "Dependency Manageme
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "maintainability"
 domain = "video"
+
+[cross_org_architectural_leadership]
+title = "Cross-Org Architectural Leadership"
+
+[[cross_org_architectural_leadership.items]]
+text = "Unified automation strategy across Video, Audio, and Network organizations through migration path evaluations and architecture assessments."
+source_bullet_ids = [
+  "exp_hp_poly_lead_technical_designer_corp_automation_201506_b01",
+  "exp_hp_poly_lead_technical_designer_corp_automation_201506_b03",
+]
+
+[[cross_org_architectural_leadership.items]]
+text = "Led cross-product framework integration by decomposing monolithic automation into modular components and standardizing package conventions, reducing build times 75%."
+source_bullet_ids = [
+  "exp_hp_poly_technical_lead_framework_integration_201906_b02",
+]
+
+[[cross_org_architectural_leadership.items]]
+text = "Drove Java 8 to 12 migration across 15 projects and 3 product lines while stabilizing CI and automation workflows."
+source_bullet_ids = [
+  "exp_hp_poly_technical_lead_framework_integration_201906_b03",
+]
+
+[selected_achievements]
+title = "Selected Achievements"
+
+[[selected_achievements.items]]
+text = "Cut third-party certification turnaround 50% and reduced new-vendor bring-up from weeks to days by moving vendor-equivalent testing pre-handoff."
+source_bullet_ids = [
+  "exp_hp_poly_architect_python_video_202306_b01b",
+]
+
+[[selected_achievements.items]]
+text = "Reduced build times 75% by decomposing monolithic automation into modular components with standardized package conventions across teams."
+source_bullet_ids = [
+  "exp_hp_poly_technical_lead_framework_integration_201906_b02",
+]
+
+[[selected_achievements.items]]
+text = "Doubled automated headset test capacity and removed on-site dependency by deploying a remote-controlled lab with ten automated stations and fifteen shared VMs."
+source_bullet_ids = [
+  "exp_hp_poly_technical_advisor_sdet_headset_202003_b02",
+]

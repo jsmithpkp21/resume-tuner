@@ -335,3 +335,9 @@ text = "Doubled automated headset test capacity and removed on-site dependency b
 source_bullet_ids = [
   "exp_hp_poly_technical_advisor_sdet_headset_202003_b02",
 ]
+
+[[selected_achievements.items]]
+text = "Designed a hardware-agnostic abstraction layer enabling a single test suite to validate across 16 endpoint models, reducing hardware-specific test maintenance by 40%."
+source_bullet_ids = [
+  "exp_hp_poly_lead_framework_designer_video_sqa_200808_b07",
+]

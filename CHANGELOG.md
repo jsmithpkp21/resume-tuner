@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.17.0...v0.17.1) (2026-04-24)
+
+
+### Documentation
+
+* **design:** document section ordering contract including Cross-Org and Selected Achievements ([863f996](https://github.com/jsmithpkp21/resume-builder/commit/863f996e1277b2a3dbd78f707d2f3e440823cc20))
+* **design:** fix markdown structure for section ordering contract ([ba90bff](https://github.com/jsmithpkp21/resume-builder/commit/ba90bff5ccdf918d7cff1f83256b2141fbaba96f))
+
 ## [0.17.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.16.1...v0.17.0) (2026-04-24)
 
 

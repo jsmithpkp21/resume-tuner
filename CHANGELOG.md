@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.16.0...v0.16.1) (2026-04-24)
+
+
+### Bug Fixes
+
+* **export:** Calibri parity for DOCX/PDF output ([#144](https://github.com/jsmithpkp21/resume-builder/issues/144)) ([3114684](https://github.com/jsmithpkp21/resume-builder/commit/3114684072b03dcac93609931d4f67f0e1fcf988))
+
 ## [0.16.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.15.1...v0.16.0) (2026-04-22)
 
 

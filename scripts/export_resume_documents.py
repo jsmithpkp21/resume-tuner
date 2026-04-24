@@ -18,9 +18,15 @@ from typing import Any
 
 if __package__ in {None, ""}:
     import build_resume
+    from _runtime_guard import (
+        assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
+    )
     from select_skills import SKILLS_SEPARATOR
 else:
     from scripts import build_resume
+    from scripts._runtime_guard import (
+        assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
+    )
     from scripts.select_skills import SKILLS_SEPARATOR
 
 
@@ -75,6 +81,15 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Keep the generated PDF even when it exceeds the default two-page "
             "submission guard. Useful for review/debug exports."
+        ),
+    )
+    parser.add_argument(
+        "--post-layout-cleanup",
+        choices=("enabled", "disabled"),
+        default="enabled",
+        help=(
+            "Apply deterministic post-layout cleanup before DOCX/PDF render. "
+            "Set to 'disabled' for strict source fidelity/debug exports."
         ),
     )
     return parser.parse_args()
@@ -469,7 +484,9 @@ def _job_context_has_community_signal(args: argparse.Namespace) -> bool:
     }
     source_parts = [args.target_role or "", args.company or ""]
     if args.job_text_file is not None and Path(args.job_text_file).exists():
-        source_parts.append(Path(args.job_text_file).read_text(encoding="utf-8"))
+        job_text_path = Path(args.job_text_file)
+        _assert_not_blocked_runtime_input(job_text_path)
+        source_parts.append(job_text_path.read_text(encoding="utf-8"))
     haystack = "\n".join(source_parts).lower()
     return any(term in haystack for term in signal_terms)
 
@@ -1198,13 +1215,15 @@ def run() -> int:
         if html_source_path.exists():
             render_source_text = html_source_path.read_text(encoding="utf-8")
             using_html_source = True
-        render_source_text = _apply_post_layout_cleanup(
-            render_source_text,
-            args=args,
-        )
-        if _contains_trailing_connector_fragment(md_text):
+        post_layout_cleanup = getattr(args, "post_layout_cleanup", "enabled")
+        if post_layout_cleanup == "enabled":
+            render_source_text = _apply_post_layout_cleanup(
+                render_source_text,
+                args=args,
+            )
+        if _contains_trailing_connector_fragment(render_source_text):
             print(
-                "WARNING: assembled content contains trailing connector fragments; review final DOCX/PDF for awkward wraps",
+                "WARNING: render source contains trailing connector fragments; review final DOCX/PDF for awkward wraps",
                 file=sys.stderr,
             )
         docx_name = args.docx_filename or _canonical_export_filename(

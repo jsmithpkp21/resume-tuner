@@ -192,8 +192,7 @@ def test_run_warns_when_trailing_fragment_guard_trips_but_still_exports(
     assert export_resume_documents.run() == 0
     captured = capsys.readouterr()
     assert (
-        "WARNING: assembled content contains trailing connector fragments"
-        in captured.err
+        "WARNING: render source contains trailing connector fragments" in captured.err
     )
     assert (output_dir / "resume.docx").exists()
     assert (output_dir / "resume.pdf").exists()
@@ -283,6 +282,175 @@ def test_run_prefers_default_html_source_when_available(
     assert "markdown summary only" not in captured_sources[0]
     assert (output_dir / "resume.docx").exists()
     assert (output_dir / "resume.pdf").exists()
+
+
+def test_run_can_disable_post_layout_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    markdown_path = output_dir / "latest_resume_processed.md"
+    markdown_path.write_text("# Test\n\n## Summary\n\n- bullet\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        export_resume_documents,
+        "parse_args",
+        lambda: type(
+            "Args",
+            (),
+            {
+                "profile": Path("data/profile/profile.toml"),
+                "experience_db": Path("data/experience/experience_db.toml"),
+                "skills_matrix": Path("data/skills/skills_matrix.csv"),
+                "job_url": "",
+                "job_text_file": None,
+                "target_role": "",
+                "company": "company",
+                "output_dir": output_dir,
+                "processing_mode": "processed",
+                "template": "modern",
+                "pdf_filename": "resume.pdf",
+                "docx_filename": "resume.docx",
+                "allow_overflow_pdf": False,
+                "post_layout_cleanup": "disabled",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_run_build_pipeline",
+        lambda _args: markdown_path,
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_contains_trailing_connector_fragment",
+        lambda _text: False,
+    )
+
+    cleanup_called = {"value": False}
+
+    def fake_cleanup(source_text: str, *, args: Any) -> str:
+        cleanup_called["value"] = True
+        return source_text
+
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_apply_post_layout_cleanup",
+        fake_cleanup,
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_render_docx",
+        lambda source_text, output_path: output_path.write_text(
+            source_text, encoding="utf-8"
+        ),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_render_pdf",
+        lambda source_text, output_path, *, enforce_page_limit=True: (
+            output_path.write_bytes(source_text.encode("utf-8"))
+        ),
+    )
+
+    assert export_resume_documents.run() == 0
+    assert cleanup_called["value"] is False
+
+
+def test_run_fragment_warning_uses_render_source_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    markdown_path = output_dir / "latest_resume_processed.md"
+    markdown_path.write_text("# Test\n\nclean source\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        export_resume_documents,
+        "parse_args",
+        lambda: type(
+            "Args",
+            (),
+            {
+                "profile": Path("data/profile/profile.toml"),
+                "experience_db": Path("data/experience/experience_db.toml"),
+                "skills_matrix": Path("data/skills/skills_matrix.csv"),
+                "job_url": "",
+                "job_text_file": None,
+                "target_role": "",
+                "company": "company",
+                "output_dir": output_dir,
+                "processing_mode": "processed",
+                "template": "modern",
+                "pdf_filename": "resume.pdf",
+                "docx_filename": "resume.docx",
+                "allow_overflow_pdf": False,
+                "post_layout_cleanup": "enabled",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_run_build_pipeline",
+        lambda _args: markdown_path,
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_apply_post_layout_cleanup",
+        lambda source_text, *, args: source_text + "\nand",
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_render_docx",
+        lambda source_text, output_path: output_path.write_text(
+            source_text, encoding="utf-8"
+        ),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_render_pdf",
+        lambda source_text, output_path, *, enforce_page_limit=True: (
+            output_path.write_bytes(source_text.encode("utf-8"))
+        ),
+    )
+
+    assert export_resume_documents.run() == 0
+    captured = capsys.readouterr()
+    assert (
+        "WARNING: render source contains trailing connector fragments" in captured.err
+    )
+
+
+def test_job_context_community_signal_checks_runtime_guard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    job_text_file = tmp_path / "job_text.txt"
+    job_text_file.write_text(
+        "Volunteer outreach and community programs.", encoding="utf-8"
+    )
+    args = type(
+        "Args",
+        (),
+        {
+            "target_role": "",
+            "company": "",
+            "job_text_file": job_text_file,
+        },
+    )()
+
+    seen: dict[str, Path | None] = {"path": None}
+
+    def fake_guard(path: Path) -> None:
+        seen["path"] = path
+
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_assert_not_blocked_runtime_input",
+        fake_guard,
+    )
+
+    assert export_resume_documents._job_context_has_community_signal(args) is True
+    assert seen["path"] == job_text_file
 
 
 def test_contains_trailing_connector_fragment_uses_real_detection_logic() -> None:

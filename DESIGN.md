@@ -339,9 +339,20 @@ Current HTML template contract:
 - The historical `Summary` section label is removed in HTML templates.
 - A generated seniority-aware `resume_title` line is rendered where `Summary` previously appeared, followed by summary text.
 - `modern` keeps centered header/title styling while body sections remain readable for ATS and PDF export.
-
+Section ordering (top to bottom):
+1. **Header** — name, contact line, LinkedIn/GitHub
+2. **Resume title / summary** — seniority-aware title line + profile summary paragraph
+3. **Key Skills and Expertise** — ranked, packed skills grid (always present)
+4. **Cross-Org Architectural Leadership** — curated highlight list sourced from `[cross_org_architectural_leadership]` in `experience_db.toml`; omitted when the section has no items
+5. **Selected Achievements** — curated highlight list sourced from `[selected_achievements]` in `experience_db.toml`; omitted when the section has no items
+6. **Professional Experience** — role blocks with scored/trimmed bullet banks (always present)
+7. **Education** — omitted when no education data is present
+8. **Leadership & Community** — omitted when no leadership data is present
+Invariants:
+- Sections 4 and 5 are optional; their presence is data-driven, not template-driven.
+- Section ordering is fixed; individual sections may be absent but never reordered.
+- DOCX and PDF export derive section order from the HTML output via `_ResumeHtmlBlockParser`; no separate ordering logic exists in `export_resume_documents.py`.
 ---
-
 # 12. End-to-End Workflow
 
 ```

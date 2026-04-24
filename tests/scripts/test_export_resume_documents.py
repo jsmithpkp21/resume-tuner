@@ -616,6 +616,22 @@ def test_apply_post_layout_cleanup_preserves_html_resume_title_block() -> None:
     assert ("title", "Senior Staff Test Architect") in blocks
 
 
+def test_apply_post_layout_cleanup_preserves_html_header_divider_block() -> None:
+    args = type(
+        "Args",
+        (),
+        {"target_role": "", "company": "", "job_text_file": None},
+    )()
+    html = """<!doctype html><html><body>
+<hr class=\"header-divider\" />
+</body></html>"""
+
+    cleaned = export_resume_documents._apply_post_layout_cleanup(html, args=args)
+    blocks = export_resume_documents._iter_markdown_blocks(cleaned)
+
+    assert ("divider", "") in blocks
+
+
 def test_pipeline_default_html_path_prefers_default_secondary_for_processed() -> None:
     args = type(
         "Args",

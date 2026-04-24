@@ -383,6 +383,8 @@ def _iter_markdown_blocks(md_text: str) -> list[tuple[str, str]]:
             blocks.append(("h2", line[3:].strip()))
         elif line.startswith("### "):
             blocks.append(("h3", line[4:].strip()))
+        elif re.match(r"^\s*---+\s*$", line):
+            blocks.append(("divider", ""))
         elif line.startswith("[RESUME_TITLE] "):
             title_text = line[len("[RESUME_TITLE] ") :].strip()
             blocks.append(("title", _normalize_inline_text(title_text)))

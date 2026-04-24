@@ -910,7 +910,19 @@ def test_derive_resume_title_preserves_senior_sdet_without_special_expansion() -
 
 
 def test_derive_resume_title_ignores_target_role_when_headline_is_blank() -> None:
-    profile = load_profile(PROFILE)
+    profile = build_resume.Profile(
+        name="Test Person",
+        headline="Staff Test Architect",
+        location="Austin, TX",
+        email="test@example.com",
+        phone="555-0100",
+        website="example.com",
+        linkedin="linkedin.com/in/test",
+        github="github.com/test",
+        summary="Drives automation architecture across teams.",
+        education_entries=(),
+        leadership_community_entries=(),
+    )
     experiences = load_experiences(
         REPO_ROOT / "data" / "experience" / "experience_db.toml"
     )
@@ -1268,7 +1280,19 @@ def test_build_resume_cli_deduplicates_equivalent_headline_and_resume_title(
 
 
 def test_collect_resume_skill_signals_is_relevance_weighted_and_deterministic() -> None:
-    profile = load_profile(PROFILE)
+    profile = build_resume.Profile(
+        name="Test Person",
+        headline="Staff Test Architect",
+        location="Austin, TX",
+        email="test@example.com",
+        phone="555-0100",
+        website="example.com",
+        linkedin="linkedin.com/in/test",
+        github="github.com/test",
+        summary="Drives automation architecture across teams.",
+        education_entries=(),
+        leadership_community_entries=(),
+    )
     bullet_low = Bullet(
         id="b-low",
         text="Low relevance work.",
@@ -2368,6 +2392,68 @@ def test_compute_bullet_line_budget_respects_hard_ceiling_constant(
         skills_by_category={},
     )
 
+    assert build_resume._compute_bullet_line_budget(resume) == 7
+
+
+def test_compute_bullet_line_budget_matches_processed_html_header_structure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(build_resume, "DEFAULT_MAX_BULLET_LINES", 99)
+    monkeypatch.setattr(build_resume, "DEFAULT_TOTAL_PAGE_LINES", 20)
+    monkeypatch.setattr(
+        build_resume, "_estimate_wrapped_line_count", lambda *_args, **_kwargs: 1
+    )
+    monkeypatch.setattr(
+        build_resume, "_estimate_minimum_required_bullet_lines", lambda _experiences: 1
+    )
+
+    profile = build_resume.Profile(
+        name="Test Person",
+        headline="Staff Test Architect",
+        location="Austin, TX",
+        email="test@example.com",
+        phone="555-0100",
+        website="example.com",
+        linkedin="linkedin.com/in/test",
+        github="github.com/test",
+        summary="Drives automation architecture across teams.",
+        education_entries=(),
+        leadership_community_entries=(),
+    )
+    experiences = (
+        Experience(
+            id="budget-hp-1",
+            job_title="Architect, Python Test Framework",
+            company="HP / Poly",
+            start_date="2024-01",
+            end_date="2025-01",
+            general_role_description="Led framework modernization.",
+            related_skills=("Python", "Pytest", "Playwright"),
+            bullets=(),
+        ),
+        Experience(
+            id="budget-hp-2",
+            job_title="Technical Advisor / SDET",
+            company="Polycom",
+            start_date="2023-01",
+            end_date="2024-01",
+            general_role_description="Guided multi-team adoption.",
+            related_skills=("CI/CD", "Leadership"),
+            bullets=(),
+        ),
+    )
+    resume = build_resume.ResumeIR(
+        profile=profile,
+        target_role="",
+        target_company="",
+        display_headline=profile.headline,
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    # Processed HTML renders summary as a paragraph, one company-line per grouped
+    # company block, one job-title-line per role, and hides related-skills lines.
     assert build_resume._compute_bullet_line_budget(resume) == 7
 
 

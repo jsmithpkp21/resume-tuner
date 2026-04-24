@@ -518,13 +518,13 @@ def test_apply_post_layout_cleanup_drops_last_skill_for_single_word_tail_wrap(
     )()
     markdown = """## Key Skills and Expertise
 
-- **Collaboration:** Mentoring, Coaching, Communication, Facilitation
+- **Collaboration:** Mentoring • Coaching • Communication • Facilitation
 """
 
     cleaned = export_resume_documents._apply_post_layout_cleanup(markdown, args=args)
 
     assert "Facilitation" not in cleaned
-    assert "Mentoring, Coaching, Communication" in cleaned
+    assert "Mentoring • Coaching • Communication" in cleaned
 
 
 def test_apply_post_layout_cleanup_trims_professional_bullet_single_word_tail(

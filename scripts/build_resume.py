@@ -1594,10 +1594,10 @@ def _expand_profile_summary_to_min_words(
     resume: ResumeIR,
     min_words: int,
     *,
-    fragments: Sequence[str] | None = None,
+    fragments: Sequence[str] = (),
 ) -> str:
     """Deterministically expand summaries until they satisfy the minimum word policy."""
-    additions = list(fragments or ())
+    additions = list(fragments)
 
     existing_sentences = {
         " ".join(part.strip().split()).lower()
@@ -2008,7 +2008,7 @@ def _compute_bullet_line_budget(resume: ResumeIR) -> int:
         resume.profile.summary,
         PROFILE_SUMMARY_LINE_WIDTH,
     )
-    section_header_lines = 2  # Summary + Key Skills
+    section_header_lines = 1  # Key Skills
     section_header_lines += 1  # Professional Experience
     if resume.cross_org_architectural_leadership:
         section_header_lines += 1
@@ -2037,17 +2037,16 @@ def _compute_bullet_line_budget(resume: ResumeIR) -> int:
     )
 
     role_header_lines = 0
-    for experience in resume.experiences:
-        role_header_lines += 2  # role heading + date line
+    company_blocks = _company_block_ranges(resume.experiences)
+
+    for exp_index, experience in enumerate(resume.experiences):
+        if exp_index in company_blocks:
+            role_header_lines += 1  # grouped company-line header
+        role_header_lines += 1  # job-title-line already includes date range
         role_header_lines += _estimate_wrapped_line_count(
             experience.general_role_description,
             SUMMARY_LINE_WIDTH,
         )
-        if experience.related_skills:
-            role_header_lines += _estimate_wrapped_line_count(
-                ", ".join(experience.related_skills),
-                DEFAULT_BULLET_LINE_WIDTH,
-            )
 
     education_lines = 0
     for education_item in resume.profile.education_entries:
@@ -2301,6 +2300,23 @@ def _normalize_company_alias(company: str) -> str:
     return normalized
 
 
+def _company_block_ranges(
+    experiences: Sequence[Experience],
+) -> dict[int, tuple[int, int]]:
+    """Return start/end index ranges for contiguous same-company experience blocks."""
+    company_blocks: dict[int, tuple[int, int]] = {}
+    block_start = 0
+    while block_start < len(experiences):
+        block_end = block_start
+        while block_end + 1 < len(experiences) and _normalize_company_alias(
+            experiences[block_end + 1].company
+        ) == _normalize_company_alias(experiences[block_start].company):
+            block_end += 1
+        company_blocks[block_start] = (block_start, block_end)
+        block_start = block_end + 1
+    return company_blocks
+
+
 def _display_company_header(company: str) -> str:
     """Return display text for company group headers."""
     canonical = company.strip()
@@ -2341,16 +2357,7 @@ def render_html(
     contact_line = _render_contact_html(resume.profile)
 
     experiences_html: list[str] = []
-    company_blocks: dict[int, tuple[int, int]] = {}
-    block_start = 0
-    while block_start < len(resume.experiences):
-        block_end = block_start
-        while block_end + 1 < len(resume.experiences) and _normalize_company_alias(
-            resume.experiences[block_end + 1].company
-        ) == _normalize_company_alias(resume.experiences[block_end].company):
-            block_end += 1
-        company_blocks[block_start] = (block_start, block_end)
-        block_start = block_end + 1
+    company_blocks = _company_block_ranges(resume.experiences)
 
     for exp_index, exp in enumerate(resume.experiences):
         bullets_html = "\n".join(

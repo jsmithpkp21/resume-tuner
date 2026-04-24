@@ -18,8 +18,10 @@ from typing import Any
 
 if __package__ in {None, ""}:
     import build_resume
+    from select_skills import SKILLS_SEPARATOR
 else:
     from scripts import build_resume
+    from scripts.select_skills import SKILLS_SEPARATOR
 
 
 def parse_args() -> argparse.Namespace:
@@ -410,10 +412,21 @@ def _drop_tail_skill_from_category_row(text: str) -> str:
     if not match:
         return text
     category = match.group(1).strip()
-    skills_raw = [skill.strip() for skill in match.group(2).split(",") if skill.strip()]
+    skills_text = match.group(2).strip()
+    separator = SKILLS_SEPARATOR if SKILLS_SEPARATOR in skills_text else ", "
+    if separator == SKILLS_SEPARATOR:
+        skills_raw = [
+            skill.strip()
+            for skill in skills_text.split(SKILLS_SEPARATOR)
+            if skill.strip()
+        ]
+    else:
+        skills_raw = [
+            skill.strip() for skill in re.split(r",\s*", skills_text) if skill.strip()
+        ]
     if len(skills_raw) <= 1:
         return text
-    return f"**{category}:** {', '.join(skills_raw[:-1])}"
+    return f"**{category}:** {separator.join(skills_raw[:-1])}"
 
 
 def _trim_trailing_word(text: str) -> str:

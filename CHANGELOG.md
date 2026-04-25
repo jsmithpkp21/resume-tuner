@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.18.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.18.0...v0.18.1) (2026-04-25)
+
+
+### Bug Fixes
+
+* **export:** harden rollback and docs for transactional finalization ([d72d072](https://github.com/jsmithpkp21/resume-builder/commit/d72d072b07a66d82c0f3b5095aa579be58a2845c))
+* **export:** harden staging uniqueness and output path confinement ([0baea8b](https://github.com/jsmithpkp21/resume-builder/commit/0baea8bacf19952690a82feac090222e4c5935a7))
+* **export:** make docx pdf exports transactional ([cbcc5e8](https://github.com/jsmithpkp21/resume-builder/commit/cbcc5e88006638c4b17ec4e5302dead989f66901))
+* **export:** move backup unlink to best-effort post-try block to avoid rollback on cleanup errors ([ad9b48a](https://github.com/jsmithpkp21/resume-builder/commit/ad9b48a03f8dcd836c33e930fafd5bc227a77ea0))
+* **export:** reject colliding docx and pdf output targets ([948cda9](https://github.com/jsmithpkp21/resume-builder/commit/948cda90a517ea0d66042b80c82dc1cea49829d7))
+* **export:** tighten rollback restore semantics and call-count assertion ([c870a8f](https://github.com/jsmithpkp21/resume-builder/commit/c870a8f22cb2e3675e8fd379581ccb8e35ebe310))
+
 ## [0.18.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.17.1...v0.18.0) (2026-04-25)
 
 

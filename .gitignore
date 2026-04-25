@@ -38,3 +38,15 @@ data/profile/profile.local.toml
 data/review/packets/
 # Visual diff working files (regenerated each run)
 data/review/outputs/visual_diff/
+
+# Root-level company-specific artifacts should stay out of git history
+/GRAPHCORE_*
+/README_GRAPHCORE.md
+/graphcore_resume.*
+/e2e_schwab_test.py
+
+# Block root-level generated/source artifacts by file type
+/*.py
+/*.html
+/*.docx
+/*.pdf

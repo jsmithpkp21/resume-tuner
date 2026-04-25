@@ -2046,7 +2046,7 @@ Led initiative called **Development Initiative** with very long description that
 def test_wrap_mixed_style_paragraph_for_pdf_preserves_spaces_at_style_boundaries(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Spaces at style boundaries must be included in emitted text."""
+    """Spaces at style boundaries must be preserved on the preceding segment style."""
     monkeypatch.setattr(
         export_resume_documents,
         "_require_reportlab",
@@ -2072,6 +2072,9 @@ def test_wrap_mixed_style_paragraph_for_pdf_preserves_spaces_at_style_boundaries
     assert combined_text == "degree: Bachelor of Science", (
         f"Spaces at style boundaries lost; got: {combined_text!r}"
     )
+    # Boundary whitespace should belong to the preceding regular segment.
+    assert line_segments[0] == ("degree: ", False)
+    assert line_segments[1] == ("Bachelor of Science", True)
 
 
 def test_render_pdf_mixed_style_validates_segment_widths(

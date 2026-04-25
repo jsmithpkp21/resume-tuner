@@ -925,7 +925,7 @@ def _wrap_mixed_style_paragraph_for_pdf(
 
     Args:
         bold_parts: Result of _BOLD_SPLIT_RE.split(text). Odd indices are bold, even regular.
-        max_width: Maximum pixel width per line.
+        max_width: Maximum line width in PDF points.
         fn_bold: PDF font name for bold text.
         fn_regular: PDF font name for regular text.
         font_size: Font size in points.
@@ -933,6 +933,7 @@ def _wrap_mixed_style_paragraph_for_pdf(
     Returns:
         List of lines, where each line is a list of (text, is_bold) tuples.
         Each tuple represents a drawable segment: text to draw and whether it's bold.
+        Whitespace runs are normalized to a single space between tokens.
     """
     _LETTER, _canvas, sw = _require_reportlab()
     _WS_RE = re.compile(r"^\s")
@@ -991,7 +992,9 @@ def _wrap_mixed_style_paragraph_for_pdf(
         return [[]]
 
     # Greedily pack words into lines, measuring actual width per font style.
-    # sep_width is only counted (and emitted) when the source had whitespace.
+    # sep_width is only counted when source whitespace existed at that boundary.
+    # Boundary spaces are emitted on the preceding segment so style attribution
+    # follows the source-side segment rather than the next segment.
     lines: list[list[tuple[str, bool]]] = []
     current_line: list[tuple[str, bool]] = []
     current_width = 0.0
@@ -999,18 +1002,22 @@ def _wrap_mixed_style_paragraph_for_pdf(
     for word, is_bold, has_space_before in words_with_style:
         font = fn_bold if is_bold else fn_regular
         word_width = sw(word, font, font_size)
-        sep_width = (
-            sw(" ", font, font_size) if (has_space_before and current_line) else 0.0
-        )
+        sep_width = 0.0
+        if has_space_before and current_line:
+            _last_text, last_is_bold = current_line[-1]
+            sep_font = fn_bold if last_is_bold else fn_regular
+            sep_width = sw(" ", sep_font, font_size)
 
         if current_width + sep_width + word_width <= max_width:
-            sep = " " if has_space_before else ""
             if current_line:
                 last_text, last_is_bold = current_line[-1]
+                if has_space_before:
+                    current_line[-1] = (last_text + " ", last_is_bold)
+                    last_text = current_line[-1][0]
                 if last_is_bold == is_bold:
-                    current_line[-1] = (last_text + sep + word, is_bold)
+                    current_line[-1] = (last_text + word, is_bold)
                 else:
-                    current_line.append((sep + word, is_bold))
+                    current_line.append((word, is_bold))
             else:
                 current_line.append((word, is_bold))
             current_width += sep_width + word_width

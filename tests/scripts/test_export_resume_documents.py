@@ -1965,11 +1965,18 @@ Led initiative called **Development Initiative** with very long description that
     # Extract text draws (skip bullets and rules)
     text_draws = [d for d in draws if d[4] == "text" and d[0] != "•"]
     assert len(text_draws) > 0, "Should have rendered at least one text segment"
-    # Verify bold segments exist
+    # Verify bold and regular segments both exist (mixed style rendered correctly)
     bold_draws = [d for d in text_draws if d[1] == "Calibri-Bold"]
     regular_draws = [d for d in text_draws if d[1] == "Calibri"]
-    # Both bold and regular should be present (indicating mixed style was rendered)
-    assert len(bold_draws) > 0 or len(regular_draws) > 0, "Should have styled text"
+    assert len(bold_draws) > 0, "Should render at least one bold text segment"
+    assert len(regular_draws) > 0, "Should render at least one regular text segment"
+    # Verify each rendered segment stays within content_width
+    margin_x = 36
+    content_width = 612 - margin_x * 2
+    right_edge = margin_x + content_width
+    for text, _font_name, x, _y, _kind in text_draws:
+        segment_width = len(text) * 5  # matches stub stringWidth (5 units/char)
+        assert x + segment_width <= right_edge, ()
 
 
 # --- STRENGTHENED TESTS FOR STYLE BOUNDARY SPACING ---

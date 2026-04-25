@@ -13,6 +13,7 @@ import re
 import subprocess
 import sys
 import time
+import uuid
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -108,8 +109,35 @@ def _canonical_export_filename(company: str, extension: str) -> str:
 
 
 def _staging_path(output_path: Path, *, label: str) -> Path:
-    token = f"tmp-export-{os.getpid()}-{int(time.time() * 1000)}"
+    token = f"tmp-export-{os.getpid()}-{time.time_ns()}-{uuid.uuid4().hex}"
     return output_path.with_name(f".{output_path.name}.{token}.{label}")
+
+
+def _resolve_export_output_path(
+    output_dir: Path,
+    *,
+    filename_override: str | None,
+    default_name: str,
+    flag_name: str,
+) -> Path:
+    base_dir = output_dir.resolve(strict=False)
+    if filename_override is None:
+        return (base_dir / default_name).resolve(strict=False)
+
+    override = Path(filename_override)
+    if override.is_absolute():
+        raise RuntimeError(
+            f"{flag_name} must be a path under --output-dir; absolute paths are not allowed."
+        )
+
+    candidate = (base_dir / override).resolve(strict=False)
+    try:
+        candidate.relative_to(base_dir)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"{flag_name} must remain under --output-dir; path traversal is not allowed."
+        ) from exc
+    return candidate
 
 
 def _remove_stale_legacy_exports(output_dir: Path, keep_paths: set[Path]) -> list[Path]:
@@ -1233,12 +1261,19 @@ def run() -> int:
                 "WARNING: render source contains trailing connector fragments; review final DOCX/PDF for awkward wraps",
                 file=sys.stderr,
             )
-        docx_name = args.docx_filename or _canonical_export_filename(
-            args.company, "docx"
+        output_dir = Path(args.output_dir)
+        docx_output = _resolve_export_output_path(
+            output_dir,
+            filename_override=args.docx_filename,
+            default_name=_canonical_export_filename(args.company, "docx"),
+            flag_name="--docx-filename",
         )
-        pdf_name = args.pdf_filename or _canonical_export_filename(args.company, "pdf")
-        docx_output = Path(args.output_dir) / docx_name
-        pdf_output = Path(args.output_dir) / pdf_name
+        pdf_output = _resolve_export_output_path(
+            output_dir,
+            filename_override=args.pdf_filename,
+            default_name=_canonical_export_filename(args.company, "pdf"),
+            flag_name="--pdf-filename",
+        )
         if docx_output.resolve(strict=False) == pdf_output.resolve(strict=False):
             raise RuntimeError(
                 "DOCX and PDF outputs must be different files; "
@@ -1292,7 +1327,7 @@ def run() -> int:
                     file=sys.stderr,
                 )
         removed_legacy_outputs = _remove_stale_legacy_exports(
-            Path(args.output_dir), {docx_output, pdf_output}
+            output_dir.resolve(strict=False), {docx_output, pdf_output}
         )
         print("Resume exports written:")
         print(f"  {docx_output}")

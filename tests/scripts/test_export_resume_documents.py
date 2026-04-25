@@ -419,6 +419,132 @@ def test_run_rejects_colliding_docx_pdf_output_paths(
     assert calls == {"docx": 0, "pdf": 0}
 
 
+def test_run_rejects_absolute_output_filename_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    markdown_path = output_dir / "latest_resume_processed.md"
+    markdown_path.write_text("# Test\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        export_resume_documents,
+        "parse_args",
+        lambda: type(
+            "Args",
+            (),
+            {
+                "profile": Path("data/profile/profile.toml"),
+                "experience_db": Path("data/experience/experience_db.toml"),
+                "skills_matrix": Path("data/skills/skills_matrix.csv"),
+                "job_url": "",
+                "job_text_file": None,
+                "target_role": "",
+                "company": "company",
+                "output_dir": output_dir,
+                "processing_mode": "processed",
+                "template": "modern",
+                "pdf_filename": "resume.pdf",
+                "docx_filename": "/tmp/evil.docx",
+                "allow_overflow_pdf": False,
+                "post_layout_cleanup": "enabled",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_run_build_pipeline",
+        lambda _args: markdown_path,
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_contains_trailing_connector_fragment",
+        lambda _text: False,
+    )
+
+    calls = {"docx": 0, "pdf": 0}
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_render_docx",
+        lambda _source_text, _output_path: calls.__setitem__("docx", calls["docx"] + 1),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_render_pdf",
+        lambda _source_text, _output_path, *, enforce_page_limit=True: (
+            calls.__setitem__("pdf", calls["pdf"] + 1)
+        ),
+    )
+
+    assert export_resume_documents.run() == 1
+    captured = capsys.readouterr()
+    assert "--docx-filename must be a path under --output-dir" in captured.err
+    assert calls == {"docx": 0, "pdf": 0}
+
+
+def test_run_rejects_output_filename_path_traversal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    markdown_path = output_dir / "latest_resume_processed.md"
+    markdown_path.write_text("# Test\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        export_resume_documents,
+        "parse_args",
+        lambda: type(
+            "Args",
+            (),
+            {
+                "profile": Path("data/profile/profile.toml"),
+                "experience_db": Path("data/experience/experience_db.toml"),
+                "skills_matrix": Path("data/skills/skills_matrix.csv"),
+                "job_url": "",
+                "job_text_file": None,
+                "target_role": "",
+                "company": "company",
+                "output_dir": output_dir,
+                "processing_mode": "processed",
+                "template": "modern",
+                "pdf_filename": "resume.pdf",
+                "docx_filename": "../escape.docx",
+                "allow_overflow_pdf": False,
+                "post_layout_cleanup": "enabled",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_run_build_pipeline",
+        lambda _args: markdown_path,
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_contains_trailing_connector_fragment",
+        lambda _text: False,
+    )
+
+    calls = {"docx": 0, "pdf": 0}
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_render_docx",
+        lambda _source_text, _output_path: calls.__setitem__("docx", calls["docx"] + 1),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_render_pdf",
+        lambda _source_text, _output_path, *, enforce_page_limit=True: (
+            calls.__setitem__("pdf", calls["pdf"] + 1)
+        ),
+    )
+
+    assert export_resume_documents.run() == 1
+    captured = capsys.readouterr()
+    assert "--docx-filename must remain under --output-dir" in captured.err
+    assert calls == {"docx": 0, "pdf": 0}
+
+
 def test_run_fragment_warning_uses_render_source_text(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -528,6 +654,15 @@ def test_contains_trailing_connector_fragment_uses_real_detection_logic() -> Non
         )
         is False
     )
+
+
+def test_staging_path_is_unique_per_call(tmp_path: Path) -> None:
+    output_path = tmp_path / "resume.docx"
+    first = export_resume_documents._staging_path(output_path, label="docx")
+    second = export_resume_documents._staging_path(output_path, label="docx")
+    assert first != second
+    assert "tmp-export-" in first.name
+    assert "tmp-export-" in second.name
 
 
 def test_render_pdf_raises_when_output_exceeds_two_pages(

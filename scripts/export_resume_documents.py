@@ -483,10 +483,11 @@ def _job_context_has_community_signal(args: argparse.Namespace) -> bool:
         "nonprofit",
     }
     source_parts = [args.target_role or "", args.company or ""]
-    if args.job_text_file is not None and Path(args.job_text_file).exists():
+    if args.job_text_file is not None:
         job_text_path = Path(args.job_text_file)
         _assert_not_blocked_runtime_input(job_text_path)
-        source_parts.append(job_text_path.read_text(encoding="utf-8"))
+        if job_text_path.exists():
+            source_parts.append(job_text_path.read_text(encoding="utf-8"))
     haystack = "\n".join(source_parts).lower()
     return any(term in haystack for term in signal_terms)
 

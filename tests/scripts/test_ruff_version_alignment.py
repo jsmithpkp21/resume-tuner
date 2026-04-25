@@ -9,7 +9,9 @@ REPO_ROOT: Path = Path(__file__).parent.parent.parent.resolve()
 
 
 def _read_requirements_ruff_version() -> str:
-    requirements = (REPO_ROOT / "requirements-dev.txt").read_text().splitlines()
+    requirements = (
+        (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8").splitlines()
+    )
     for line in requirements:
         line = line.strip()
         if line.startswith("ruff=="):
@@ -19,7 +21,7 @@ def _read_requirements_ruff_version() -> str:
 
 def _read_precommit_ruff_version() -> str:
     config_path = REPO_ROOT / ".pre-commit-config.yaml"
-    config = yaml.safe_load(config_path.read_text())
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     for repo in config.get("repos", []):
         if repo.get("repo") == "https://github.com/astral-sh/ruff-pre-commit":
             rev = repo.get("rev", "")

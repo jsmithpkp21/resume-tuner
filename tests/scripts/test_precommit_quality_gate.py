@@ -41,21 +41,28 @@ def test_precommit_has_push_stage_full_repo_quality_hooks() -> None:
     )
 
 
-def test_repo_tests_do_not_include_non_ruff_signature_annotation_pattern() -> None:
-    """Guard against recurring test-format regressions by running Ruff check."""
+def test_high_churn_tests_pass_ruff_format_check() -> None:
+    """Guard against recurring formatting regressions in high-churn test files."""
     files = [
         "tests/scripts/test_build_resume.py",
         "tests/scripts/test_export_resume_documents.py",
         "tests/scripts/test_pr_review_helper.py",
         "tests/scripts/test_select_skills.py",
     ]
-    result = subprocess.run(
-        ["ruff", "format", "--check", *files],
-        cwd=REPO_ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["ruff", "format", "--check", *files],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise AssertionError(
+            "Ruff format check timed out for high-churn tests. "
+            "This likely indicates a local filesystem or environment issue."
+        ) from exc
     assert result.returncode == 0, (
         "Ruff format check failed for high-churn tests. "
         f"stdout={result.stdout}\nstderr={result.stderr}"

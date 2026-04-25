@@ -998,13 +998,13 @@ def test_apply_post_layout_cleanup_preserves_html_header_divider_block() -> None
 
 
 def test_html_block_parser_emits_bullet_for_skills_category_paragraph() -> None:
-    """HTML <p class="skills-category"> must produce ("bullet", text) so cleanup fires."""
+    """HTML <p class="skills-category"> must stay a paragraph, not a bullet."""
     html = """<!doctype html><html><body>
 <h2>Key Skills and Expertise</h2>
 <p class="skills-category"><strong>Collaboration:</strong> Mentoring • Coaching • Communication • Facilitation</p>
 </body></html>"""
     blocks = export_resume_documents._iter_markdown_blocks(html)
-    assert any(kind == "bullet" and "Facilitation" in text for kind, text in blocks)
+    assert any(kind == "p" and "Facilitation" in text for kind, text in blocks)
 
 
 def test_html_block_parser_emits_bullet_for_leadership_paragraphs() -> None:
@@ -1045,6 +1045,67 @@ def test_apply_post_layout_cleanup_drops_leadership_mentoring_from_html_source()
 
     assert "Mentoring Lead | Internal Community" not in cleaned
     assert "Supported peer growth circles" not in cleaned
+
+
+def test_render_pdf_html_skills_category_has_no_leading_bullet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Skills-category rows from HTML should not render a leading list bullet glyph."""
+    output_path = tmp_path / "resume.pdf"
+    draws: list[str] = []
+
+    class FakeCanvas:
+        def __init__(self, buf: io_mod.BytesIO, **_kwargs: object):
+            self._buf = buf
+
+        def showPage(self) -> None:
+            pass
+
+        def setFont(self, _font_name: str, _font_size: int) -> None:
+            pass
+
+        def drawString(self, _x: float, _y: float, text: str) -> None:
+            draws.append(text)
+
+        def setStrokeColorRGB(self, _r: float, _g: float, _b: float) -> None:
+            pass
+
+        def setLineWidth(self, _width: float) -> None:
+            pass
+
+        def line(self, _x1: float, _y1: float, _x2: float, _y2: float) -> None:
+            pass
+
+        def save(self) -> None:
+            self._buf.write(b"%PDF-FAKE")
+
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_require_reportlab",
+        lambda: (
+            (612, 792),
+            type("CanvasModule", (), {"Canvas": FakeCanvas}),
+            lambda text, _font_name, _font_size: len(text) * 5,
+        ),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_require_calibri_pdf_fonts",
+        lambda: ("Calibri", "Calibri-Bold"),
+    )
+
+    html = """<!doctype html><html><body>
+<h2>Key Skills and Expertise</h2>
+<p class="skills-category"><strong>Programming &amp; Scripting:</strong> Java • Python • TypeScript</p>
+</body></html>"""
+
+    export_resume_documents._render_pdf(html, output_path)
+
+    assert "•" not in draws, (
+        "Skills-category row should not draw a leading bullet glyph"
+    )
+    assert any("Programming & Scripting:" in d for d in draws)
+    assert any("Java • Python • TypeScript" in d for d in draws)
 
 
 def test_pipeline_default_html_path_prefers_default_secondary_for_processed() -> None:

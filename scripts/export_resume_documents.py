@@ -414,13 +414,11 @@ class _ResumeHtmlBlockParser(HTMLParser):
             self.blocks.append(("bullet", text))
         elif "resume-title" in class_tokens:
             self.blocks.append(("title", text))
-        elif (
-            "skills-category" in class_tokens
-            or self._current_h2 in self._BULLET_P_SECTIONS
-        ):
-            # Treat skills rows and leadership/community paragraphs as bullets so
-            # that _apply_post_layout_cleanup rules fire identically for HTML and
-            # markdown sources.
+        elif "skills-category" in class_tokens:
+            # Skills category rows render as paragraph lines (no leading list bullet).
+            self.blocks.append(("p", text))
+        elif self._current_h2 in self._BULLET_P_SECTIONS:
+            # Keep section prose coercion for cleanup rules that rely on bullet-kind blocks.
             self.blocks.append(("bullet", text))
         else:
             self.blocks.append(("p", text))
@@ -571,7 +569,7 @@ def _apply_post_layout_cleanup(
             filtered_blocks.append((kind, text))
             continue
 
-        if section == "key skills and expertise" and kind == "bullet":
+        if section == "key skills and expertise" and kind in {"bullet", "p"}:
             candidate = text
             if _has_single_word_wrap_tail(
                 candidate, line_width=build_resume.DEFAULT_BULLET_LINE_WIDTH

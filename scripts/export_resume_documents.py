@@ -348,15 +348,10 @@ _HIDDEN_HTML_CLASS_TOKENS = {"related-skills"}
 class _ResumeHtmlBlockParser(HTMLParser):
     """Extract visible heading/paragraph/list blocks in DOM order."""
 
-    # h2 sections whose <p> children should be treated as bullet-like items
-    # so that post-layout cleanup rules apply uniformly across HTML and markdown.
-    _BULLET_P_SECTIONS = {"key skills and expertise", "leadership & community"}
-
     def __init__(self) -> None:
         super().__init__()
         self.blocks: list[tuple[str, str]] = []
         self._capture_stack: list[dict[str, Any]] = []
-        self._current_h2: str = ""
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         # Inline elements: inject bold markers / tab separator into current block
@@ -406,7 +401,6 @@ class _ResumeHtmlBlockParser(HTMLParser):
         if tag == "h1":
             self.blocks.append(("h1", text))
         elif tag == "h2":
-            self._current_h2 = text.strip().lower()
             self.blocks.append(("h2", text))
         elif tag == "h3":
             self.blocks.append(("h3", text))
@@ -991,44 +985,78 @@ def _wrap_mixed_style_paragraph_for_pdf(
     if not words_with_style:
         return [[]]
 
-    # Greedily pack words into lines, measuring actual width per font style.
-    # sep_width is only counted when source whitespace existed at that boundary.
-    # Boundary spaces are emitted on the preceding segment so style attribution
-    # follows the source-side segment rather than the next segment.
+    # Greedily pack tokens into lines, measuring widths per style.
+    # Boundaries without source whitespace are treated as glued: if they do not
+    # fit at line end, the preceding token is moved to the next line so suffix
+    # punctuation/tokens cannot be orphaned onto their own line.
     lines: list[list[tuple[str, bool]]] = []
-    current_line: list[tuple[str, bool]] = []
-    current_width = 0.0
+    current_tokens: list[tuple[str, bool, bool]] = []
+
+    def _font_for(is_bold: bool) -> str:
+        return fn_bold if is_bold else fn_regular
+
+    def _token_width(
+        token: tuple[str, bool, bool], prev: tuple[str, bool, bool] | None
+    ) -> float:
+        word, is_bold, has_space_before = token
+        word_w = float(sw(word, _font_for(is_bold), font_size))
+        if has_space_before and prev is not None:
+            sep_w = float(sw(" ", _font_for(prev[1]), font_size))
+            return sep_w + word_w
+        return word_w
+
+    def _line_width(tokens: list[tuple[str, bool, bool]]) -> float:
+        total = 0.0
+        prev: tuple[str, bool, bool] | None = None
+        for tok in tokens:
+            total += _token_width(tok, prev)
+            prev = tok
+        return total
+
+    def _render_line(tokens: list[tuple[str, bool, bool]]) -> list[tuple[str, bool]]:
+        segments: list[tuple[str, bool]] = []
+        for i, (word, is_bold, has_space_before) in enumerate(tokens):
+            if i == 0:
+                if segments and segments[-1][1] == is_bold:
+                    segments[-1] = (segments[-1][0] + word, is_bold)
+                else:
+                    segments.append((word, is_bold))
+                continue
+
+            if has_space_before and segments:
+                last_text, last_is_bold = segments[-1]
+                segments[-1] = (last_text + " ", last_is_bold)
+
+            if segments and segments[-1][1] == is_bold:
+                last_text, _ = segments[-1]
+                segments[-1] = (last_text + word, is_bold)
+            else:
+                segments.append((word, is_bold))
+        return segments
 
     for word, is_bold, has_space_before in words_with_style:
-        font = fn_bold if is_bold else fn_regular
-        word_width = sw(word, font, font_size)
-        sep_width = 0.0
-        if has_space_before and current_line:
-            _last_text, last_is_bold = current_line[-1]
-            sep_font = fn_bold if last_is_bold else fn_regular
-            sep_width = sw(" ", sep_font, font_size)
+        token = (word, is_bold, has_space_before)
+        prev = current_tokens[-1] if current_tokens else None
+        candidate_width = _line_width(current_tokens) + _token_width(token, prev)
 
-        if current_width + sep_width + word_width <= max_width:
-            if current_line:
-                last_text, last_is_bold = current_line[-1]
-                if has_space_before:
-                    current_line[-1] = (last_text + " ", last_is_bold)
-                    last_text = current_line[-1][0]
-                if last_is_bold == is_bold:
-                    current_line[-1] = (last_text + word, is_bold)
-                else:
-                    current_line.append((word, is_bold))
-            else:
-                current_line.append((word, is_bold))
-            current_width += sep_width + word_width
-        else:
-            if current_line:
-                lines.append(current_line)
-            current_line = [(word, is_bold)]
-            current_width = word_width
+        if candidate_width <= max_width:
+            current_tokens.append(token)
+            continue
 
-    if current_line:
-        lines.append(current_line)
+        # Glued boundary (no whitespace): keep this token with previous token.
+        if not has_space_before and current_tokens:
+            moved = current_tokens.pop()
+            if current_tokens:
+                lines.append(_render_line(current_tokens))
+            current_tokens = [(moved[0], moved[1], False), (word, is_bold, False)]
+            continue
+
+        if current_tokens:
+            lines.append(_render_line(current_tokens))
+        current_tokens = [(word, is_bold, False)]
+
+    if current_tokens:
+        lines.append(_render_line(current_tokens))
 
     return lines if lines else [[]]
 

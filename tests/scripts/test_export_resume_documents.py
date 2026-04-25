@@ -2024,11 +2024,15 @@ Led initiative called **Development Initiative** with very long description that
     # Extract text draws (skip bullets and rules)
     text_draws = [d for d in draws if d[4] == "text" and d[0] != "•"]
     assert len(text_draws) > 0, "Should have rendered at least one text segment"
-    # Verify bold and regular segments both exist (mixed style rendered correctly)
-    bold_draws = [d for d in text_draws if d[1] == "Calibri-Bold"]
-    regular_draws = [d for d in text_draws if d[1] == "Calibri"]
-    assert len(bold_draws) > 0, "Should render at least one bold text segment"
-    assert len(regular_draws) > 0, "Should render at least one regular text segment"
+    # Verify mixed-style paragraph content (not just heading text) keeps styles.
+    assert any(
+        "Development Initiative" in text and font_name == "Calibri-Bold"
+        for text, font_name, _x, _y, _kind in text_draws
+    ), "Expected paragraph bold span to render in Calibri-Bold"
+    assert any(
+        "Led initiative called" in text and font_name == "Calibri"
+        for text, font_name, _x, _y, _kind in text_draws
+    ), "Expected adjacent paragraph text to render in Calibri"
     # Verify each rendered segment stays within content_width
     margin_x = 36
     content_width = 612 - margin_x * 2
@@ -2126,11 +2130,13 @@ def test_render_pdf_mixed_style_validates_segment_widths(
 Led **initiative** with very long description that forces wrapping while preserving bold markup.
 """
     export_resume_documents._render_pdf(markdown, output_path)
-    # Validate: both bold and regular segments present
+    # Validate: paragraph bold span is rendered as bold (not just heading text)
     text_draws = [(t, f, x, y) for t, f, x, y in draws if t not in ("•",)]
-    bold_draws = [d for d in text_draws if d[1] == "Calibri-Bold"]
     regular_draws = [d for d in text_draws if d[1] == "Calibri"]
-    assert len(bold_draws) > 0, "Should render at least one bold segment"
+    assert any(
+        "initiative" in text and font_name == "Calibri-Bold"
+        for text, font_name, _x, _y in text_draws
+    ), "Expected paragraph token 'initiative' to render in Calibri-Bold"
     assert len(regular_draws) > 0, "Should render at least one regular segment"
     # Validate: each segment stays within content_width
     margin_x = 36
@@ -2178,3 +2184,33 @@ def test_wrap_mixed_style_paragraph_for_pdf_no_spurious_space_before_punctuation
     for text, is_bold in lines[0]:
         if "," in text:
             assert not is_bold, "Comma/punctuation segment should be regular (not bold)"
+
+
+def test_wrap_mixed_style_paragraph_for_pdf_does_not_orphan_glued_punctuation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Punctuation adjacent to a style boundary should not wrap onto its own line."""
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_require_reportlab",
+        lambda: (
+            (612, 792),
+            object(),
+            lambda text, _font_name, _font_size: len(text),
+        ),
+    )
+    # Simulate: "context **initiative**, trailing"
+    # Narrow width to force potential break near the comma boundary.
+    bold_parts = ["context ", "initiative", ", trailing words"]
+    lines = export_resume_documents._wrap_mixed_style_paragraph_for_pdf(
+        bold_parts,
+        max_width=16,
+        fn_bold="Calibri-Bold",
+        fn_regular="Calibri",
+        font_size=11,
+    )
+
+    rendered = ["".join(text for text, _ in segments) for segments in lines]
+    assert all(not line.lstrip().startswith(",") for line in rendered), (
+        f"Found orphaned punctuation line: {rendered!r}"
+    )

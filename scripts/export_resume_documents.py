@@ -931,7 +931,8 @@ def _wrap_mixed_style_paragraph_for_pdf(
     """
     _LETTER, _canvas, sw = _require_reportlab()
 
-    # Build (word, is_bold, has_space_before) triples, preserving source whitespace.
+    # Build (word, is_bold, has_space_before) triples while tracking whether
+    # whitespace existed between tokens (runs are normalized to single spaces).
     # bold_parts comes from _BOLD_SPLIT_RE.split(text): even indices are regular, odd are bold.
     # At style boundaries we check actual source whitespace rather than assuming a space,
     # so that adjacent-punctuation cases like **bold**, do not gain a spurious space.
@@ -1020,10 +1021,7 @@ def _wrap_mixed_style_paragraph_for_pdf(
         segments: list[tuple[str, bool]] = []
         for i, (word, is_bold, has_space_before) in enumerate(tokens):
             if i == 0:
-                if segments and segments[-1][1] == is_bold:
-                    segments[-1] = (segments[-1][0] + word, is_bold)
-                else:
-                    segments.append((word, is_bold))
+                segments.append((word, is_bold))
                 continue
 
             if has_space_before and segments:

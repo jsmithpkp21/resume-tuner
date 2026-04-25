@@ -911,9 +911,87 @@ def _wrap_skills_category_for_pdf(
                 current = candidate
             else:
                 lines.append(("", current))
-                current = word
         lines.append(("", current))
     return lines
+
+
+def _wrap_mixed_style_paragraph_for_pdf(
+    bold_parts: list[str],
+    max_width: float,
+    fn_bold: str,
+    fn_regular: str,
+    font_size: int,
+) -> list[list[tuple[str, bool]]]:
+    """Wrap a mixed bold/regular paragraph to max_width, preserving style per segment.
+
+    Args:
+        bold_parts: Result of _BOLD_SPLIT_RE.split(text). Odd indices are bold, even regular.
+        max_width: Maximum pixel width per line.
+        fn_bold: PDF font name for bold text.
+        fn_regular: PDF font name for regular text.
+        font_size: Font size in points.
+
+    Returns:
+        List of lines, where each line is a list of (text, is_bold) tuples.
+        Each tuple represents a drawable segment: text to draw and whether it's bold.
+    """
+    _LETTER, _canvas, sw = _require_reportlab()
+
+    # Parse bold_parts into styled tokens: (text, is_bold)
+    styled_tokens: list[tuple[str, bool]] = []
+    for i, part in enumerate(bold_parts):
+        if not part:
+            continue
+        part_plain = _strip_markdown_markup(part)
+        is_bold = i % 2 == 1
+        styled_tokens.append((part_plain, is_bold))
+
+    if not styled_tokens:
+        return [[]]
+
+    # Tokenize styled segments into words while tracking style
+    words_with_style: list[tuple[str, bool]] = []
+    for text, is_bold in styled_tokens:
+        for word in text.split():
+            words_with_style.append((word, is_bold))
+
+    if not words_with_style:
+        return [[]]
+
+    # Greedily fit words into lines, respecting font width per style
+    lines: list[list[tuple[str, bool]]] = []
+    current_line: list[tuple[str, bool]] = []
+    current_width = 0.0
+
+    for word, is_bold in words_with_style:
+        font = fn_bold if is_bold else fn_regular
+        word_width = sw(word, font, font_size)
+        # Add space width if line is not empty
+        sep_width = sw(" ", font, font_size) if current_line else 0.0
+
+        if current_width + sep_width + word_width <= max_width:
+            # Fits on current line
+            if current_line:
+                # Add space to last segment if same style, or as new segment if different
+                last_text, last_is_bold = current_line[-1]
+                if last_is_bold == is_bold:
+                    current_line[-1] = (last_text + " " + word, is_bold)
+                else:
+                    current_line.append((word, is_bold))
+            else:
+                current_line.append((word, is_bold))
+            current_width += sep_width + word_width
+        else:
+            # Doesn't fit: start new line
+            if current_line:
+                lines.append(current_line)
+            current_line = [(word, is_bold)]
+            current_width = word_width
+
+    if current_line:
+        lines.append(current_line)
+
+    return lines if lines else [[]]
 
 
 _MD_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")

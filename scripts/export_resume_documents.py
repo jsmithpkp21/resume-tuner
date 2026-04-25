@@ -1239,6 +1239,11 @@ def run() -> int:
         pdf_name = args.pdf_filename or _canonical_export_filename(args.company, "pdf")
         docx_output = Path(args.output_dir) / docx_name
         pdf_output = Path(args.output_dir) / pdf_name
+        if docx_output.resolve(strict=False) == pdf_output.resolve(strict=False):
+            raise RuntimeError(
+                "DOCX and PDF outputs must be different files; "
+                "choose distinct --docx-filename and --pdf-filename values."
+            )
         docx_output.parent.mkdir(parents=True, exist_ok=True)
         pdf_output.parent.mkdir(parents=True, exist_ok=True)
 

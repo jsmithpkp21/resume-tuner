@@ -357,6 +357,68 @@ def test_run_can_disable_post_layout_cleanup(
     assert cleanup_called["value"] is False
 
 
+def test_run_rejects_colliding_docx_pdf_output_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    markdown_path = output_dir / "latest_resume_processed.md"
+    markdown_path.write_text("# Test\n\n## Summary\n\n- bullet\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        export_resume_documents,
+        "parse_args",
+        lambda: type(
+            "Args",
+            (),
+            {
+                "profile": Path("data/profile/profile.toml"),
+                "experience_db": Path("data/experience/experience_db.toml"),
+                "skills_matrix": Path("data/skills/skills_matrix.csv"),
+                "job_url": "",
+                "job_text_file": None,
+                "target_role": "",
+                "company": "company",
+                "output_dir": output_dir,
+                "processing_mode": "processed",
+                "template": "modern",
+                "pdf_filename": "resume.out",
+                "docx_filename": "nested/../resume.out",
+                "allow_overflow_pdf": False,
+                "post_layout_cleanup": "enabled",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_run_build_pipeline",
+        lambda _args: markdown_path,
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_contains_trailing_connector_fragment",
+        lambda _text: False,
+    )
+
+    calls = {"docx": 0, "pdf": 0}
+
+    def fake_render_docx(_source_text: str, _output_path: Path) -> None:
+        calls["docx"] += 1
+
+    def fake_render_pdf(
+        _source_text: str, _output_path: Path, *, enforce_page_limit: bool = True
+    ) -> None:
+        calls["pdf"] += 1
+
+    monkeypatch.setattr(export_resume_documents, "_render_docx", fake_render_docx)
+    monkeypatch.setattr(export_resume_documents, "_render_pdf", fake_render_pdf)
+
+    assert export_resume_documents.run() == 1
+    captured = capsys.readouterr()
+    assert "DOCX and PDF outputs must be different files" in captured.err
+    assert calls == {"docx": 0, "pdf": 0}
+
+
 def test_run_fragment_warning_uses_render_source_text(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

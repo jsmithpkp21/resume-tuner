@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.19.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.18.1...v0.19.0) (2026-04-25)
+
+
+### Features
+
+* **pdf:** wrap mixed-style paragraphs to content_width with style preservation (resolves [#134](https://github.com/jsmithpkp21/resume-builder/issues/134)) ([7efb46e](https://github.com/jsmithpkp21/resume-builder/commit/7efb46e7f3d40c81d5d80b7a74233f177b970d87))
+
+
+### Bug Fixes
+
+* **export:** keep HTML leadership/skills rows as paragraphs ([0898e5f](https://github.com/jsmithpkp21/resume-builder/commit/0898e5ff3c826bcba2a7d9f58bec42f3165a4a85))
+* **export:** optimize mixed-style wrap width measurement ([87d5e6b](https://github.com/jsmithpkp21/resume-builder/commit/87d5e6b9ade65c7a58197f8a2ace6edb9f6187c9))
+* **export:** simplify mixed-style render-line handling ([481444c](https://github.com/jsmithpkp21/resume-builder/commit/481444cc0b94d7beec31a52560f73a0fa6ccb0c6))
+* **pdf:** address latest 4 PR [#156](https://github.com/jsmithpkp21/resume-builder/issues/156) review findings ([efeeb74](https://github.com/jsmithpkp21/resume-builder/commit/efeeb741ada46de5d9a7e2de7ff013cc343ed395))
+* **pdf:** attribute mixed-style boundary spaces to preceding segment ([369afdc](https://github.com/jsmithpkp21/resume-builder/commit/369afdcf44259c3c43810d6759ceb3aec81aa54d))
+* **pdf:** preserve source whitespace at style boundaries; add punctuation test ([0ccb6c2](https://github.com/jsmithpkp21/resume-builder/commit/0ccb6c274d15fab9f3d2bf38b95f091b5d34e9cd))
+* **pdf:** render HTML skills rows without leading bullet ([648f194](https://github.com/jsmithpkp21/resume-builder/commit/648f1946ba61e0f90060c0f9eb382581af29b160))
+* **pdf:** replace stale mixed_wrapped_lines refs with wrapped_lines in skills blocks ([7b7c085](https://github.com/jsmithpkp21/resume-builder/commit/7b7c085963caf9f4e03e33bf5e3469283b4a3719))
+* **pdf:** resolve 5 PR [#156](https://github.com/jsmithpkp21/resume-builder/issues/156) review comments ([238272a](https://github.com/jsmithpkp21/resume-builder/commit/238272a74ff9a8ba535bf93ac010742f95ef101e))
+
 ## [0.18.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.18.0...v0.18.1) (2026-04-25)
 
 

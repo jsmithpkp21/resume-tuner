@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -51,7 +52,7 @@ def test_high_churn_tests_pass_ruff_format_check() -> None:
     ]
     try:
         result = subprocess.run(
-            ["ruff", "format", "--check", *files],
+            [sys.executable, "-m", "ruff", "format", "--check", *files],
             cwd=REPO_ROOT,
             text=True,
             capture_output=True,

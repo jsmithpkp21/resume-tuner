@@ -69,7 +69,9 @@ Export behavior notes:
 
 - The export command always runs the Markdown pipeline first.
 - DOCX/PDF rendering prefers the generated default-template HTML when available; otherwise it falls back to the processed Markdown.
-- DOCX/PDF final artifacts are written transactionally as a pair: if either phase fails, existing final artifacts are preserved.
+- Post-layout cleanup is enabled by default during export (`--post-layout-cleanup enabled`) and may adjust the render source before DOCX/PDF generation to improve block extraction and wrap behavior.
+- Use `--post-layout-cleanup disabled` when you need strict source fidelity for diffing/debugging against the unmodified processed source.
+- DOCX/PDF final artifacts are written transactionally as a pair: if either phase or finalization swap fails, rollback restores prior outputs when present and removes newly-created partial outputs when no prior artifact existed.
 - Trailing connector fragments emit warnings to stderr for manual review.
 - PDF exports that exceed two pages fail with a non-zero exit so the submission page-limit guard is enforced.
 

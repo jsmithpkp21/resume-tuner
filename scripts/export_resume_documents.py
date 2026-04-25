@@ -1246,6 +1246,8 @@ def run() -> int:
         staged_pdf = _staging_path(pdf_output, label="pdf")
         backup_docx = _staging_path(docx_output, label="docx.bak")
         backup_pdf = _staging_path(pdf_output, label="pdf.bak")
+        docx_existed_before_finalize = docx_output.exists()
+        pdf_existed_before_finalize = pdf_output.exists()
 
         try:
             _render_docx(render_source_text, staged_docx)
@@ -1255,9 +1257,9 @@ def run() -> int:
                 enforce_page_limit=not args.allow_overflow_pdf,
             )
 
-            if docx_output.exists():
+            if docx_existed_before_finalize:
                 docx_output.replace(backup_docx)
-            if pdf_output.exists():
+            if pdf_existed_before_finalize:
                 pdf_output.replace(backup_pdf)
 
             staged_docx.replace(docx_output)
@@ -1272,9 +1274,13 @@ def run() -> int:
             if backup_docx.exists():
                 docx_output.unlink(missing_ok=True)
                 backup_docx.replace(docx_output)
+            elif not docx_existed_before_finalize:
+                docx_output.unlink(missing_ok=True)
             if backup_pdf.exists():
                 pdf_output.unlink(missing_ok=True)
                 backup_pdf.replace(pdf_output)
+            elif not pdf_existed_before_finalize:
+                pdf_output.unlink(missing_ok=True)
             raise
         removed_legacy_outputs = _remove_stale_legacy_exports(
             Path(args.output_dir), {docx_output, pdf_output}

@@ -1065,6 +1065,78 @@ def test_run_transactional_pdf_phase_failure_preserves_existing_artifacts(
     assert leftovers == [], f"Unexpected staging files left behind: {leftovers}"
 
 
+def test_run_transactional_mid_finalize_failure_removes_new_outputs_without_backups(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If finalization fails mid-swap with no prior artifacts, rollback must remove partial finals."""
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    markdown_path = output_dir / "latest_resume_processed.md"
+    markdown_path.write_text("# Test\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        export_resume_documents,
+        "parse_args",
+        lambda: type(
+            "Args",
+            (),
+            {
+                "profile": Path("data/profile/profile.toml"),
+                "experience_db": Path("data/experience/experience_db.toml"),
+                "skills_matrix": Path("data/skills/skills_matrix.csv"),
+                "job_url": "",
+                "job_text_file": None,
+                "target_role": "",
+                "company": "Graphcore",
+                "output_dir": output_dir,
+                "processing_mode": "processed",
+                "template": "modern",
+                "pdf_filename": None,
+                "docx_filename": None,
+                "allow_overflow_pdf": False,
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_run_build_pipeline",
+        lambda _args: markdown_path,
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_contains_trailing_connector_fragment",
+        lambda _text: False,
+    )
+
+    def fake_render_docx(_source_text: str, output_path: Path) -> None:
+        output_path.write_text("new docx content", encoding="utf-8")
+
+    def fake_render_pdf(
+        _source_text: str, output_path: Path, *, enforce_page_limit: bool = True
+    ) -> None:
+        assert enforce_page_limit is True
+        output_path.write_bytes(b"new pdf content")
+
+    monkeypatch.setattr(export_resume_documents, "_render_docx", fake_render_docx)
+    monkeypatch.setattr(export_resume_documents, "_render_pdf", fake_render_pdf)
+
+    real_replace = Path.replace
+
+    def fail_pdf_finalize_once(self: Path, target: Path) -> Path:
+        if self.suffix == ".pdf" and "tmp-export-" in self.name:
+            raise RuntimeError("simulated mid-finalization failure")
+        return real_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", fail_pdf_finalize_once)
+
+    result = export_resume_documents.run()
+    assert result != 0
+    assert not (output_dir / "graphcore_resume.docx").exists()
+    assert not (output_dir / "graphcore_resume.pdf").exists()
+    leftovers = [p for p in output_dir.iterdir() if "tmp-export-" in p.name]
+    assert leftovers == [], f"Unexpected staging files left behind: {leftovers}"
+
+
 def test_render_docx_attaches_section_border_to_heading_paragraph(
     tmp_path: Path,
 ) -> None:

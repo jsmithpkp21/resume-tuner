@@ -924,8 +924,10 @@ def test_run_uses_company_snake_case_default_filenames(
     monkeypatch.setattr(export_resume_documents, "_render_pdf", fake_render_pdf)
 
     assert export_resume_documents.run() == 0
-    names = sorted(path.name for path in captured)
-    assert names == ["graph_core_inc_resume.docx", "graph_core_inc_resume.pdf"]
+    staged_names = sorted(path.name for path in captured)
+    assert all("tmp-export-" in name for name in staged_names)
+    assert (output_dir / "graph_core_inc_resume.docx").exists()
+    assert (output_dir / "graph_core_inc_resume.pdf").exists()
 
 
 def test_run_removes_stale_legacy_latest_resume_export_aliases(

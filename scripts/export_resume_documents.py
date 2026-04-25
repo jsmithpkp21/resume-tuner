@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -104,6 +105,11 @@ def _snake_case(value: str) -> str:
 def _canonical_export_filename(company: str, extension: str) -> str:
     ext = extension.lower().lstrip(".")
     return f"{_snake_case(company)}_resume.{ext}"
+
+
+def _staging_path(output_path: Path, *, label: str) -> Path:
+    token = f"tmp-export-{os.getpid()}-{int(time.time() * 1000)}"
+    return output_path.with_name(f".{output_path.name}.{token}.{label}")
 
 
 def _remove_stale_legacy_exports(output_dir: Path, keep_paths: set[Path]) -> list[Path]:
@@ -1233,12 +1239,43 @@ def run() -> int:
         pdf_name = args.pdf_filename or _canonical_export_filename(args.company, "pdf")
         docx_output = Path(args.output_dir) / docx_name
         pdf_output = Path(args.output_dir) / pdf_name
-        _render_docx(render_source_text, docx_output)
-        _render_pdf(
-            render_source_text,
-            pdf_output,
-            enforce_page_limit=not args.allow_overflow_pdf,
-        )
+        docx_output.parent.mkdir(parents=True, exist_ok=True)
+        pdf_output.parent.mkdir(parents=True, exist_ok=True)
+
+        staged_docx = _staging_path(docx_output, label="docx")
+        staged_pdf = _staging_path(pdf_output, label="pdf")
+        backup_docx = _staging_path(docx_output, label="docx.bak")
+        backup_pdf = _staging_path(pdf_output, label="pdf.bak")
+
+        try:
+            _render_docx(render_source_text, staged_docx)
+            _render_pdf(
+                render_source_text,
+                staged_pdf,
+                enforce_page_limit=not args.allow_overflow_pdf,
+            )
+
+            if docx_output.exists():
+                docx_output.replace(backup_docx)
+            if pdf_output.exists():
+                pdf_output.replace(backup_pdf)
+
+            staged_docx.replace(docx_output)
+            staged_pdf.replace(pdf_output)
+
+            backup_docx.unlink(missing_ok=True)
+            backup_pdf.unlink(missing_ok=True)
+        except Exception:
+            staged_docx.unlink(missing_ok=True)
+            staged_pdf.unlink(missing_ok=True)
+
+            if backup_docx.exists():
+                docx_output.unlink(missing_ok=True)
+                backup_docx.replace(docx_output)
+            if backup_pdf.exists():
+                pdf_output.unlink(missing_ok=True)
+                backup_pdf.replace(pdf_output)
+            raise
         removed_legacy_outputs = _remove_stale_legacy_exports(
             Path(args.output_dir), {docx_output, pdf_output}
         )

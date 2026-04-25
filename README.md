@@ -69,6 +69,7 @@ Export behavior notes:
 
 - The export command always runs the Markdown pipeline first.
 - DOCX/PDF rendering prefers the generated default-template HTML when available; otherwise it falls back to the processed Markdown.
+- DOCX/PDF final artifacts are written transactionally as a pair: if either phase fails, existing final artifacts are preserved.
 - Trailing connector fragments emit warnings to stderr for manual review.
 - PDF exports that exceed two pages fail with a non-zero exit so the submission page-limit guard is enforced.
 

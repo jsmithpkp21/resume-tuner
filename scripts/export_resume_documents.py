@@ -417,9 +417,6 @@ class _ResumeHtmlBlockParser(HTMLParser):
         elif "skills-category" in class_tokens:
             # Skills category rows render as paragraph lines (no leading list bullet).
             self.blocks.append(("p", text))
-        elif self._current_h2 in self._BULLET_P_SECTIONS:
-            # Keep section prose coercion for cleanup rules that rely on bullet-kind blocks.
-            self.blocks.append(("bullet", text))
         else:
             self.blocks.append(("p", text))
 

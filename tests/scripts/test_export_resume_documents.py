@@ -1008,7 +1008,7 @@ def test_html_block_parser_emits_bullet_for_skills_category_paragraph() -> None:
 
 
 def test_html_block_parser_emits_bullet_for_leadership_paragraphs() -> None:
-    """HTML <p> inside Leadership & Community section must produce ("bullet", text)."""
+    """HTML <p> inside Leadership & Community should remain paragraph blocks."""
     html = """<!doctype html><html><body>
 <h2>Leadership &amp; Community</h2>
 <section class="info-item">
@@ -1017,15 +1017,15 @@ def test_html_block_parser_emits_bullet_for_leadership_paragraphs() -> None:
 </section>
 </body></html>"""
     blocks = export_resume_documents._iter_markdown_blocks(html)
-    bullet_texts = [text for kind, text in blocks if kind == "bullet"]
-    assert any("Mentoring Lead" in t for t in bullet_texts)
-    assert any("peer growth circles" in t for t in bullet_texts)
+    paragraph_texts = [text for kind, text in blocks if kind == "p"]
+    assert any("Mentoring Lead" in t for t in paragraph_texts)
+    assert any("peer growth circles" in t for t in paragraph_texts)
 
 
 def test_apply_post_layout_cleanup_drops_leadership_mentoring_from_html_source() -> (
     None
 ):
-    """Cleanup must fire on HTML source (not just markdown) when mentoring is in experience."""
+    """HTML leadership paragraphs should not be dropped by bullet-only cleanup rules."""
     args = type(
         "Args",
         (),
@@ -1043,8 +1043,8 @@ def test_apply_post_layout_cleanup_drops_leadership_mentoring_from_html_source()
 
     cleaned = export_resume_documents._apply_post_layout_cleanup(html, args=args)
 
-    assert "Mentoring Lead | Internal Community" not in cleaned
-    assert "Supported peer growth circles" not in cleaned
+    assert "Mentoring Lead | Internal Community" in cleaned
+    assert "Supported peer growth circles" in cleaned
 
 
 def test_render_pdf_html_skills_category_has_no_leading_bullet(

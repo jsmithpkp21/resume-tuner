@@ -995,6 +995,76 @@ def test_run_removes_stale_legacy_latest_resume_export_aliases(
     assert not stale_pdf.exists()
 
 
+def test_run_transactional_pdf_phase_failure_preserves_existing_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression for #133: when PDF render fails, pre-existing DOCX and PDF must be unchanged."""
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    markdown_path = output_dir / "latest_resume_processed.md"
+    markdown_path.write_text("# Test\n", encoding="utf-8")
+    # Pre-populate existing final artifacts that must survive a failed run.
+    existing_docx = output_dir / "graphcore_resume.docx"
+    existing_pdf = output_dir / "graphcore_resume.pdf"
+    existing_docx.write_text("original docx content", encoding="utf-8")
+    existing_pdf.write_bytes(b"original pdf content")
+    monkeypatch.setattr(
+        export_resume_documents,
+        "parse_args",
+        lambda: type(
+            "Args",
+            (),
+            {
+                "profile": Path("data/profile/profile.toml"),
+                "experience_db": Path("data/experience/experience_db.toml"),
+                "skills_matrix": Path("data/skills/skills_matrix.csv"),
+                "job_url": "",
+                "job_text_file": None,
+                "target_role": "",
+                "company": "Graphcore",
+                "output_dir": output_dir,
+                "processing_mode": "processed",
+                "template": "modern",
+                "pdf_filename": None,
+                "docx_filename": None,
+                "allow_overflow_pdf": False,
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_run_build_pipeline",
+        lambda _args: markdown_path,
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_contains_trailing_connector_fragment",
+        lambda _text: False,
+    )
+
+    def fake_render_docx(_source_text: str, output_path: Path) -> None:
+        # DOCX phase succeeds — writes the staging file.
+        output_path.write_text("new docx content", encoding="utf-8")
+
+    def fake_render_pdf(
+        _source_text: str, output_path: Path, *, enforce_page_limit: bool = True
+    ) -> None:
+        # PDF phase fails — simulates a render error mid-export.
+        raise RuntimeError("simulated PDF render failure")
+
+    monkeypatch.setattr(export_resume_documents, "_render_docx", fake_render_docx)
+    monkeypatch.setattr(export_resume_documents, "_render_pdf", fake_render_pdf)
+    result = export_resume_documents.run()
+    # run() should return non-zero (error) rather than propagating the exception.
+    assert result != 0
+    # Both pre-existing artifacts must be restored to their original content.
+    assert existing_docx.read_text(encoding="utf-8") == "original docx content"
+    assert existing_pdf.read_bytes() == b"original pdf content"
+    # No staging/temp files should be left on disk.
+    leftovers = [p for p in output_dir.iterdir() if "tmp-export-" in p.name]
+    assert leftovers == [], f"Unexpected staging files left behind: {leftovers}"
+
+
 def test_render_docx_attaches_section_border_to_heading_paragraph(
     tmp_path: Path,
 ) -> None:

@@ -2336,12 +2336,32 @@ def test_trim_by_rules_line_budget_removes_low_confidence_bullets_over_budget(
     assert all(len(experience.bullets) >= 2 for experience in trimmed.experiences)
 
 
+def _make_minimal_budget_profile() -> build_resume.Profile:
+    """Return a deterministic Profile for bullet-line budget tests.
+    Using a fixed inline Profile instead of load_profile(PROFILE) avoids
+    non-determinism from profile.local overrides on contributor machines.
+    """
+    return build_resume.Profile(
+        name="Budget Test Person",
+        headline="Staff Test Architect",
+        location="Austin, TX",
+        email="budget-test@example.com",
+        phone="555-0199",
+        website="example.com",
+        linkedin="linkedin.com/in/budget-test",
+        github="github.com/budget-test",
+        summary="Drives test architecture across teams.",
+        education_entries=(),
+        leadership_community_entries=(),
+    )
+
+
 def test_compute_bullet_line_budget_drops_when_non_bullet_layout_pressure_is_high(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(build_resume, "DEFAULT_TOTAL_PAGE_LINES", 40)
 
-    profile = load_profile(PROFILE)
+    profile = _make_minimal_budget_profile()
     resume = assemble_baseline_resume(
         profile=profile,
         target_role="Staff Test Architect",
@@ -2380,7 +2400,7 @@ def test_compute_bullet_line_budget_respects_hard_ceiling_constant(
     monkeypatch.setattr(build_resume, "DEFAULT_MAX_BULLET_LINES", 7)
     monkeypatch.setattr(build_resume, "DEFAULT_TOTAL_PAGE_LINES", 400)
 
-    profile = load_profile(PROFILE)
+    profile = _make_minimal_budget_profile()
     resume = assemble_baseline_resume(
         profile=profile,
         target_role="",

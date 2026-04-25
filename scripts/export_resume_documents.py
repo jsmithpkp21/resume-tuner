@@ -1155,7 +1155,7 @@ def _render_pdf(
                         fn,
                         fs,
                     )
-                    ensure_space(len(mixed_wrapped_lines) * lh + 1)
+                    ensure_space(len(wrapped_lines) * lh + 1)
                     for i, (bold_text, regular_text) in enumerate(wrapped_lines):
                         ensure_line_space(lh)
                         if i == 0:
@@ -1235,7 +1235,7 @@ def _render_pdf(
                         fn,
                         fs,
                     )
-                    ensure_space(len(mixed_wrapped_lines) * lh + 1)
+                    ensure_space(len(wrapped_lines) * lh + 1)
                     for bold_text, regular_text in wrapped_lines:
                         ensure_line_space(lh)
                         if bold_text:

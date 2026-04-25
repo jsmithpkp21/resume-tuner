@@ -1976,7 +1976,9 @@ Led initiative called **Development Initiative** with very long description that
     right_edge = margin_x + content_width
     for text, _font_name, x, _y, _kind in text_draws:
         segment_width = len(text) * 5  # matches stub stringWidth (5 units/char)
-        assert x + segment_width <= right_edge, ()
+        assert x + segment_width <= right_edge, (
+            f"Segment {text!r} at x={x} with width={segment_width} exceeds right_edge={right_edge}"
+        )
 
 
 # --- STRENGTHENED TESTS FOR STYLE BOUNDARY SPACING ---
@@ -2077,3 +2079,40 @@ Led **initiative** with very long description that forces wrapping while preserv
         assert x + segment_width <= right_edge, (
             f"Segment '{text}' at x={x} exceeds right_edge={right_edge} (width={segment_width})"
         )
+
+
+def test_wrap_mixed_style_paragraph_for_pdf_no_spurious_space_before_punctuation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Adjacent punctuation after a bold segment must not gain a spurious leading space.
+    Source: "Led **initiative**, good work"
+    bold_parts: ["Led ", "initiative", ", good work"]
+    Expected reconstruction: "Led initiative, good work" (no space before comma).
+    """
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_require_reportlab",
+        lambda: (
+            (612, 792),
+            object(),
+            lambda text, _font_name, _font_size: len(text),
+        ),
+    )
+    # Simulate _BOLD_SPLIT_RE.split("Led **initiative**, good work")
+    bold_parts = ["Led ", "initiative", ", good work"]
+    lines = export_resume_documents._wrap_mixed_style_paragraph_for_pdf(
+        bold_parts,
+        max_width=200,
+        fn_bold="Calibri-Bold",
+        fn_regular="Calibri",
+        font_size=11,
+    )
+    assert len(lines) == 1, "Short text should fit on one line"
+    combined = "".join(text for text, _is_bold in lines[0])
+    assert combined == "Led initiative, good work", (
+        f"Spurious space before punctuation; got: {combined!r}"
+    )
+    # The comma segment must NOT be bold
+    for text, is_bold in lines[0]:
+        if "," in text:
+            assert not is_bold, "Comma/punctuation segment should be regular (not bold)"

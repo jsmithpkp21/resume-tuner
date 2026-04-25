@@ -339,6 +339,9 @@ def _run_build_pipeline(args: argparse.Namespace) -> Path:
 # ---------------------------------------------------------------------------
 _SKIP_LINE_RE = re.compile(r"^Related skills:", re.IGNORECASE)
 _BOLD_SPLIT_RE = re.compile(r"\*\*(.+?)\*\*")
+_MD_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_MD_CODE_RE = re.compile(r"`([^`]+)`")
+_SKILLS_CATEGORY_RE = re.compile(r"^\*\*(.+?:)\*\*\s*(.+)$")
 _HIDDEN_HTML_CLASS_TOKENS = {"related-skills"}
 
 
@@ -937,54 +940,86 @@ def _wrap_mixed_style_paragraph_for_pdf(
         Each tuple represents a drawable segment: text to draw and whether it's bold.
     """
     _LETTER, _canvas, sw = _require_reportlab()
+    _WS_RE = re.compile(r"^\s")
 
-    # Parse bold_parts into styled tokens: (text, is_bold)
-    styled_tokens: list[tuple[str, bool]] = []
+    # Build (word, is_bold, has_space_before) triples, preserving source whitespace.
+    # bold_parts comes from _BOLD_SPLIT_RE.split(text): even indices are regular, odd are bold.
+    # At style boundaries we check actual source whitespace rather than assuming a space,
+    # so that adjacent-punctuation cases like **bold**, do not gain a spurious space.
+    words_with_style: list[tuple[str, bool, bool]] = []
+
     for i, part in enumerate(bold_parts):
         if not part:
             continue
         part_plain = _strip_markdown_markup(part)
         is_bold = i % 2 == 1
-        styled_tokens.append((part_plain, is_bold))
 
-    if not styled_tokens:
-        return [[]]
+        # Split into interleaved [token, sep, token, sep, ...]; separators match r"\s+".
+        raw_tokens = re.split(r"(\s+)", part_plain)
+        prev_was_space = False
+        first_word_in_part = True
 
-    # Tokenize styled segments into words while tracking style
-    words_with_style: list[tuple[str, bool]] = []
-    for text, is_bold in styled_tokens:
-        for word in text.split():
-            words_with_style.append((word, is_bold))
+        for tok in raw_tokens:
+            if not tok:
+                continue
+            if _WS_RE.match(tok):
+                prev_was_space = True
+                continue
+            # Non-whitespace token -- determine whether whitespace precedes it.
+            if first_word_in_part:
+                if prev_was_space:
+                    # The part itself opened with whitespace.
+                    has_space = True
+                elif not words_with_style:
+                    # First token ever -- no preceding content.
+                    has_space = False
+                else:
+                    # Cross-style boundary: check whether the previous non-empty segment
+                    # ended with whitespace (if so, there is a natural word separator).
+                    prev_idx = i - 1
+                    while prev_idx >= 0 and not bold_parts[prev_idx]:
+                        prev_idx -= 1
+                    if prev_idx < 0:
+                        has_space = False
+                    else:
+                        prev_plain = _strip_markdown_markup(bold_parts[prev_idx])
+                        has_space = bool(prev_plain) and prev_plain[-1] in " \t\n"
+                first_word_in_part = False
+            else:
+                # Within the same segment, whitespace was present iff prev token was a sep.
+                has_space = prev_was_space
+
+            words_with_style.append((tok, is_bold, has_space))
+            prev_was_space = False
 
     if not words_with_style:
         return [[]]
 
-    # Greedily fit words into lines, respecting font width per style
+    # Greedily pack words into lines, measuring actual width per font style.
+    # sep_width is only counted (and emitted) when the source had whitespace.
     lines: list[list[tuple[str, bool]]] = []
     current_line: list[tuple[str, bool]] = []
     current_width = 0.0
 
-    for word, is_bold in words_with_style:
+    for word, is_bold, has_space_before in words_with_style:
         font = fn_bold if is_bold else fn_regular
         word_width = sw(word, font, font_size)
-        # Add space width if line is not empty
-        sep_width = sw(" ", font, font_size) if current_line else 0.0
+        sep_width = (
+            sw(" ", font, font_size) if (has_space_before and current_line) else 0.0
+        )
 
         if current_width + sep_width + word_width <= max_width:
-            # Fits on current line
+            sep = " " if has_space_before else ""
             if current_line:
-                # Add space to last segment if same style, or append with space if different
                 last_text, last_is_bold = current_line[-1]
                 if last_is_bold == is_bold:
-                    current_line[-1] = (last_text + " " + word, is_bold)
+                    current_line[-1] = (last_text + sep + word, is_bold)
                 else:
-                    # Include leading space in new segment since we already counted sep_width
-                    current_line.append((" " + word, is_bold))
+                    current_line.append((sep + word, is_bold))
             else:
                 current_line.append((word, is_bold))
             current_width += sep_width + word_width
         else:
-            # Doesn't fit: start new line
             if current_line:
                 lines.append(current_line)
             current_line = [(word, is_bold)]
@@ -994,11 +1029,6 @@ def _wrap_mixed_style_paragraph_for_pdf(
         lines.append(current_line)
 
     return lines if lines else [[]]
-
-
-_MD_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
-_MD_CODE_RE = re.compile(r"`([^`]+)`")
-_SKILLS_CATEGORY_RE = re.compile(r"^\*\*(.+?:)\*\*\s*(.+)$")
 
 
 def _strip_markdown_markup(text: str) -> str:

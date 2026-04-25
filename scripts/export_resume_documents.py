@@ -911,6 +911,7 @@ def _wrap_skills_category_for_pdf(
                 current = candidate
             else:
                 lines.append(("", current))
+                current = word
         lines.append(("", current))
     return lines
 
@@ -972,12 +973,13 @@ def _wrap_mixed_style_paragraph_for_pdf(
         if current_width + sep_width + word_width <= max_width:
             # Fits on current line
             if current_line:
-                # Add space to last segment if same style, or as new segment if different
+                # Add space to last segment if same style, or append with space if different
                 last_text, last_is_bold = current_line[-1]
                 if last_is_bold == is_bold:
                     current_line[-1] = (last_text + " " + word, is_bold)
                 else:
-                    current_line.append((word, is_bold))
+                    # Include leading space in new segment since we already counted sep_width
+                    current_line.append((" " + word, is_bold))
             else:
                 current_line.append((word, is_bold))
             current_width += sep_width + word_width
@@ -1153,7 +1155,7 @@ def _render_pdf(
                         fn,
                         fs,
                     )
-                    ensure_space(len(wrapped_lines) * lh + 1)
+                    ensure_space(len(mixed_wrapped_lines) * lh + 1)
                     for i, (bold_text, regular_text) in enumerate(wrapped_lines):
                         ensure_line_space(lh)
                         if i == 0:
@@ -1233,7 +1235,7 @@ def _render_pdf(
                         fn,
                         fs,
                     )
-                    ensure_space(len(wrapped_lines) * lh + 1)
+                    ensure_space(len(mixed_wrapped_lines) * lh + 1)
                     for bold_text, regular_text in wrapped_lines:
                         ensure_line_space(lh)
                         if bold_text:
@@ -1269,20 +1271,27 @@ def _render_pdf(
                             last_text_baseline_y = y
                             y -= lh
                     else:
-                        # Mixed bold/regular: render on a single line (no wrapping for mixed)
-                        ensure_space(lh + 1)
-                        x_cursor = margin_x
-                        for i, part in enumerate(bold_parts):
-                            if not part:
-                                continue
-                            part_plain = _strip_markdown_markup(part)
-                            is_bold = i % 2 == 1
-                            cur_fn = fn_bold_name if is_bold else fn
-                            pw = _sw_fn(part_plain, cur_fn, fs)
-                            draw_text(x_cursor, y, part_plain, cur_fn, fs)
-                            x_cursor += pw
-                        last_text_baseline_y = y
-                        y -= lh
+                        # Mixed bold/regular: wrap while preserving style spans
+                        mixed_wrapped_lines: list[list[tuple[str, bool]]] = (
+                            _wrap_mixed_style_paragraph_for_pdf(
+                                bold_parts,
+                                content_width,
+                                fn_bold_name,
+                                fn,
+                                fs,
+                            )
+                        )
+                        ensure_space(len(mixed_wrapped_lines) * lh + 1)
+                        for line_segments in mixed_wrapped_lines:
+                            ensure_line_space(lh)
+                            x_cursor = margin_x
+                            for part_text, is_bold in line_segments:
+                                cur_fn = fn_bold_name if is_bold else fn
+                                pw = _sw_fn(part_text, cur_fn, fs)
+                                draw_text(x_cursor, y, part_text, cur_fn, fs)
+                                x_cursor += pw
+                            last_text_baseline_y = y
+                            y -= lh
                     y -= post_gap
                 else:
                     lines = _wrap_text_for_pdf(plain, content_width, fn, fs)

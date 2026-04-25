@@ -1970,3 +1970,103 @@ Led initiative called **Development Initiative** with very long description that
     regular_draws = [d for d in text_draws if d[1] == "Calibri"]
     # Both bold and regular should be present (indicating mixed style was rendered)
     assert len(bold_draws) > 0 or len(regular_draws) > 0, "Should have styled text"
+
+
+# --- STRENGTHENED TESTS FOR STYLE BOUNDARY SPACING ---
+def test_wrap_mixed_style_paragraph_for_pdf_preserves_spaces_at_style_boundaries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Spaces at style boundaries must be included in emitted text."""
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_require_reportlab",
+        lambda: (
+            (612, 792),
+            object(),
+            lambda text, _font_name, _font_size: len(text),
+        ),
+    )
+    # Simulate "degree: **Bachelor of Science**"
+    bold_parts = ["degree: ", "Bachelor of Science", ""]
+    lines = export_resume_documents._wrap_mixed_style_paragraph_for_pdf(
+        bold_parts,
+        max_width=60,
+        fn_bold="Calibri-Bold",
+        fn_regular="Calibri",
+        font_size=11,
+    )
+    assert len(lines) == 1
+    line_segments = lines[0]
+    # Exact reconstruction must preserve spaces
+    combined_text = "".join(text for text, _is_bold in line_segments)
+    assert combined_text == "degree: Bachelor of Science", (
+        f"Spaces at style boundaries lost; got: {combined_text!r}"
+    )
+
+
+def test_render_pdf_mixed_style_validates_segment_widths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each rendered segment must fit within content_width."""
+    output_path = tmp_path / "resume.pdf"
+    draws: list[tuple[str, str, float, float]] = []
+
+    class FakeCanvas:
+        def __init__(self, buf: io_mod.BytesIO, **_kwargs: object):
+            self._buf = buf
+            self._font_name = ""
+
+        def showPage(self) -> None:
+            pass
+
+        def setFont(self, font_name: str, _font_size: int) -> None:
+            self._font_name = font_name
+
+        def drawString(self, x: float, y: float, line: str) -> None:
+            draws.append((line, self._font_name, x, y))
+
+        def setStrokeColorRGB(self, _r: float, _g: float, _b: float) -> None:
+            pass
+
+        def setLineWidth(self, _width: float) -> None:
+            pass
+
+        def line(self, _x1: float, _y1: float, _x2: float, _y2: float) -> None:
+            pass
+
+        def save(self) -> None:
+            self._buf.write(b"%PDF-FAKE")
+
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_require_reportlab",
+        lambda: (
+            (612, 792),
+            type("CanvasModule", (), {"Canvas": FakeCanvas}),
+            lambda text, _font_name, _font_size: len(text) * 5,
+        ),
+    )
+    monkeypatch.setattr(
+        export_resume_documents,
+        "_require_calibri_pdf_fonts",
+        lambda: ("Calibri", "Calibri-Bold"),
+    )
+    markdown = """## Section
+Led **initiative** with very long description that forces wrapping while preserving bold markup.
+"""
+    export_resume_documents._render_pdf(markdown, output_path)
+    # Validate: both bold and regular segments present
+    text_draws = [(t, f, x, y) for t, f, x, y in draws if t not in ("•",)]
+    bold_draws = [d for d in text_draws if d[1] == "Calibri-Bold"]
+    regular_draws = [d for d in text_draws if d[1] == "Calibri"]
+    assert len(bold_draws) > 0, "Should render at least one bold segment"
+    assert len(regular_draws) > 0, "Should render at least one regular segment"
+    # Validate: each segment stays within content_width
+    margin_x = 36
+    content_width = 612 - margin_x * 2
+    right_edge = margin_x + content_width
+    for text, _font_name, x, _y in text_draws:
+        segment_width = len(text) * 5  # matches stub stringWidth
+        assert x + segment_width <= right_edge, (
+            f"Segment '{text}' at x={x} exceeds right_edge={right_edge} (width={segment_width})"
+        )

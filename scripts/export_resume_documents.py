@@ -1264,9 +1264,6 @@ def run() -> int:
 
             staged_docx.replace(docx_output)
             staged_pdf.replace(pdf_output)
-
-            backup_docx.unlink(missing_ok=True)
-            backup_pdf.unlink(missing_ok=True)
         except Exception:
             staged_docx.unlink(missing_ok=True)
             staged_pdf.unlink(missing_ok=True)
@@ -1280,6 +1277,15 @@ def run() -> int:
             elif not pdf_existed_before_finalize:
                 pdf_output.unlink(missing_ok=True)
             raise
+        # Backup cleanup is best-effort: a failure here must not undo a successful export.
+        for backup in (backup_docx, backup_pdf):
+            try:
+                backup.unlink(missing_ok=True)
+            except OSError as _e:
+                print(
+                    f"WARNING: could not remove backup file {backup}: {_e}",
+                    file=sys.stderr,
+                )
         removed_legacy_outputs = _remove_stale_legacy_exports(
             Path(args.output_dir), {docx_output, pdf_output}
         )

@@ -2005,7 +2005,7 @@ def test_render_pdf_mixed_style_paragraph_wraps_to_content_width(
         lambda: (
             (612, 792),
             type("CanvasModule", (), {"Canvas": FakeCanvas}),
-            # Simulate stringWidth: each char is 5 units, spaces compress style changes
+            # Simulate stringWidth with a uniform per-character width model.
             lambda text, _font_name, _font_size: len(text) * 5,
         ),
     )
@@ -2175,6 +2175,7 @@ def test_wrap_mixed_style_paragraph_for_pdf_no_spurious_space_before_punctuation
         fn_regular="Calibri",
         font_size=11,
     )
+
     assert len(lines) == 1, "Short text should fit on one line"
     combined = "".join(text for text, _is_bold in lines[0])
     assert combined == "Led initiative, good work", (

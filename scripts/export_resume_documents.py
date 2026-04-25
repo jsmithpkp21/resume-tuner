@@ -930,7 +930,6 @@ def _wrap_mixed_style_paragraph_for_pdf(
         Whitespace runs are normalized to a single space between tokens.
     """
     _LETTER, _canvas, sw = _require_reportlab()
-    _WS_RE = re.compile(r"^\s")
 
     # Build (word, is_bold, has_space_before) triples, preserving source whitespace.
     # bold_parts comes from _BOLD_SPLIT_RE.split(text): even indices are regular, odd are bold.
@@ -952,7 +951,7 @@ def _wrap_mixed_style_paragraph_for_pdf(
         for tok in raw_tokens:
             if not tok:
                 continue
-            if _WS_RE.match(tok):
+            if tok.isspace():
                 prev_was_space = True
                 continue
             # Non-whitespace token -- determine whether whitespace precedes it.
@@ -991,27 +990,31 @@ def _wrap_mixed_style_paragraph_for_pdf(
     # punctuation/tokens cannot be orphaned onto their own line.
     lines: list[list[tuple[str, bool]]] = []
     current_tokens: list[tuple[str, bool, bool]] = []
+    current_width = 0.0
 
     def _font_for(is_bold: bool) -> str:
         return fn_bold if is_bold else fn_regular
+
+    width_cache: dict[tuple[str, bool], float] = {}
+
+    def _text_width(text: str, is_bold: bool) -> float:
+        key = (text, is_bold)
+        cached = width_cache.get(key)
+        if cached is not None:
+            return cached
+        measured = float(sw(text, _font_for(is_bold), font_size))
+        width_cache[key] = measured
+        return measured
 
     def _token_width(
         token: tuple[str, bool, bool], prev: tuple[str, bool, bool] | None
     ) -> float:
         word, is_bold, has_space_before = token
-        word_w = float(sw(word, _font_for(is_bold), font_size))
+        word_w = _text_width(word, is_bold)
         if has_space_before and prev is not None:
-            sep_w = float(sw(" ", _font_for(prev[1]), font_size))
+            sep_w = _text_width(" ", prev[1])
             return sep_w + word_w
         return word_w
-
-    def _line_width(tokens: list[tuple[str, bool, bool]]) -> float:
-        total = 0.0
-        prev: tuple[str, bool, bool] | None = None
-        for tok in tokens:
-            total += _token_width(tok, prev)
-            prev = tok
-        return total
 
     def _render_line(tokens: list[tuple[str, bool, bool]]) -> list[tuple[str, bool]]:
         segments: list[tuple[str, bool]] = []
@@ -1037,23 +1040,31 @@ def _wrap_mixed_style_paragraph_for_pdf(
     for word, is_bold, has_space_before in words_with_style:
         token = (word, is_bold, has_space_before)
         prev = current_tokens[-1] if current_tokens else None
-        candidate_width = _line_width(current_tokens) + _token_width(token, prev)
+        token_width = _token_width(token, prev)
+        candidate_width = current_width + token_width
 
         if candidate_width <= max_width:
             current_tokens.append(token)
+            current_width = candidate_width
             continue
 
         # Glued boundary (no whitespace): keep this token with previous token.
         if not has_space_before and current_tokens:
             moved = current_tokens.pop()
+            moved_prev = current_tokens[-1] if current_tokens else None
+            current_width = max(0.0, current_width - _token_width(moved, moved_prev))
             if current_tokens:
                 lines.append(_render_line(current_tokens))
             current_tokens = [(moved[0], moved[1], False), (word, is_bold, False)]
+            first = current_tokens[0]
+            second = current_tokens[1]
+            current_width = _token_width(first, None) + _token_width(second, first)
             continue
 
         if current_tokens:
             lines.append(_render_line(current_tokens))
         current_tokens = [(word, is_bold, False)]
+        current_width = _token_width(current_tokens[0], None)
 
     if current_tokens:
         lines.append(_render_line(current_tokens))

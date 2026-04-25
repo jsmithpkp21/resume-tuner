@@ -1272,12 +1272,10 @@ def run() -> int:
             staged_pdf.unlink(missing_ok=True)
 
             if backup_docx.exists():
-                docx_output.unlink(missing_ok=True)
                 backup_docx.replace(docx_output)
             elif not docx_existed_before_finalize:
                 docx_output.unlink(missing_ok=True)
             if backup_pdf.exists():
-                pdf_output.unlink(missing_ok=True)
                 backup_pdf.replace(pdf_output)
             elif not pdf_existed_before_finalize:
                 pdf_output.unlink(missing_ok=True)

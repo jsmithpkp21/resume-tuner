@@ -924,6 +924,7 @@ def test_run_uses_company_snake_case_default_filenames(
     monkeypatch.setattr(export_resume_documents, "_render_pdf", fake_render_pdf)
 
     assert export_resume_documents.run() == 0
+    assert len(captured) == 2
     staged_names = sorted(path.name for path in captured)
     assert all("tmp-export-" in name for name in staged_names)
     assert (output_dir / "graph_core_inc_resume.docx").exists()

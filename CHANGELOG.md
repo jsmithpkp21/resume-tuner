@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.18.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.17.1...v0.18.0) (2026-04-25)
+
+
+### Features
+
+* **layout:** add dynamic line budget cleanup pass ([b96b97f](https://github.com/jsmithpkp21/resume-builder/commit/b96b97f26364887546edfea8578595e42d575cd0))
+
+
+### Bug Fixes
+
+* **export:** emit bullet blocks from HTML source for cleanup rules to fire ([634c49c](https://github.com/jsmithpkp21/resume-builder/commit/634c49cb027b668e0f070aa543ad781cf528b709))
+* **export:** harden cleanup controls and formatting guards ([42f2687](https://github.com/jsmithpkp21/resume-builder/commit/42f268791de05c3db3373fbe9fb49293c1407361))
+* **export:** preserve header divider semantics in cleanup ([e6b898f](https://github.com/jsmithpkp21/resume-builder/commit/e6b898fbd5f0bafd1f6c06371e8f4f6061983347))
+* **export:** tighten runtime guard and quality gate tests ([1823555](https://github.com/jsmithpkp21/resume-builder/commit/182355544b094e5096d1f647767e2ef8aa65d1c1))
+* **layout:** address PR 152 review feedback ([fa9b043](https://github.com/jsmithpkp21/resume-builder/commit/fa9b0438ffc43a5984d15de76ff5848fac5a4235))
+* **layout:** align budget accounting with rendered output ([8d735d8](https://github.com/jsmithpkp21/resume-builder/commit/8d735d80369f24c72fa1d2b2d29b8bd077a0181d))
+
 ## [0.17.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.17.0...v0.17.1) (2026-04-24)
 
 

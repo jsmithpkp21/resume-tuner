@@ -997,7 +997,7 @@ def test_apply_post_layout_cleanup_preserves_html_header_divider_block() -> None
     assert ("divider", "") in blocks
 
 
-def test_html_block_parser_emits_bullet_for_skills_category_paragraph() -> None:
+def test_html_block_parser_emits_paragraph_for_skills_category_paragraph() -> None:
     """HTML <p class="skills-category"> must stay a paragraph, not a bullet."""
     html = """<!doctype html><html><body>
 <h2>Key Skills and Expertise</h2>
@@ -1007,7 +1007,7 @@ def test_html_block_parser_emits_bullet_for_skills_category_paragraph() -> None:
     assert any(kind == "p" and "Facilitation" in text for kind, text in blocks)
 
 
-def test_html_block_parser_emits_bullet_for_leadership_paragraphs() -> None:
+def test_html_block_parser_emits_paragraph_for_leadership_paragraphs() -> None:
     """HTML <p> inside Leadership & Community should remain paragraph blocks."""
     html = """<!doctype html><html><body>
 <h2>Leadership &amp; Community</h2>
@@ -1022,9 +1022,7 @@ def test_html_block_parser_emits_bullet_for_leadership_paragraphs() -> None:
     assert any("peer growth circles" in t for t in paragraph_texts)
 
 
-def test_apply_post_layout_cleanup_drops_leadership_mentoring_from_html_source() -> (
-    None
-):
+def test_apply_post_layout_cleanup_keeps_leadership_mentoring_for_html_source() -> None:
     """HTML leadership paragraphs should not be dropped by bullet-only cleanup rules."""
     args = type(
         "Args",

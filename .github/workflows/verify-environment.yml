@@ -267,17 +267,28 @@ jobs:
     steps:
       - name: Check job status
         env:
-          LINT_RESULT: ${{ needs.lint.result }}
-          TEST_RESULT: ${{ needs.test.result }}
-          VERIFY_RESULT: ${{ needs.verify.result }}
-          CONSUMER_CONTRACT_RESULT: ${{ needs['consumer-contract']['result'] }}
+          NEEDS_JSON: ${{ toJson(needs) }}
         run: |
-          echo "lint=$LINT_RESULT test=$TEST_RESULT verify=$VERIFY_RESULT consumer-contract=$CONSUMER_CONTRACT_RESULT"
-          if [ "$LINT_RESULT" != "success" ] || \
-             [ "$TEST_RESULT" != "success" ] || \
-             [ "$VERIFY_RESULT" != "success" ] || \
-             [ "$CONSUMER_CONTRACT_RESULT" != "success" ]; then
-            echo "❌ CI checks failed"
-            exit 1
-          fi
-          echo "✅ All CI checks passed"
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          results = {
+              "lint": needs.get("lint", {}).get("result"),
+              "test": needs.get("test", {}).get("result"),
+              "verify": needs.get("verify", {}).get("result"),
+              "consumer-contract": needs.get("consumer-contract", {}).get("result"),
+          }
+          print(
+              " ".join(
+                  f"{job_name}={job_result}"
+                  for job_name, job_result in results.items()
+              )
+          )
+          if any(job_result != "success" for job_result in results.values()):
+              print("❌ CI checks failed")
+              sys.exit(1)
+          print("✅ All CI checks passed")
+          PY

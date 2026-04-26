@@ -1336,7 +1336,10 @@ def test_collect_resume_skill_signals_is_relevance_weighted_and_deterministic() 
         job_context=resume.job_context,
         experiences=resume.experiences,
         skills_by_category=resume.skills_by_category,
-        enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
+        enrichment_by_bullet_id={
+            "b-low": {"confidence": 0.1},
+            "b-high": {"confidence": 0.95},
+        },
     )
 
     assert _collect_resume_skill_signals(scored_resume)[:2] == [
@@ -3924,6 +3927,40 @@ end_date = "2019-12"
     assert experiences[0].bullets[1].end_date == "2019-12"
 
 
+def test_load_experiences_strips_role_dates_before_bullet_fallback(
+    tmp_path: Path,
+) -> None:
+    experience_path = tmp_path / "experience_db.toml"
+    experience_path.write_text(
+        """
+[[experience]]
+id = "exp1"
+job_title = "Role"
+company = "Example"
+start_date = " 2018-01 "
+end_date = " 2020-01 "
+general_role_description = "Role summary"
+related_skills = ["Python"]
+
+[[experience.bullet_bank]]
+id = "b1"
+text = "Did thing"
+skills = ["Python"]
+impact_type = "impact"
+domain = "domain"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    experiences = load_experiences(experience_path)
+
+    assert experiences[0].start_date == "2018-01"
+    assert experiences[0].end_date == "2020-01"
+    assert experiences[0].bullets[0].start_date == "2018-01"
+    assert experiences[0].bullets[0].end_date == "2020-01"
+
+
 def test_render_outputs_show_role_dates_not_bullet_dates(tmp_path: Path) -> None:
     experience = Experience(
         id="exp-date-visibility",
@@ -4119,3 +4156,80 @@ def test_prepare_display_experiences_keeps_undated_roles_and_sorts_by_relevance(
         "undated",
         "dated-low",
     ]
+
+
+def test_apply_display_experience_selection_filters_enrichment_for_removed_roles() -> (
+    None
+):
+    experiences = (
+        Experience(
+            id="old",
+            job_title="Old role",
+            company="Example",
+            start_date="2000-01",
+            end_date="2009-01",
+            general_role_description="Old summary",
+            related_skills=("LegacySkill",),
+            bullets=(
+                Bullet("old-b1", "Old bullet", ("LegacySkill",), "impact", "domain"),
+                Bullet("old-b2", "Old bullet 2", ("LegacySkill",), "impact", "domain"),
+            ),
+        ),
+        Experience(
+            id="recent",
+            job_title="Recent role",
+            company="Example",
+            start_date="2019-01",
+            end_date="2024-01",
+            general_role_description="Recent summary",
+            related_skills=("CurrentSkill",),
+            bullets=(
+                Bullet(
+                    "recent-b1", "Recent bullet", ("CurrentSkill",), "impact", "domain"
+                ),
+                Bullet(
+                    "recent-b2",
+                    "Recent bullet 2",
+                    ("CurrentSkill",),
+                    "impact",
+                    "domain",
+                ),
+            ),
+        ),
+    )
+    resume = assemble_baseline_resume(
+        profile=CURRENT_PROFILE,
+        target_role="",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={"Legacy": ["LegacySkill"], "Current": ["CurrentSkill"]},
+    )
+    resume = build_resume.ResumeIR(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=resume.experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id={
+            "old-b1": {"confidence": 0.1},
+            "old-b2": {"confidence": 0.1},
+            "recent-b1": {"confidence": 0.9},
+            "recent-b2": {"confidence": 0.8},
+        },
+    )
+
+    original_now = build_resume._current_year_month
+    build_resume._current_year_month = lambda: (2026, 4)
+    try:
+        filtered = build_resume._apply_display_experience_selection(resume)
+    finally:
+        build_resume._current_year_month = original_now
+
+    assert [experience.id for experience in filtered.experiences] == ["recent"]
+    assert filtered.enrichment_by_bullet_id == {
+        "recent-b1": {"confidence": 0.9},
+        "recent-b2": {"confidence": 0.8},
+    }

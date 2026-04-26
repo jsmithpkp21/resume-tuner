@@ -501,8 +501,8 @@ def load_experiences(path: Path) -> tuple[Experience, ...]:
             raise ValueError("experience.related_skills must be a list")
 
         bullets: list[Bullet] = []
-        role_start_date = str(item.get("start_date", ""))
-        role_end_date = str(item.get("end_date", ""))
+        role_start_date = str(item.get("start_date", "")).strip()
+        role_end_date = str(item.get("end_date", "")).strip()
         for raw_bullet in raw_bullets:
             if not isinstance(raw_bullet, dict):
                 raise ValueError("Each bullet_bank entry must be a table")
@@ -2280,15 +2280,26 @@ def _format_month_year(raw: str) -> str:
     return value
 
 
+def _coerce_year_month(raw: str, *, is_end: bool) -> tuple[int, int] | None:
+    value = raw.strip()
+    if not value:
+        return None
+    lowered = value.lower()
+    if lowered in {"present", "current", "now"}:
+        return (9999, 12) if is_end else (0, 1)
+    match = re.fullmatch(r"(\d{4})-(\d{2})", value)
+    if not match:
+        return None
+    year = int(match.group(1))
+    month = int(match.group(2))
+    if month < 1 or month > 12:
+        return None
+    return year, month
+
+
 def _date_sort_key(raw: str, *, is_end: bool) -> tuple[int, int]:
     """Sort key for yyyy-mm dates, treating 'Present' as far-future for end dates."""
-    value = raw.strip().lower()
-    if value in {"present", "current", "now"}:
-        return (9999, 12) if is_end else (0, 1)
-    match = re.fullmatch(r"(\d{4})-(\d{2})", raw.strip())
-    if not match:
-        return (0, 1)
-    return (int(match.group(1)), int(match.group(2)))
+    return _coerce_year_month(raw, is_end=is_end) or (0, 1)
 
 
 def _current_year_month() -> tuple[int, int]:
@@ -2299,19 +2310,7 @@ def _current_year_month() -> tuple[int, int]:
 
 
 def _parse_year_month(raw: str, *, is_end: bool) -> tuple[int, int] | None:
-    value = raw.strip().lower()
-    if not value:
-        return None
-    if value in {"present", "current", "now"}:
-        return (9999, 12) if is_end else (0, 1)
-    match = re.fullmatch(r"(\d{4})-(\d{2})", raw.strip())
-    if not match:
-        return None
-    year = int(match.group(1))
-    month = int(match.group(2))
-    if month < 1 or month > 12:
-        return None
-    return year, month
+    return _coerce_year_month(raw, is_end=is_end)
 
 
 def _is_older_than_years(
@@ -2361,6 +2360,23 @@ def _prepare_display_experiences(resume: ResumeIR) -> tuple[Experience, ...]:
 
     ranked.sort(key=lambda item: (item[0], item[1]))
     return tuple(experience for _, _, experience in ranked)
+
+
+def _apply_display_experience_selection(resume: ResumeIR) -> ResumeIR:
+    display_experiences = _prepare_display_experiences(resume)
+    kept_bullet_ids = {
+        bullet.id for experience in display_experiences for bullet in experience.bullets
+    }
+    filtered_enrichment = {
+        bullet_id: metadata
+        for bullet_id, metadata in resume.enrichment_by_bullet_id.items()
+        if bullet_id in kept_bullet_ids
+    }
+    return dc_replace(
+        resume,
+        experiences=display_experiences,
+        enrichment_by_bullet_id=filtered_enrichment,
+    )
 
 
 def _format_date_range(start_raw: str, end_raw: str) -> str:
@@ -2898,13 +2914,10 @@ def run_pipeline(args: argparse.Namespace) -> int:
         resume = trim_for_role(resume)
         resume = enrich_data(resume)
         resume = trim_by_rules(resume)
+        resume = _apply_display_experience_selection(resume)
         resume = summarize_for_role(resume)
         resume = select_skills(resume)
         resume = summarize_profile_for_role(resume)
-        resume = dc_replace(
-            resume,
-            experiences=_prepare_display_experiences(resume),
-        )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 

@@ -266,11 +266,17 @@ jobs:
     if: always()
     steps:
       - name: Check job status
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          CONSUMER_CONTRACT_RESULT: ${{ needs['consumer-contract']['result'] }}
         run: |
-          if [ "${{ needs.lint.result }}" != "success" ] || \
-             [ "${{ needs.test.result }}" != "success" ] || \
-             [ "${{ needs.verify.result }}" != "success" ] || \
-             [ "${{ needs['consumer-contract'].result }}" != "success" ]; then
+          echo "lint=$LINT_RESULT test=$TEST_RESULT verify=$VERIFY_RESULT consumer-contract=$CONSUMER_CONTRACT_RESULT"
+          if [ "$LINT_RESULT" != "success" ] || \
+             [ "$TEST_RESULT" != "success" ] || \
+             [ "$VERIFY_RESULT" != "success" ] || \
+             [ "$CONSUMER_CONTRACT_RESULT" != "success" ]; then
             echo "❌ CI checks failed"
             exit 1
           fi

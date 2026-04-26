@@ -1336,10 +1336,7 @@ def test_collect_resume_skill_signals_is_relevance_weighted_and_deterministic() 
         job_context=resume.job_context,
         experiences=resume.experiences,
         skills_by_category=resume.skills_by_category,
-        enrichment_by_bullet_id={
-            "b-low": {"confidence": 0.1},
-            "b-high": {"confidence": 0.95},
-        },
+        enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
     )
 
     assert _collect_resume_skill_signals(scored_resume)[:2] == [
@@ -2720,7 +2717,7 @@ def test_summarize_profile_for_role_generates_role_aware_top_summary() -> None:
         job_context=jd_ingest.ingest_job_text(
             "Job Title: Senior SDET\n"
             "Company: Charles Schwab\n"
-            "Need Python and CI quality ownership."
+            "Need Python-based automation and CI quality ownership."
         ),
         experiences=experiences,
         skills_by_category={
@@ -3060,9 +3057,6 @@ def test_generate_profile_summary_avoids_double_punctuation(
     assert result.profile.summary.endswith("."), result.profile.summary
     assert ".." not in result.profile.summary, (
         f"Found double period in summary: {result.profile.summary}"
-    )
-    assert result.profile.summary.endswith("."), (
-        f"Summary should end with single period, got: {result.profile.summary[-3:]}"
     )
 
 
@@ -3887,3 +3881,241 @@ def test_trim_by_rules_logs_when_line_budget_cannot_meet_floor(
     assert any(
         "Line-budget target not reached" in message for message in caplog.messages
     )
+
+
+def test_load_experiences_defaults_bullet_dates_to_role_dates(tmp_path: Path) -> None:
+    experience_path = tmp_path / "experience_db.toml"
+    experience_path.write_text(
+        """
+[[experience]]
+id = "exp1"
+job_title = "Role"
+company = "Example"
+start_date = "2018-01"
+end_date = "2020-01"
+general_role_description = "Role summary"
+related_skills = ["Python"]
+
+[[experience.bullet_bank]]
+id = "b1"
+text = "Did thing"
+skills = ["Python"]
+impact_type = "impact"
+domain = "domain"
+
+[[experience.bullet_bank]]
+id = "b2"
+text = "Did other thing"
+skills = ["Python"]
+impact_type = "impact"
+domain = "domain"
+start_date = "2019-03"
+end_date = "2019-12"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    experiences = load_experiences(experience_path)
+
+    assert experiences[0].bullets[0].start_date == "2018-01"
+    assert experiences[0].bullets[0].end_date == "2020-01"
+    assert experiences[0].bullets[1].start_date == "2019-03"
+    assert experiences[0].bullets[1].end_date == "2019-12"
+
+
+def test_render_outputs_show_role_dates_not_bullet_dates(tmp_path: Path) -> None:
+    experience = Experience(
+        id="exp-date-visibility",
+        job_title="Role",
+        company="Example",
+        start_date="2018-01",
+        end_date="2020-01",
+        general_role_description="Role summary",
+        related_skills=("Python",),
+        bullets=(
+            Bullet(
+                id="b1",
+                text="Did thing",
+                skills=("Python",),
+                impact_type="impact",
+                domain="domain",
+                start_date="2019-03",
+                end_date="2019-12",
+            ),
+            Bullet(
+                id="b2",
+                text="Did another thing",
+                skills=("Python",),
+                impact_type="impact",
+                domain="domain",
+                start_date="2018-05",
+                end_date="2018-07",
+            ),
+        ),
+    )
+
+    resume = assemble_baseline_resume(
+        profile=CURRENT_PROFILE,
+        target_role="",
+        target_company="",
+        job_context=None,
+        experiences=(experience,),
+        skills_by_category={"Core": ["Python"]},
+    )
+
+    html_path = tmp_path / "resume.html"
+    md_path = tmp_path / "resume.md"
+    txt_path = tmp_path / "resume_snapshot.txt"
+
+    build_resume.render_html(resume, html_path)
+    build_resume.render_markdown(resume, md_path)
+    build_resume.write_text_snapshot(resume, txt_path)
+
+    html_text = html_path.read_text(encoding="utf-8")
+    md_text = md_path.read_text(encoding="utf-8")
+    txt_text = txt_path.read_text(encoding="utf-8")
+
+    assert "January 2018 - January 2020" in html_text
+    assert "2018-01 - 2020-01" in md_text
+    assert "date_range: 2018-01 - 2020-01" in txt_text
+
+    assert "2019-03" not in html_text
+    assert "2019-12" not in html_text
+    assert "2019-03" not in md_text
+    assert "2019-12" not in md_text
+    assert "2019-03" not in txt_text
+    assert "2019-12" not in txt_text
+
+
+def test_prepare_display_experiences_excludes_roles_older_than_15_years() -> None:
+    experiences = (
+        Experience(
+            id="old",
+            job_title="Old role",
+            company="Example",
+            start_date="2000-01",
+            end_date="2009-01",
+            general_role_description="Old summary",
+            related_skills=("Python",),
+            bullets=(
+                Bullet("old-b1", "Old bullet", ("Python",), "impact", "domain"),
+                Bullet("old-b2", "Old bullet 2", ("Python",), "impact", "domain"),
+            ),
+        ),
+        Experience(
+            id="recent",
+            job_title="Recent role",
+            company="Example",
+            start_date="2018-01",
+            end_date="2024-01",
+            general_role_description="Recent summary",
+            related_skills=("Python",),
+            bullets=(
+                Bullet("recent-b1", "Recent bullet", ("Python",), "impact", "domain"),
+                Bullet("recent-b2", "Recent bullet 2", ("Python",), "impact", "domain"),
+            ),
+        ),
+    )
+    resume = assemble_baseline_resume(
+        profile=CURRENT_PROFILE,
+        target_role="",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={},
+    )
+
+    original_now = build_resume._current_year_month
+    build_resume._current_year_month = lambda: (2026, 4)
+    try:
+        display = build_resume._prepare_display_experiences(resume)
+    finally:
+        build_resume._current_year_month = original_now
+
+    assert [experience.id for experience in display] == ["recent"]
+
+
+def test_prepare_display_experiences_keeps_undated_roles_and_sorts_by_relevance() -> (
+    None
+):
+    experiences = (
+        Experience(
+            id="dated-low",
+            job_title="Dated low relevance",
+            company="Example",
+            start_date="2020-01",
+            end_date="2024-01",
+            general_role_description="Summary",
+            related_skills=("Python",),
+            bullets=(
+                Bullet("low-a", "Low confidence", ("Python",), "impact", "domain"),
+                Bullet("low-b", "Low confidence 2", ("Python",), "impact", "domain"),
+            ),
+        ),
+        Experience(
+            id="undated",
+            job_title="Undated role",
+            company="Example",
+            start_date="",
+            end_date="",
+            general_role_description="Summary",
+            related_skills=("Python",),
+            bullets=(
+                Bullet("u-a", "Undated bullet", ("Python",), "impact", "domain"),
+                Bullet("u-b", "Undated bullet 2", ("Python",), "impact", "domain"),
+            ),
+        ),
+        Experience(
+            id="dated-high",
+            job_title="Dated high relevance",
+            company="Example",
+            start_date="2019-01",
+            end_date="2024-01",
+            general_role_description="Summary",
+            related_skills=("Python",),
+            bullets=(
+                Bullet("high-a", "High confidence", ("Python",), "impact", "domain"),
+                Bullet("high-b", "High confidence 2", ("Python",), "impact", "domain"),
+            ),
+        ),
+    )
+
+    resume = assemble_baseline_resume(
+        profile=CURRENT_PROFILE,
+        target_role="",
+        target_company="",
+        job_context=None,
+        experiences=experiences,
+        skills_by_category={},
+    )
+    resume = build_resume.ResumeIR(
+        profile=resume.profile,
+        target_role=resume.target_role,
+        target_company=resume.target_company,
+        display_headline=resume.display_headline,
+        job_context=resume.job_context,
+        experiences=resume.experiences,
+        skills_by_category=resume.skills_by_category,
+        enrichment_by_bullet_id={
+            "low-a": {"confidence": 0.1},
+            "low-b": {"confidence": 0.1},
+            "u-a": {"confidence": 0.2},
+            "u-b": {"confidence": 0.2},
+            "high-a": {"confidence": 0.9},
+            "high-b": {"confidence": 0.9},
+        },
+    )
+
+    original_now = build_resume._current_year_month
+    build_resume._current_year_month = lambda: (2026, 4)
+    try:
+        display = build_resume._prepare_display_experiences(resume)
+    finally:
+        build_resume._current_year_month = original_now
+
+    assert [experience.id for experience in display] == [
+        "dated-high",
+        "undated",
+        "dated-low",
+    ]

@@ -60,6 +60,7 @@ DEFAULT_MAX_BULLET_LINES = 52
 DEFAULT_TOTAL_PAGE_LINES = 160
 DEFAULT_MAX_ACTION_WORD_OCCURRENCES = 2
 DEFAULT_MIN_BULLETS_PER_EXPERIENCE = 2
+EXPERIENCE_DISPLAY_RECENCY_YEARS = 15
 SUMMARY_LINE_WIDTH = 72
 SUMMARY_MAX_LINES = 2
 SUMMARY_MAX_WORDS = 30
@@ -164,6 +165,8 @@ class Bullet:
     skills: tuple[str, ...]
     impact_type: str
     domain: str
+    start_date: str = ""
+    end_date: str = ""
 
 
 @dataclass(frozen=True)
@@ -498,6 +501,8 @@ def load_experiences(path: Path) -> tuple[Experience, ...]:
             raise ValueError("experience.related_skills must be a list")
 
         bullets: list[Bullet] = []
+        role_start_date = str(item.get("start_date", ""))
+        role_end_date = str(item.get("end_date", ""))
         for raw_bullet in raw_bullets:
             if not isinstance(raw_bullet, dict):
                 raise ValueError("Each bullet_bank entry must be a table")
@@ -511,6 +516,10 @@ def load_experiences(path: Path) -> tuple[Experience, ...]:
                     skills=tuple(str(skill) for skill in raw_skills),
                     impact_type=str(raw_bullet.get("impact_type", "")),
                     domain=str(raw_bullet.get("domain", "")),
+                    start_date=str(raw_bullet.get("start_date", "")).strip()
+                    or role_start_date,
+                    end_date=str(raw_bullet.get("end_date", "")).strip()
+                    or role_end_date,
                 )
             )
 
@@ -519,8 +528,8 @@ def load_experiences(path: Path) -> tuple[Experience, ...]:
                 id=str(item.get("id", "")),
                 job_title=str(item.get("job_title", "")),
                 company=str(item.get("company", "")),
-                start_date=str(item.get("start_date", "")),
-                end_date=str(item.get("end_date", "")),
+                start_date=role_start_date,
+                end_date=role_end_date,
                 general_role_description=str(item.get("general_role_description", "")),
                 related_skills=tuple(str(skill) for skill in raw_related_skills),
                 bullets=tuple(bullets),
@@ -759,6 +768,8 @@ def _transform_experience_bullets(
                     skills=bullet.skills,
                     impact_type=bullet.impact_type,
                     domain=bullet.domain,
+                    start_date=bullet.start_date,
+                    end_date=bullet.end_date,
                 )
             )
             changed = True
@@ -2280,6 +2291,78 @@ def _date_sort_key(raw: str, *, is_end: bool) -> tuple[int, int]:
     return (int(match.group(1)), int(match.group(2)))
 
 
+def _current_year_month() -> tuple[int, int]:
+    from datetime import date
+
+    today = date.today()
+    return today.year, today.month
+
+
+def _parse_year_month(raw: str, *, is_end: bool) -> tuple[int, int] | None:
+    value = raw.strip().lower()
+    if not value:
+        return None
+    if value in {"present", "current", "now"}:
+        return (9999, 12) if is_end else (0, 1)
+    match = re.fullmatch(r"(\d{4})-(\d{2})", raw.strip())
+    if not match:
+        return None
+    year = int(match.group(1))
+    month = int(match.group(2))
+    if month < 1 or month > 12:
+        return None
+    return year, month
+
+
+def _is_older_than_years(
+    year_month: tuple[int, int], *, years: int, reference: tuple[int, int]
+) -> bool:
+    ref_year, ref_month = reference
+    year, month = year_month
+    month_delta = (ref_year - year) * 12 + (ref_month - month)
+    return month_delta > (years * 12)
+
+
+def _prepare_display_experiences(resume: ResumeIR) -> tuple[Experience, ...]:
+    """Filter/rank rendered experiences while preserving deterministic ordering."""
+    reference = _current_year_month()
+    ranked: list[tuple[tuple[float, int, int, int, int], int, Experience]] = []
+
+    for index, experience in enumerate(resume.experiences):
+        parsed_end = _parse_year_month(experience.end_date, is_end=True)
+        if parsed_end is not None and _is_older_than_years(
+            parsed_end,
+            years=EXPERIENCE_DISPLAY_RECENCY_YEARS,
+            reference=reference,
+        ):
+            continue
+
+        parsed_start = _parse_year_month(experience.start_date, is_end=False)
+        confidence_values = [
+            _bullet_confidence(bullet, resume.enrichment_by_bullet_id)
+            for bullet in experience.bullets
+        ]
+        relevance_score = (
+            sum(confidence_values) / len(confidence_values)
+            if confidence_values
+            else 0.0
+        )
+
+        end_year, end_month = parsed_end or (0, 0)
+        start_year, start_month = parsed_start or (0, 0)
+        sort_key = (
+            -relevance_score,
+            -end_year,
+            -end_month,
+            -start_year,
+            -start_month,
+        )
+        ranked.append((sort_key, index, experience))
+
+    ranked.sort(key=lambda item: (item[0], item[1]))
+    return tuple(experience for _, _, experience in ranked)
+
+
 def _format_date_range(start_raw: str, end_raw: str) -> str:
     return f"{_format_month_year(start_raw)} - {_format_month_year(end_raw)}"
 
@@ -2818,6 +2901,10 @@ def run_pipeline(args: argparse.Namespace) -> int:
         resume = summarize_for_role(resume)
         resume = select_skills(resume)
         resume = summarize_profile_for_role(resume)
+        resume = dc_replace(
+            resume,
+            experiences=_prepare_display_experiences(resume),
+        )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 

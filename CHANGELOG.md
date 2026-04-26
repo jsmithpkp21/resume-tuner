@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.20.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.19.0...v0.20.0) (2026-04-26)
+
+
+### Features
+
+* **relevance:** add bullet date metadata for display ordering ([d11426b](https://github.com/jsmithpkp21/resume-builder/commit/d11426b0301a585b47e65762126a2f8ce6040b9b))
+
+
+### Bug Fixes
+
+* **ci:** sync stable verify-environment status gate ([51eb38a](https://github.com/jsmithpkp21/resume-builder/commit/51eb38a895df7cad5987515059ec301232350c03))
+* **relevance:** address review feedback and sync ci gate ([611dab4](https://github.com/jsmithpkp21/resume-builder/commit/611dab452e52a10ca651fd66e4311f0f0bad10ce))
+
 ## [0.19.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.18.1...v0.19.0) (2026-04-25)
 
 

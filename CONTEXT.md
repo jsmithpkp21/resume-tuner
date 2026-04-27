@@ -26,8 +26,8 @@ Receives managed files via `sync_tooling.sh` from sibling `../tooling` checkout.
 ## Invariants to Preserve
 
 - `pyproject.toml` must be regenerated via script, never hand-edited
-- `AGENTS_LOCAL.md` must stay out of source control (gitignore)
-- `CONTEXT_LOCAL.md` must stay out of source control (gitignore)
+- `AGENTS_LOCAL.md` must stay out of tooling-managed sync/manifest state so local guidance is never overwritten by sync
+- `CONTEXT_LOCAL.md` must stay out of tooling-managed sync/manifest state and is gitignored — create locally per branch/session
 - GitHub Actions must use strict `@vX.Y.Z` pins
 - Conventional commits enforced via `scripts/run_commitlint.sh`
 - `.tooling-sync-manifest.toml` (source of truth) is in the tooling repo, not synced to consumers

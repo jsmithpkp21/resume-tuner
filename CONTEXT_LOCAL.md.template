@@ -1,0 +1,25 @@
+# CONTEXT_LOCAL.md — resume-builder (local/branch override)
+
+> Copy this file to `CONTEXT_LOCAL.md` (gitignored). Rewrite per branch/session.
+> Do NOT commit `CONTEXT_LOCAL.md` — it is gitignored by design.
+
+## Current Branch / Session Goal
+
+<!-- What are you working on? e.g., "Fixing issue #123 — PDF layout trimming" -->
+
+## Active Issue
+
+<!-- e.g., "issue #123" -->
+
+## State / Notes
+
+<!-- Anything the agent needs to know that isn't in CONTEXT.md -->
+
+## Quick Checks for This Branch
+
+```bash
+make lint
+make test
+make check
+```
+

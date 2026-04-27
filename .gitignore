@@ -50,3 +50,6 @@ data/review/outputs/visual_diff/
 /*.html
 /*.docx
 /*.pdf
+
+# Local session context (never commit)
+CONTEXT_LOCAL.md

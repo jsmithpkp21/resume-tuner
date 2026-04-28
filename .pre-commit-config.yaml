@@ -103,15 +103,12 @@ repos:
         pass_filenames: false
         stages: [commit, push]
 
-       # DISABLED: version-sync-check was auto-bumping VERSION on every commit.
-       # This should only run on release/main, not on feature branches.
-       # To be re-enabled with --fix flag only when intentional.
-       # - id: version-sync-check
-       #   name: Version metadata sync check
-       #   entry: bash -c 'REPO_NAME=$(git remote get-url origin 2>/dev/null | sed "s|.*[:/]||; s|\.git$||"); REPO_NAME="${REPO_NAME:-$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")}"; ENV_PATH="$HOME/envs/${REPO_NAME}-env"; if [ -f "$ENV_PATH/bin/activate" ]; then source "$ENV_PATH/bin/activate" && python3 scripts/validate_version_sync.py --root .; elif command -v python3 >/dev/null 2>&1; then python3 scripts/validate_version_sync.py --root .; else echo "python3 not found (run make setup to create environment)" && exit 0; fi'
-       #   language: system
-       #   pass_filenames: false
-       #   stages: [commit, push]
+      - id: version-sync-check
+        name: Version metadata sync check
+        entry: bash -c 'REPO_NAME=$(git remote get-url origin 2>/dev/null | sed "s|.*[:/]||; s|\.git$||"); REPO_NAME="${REPO_NAME:-$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")}"; ENV_PATH="$HOME/envs/${REPO_NAME}-env"; if [ -f "$ENV_PATH/bin/activate" ]; then source "$ENV_PATH/bin/activate" && python3 scripts/validate_version_sync.py --root .; elif command -v python3 >/dev/null 2>&1; then python3 scripts/validate_version_sync.py --root .; else echo "python3 not found (run make setup to create environment)" && exit 0; fi'
+        language: system
+        pass_filenames: false
+        stages: [commit, push]
 
       - id: tooling-drift-check
         name: Tooling drift check

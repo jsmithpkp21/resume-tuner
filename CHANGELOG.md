@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.20.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.20.0...v0.20.1) (2026-04-28)
+
+
+### Bug Fixes
+
+* **ci:** disable auto-bumping version-sync-check hook on feature branches ([6ba8d39](https://github.com/jsmithpkp21/resume-builder/commit/6ba8d391a87050ad32c4a94d39e0da978eaf0c7c))
+* **ci:** re-enable version-sync-check as check-only ([7cd557c](https://github.com/jsmithpkp21/resume-builder/commit/7cd557c7f127f00eeb9572181d64592381d435b9))
+* **workflow:** address copilot review comments on context templates ([6b3e7fc](https://github.com/jsmithpkp21/resume-builder/commit/6b3e7fcff620c5f8450f0e95fb4c975d7879c1fc))
+
+
+### Documentation
+
+* **workflow:** add context templates for session-scoped agent work ([d5cf4f5](https://github.com/jsmithpkp21/resume-builder/commit/d5cf4f535c6c2fff0525a273cb8b4108d4269d37))
+
 ## [0.20.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.19.0...v0.20.0) (2026-04-26)
 
 

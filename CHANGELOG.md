@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.20.1...v0.20.2) (2026-04-30)
+
+
+### Bug Fixes
+
+* **deps:** drop dev-tool duplicates from requirements.txt ([0596b4f](https://github.com/jsmithpkp21/resume-builder/commit/0596b4f24c8ad51167d70695b97c401e081cf2c8))
+
 ## [0.20.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.20.0...v0.20.1) (2026-04-28)
 
 

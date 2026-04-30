@@ -54,8 +54,10 @@ for file in VERSION pyproject.toml tooling.toml requirements.txt requirements-de
     fi
 done
 
-# Read expected environment version
-if ! EXPECTED_VERSION="$(cat "$REPO_ROOT/VERSION" 2>/dev/null)"; then
+# Read expected environment version. Strip optional `# x-release-please-version`
+# annotation (release-please needs the annotation in-file to bump VERSION; see
+# issue #272).
+if ! EXPECTED_VERSION="$(awk 'NR==1 {sub(/[[:space:]]*#.*$/, ""); gsub(/[[:space:]]/, ""); print; exit}' "$REPO_ROOT/VERSION" 2>/dev/null)"; then
     echo "ERROR: Could not read VERSION file"
     exit 1
 fi

@@ -31,8 +31,12 @@ def read_version() -> str:
     if not os.path.exists(version_file):
         raise FileNotFoundError(f"VERSION file not found at {version_file}")
 
-    with open(version_file) as f:
-        version: str = f.read().strip()
+    with open(version_file, encoding="utf-8") as f:
+        text: str = f.read()
+
+    lines = text.splitlines()
+    first = lines[0] if lines else ""
+    version: str = first.split("#", 1)[0].strip()
 
     if not version:
         raise ValueError("VERSION file is empty")
@@ -49,7 +53,7 @@ def read_requirements(path: str = "requirements.txt") -> list[str]:
         raise FileNotFoundError(f"Requirements file not found: {path}")
 
     requirements: list[str] = []
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         for raw in f:
             line: str = raw.strip()
             if not line or line.startswith("#"):

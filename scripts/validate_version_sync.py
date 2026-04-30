@@ -12,10 +12,38 @@ from pathlib import Path
 
 
 def _read_version_file(path: Path) -> str:
-    value = path.read_text(encoding="utf-8").strip()
+    text = path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    first = lines[0] if lines else ""
+    value = first.split("#", 1)[0].strip()
     if not value:
         raise ValueError(f"{path.name} is empty")
+    # VERSION must be a single semver line plus an optional release-please
+    # annotation; any extra non-blank line is corruption (e.g. a stray append)
+    # that would otherwise be silently ignored and bypass version-sync checks.
+    for extra in lines[1:]:
+        if extra.strip():
+            raise ValueError(
+                f"{path.name} must contain a single version line; "
+                f"extra content found: {extra!r}"
+            )
     return value
+
+
+def _write_version_file(path: Path, version: str) -> None:
+    # Preserve the `x-release-please-version` annotation if the existing file
+    # carries it; release-please needs that annotation on the same line as the
+    # version literal to bump VERSION on each release (issue #272). Write the
+    # canonical annotated form rather than regex-substituting the existing
+    # line, so `--fix` is deterministic even if the file has an unexpected
+    # prefix (e.g. `v`-prefixed) that wouldn't match the semver regex.
+    if path.exists():
+        existing = path.read_text(encoding="utf-8")
+        first = next(iter(existing.splitlines()), "")
+        if "x-release-please-version" in first:
+            path.write_text(f"{version} # x-release-please-version\n", encoding="utf-8")
+            return
+    path.write_text(f"{version}\n", encoding="utf-8")
 
 
 def _read_project_version(path: Path) -> str:
@@ -108,7 +136,7 @@ def _apply_fix(
     manifest_path: Path,
     version: str,
 ) -> None:
-    version_path.write_text(f"{version}\n", encoding="utf-8")
+    _write_version_file(version_path, version)
     _set_project_version(meta_path, version)
     _set_project_version(pyproject_path, version)
     _set_manifest_version(manifest_path, version)

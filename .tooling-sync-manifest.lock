@@ -4,10 +4,19 @@
       "sha256": "ac1ba68ad3d1e1cc5863378e67d61d911e82316163bc59a56de08d4ade3a99cb"
     },
     ".github/copilot-instructions.md": {
-      "sha256": "16c7d3ef015efce07eed2673e1f142c33efb156d8bab25ca89abed3526a6127c"
+      "sha256": "7e0e36155778baf8d61be5ce460cb7d5b7639302dd36a13b9f9041c45e2a8ac9"
+    },
+    ".github/dev-tool-pin-lock.json": {
+      "sha256": "ec73d4350dc8e786efeacea313382227194c602b457b469eb13bd359a618e1f0"
+    },
+    ".github/instructions/scripts.instructions.md": {
+      "sha256": "089ac2c5c19606a531595ad6af538b0d76a96b7e74ea62c3a88b33a6d41734fe"
+    },
+    ".github/instructions/workflows.instructions.md": {
+      "sha256": "29652f002535ebc97e1b9f5acc14f61b97f808dbaef327402b8778cce45407a9"
     },
     ".github/workflow-action-lock.json": {
-      "sha256": "fef3dccbdfcef812bace29965102d6f48a4312f26882899ceb93557cbc47d7c6"
+      "sha256": "b2dc20fdedd10bc31f2d975736a84ba7b41e90e892d5328a967813e3310b2b44"
     },
     ".github/workflows/auto-merge-release.yml": {
       "sha256": "fb03b23748f1d9b555ad01c76a64ef151401a8ef501e764cc136d04203f94834"
@@ -19,25 +28,28 @@
       "sha256": "244e91267d15a1acc8dffc2effb0d3e3823c35aed804acf33c20603f6b7b0a66"
     },
     ".github/workflows/commitlint.yml": {
-      "sha256": "d718c2bc9b924a5c8fdace5dea2b9dbe9041b815d0b543fe0ee7fa9564ecaad8"
+      "sha256": "4e1fcb8a16c75602ba0abf17a6a19a505ea3adc050bf711b638277f2c0b9fdaa"
     },
     ".github/workflows/release-please.yml": {
-      "sha256": "c2af503339950fd455f73d2719a994181ceb4e5c522336521a57cf17f3b6e8cb"
+      "sha256": "fdad46f2c16f5ef1c5b38f03dbb590d83cc23774ea578dfd8bc81ca1f7cf6048"
     },
     ".github/workflows/verify-environment.yml": {
-      "sha256": "477a049964d80708bc02614bdca3fa5f86f2178a66c88768da54c9173f8ba4bd"
+      "sha256": "f685b92d7dfdd74b4fb0ec7b37b22161b2cca47c071d353aa71ff8b6267c6394"
     },
     ".markdownlint.yaml": {
       "sha256": "afc88cf56f3f6b1b2c9b2fc7af77748ba8fc729ea18ba85757935f16f7f7a85a"
     },
     ".pre-commit-config.yaml": {
-      "sha256": "8da1ad375bf8bd4fe4e7b1f3bba65ae374c9f611d9ef64699dbbca71ecb32174"
+      "sha256": "fcf2e0fee508f12ebef0b52739dc13eabc192346bccf438a83b87acb3ed21678"
     },
     ".release-please-config.json": {
       "sha256": "685f55f5dc1993f49ea4b68d8b35ddda207def419bd980d3b0f549ec77cc887e"
     },
     "AGENTS.md": {
-      "sha256": "0d3dccafcfc7f02e597ac16342ab2b65220e5fed74e813404a2a35672d0926e5"
+      "sha256": "7400582fbb1e8d277170a3a5d1b4c5b097ed6bbff75e7e14d7b8f95b501737a1"
+    },
+    "CLAUDE.md": {
+      "sha256": "6a676ef88e9f075ae313d16e15d68d3359e958418535974399008654a1666548"
     },
     "CODING_STANDARDS.md": {
       "sha256": "a119ba8ab7e5440b248716040e80b22aa90e296a24b6bbbfc3a2ff24556cf51d"
@@ -46,19 +58,19 @@
       "sha256": "8fe09fd269dcfd5f6b79b2d1aadd86f0adabd2f1493cd1b56603aeb902aeeab1"
     },
     "DOCKER.md": {
-      "sha256": "8557f6089f53d4c88765bfc8df59a1c047eef317011cdf0d611bdaee7ca2dfd3"
+      "sha256": "6274056a89c082015880b21788ad61c621920a0babef218cf80f0829146bf993"
     },
     "Dockerfile": {
-      "sha256": "3cde027961889206f2cd2c2d0124fef0cf51be08f9e0abf205c2b5aa1badd632"
+      "sha256": "ea492e006840b3bb16c455535e0b958a1a08981f2bf6ded7e4dabbfd43a62d6b"
     },
     "FILE_DISTRIBUTION.md": {
-      "sha256": "26204e91ec9ba9e96d3162853a8a376f754d7e999c6d8f3a5aae278c525d8316"
+      "sha256": "48d3502f126cbc86f8bf78ebac0f0f5414d60355c8711e7b4ed0616be3cfbc4e"
     },
     "MANIFESTO.md": {
       "sha256": "90441f19e84cb77a9f4302d50dd3e9178011f8d1e2e20df43775838711589783"
     },
     "Makefile": {
-      "sha256": "d72c8a740b60b933f471f680dea527d4cf3d11e8b72b0325dcd9c2507d96bbb1"
+      "sha256": "d49cc7e8bcd2e7ec8f34137ef0a6b161d551a25fbbb18f7247bec9940462496d"
     },
     "commitlint.config.mjs": {
       "sha256": "2bd8a8ea01caa7ff68e9b9096007a80336a061de9f60ac3f06492eb8ef7a7ae0"
@@ -96,8 +108,8 @@
     "docs/REFERENCE/GITHUB_ISSUES_GUIDE.md": {
       "sha256": "69b974f2b586d4860bc4b6e162dc3063c0027a0dc1c34f9aba20921c00fdd0f7"
     },
-    "docs/REFERENCE/IMPROVEMENTS.md": {
-      "sha256": "b2089afb409930f5a645552f4d88b3bc04a91756ab2e200d6748cf7ee0f03d4a"
+    "docs/REFERENCE/PERFORMANCE.md": {
+      "sha256": "a086b02436ac716afbbbd1b1986110aea3e7228d92ef9341cca9fac1051e2342"
     },
     "docs/REFERENCE/PRE_COMMIT_HOOKS.md": {
       "sha256": "731650a67704ad94164a37bf528f4e4c24a48cb57fdcde0b26b3aaa00f27d754"
@@ -121,7 +133,7 @@
       "sha256": "e174c08c3b6107518a9395a54ecd3cefabcaed22663ef7087870a5472118f271"
     },
     "docs/REFERENCE/SYNC_MANIFEST.md": {
-      "sha256": "ecc598c73d8446bb92b2504bc21e078b8ac6d368ea33e5a27482927ba5cc40bb"
+      "sha256": "0a1969a19e3fc45789931e858c4072b527ea2f54369bde90b090c6927613151b"
     },
     "docs/REFERENCE/WORKFLOW_AUTOMATION_PLAN.md": {
       "sha256": "a8776fb498dacca4552077ae3489ca3fceee2c225e6d3b36f92d5e104fff9b60"
@@ -151,10 +163,10 @@
       "sha256": "29768ba94d9083d1ff23f55ee0c66c00008f915e4ab41d681907b4f93485a064"
     },
     "docs/SETUP/NEW_PROJECT.md": {
-      "sha256": "e22423e3d4a3efcad2671e6223fd8ff2700eaa4fd2b961620383a2ec759014b7"
+      "sha256": "fbdceedf393e5b3fa9a672c9fcf9d48e9dae3ea1923fa66116835b6822e92ea1"
     },
     "requirements-dev.txt": {
-      "sha256": "719791aedcf5ec05f33f7893664cb0682117a12108c99b5d18a54450541bf871"
+      "sha256": "6e69da3cb5facbacea56ee987d749f71d2a983b38c7a1552488cf80556af0748"
     },
     "scripts/__init__.py": {
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -163,7 +175,7 @@
       "sha256": "15df3a6e7c5bca400c1f8eb6b2b7ddfc5de2bbbfef5df99bb16efa91c02a440f"
     },
     "scripts/create_env.sh": {
-      "sha256": "637ff35b2063993c5c1c0d6aeb2babfba2fbaf5fc08128adb8c2b4d81e14d29a"
+      "sha256": "8cd4adf5cf2e55f0932bb1e9bb619368298f43b09a5ed2b7ff65a72e3ba5ad86"
     },
     "scripts/create_github_issues.py": {
       "sha256": "a97b0baf52eac190335bcbe47edde1b9ee47d16cd34965455fc72754860e0947"
@@ -181,16 +193,19 @@
       "sha256": "40608801ce6e289f98fe65b2714fc74be86c7296996b3ba580367d030ab6c4c9"
     },
     "scripts/load_build_env.sh": {
-      "sha256": "e93ee938b4c7bc2ef0ec9f28ff8efcf98fd26bb47071a20faed37c47d44f0121"
+      "sha256": "6058460a28495a44a34bfefdb66ca973bb1b611131dff00f4efaa662c7efc602"
     },
     "scripts/merge_pyproject.py": {
-      "sha256": "51620cabfc80d792c3c95c796c29d4039277900fc0c205e50897c0d9044b7c20"
+      "sha256": "a6e789f2726846d7eccd6b30d4ca1304268fcc180c4df558fc1117d4d68beb8d"
     },
     "scripts/prepare_playwright_layer.py": {
-      "sha256": "d4414ae108a4d1c4923f3a37521577f439245102b13c3738ccfd57c7959747a3"
+      "sha256": "2a00b7c9336aca63b10677139b56ce46e00a354595ed1cddc8e43d85287c52d0"
     },
     "scripts/run_commitlint.sh": {
       "sha256": "a25904e3072f97096545c6c1b0456ab442928f7878d15a1ccf6b459e04fbc338"
+    },
+    "scripts/run_pytest_selective.py": {
+      "sha256": "7ebfc9df8e13c9346ac48eb4a9d890b86335912f8b810a9382e5744a0652f3b5"
     },
     "scripts/setup_github_labels.py": {
       "sha256": "3a4c02ed07f562a0756007ef1f26aa1a7902494bfa5917793398be63c509a7d0"
@@ -201,31 +216,40 @@
     "scripts/validate_activation_commands.py": {
       "sha256": "be7e2ad0678d3821a38eb45b2b83c45652777632f556914632d27266b4b786ff"
     },
+    "scripts/validate_agents_drift.py": {
+      "sha256": "96331b54e5ccb54f5a5e4bf3b4bee9e3e94d89cfd85d26a01b06955754fe6040"
+    },
     "scripts/validate_commit_subject.sh": {
       "sha256": "d112fc2b0fbf93f3ba313625814dc0775d11fa07732f5591bb6c4c8ee224d147"
+    },
+    "scripts/validate_dev_tool_pins.py": {
+      "sha256": "7cdaaac134eed26c6a934c4be2863197da8368f8e75579c650ef1d9f9518401f"
+    },
+    "scripts/validate_env_file.py": {
+      "sha256": "260c26e23e92f7ddd5983a1ec4916374a8a63612fe6f1f5df5d2ebcb4b9500d1"
     },
     "scripts/validate_sync_drift.py": {
       "sha256": "31a800374b8baa45a923f519a3b5fe56a6901286e181229a5894c4ebe1550d90"
     },
     "scripts/validate_version_sync.py": {
-      "sha256": "2b47383dadafc22821d949dc1982b17756225e5b46be03b228f50ef7405fc7b3"
+      "sha256": "db91fd7d4f6e1dd69a2d0f4eb7ec77db12cc7b32d04486456ad0f957d34229e6"
     },
     "scripts/validate_workflow_action_pins.py": {
       "sha256": "d694fd30505844fc9664bc88206e014eb02979ba0518e0815daece96067738f2"
     },
     "scripts/verify_env.sh": {
-      "sha256": "5e7499d815604a16684fb689baa048336f15b4e1bcecc1176b54d68643fb5603"
+      "sha256": "7077b95504568137dd01117f78b9f40051e51329df47a07195e86fe134f8d4c0"
     },
     "tests/scripts/test_consumer_contract.py": {
-      "sha256": "94ab47e3f2122c96cf81a9b926a89ba96825a3e2d1cba8a0476f1b202c105c38"
+      "sha256": "d3baec6098084d511d37e794c89718046783e9cb60564766f9fba74d27ff25cc"
     },
     "tests/workflows/test_action_runtime_compatibility.py": {
       "sha256": "eac4b80328394dacc977662feaf2f59062fde36d33d5ab7976ffd9be407413f0"
     }
   },
-  "generated_at_utc": "2026-04-26T03:12:08Z",
-  "requested_ref": "d14fb82879583f6472c9eec3f2ca597dfc2b9334",
-  "resolved_ref": "d14fb82879583f6472c9eec3f2ca597dfc2b9334",
+  "generated_at_utc": "2026-04-30T03:01:14Z",
+  "requested_ref": "v1.19.1",
+  "resolved_ref": "6e3be21c4fa2c1dd569a05f0fb5174fbfb29b7a6",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

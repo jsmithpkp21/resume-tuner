@@ -40,6 +40,26 @@ Python 3.11.x  # from pyproject.toml
 
 ---
 
+## Service Name
+
+The Compose service is named `base_env` and defined once in `docker-compose.yml`.
+The `Makefile` parameterizes container-targeted invocations via the `DOCKER_SERVICE`
+variable (default: `base_env`). If you've added another service to your
+`docker-compose.yml`, target it in any `make` target that execs into the container
+by overriding `DOCKER_SERVICE`:
+
+```bash
+# Replace <service-name> with a service you've defined in docker-compose.yml.
+make test-docker DOCKER_SERVICE=<service-name>
+```
+
+User-facing `docker-compose` examples in this doc use the literal `base_env`
+name since shell snippets cannot interpolate Make variables. (`docker compose`
+without the hyphen is the equivalent v2+ form; both work against the same
+`docker-compose.yml`.)
+
+---
+
 ## Why Docker?
 
 ### ✅ What Docker Solves
@@ -95,11 +115,17 @@ docker-compose up --build
 
 This approach uses the `.env` file which contains:
 ```bash
-PYTHON_VERSION=3.11.14  # From pyproject.toml
-PIP_VERSION=24.3.1      # From tooling.toml
+# Python version (sourced from tooling.toml [python].version)
+PYTHON_VERSION=3.11.14
+# pip version (sourced from tooling.toml [tooling].pip)
+PIP_VERSION=24.3.1
 ```
 
-**Note:** The `.env` file has hardcoded defaults that match the repository configuration. These are safe to commit (they're not secrets). Docker Compose automatically loads this file.
+**Note:** Docker Compose treats everything after `=` as the literal value (no
+inline comment stripping), so keep comments on their own lines. The same rule
+is enforced by `scripts/validate_env_file.py`. The `.env` file has hardcoded
+defaults that match the repository configuration. These are safe to commit
+(they're not secrets). Docker Compose automatically loads this file.
 
 **For user-specific overrides:** Create `.env.local` (gitignored) to override values.
 
@@ -273,9 +299,10 @@ volumes:
 ```
 
 **Key Points:**
-- Compose build args come from `scripts/load_build_env.sh`
-- Run `source scripts/load_build_env.sh` before `docker compose build`
-- For deterministic builds, prefer `bash scripts/docker_build.sh`
+- `docker-compose up`/`build` works directly: Compose auto-loads `.env` from the repo root, which provides `PYTHON_VERSION` and `PIP_VERSION` build args. No shell-level setup required.
+- `scripts/load_build_env.sh` exports the same variables in your current shell from `tooling.toml`. It is needed only by `scripts/docker_build.sh` (the docker-CLI fallback path), not by `docker-compose`.
+- For deterministic builds outside Compose, use `bash scripts/docker_build.sh` (which sources `load_build_env.sh` internally).
+- `.env` and `tooling.toml` are kept in sync by `scripts/validate_env_file.py` (run via `make env-file-check` and the pre-commit hook); use `make env-file-fix` to update `.env` after bumping versions in `tooling.toml`.
 - Venv is **automatically activated** on startup (via command override)
 - Volume cache (`base_env_cache`) persists `/opt/venv` across runs (faster rebuilds)
 - `$VENV_PATH` environment variable available inside container

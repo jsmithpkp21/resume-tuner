@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "pins": {
+    "commitlint_cli": "19.8.0",
+    "commitlint_config_conventional": "19.8.0",
+    "ruff": "0.15.2",
+    "ruff_pre_commit_rev": "v0.15.2",
+    "mypy": "1.19.1",
+    "mypy_pre_commit_rev": "v1.19.1",
+    "markdownlint_cli": "0.47.0"
+  }
+}

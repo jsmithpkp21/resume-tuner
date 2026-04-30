@@ -16,8 +16,13 @@
 - `AGENTS.md` is the synced baseline guidance.
 - `AGENTS_LOCAL.md` is optional and local/consumer owned for repo-specific additions or overrides.
 - Apply `AGENTS.md` first, then `AGENTS_LOCAL.md` when present.
-- Keep `AGENTS_LOCAL.md` out of `.tooling-sync-manifest.toml` so local guidance is never overwritten by sync.
+- Keep `AGENTS_LOCAL.md` out of the source-of-truth manifest in the tooling source repo root `.tooling-sync-manifest.toml`; consumers do not have or edit that manifest locally and only track applied sync state in `.tooling-sync-manifest.lock`, so local guidance stays outside managed sync and is never overwritten.
 
+## Path-Scoped Instructions (`.github/instructions/*.instructions.md`)
+
+- Files under `.github/instructions/` use frontmatter `applyTo:` globs to surface narrower guidance when editing matching paths. They restate (not replace) rules already in this file, so critical invariants stay in front of the agent when it is deep in a sensitive file.
+- Current scoped files: `scripts.instructions.md` (security invariants for `scripts/sync_tooling.sh`), `workflows.instructions.md` (action pin and lock contract for `.github/workflows/*.yml`).
+- Drift between `AGENTS.md` and this file is enforced by `make agents-drift-check`, run in CI as part of the verify job.
 ## Quick Commands
 
 ```bash
@@ -33,7 +38,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 ## Architecture
 
 - Environment lifecycle is shell-first: `scripts/create_env.sh` creates and `scripts/verify_env.sh` verifies against metadata.
-- Sync is allow-list driven: `.tooling-sync-manifest.toml` is the only list of managed files; consumers record applied state in `.tooling-sync-manifest.lock`.
+- Sync is allow-list driven: the source-of-truth manifest lives in the tooling source repo root `.tooling-sync-manifest.toml`; consumers do not carry that file and instead record applied state in `.tooling-sync-manifest.lock`.
 - `pyproject.toml` is generated in consumers via `scripts/merge_pyproject.py` + `.pyproject.meta.toml`; tooling provides the config schema and template only.
 - Service boundary: tooling changes flow outward through sync; consumer identity files do not flow back automatically.
 
@@ -47,8 +52,10 @@ pytest -q tests/scripts/test_consumer_contract.py
 ## Execution Guardrails
 
 - Keep changes minimal and scoped; do not bundle unrelated refactors in the same PR.
+- Branch base policy: create new issue branches from `main` by default; if the issue is an epic child issue, create/rebase from the active `epic/*` branch instead.
 - Treat `pyproject.toml` as generated in consumers: update `.pyproject.meta.toml` and regenerate via `scripts/merge_pyproject.py`.
 - Preserve sync security invariants in `scripts/sync_tooling.sh` (path traversal checks, symlink protections, fail-closed behavior).
+- When changing managed-file scope: in the **tooling source repo**, update `.tooling-sync-manifest.toml`, related docs (e.g. `FILE_DISTRIBUTION.md`), and `tests/scripts/test_sync_tooling_regressions.py`; in **consumer repos**, run `make sync-tooling`, `make drift-check`, and `pytest -q tests/scripts/test_consumer_contract.py`.
 - Validate touched areas with targeted tests first, then broader checks (`make lint`, `make test`, `make check`).
 - Prefer issue-linked branches: `make branch ISSUE=<num>`.
 - When presenting multiple implementation options, include concise pros and cons for each option so trade-offs are explicit.
@@ -59,14 +66,36 @@ pytest -q tests/scripts/test_consumer_contract.py
 
 - When reviewing a PR whose branch starts with `copilot/`, the changes were authored by GitHub Copilot's SWE agent. Post review comments directed at `@copilot` so the agent receives and acts on the feedback.
 - When you (the agent) authored the changes yourself, implement fixes directly in the branch without @copilot direction. The rule of thumb: if `git log` shows your own commit, fix it; if the branch starts with `copilot/`, comment at @copilot.
+- Post PR-thread replies only for GitHub review comments/threads; do not mirror chat-only guidance to PR threads unless the user explicitly asks.
+- For every review thread (including resolved/outdated), post a short status update when work is done so audit history is explicit.
+- If a review item is deferred or needs clarification, add a PR-thread comment stating why, open a follow-up issue, and include the issue link in that thread.
+- If a deferred item is picked up later, add a follow-up thread comment linking both the issue and the fixing PR/commit.
+
+## WSL Path Handling (Windows + WSL Workspace)
+This workspace runs on WSL (Ubuntu) but is opened from a Windows JetBrains editor.
+File paths surfaced by the editor use Windows UNC format:
+    \\wsl.localhost\Ubuntu\home\<user>\projects\<repo>\...
+    \\wsl$\Ubuntu\home\<user>\projects\<repo>\...
+**Always convert these to native Linux paths before any file edit or git operation:**
+    //wsl.localhost/Ubuntu/home/<user>/projects/<repo>/...  ->  /home/<user>/projects/<repo>/...
+    \\wsl$\Ubuntu\home\<user>\projects\<repo>\...   ->  /home/<user>/projects/<repo>/...
+Rules enforced for every session:
+- When calling `replace_string_in_file`, `insert_edit_into_file`, or `create_file`, always pass
+  the `/home/<user>/...` path - never the UNC path. UNC writes do not reliably reach the Linux
+  filesystem that git tracks.
+- When running git or shell commands, always use the native Linux path (`/home/<user>/projects/<repo>`).
+- Use `python3` with `subprocess` (not shell heredocs via `run_in_terminal`) for git operations
+  so output is reliably captured and not swallowed by the prompt.
+- After any file-tool edit, verify with Python: `open('/home/<user>/.../<file>').read()` to confirm
+  the write landed on the Linux filesystem before staging or committing.
 
 ## Files to Read Before Editing Core Logic
 
 - `Makefile`
 - `scripts/sync_tooling.sh`
-- `.tooling-sync-manifest.toml`
+- `.tooling-sync-manifest.toml` (tooling source repo; not present in consumers)
 - `docs/REFERENCE/SYNC_MANIFEST.md`
-- `tests/scripts/test_sync_tooling_regressions.py`
+- `tests/scripts/test_sync_tooling_regressions.py` (tooling source repo; not present in consumers)
 
 ---
 

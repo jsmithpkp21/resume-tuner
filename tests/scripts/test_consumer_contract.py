@@ -500,6 +500,7 @@ def test_consumer_env_lifecycle_verify_extracts_python_version(tmp_path: Path) -
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_consumer_real_manifest_sync_applies_all_declared_files(tmp_path: Path) -> None:
     """Contract: syncing from the real tooling source copies every manifest-declared file.
 
@@ -554,6 +555,7 @@ def test_consumer_real_manifest_sync_applies_all_declared_files(tmp_path: Path) 
     )
 
 
+@pytest.mark.slow
 def test_consumer_real_manifest_sync_includes_shared_dev_requirements(
     tmp_path: Path,
 ) -> None:

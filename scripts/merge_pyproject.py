@@ -222,7 +222,7 @@ def merge_pyproject(
         import tomli_w
 
         content = tomli_w.dumps(final_pyproject)
-        with open(pyproject_file, "w") as f:
+        with open(pyproject_file, "w", encoding="utf-8") as f:
             f.write(content)
         print(f"✓ Generated {pyproject_file}")
         return True

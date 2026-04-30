@@ -168,6 +168,10 @@ By default, the next sync removes stale managed files that:
 - are **not** present in the current manifest
 - pass deletion safety checks
 
+**Preserved local exception:** `docs/REFERENCE/IMPROVEMENTS.md` is treated as
+consumer-owned local content and is preserved during stale cleanup, even if it
+appears in the previous lock from older tooling versions.
+
 **Output examples:**
 ```text
 REMOVED: docs/REFERENCE/OLD_GUIDE.md
@@ -205,6 +209,7 @@ synced. Each consumer project owns these files:
 | `README.md` | Consumer writes its own README |
 | `CHANGELOG.md` | Consumer maintains its own changelog |
 | `requirements.txt` | Consumer manages app/runtime dependencies; no tooling-managed overlay/sections |
+| `docs/REFERENCE/IMPROVEMENTS.md` | Consumer-owned improvement backlog; intentionally preserved during sync cleanup |
 | `scripts/sync_tooling.sh` | Must be manually updated (bootstrap/security) |
 | `project-template/` | Tooling-repo-only scaffolding |
 

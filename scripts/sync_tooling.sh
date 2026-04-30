@@ -298,6 +298,20 @@ is_allowed_empty_file() {
   esac
 }
 
+# Consumer-local files that should be preserved even if they were previously
+# managed and later removed from the sync manifest.
+is_preserved_local_stale_file() {
+  local path="$1"
+  case "$path" in
+    "docs/REFERENCE/IMPROVEMENTS.md")
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 resolve_requested_tooling_ref() {
   if [ "$USE_LOCAL_GIT" = true ]; then
     git -C "$TOOLING_DIR" rev-parse --verify "${TOOLING_VERSION}^{commit}" 2>/dev/null || true
@@ -679,6 +693,22 @@ if [ "${#PREVIOUS_MANAGED_FILES[@]}" -gt 0 ]; then
     fi
 
     stale_target="$TARGET_DIR/$stale_file"
+
+    if is_preserved_local_stale_file "$stale_file"; then
+      if [ -L "$stale_target" ]; then
+        echo "SECURITY: Preserved local stale target is symlink: $stale_file"
+        continue
+      fi
+      if [ ! -e "$stale_target" ]; then
+        continue
+      fi
+      if [ ! -f "$stale_target" ]; then
+        echo "SECURITY: Preserved local stale target is not a regular file: $stale_file"
+        continue
+      fi
+      echo "PRESERVED LOCAL: $stale_file"
+      continue
+    fi
 
     # Never delete through a symlink path.
     if [ -L "$stale_target" ]; then

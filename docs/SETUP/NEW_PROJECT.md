@@ -8,7 +8,7 @@ Before starting, ensure you have:
 
 - **Git** installed and configured (`git config --global user.name` and `git config --global user.email`)
 - **GitHub CLI** (`gh`) installed and authenticated (`gh auth login`)
-- **Docker** installed (or local Python 3.11.14+ if skipping Docker)
+- **Docker** installed (or local Python 3.11.x if skipping Docker — runtime scripts compare major.minor only today; the strict-patch policy is tracked in [#167](https://github.com/jsmithpkp21/tooling/issues/167))
 - **WSL 2** (on Windows) or native macOS/Linux shell
 - **A GitHub repo created** for your new project (empty, no README)
 
@@ -111,12 +111,11 @@ TOOLING_DIR=../tooling python3 scripts/merge_pyproject.py .
 
 This merges your metadata with the shared config from `tooling.toml`.
 
-## Step 4: Initialize Git and Remote
+## Step 4: Connect to GitHub Remote
 
-Initialize a git repo and connect it to GitHub:
+`scripts/setup.sh` from Step 2 already ran `git init` if you weren't already inside a git repo, so you only need to commit the bootstrap state and push:
 
 ```bash
-git init
 git add .
 git commit -m "chore(bootstrap): initialize from project-template"
 git branch -M main
@@ -183,11 +182,21 @@ Records the **applied state** of synced files:
 
 ### `tooling.toml`
 
-**Your** project-specific tool config:
-- Python version, pip version
-- Tool settings (ruff, mypy, black, isort)
-- Runtime contract (awk, shell tools) — see `[runtime]` block
-- Change the `version = "main"` line to pin a specific tooling release
+**Your** project-specific tool config. Keys actually parsed by tooling scripts today:
+- `[python].version` — source of truth for `requires-python` and env scripts (`scripts/create_env.sh`, `scripts/verify_env.sh`, `scripts/merge_pyproject.py`)
+- `[tooling].pip` — pip version pin (read by `create_env.sh` / `verify_env.sh`)
+- Top-level `repo = "..."` — tooling source URL (read by `scripts/sync_tooling.sh`)
+- Top-level `version = "main"` — change to pin a specific tooling release
+
+Documented but not yet enforced from this file:
+- `[runtime].awk_impl` and `[runtime].shell_tools` — the contract is documented here, but `scripts/create_env.sh` and `scripts/verify_env.sh` currently hardcode the required-tools list (`bash awk grep sed`) and the gawk check rather than reading these keys.
+
+Note: lint/type-tool config (ruff, mypy, etc.) lives in the generated
+`pyproject.toml` `[tool.*]` tables, not in `tooling.toml`. Older copies of
+this template carried unused `[black]`, `[isort]`, `[mypy]`, and `[flake8]`
+sections; those have been removed because `scripts/merge_pyproject.py` does
+not read them. If your consumer's `tooling.toml` still has them after a sync,
+delete them.
 
 ## Syncing Tooling Updates
 

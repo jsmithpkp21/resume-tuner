@@ -50,6 +50,20 @@ repos:
         pass_filenames: false
         stages: [push]
 
+      - id: dev-tool-pin-fix
+        name: Auto-fix dev-tool pin drift
+        entry: make dev-tool-pin-fix
+        language: system
+        pass_filenames: false
+        stages: [commit]
+
+      - id: dev-tool-pin-check
+        name: Enforce dev-tool pin lock
+        entry: make dev-tool-pin-check
+        language: system
+        pass_filenames: false
+        stages: [push]
+
   # -------------------------------
   # Code Quality: linting and formatting
   # Ruff handles import sorting, linting, and auto-fixes
@@ -92,20 +106,28 @@ repos:
 
   # -------------------------------
   # Pytest: run test suite
-  # Runs full test suite to catch issues before commit
+  # Push-only (Phase 2 of perf epic #116, issue #122) so commits stay fast.
+  # The push-stage hook + CI's `make test` are the full-suite safety nets.
   # -------------------------------
   - repo: local
     hooks:
       - id: pytest-check
-        name: pytest
-        entry: bash -c 'REPO_NAME=$(git remote get-url origin 2>/dev/null | sed "s|.*[:/]||; s|\.git$||"); REPO_NAME="${REPO_NAME:-$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")}"; ENV_PATH="$HOME/envs/${REPO_NAME}-env"; if [ -f "$ENV_PATH/bin/activate" ]; then source "$ENV_PATH/bin/activate" && pytest -q; elif command -v pytest >/dev/null 2>&1; then pytest -q; else echo "⚠️  pytest not found (run make setup to create environment)" && exit 0; fi'
+        name: pytest (selective; full fallback)
+        entry: bash -c 'REPO_NAME=$(git remote get-url origin 2>/dev/null | sed "s|.*[:/]||; s|\.git$||"); REPO_NAME="${REPO_NAME:-$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")}"; ENV_PATH="$HOME/envs/${REPO_NAME}-env"; if [ -f "$ENV_PATH/bin/activate" ]; then source "$ENV_PATH/bin/activate" && python3 scripts/run_pytest_selective.py --stage push; elif command -v python3 >/dev/null 2>&1; then python3 scripts/run_pytest_selective.py --stage push; else echo "⚠️  python3 not found (run make setup to create environment)" && exit 0; fi'
         language: system
         pass_filenames: false
-        stages: [commit, push]
+        stages: [push]
 
       - id: version-sync-check
         name: Version metadata sync check
         entry: bash -c 'REPO_NAME=$(git remote get-url origin 2>/dev/null | sed "s|.*[:/]||; s|\.git$||"); REPO_NAME="${REPO_NAME:-$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")}"; ENV_PATH="$HOME/envs/${REPO_NAME}-env"; if [ -f "$ENV_PATH/bin/activate" ]; then source "$ENV_PATH/bin/activate" && python3 scripts/validate_version_sync.py --root .; elif command -v python3 >/dev/null 2>&1; then python3 scripts/validate_version_sync.py --root .; else echo "python3 not found (run make setup to create environment)" && exit 0; fi'
+        language: system
+        pass_filenames: false
+        stages: [commit, push]
+
+      - id: env-file-check
+        name: .env / tooling.toml drift check
+        entry: bash -c 'REPO_NAME=$(git remote get-url origin 2>/dev/null | sed "s|.*[:/]||; s|\.git$||"); REPO_NAME="${REPO_NAME:-$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")}"; ENV_PATH="$HOME/envs/${REPO_NAME}-env"; if [ -f "$ENV_PATH/bin/activate" ]; then source "$ENV_PATH/bin/activate" && python3 scripts/validate_env_file.py --root .; elif command -v python3 >/dev/null 2>&1; then python3 scripts/validate_env_file.py --root .; else echo "python3 not found (run make setup to create environment)" && exit 0; fi'
         language: system
         pass_filenames: false
         stages: [commit, push]

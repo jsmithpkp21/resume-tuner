@@ -30,12 +30,14 @@ from pathlib import Path
 
 root = Path(os.environ["REPO_ROOT"])
 
-version = (root / "VERSION").read_text().strip()
+_version_lines = (root / "VERSION").read_text(encoding="utf-8").splitlines()
+_version_first = _version_lines[0] if _version_lines else ""
+version = _version_first.split("#", 1)[0].strip()
 if not version:
     raise SystemExit("VERSION file is empty")
 
 # Read Python version from tooling.toml (source of truth)
-tooling = tomllib.loads((root / "tooling.toml").read_text())
+tooling = tomllib.loads((root / "tooling.toml").read_text(encoding="utf-8"))
 py_ver = tooling.get("python", {}).get("version", "")
 
 if not py_ver:

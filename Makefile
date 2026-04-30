@@ -1,4 +1,4 @@
-VERSION := $(shell cat VERSION)
+VERSION := $(shell awk 'NR==1 {sub(/[[:space:]]*#.*$$/, ""); gsub(/[[:space:]]/, ""); print; exit}' VERSION)
 # Dynamically determine repo name - works in Docker and local
 # Use git config if available, fallback to directory name
 REPO_NAME_FROM_GIT := $(shell git config --get remote.origin.url 2>/dev/null | sed 's|.*/||; s|\.git$$||')
@@ -12,7 +12,7 @@ DOCKER_EXEC := $(DOCKER_COMPOSE) exec -T $(DOCKER_SERVICE)
 DOCKER_RUN := $(DOCKER_EXEC) bash -lc
 MARKDOWN_LINT_TIMEOUT_SECONDS ?= 120
 
-.PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check check version-check version-fix action-pin-check action-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper docker-up docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
+.PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper docker-up docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
 
 env:
 	scripts/create_env.sh
@@ -177,6 +177,43 @@ lint-fix: env
 test: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && pytest -q --durations=10"
 
+# Phase 4 / #124 split: fast and slow halves of the suite for parallel CI.
+# Local `make test` still runs everything; CI calls these two targets in
+# parallel jobs (verify-environment.yml: test-fast / test-slow).
+#
+# In the prebuilt Docker image, VENV_PATH is set (Dockerfile: ENV VENV_PATH=...)
+# and the venv at /opt/venv already has all deps installed, so we skip the
+# `env` target (which would invoke scripts/create_env.sh and rebuild a venv
+# at $(ENV_PATH) that doesn't exist in the container — pure waste). Outside
+# Docker, `env` runs as before to auto-create the local venv on first use.
+test-fast:
+	@if [ -n "$$VENV_PATH" ] && [ -f "$$VENV_PATH/bin/activate" ]; then \
+		bash -lc "source \"$$VENV_PATH/bin/activate\" && pytest -q --durations=10 -m 'not slow'"; \
+	else \
+		$(MAKE) --no-print-directory env; \
+		bash -lc "source \"$(ENV_PATH)/bin/activate\" && pytest -q --durations=10 -m 'not slow'"; \
+	fi
+
+test-slow:
+	@if [ -n "$$VENV_PATH" ] && [ -f "$$VENV_PATH/bin/activate" ]; then \
+		bash -lc "source \"$$VENV_PATH/bin/activate\" && pytest -q --durations=10 -m slow"; \
+	else \
+		$(MAKE) --no-print-directory env; \
+		bash -lc "source \"$(ENV_PATH)/bin/activate\" && pytest -q --durations=10 -m slow"; \
+	fi
+
+# Verbose timing capture for ad-hoc profiling. Use this when investigating
+# a suspected slowdown; prefer plain `make test` for normal runs.
+test-profile: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && pytest -v --durations=20 --tb=no"
+
+# Selective pytest based on git diff vs upstream (Phase 3 / #123).
+# Maps changed files to relevant tests; falls back to the full suite for
+# infra changes, large diffs, or unmapped paths. CI's `make test` still
+# runs the full suite as the safety net.
+test-selective: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/run_pytest_selective.py --stage push"
+
 test-shell:
 	@if [ -f tests/test_setup.sh ]; then bash tests/test_setup.sh; else echo "No shell tests to run"; fi
 
@@ -247,7 +284,16 @@ consumer-contract-test: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && pytest -q tests/scripts/test_consumer_contract.py"
 
 # PR review helper wrapper.
-# Scans or plans PR review comments and owner responses; may post fix/defer/wontfix status.
+# Read-only: when scripts/pr_review_helper.py is present, fetches and summarizes
+# PR review comments / owner responses and emits JSON. Posting fix/defer/wontfix
+# replies is the agent's responsibility; this wrapper does not call gh post APIs.
+# PR_REVIEW_ACTION labels the proposed action in plan-mode JSON output; it does
+# not cause anything to be posted.
+# Note: scripts/pr_review_helper.py is not yet bundled in tooling and is not in
+# the sync manifest, so `make sync-tooling` will not install it today. Promotion
+# from the resume-builder prototype is tracked in
+# https://github.com/jsmithpkp21/tooling/issues/223. Until then, copy the helper
+# from a repo that already has it (e.g. resume-builder) into ./scripts/.
 # PR_REVIEW_* variables are prefixed to avoid environment variable collisions.
 # REPO_SLUG can override owner/repo derivation (default: auto-detect from gh repo view --json nameWithOwner).
 # Usage examples:
@@ -281,7 +327,10 @@ pr-review-helper: env
 	fi
 	@if [ ! -f scripts/pr_review_helper.py ]; then \
 		echo "ERROR: scripts/pr_review_helper.py was not found in this repo."; \
-		echo "If this repo is a consumer, sync latest tooling updates, or add the helper first."; \
+		echo "The helper is not yet bundled in tooling and is not in the sync manifest;"; \
+		echo "  make sync-tooling will not install it. Copy the script from a repo that"; \
+		echo "  already has it (e.g. resume-builder/scripts/pr_review_helper.py) into"; \
+		echo "  ./scripts/, or wait for promotion: https://github.com/jsmithpkp21/tooling/issues/223"; \
 		exit 1; \
 	fi
 	@MODE_VAL="$(PR_REVIEW_MODE)"; \
@@ -340,11 +389,30 @@ drift-check:
 docs-check:
 	python3 scripts/validate_activation_commands.py --root .
 
+agents-drift-check:
+	bash -lc 'ENV_ACTIVATE=$(ENV_PATH)/bin/activate; \
+		if [ -f "$$ENV_ACTIVATE" ]; then \
+			. "$$ENV_ACTIVATE"; \
+			PYTHON_CMD=python3; \
+		elif command -v python3 >/dev/null 2>&1; then \
+			PYTHON_CMD=python3; \
+		else \
+			echo "agents-drift-check: python3 not found. Please install python3 or create a virtualenv at $(ENV_PATH)."; \
+			exit 1; \
+		fi; \
+		"$$PYTHON_CMD" scripts/validate_agents_drift.py --root .'
+
 version-check: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_version_sync.py --root ."
 
 version-fix: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_version_sync.py --root . --fix"
+
+env-file-check: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_env_file.py --root ."
+
+env-file-fix: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_env_file.py --root . --fix"
 
 action-pin-check:
 	bash -lc 'ENV_ACTIVATE=$(ENV_PATH)/bin/activate; \
@@ -372,6 +440,32 @@ action-pin-fix:
 		fi; \
 		"$$PYTHON_CMD" scripts/validate_workflow_action_pins.py --root . --fix'
 
+dev-tool-pin-check:
+	bash -lc 'ENV_ACTIVATE=$(ENV_PATH)/bin/activate; \
+		if [ -f "$$ENV_ACTIVATE" ]; then \
+			. "$$ENV_ACTIVATE"; \
+			PYTHON_CMD=python3; \
+		elif command -v python3 >/dev/null 2>&1; then \
+			PYTHON_CMD=python3; \
+		else \
+			echo "dev-tool-pin-check: python3 not found. Please install python3 or create a virtualenv at $(ENV_PATH)."; \
+			exit 1; \
+		fi; \
+		"$$PYTHON_CMD" scripts/validate_dev_tool_pins.py --root .'
+
+dev-tool-pin-fix:
+	bash -lc 'ENV_ACTIVATE=$(ENV_PATH)/bin/activate; \
+		if [ -f "$$ENV_ACTIVATE" ]; then \
+			. "$$ENV_ACTIVATE"; \
+			PYTHON_CMD=python3; \
+		elif command -v python3 >/dev/null 2>&1; then \
+			PYTHON_CMD=python3; \
+		else \
+			echo "dev-tool-pin-fix: python3 not found. Please install python3 or create a virtualenv at $(ENV_PATH)."; \
+			exit 1; \
+		fi; \
+		"$$PYTHON_CMD" scripts/validate_dev_tool_pins.py --root . --fix'
+
 check: env
 	@echo "========================================="
 	@echo "  Running Full Quality Check"
@@ -391,7 +485,10 @@ check: env
 	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && pre-commit run check-toml --all-files"
 	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && pre-commit run check-json --all-files"
 	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_version_sync.py --root ."
+	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_env_file.py --root ."
 	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_workflow_action_pins.py --root ."
+	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_dev_tool_pins.py --root ."
+	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_agents_drift.py --root ."
 	@echo ""
 	@echo "========================================="
 	@echo "  ✅ All checks passed!"
@@ -416,4 +513,4 @@ precommit-fix-docker: docker-up
 	$(DOCKER_RUN) "cd /repo && source /opt/venv/bin/activate && pre-commit run --all-files"
 
 check-docker: docker-up
-	$(DOCKER_RUN) "cd /repo && source /opt/venv/bin/activate && ruff check . --fix && ruff format . && mypy . && pytest -q && pre-commit run check-yaml --all-files && pre-commit run check-toml --all-files && pre-commit run check-json --all-files && python3 scripts/validate_version_sync.py --root . && python3 scripts/validate_workflow_action_pins.py --root ."
+	$(DOCKER_RUN) "cd /repo && source /opt/venv/bin/activate && ruff check . --fix && ruff format . && mypy . && pytest -q && pre-commit run check-yaml --all-files && pre-commit run check-toml --all-files && pre-commit run check-json --all-files && python3 scripts/validate_version_sync.py --root . && python3 scripts/validate_env_file.py --root . && python3 scripts/validate_workflow_action_pins.py --root . && python3 scripts/validate_dev_tool_pins.py --root . && python3 scripts/validate_agents_drift.py --root ."

@@ -1,20 +1,6 @@
-# Development tooling dependencies
-# Used by pre-commit hooks and testing
-
-# Pre-commit framework
-pre-commit==3.8.0
-
-# Code formatting and linting
-ruff==0.15.2
-black==24.10.0
-isort==5.13.2
-
-# Type checking
-mypy==1.11.2
-types-PyYAML==6.0.12.20241230
-
-# Testing
-pytest==8.3.3
+# Application/runtime dependencies
+# Dev tools (pre-commit, ruff, black, isort, mypy, types-PyYAML, pytest) live
+# in the tooling-managed requirements-dev.txt; do not duplicate them here.
 
 # YAML and TOML parsing (used by scripts)
 PyYAML==6.0.3

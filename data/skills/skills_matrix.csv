@@ -1,133 +1,133 @@
 Skills,Category
-GitHub Copilot (IDE coding assistance),Staff AI-Augmented Engineering
-GitHub Copilot Chat,Staff AI-Augmented Engineering
-GitHub Copilot PR Review,Staff AI-Augmented Engineering
-Microsoft Copilot (workflow automation & reasoning),Staff AI-Augmented Engineering
-Notion AI (content generation & rewriting),Staff AI-Augmented Engineering
-AI-based failure triage,Staff AI-Augmented Engineering
-Stability analysis,Staff AI-Augmented Engineering
-AI-assisted architecture exploration,Staff AI-Augmented Engineering
-AI-assisted coding,Staff AI-Augmented Engineering
-AI-assisted debugging,Staff AI-Augmented Engineering
-AI-assisted documentation,Staff AI-Augmented Engineering
-AI-augmented test generation,Staff AI-Augmented Engineering
-Application of abstraction layers,Staff Automation Architecture & Quality
-Architecture,Staff Automation Architecture & Quality
-Architecture exploration,Staff Automation Architecture & Quality
-Design,Staff Automation Architecture & Quality
-Design patterns,Staff Automation Architecture & Quality
-Abstraction layers,Staff Automation Architecture & Quality
-Data-driven frameworks,Staff Automation Architecture & Quality
-Java automation frameworks,Staff Automation Architecture & Quality
-Orchestration design,Staff Automation Architecture & Quality
-Page Object Model (POM),Staff Automation Architecture & Quality
-Python automation frameworks,Staff Automation Architecture & Quality
-Reusable components,Staff Automation Architecture & Quality
-Scalable UI/API automation,Staff Automation Architecture & Quality
-Selenium WebDriver,Staff Automation Architecture & Quality
-Test data management,Staff Automation Architecture & Quality
-TestNG,Staff Automation Architecture & Quality
-Automation,Staff Automation Architecture & Quality
-Automation framework design,Staff Automation Architecture & Quality
-Automation troubleshooting,Staff Automation Architecture & Quality
-Device automation,Staff Automation Architecture & Quality
-Orchestration,Staff Automation Architecture & Quality
-Artifact management,Staff Platform CI/CD & Infrastructure
-CI/CD,Staff Platform CI/CD & Infrastructure
-CI/CD troubleshooting,Staff Platform CI/CD & Infrastructure
-Continuous testing workflows,Staff Platform CI/CD & Infrastructure
-Git,Staff Platform CI/CD & Infrastructure
-GitHub Actions,Staff Platform CI/CD & Infrastructure
-Jenkins,Staff Platform CI/CD & Infrastructure
-Pipeline design,Staff Platform CI/CD & Infrastructure
-Quality gates,Staff Platform CI/CD & Infrastructure
-Test reliability engineering,Staff Platform CI/CD & Infrastructure
-Versioning automation,Staff Platform CI/CD & Infrastructure
-Collaboration,Staff Technical Leadership & Collaboration
-Mentoring,Staff Technical Leadership & Collaboration
-Process improvement,Staff Technical Leadership & Collaboration
-Test planning,Staff Technical Leadership & Collaboration
-Test strategy for automation frameworks,Staff Technical Leadership & Collaboration
-Jira,Staff Technical Leadership & Collaboration
-Analysis,Staff Programming Debugging & Engineering Fundamentals
-Analysis of requirements,Staff Programming Debugging & Engineering Fundamentals
-Communication,Staff Programming Debugging & Engineering Fundamentals
-Debugging,Staff Programming Debugging & Engineering Fundamentals
-Documentation,Staff Programming Debugging & Engineering Fundamentals
-Pattern recognition,Staff Programming Debugging & Engineering Fundamentals
-Defect isolation,Staff Programming Debugging & Engineering Fundamentals
-Environment debugging,Staff Programming Debugging & Engineering Fundamentals
-Environment reliability,Staff Programming Debugging & Engineering Fundamentals
-Log analysis,Staff Programming Debugging & Engineering Fundamentals
-Metrics/monitoring interpretation,Staff Programming Debugging & Engineering Fundamentals
-Observability,Staff Programming Debugging & Engineering Fundamentals
-Performance profiling,Staff Programming Debugging & Engineering Fundamentals
-Regression analysis,Staff Programming Debugging & Engineering Fundamentals
-Root cause analysis,Staff Programming Debugging & Engineering Fundamentals
-Distributed tracing,Staff Platform CI/CD & Infrastructure
-Hybrid cloud interactions (on-prem <-> cloud),Staff Platform CI/CD & Infrastructure
-Multi-device automation labs,Staff Platform CI/CD & Infrastructure
-VM-based testbeds,Staff Platform CI/CD & Infrastructure
-Docker,Staff Platform CI/CD & Infrastructure
-Environment management,Staff Platform CI/CD & Infrastructure
-Linux command-line,Staff Platform CI/CD & Infrastructure
-TCP/IP fundamentals,Staff Platform CI/CD & Infrastructure
-Bash,Staff Programming Debugging & Engineering Fundamentals
-C,Staff Programming Debugging & Engineering Fundamentals
-C++,Staff Programming Debugging & Engineering Fundamentals
-Groovy,Staff Programming Debugging & Engineering Fundamentals
-Java,Staff Programming Debugging & Engineering Fundamentals
-JavaScript,Staff Programming Debugging & Engineering Fundamentals
-Python,Staff Programming Debugging & Engineering Fundamentals
-Shell scripting,Staff Programming Debugging & Engineering Fundamentals
-TypeScript,Staff Programming Debugging & Engineering Fundamentals
-Exploratory testing,Staff Automation Architecture & Quality
-Integration testing,Staff Automation Architecture & Quality
-Issue triage,Staff Automation Architecture & Quality
-Quality strategy,Staff Automation Architecture & Quality
-Release readiness,Staff Automation Architecture & Quality
-Requirements/testability analysis,Staff Automation Architecture & Quality
-Acceptance testing,Staff Automation Architecture & Quality
-Android UI automation (ADB),Staff Automation Architecture & Quality
-Android UI automation (UI Automator),Staff Automation Architecture & Quality
-API contract/schema validation,Staff Automation Architecture & Quality
-Automation testing,Staff Automation Architecture & Quality
-CLI automation,Staff Automation Architecture & Quality
-End-to-end testing,Staff Automation Architecture & Quality
-Functional testing,Staff Automation Architecture & Quality
-JUnit 4,Staff Automation Architecture & Quality
-JUnit 5,Staff Automation Architecture & Quality
-Multi-environment compatibility testing,Staff Automation Architecture & Quality
-Parallel execution,Staff Automation Architecture & Quality
-Regression testing,Staff Automation Architecture & Quality
-REST API testing,Staff Automation Architecture & Quality
-Risk-based testing,Staff Automation Architecture & Quality
-Service-layer automation (Serial),Staff Automation Architecture & Quality
-Service-layer automation (SSH),Staff Automation Architecture & Quality
-Service-layer automation (Telnet),Staff Automation Architecture & Quality
-Smoke testing,Staff Automation Architecture & Quality
-Spock,Staff Automation Architecture & Quality
-System testing,Staff Automation Architecture & Quality
-ADB,Staff Automation Architecture & Quality
-Automation Architecture,Staff Automation Architecture & Quality
-Automation Strategy,Staff Automation Architecture & Quality
-Capability-Driven Design,Staff Automation Architecture & Quality
-Code Review,Staff Technical Leadership & Collaboration
-Dependency Management,Staff Platform CI/CD & Infrastructure
-Developer Tooling,Staff Platform CI/CD & Infrastructure
-Distributed Execution,Staff Platform CI/CD & Infrastructure
-Distributed Systems,Staff Platform CI/CD & Infrastructure
-Framework Design,Staff Automation Architecture & Quality
-Distributed Lab Infrastructure,Staff Platform CI/CD & Infrastructure
-Logging,Staff Programming Debugging & Engineering Fundamentals
-Playwright,Staff Automation Architecture & Quality
-Process Design,Staff Technical Leadership & Collaboration
-Prototype Design,Staff Automation Architecture & Quality
-Pytest,Staff Automation Architecture & Quality
-REST/SOAP Integration,Staff Automation Architecture & Quality
-Technical Leadership,Staff Technical Leadership & Collaboration
-Telnet/CLI Automation,Staff Automation Architecture & Quality
-Test Lab Automation,Staff Automation Architecture & Quality
-UI & Model-Agnostic Abstractions,Staff Automation Architecture & Quality
-Web UI Automation,Staff Automation Architecture & Quality
-Hardware Abstraction,Staff Automation Architecture & Quality
+GitHub Copilot (IDE coding assistance),AI-Augmented Engineering
+GitHub Copilot Chat,AI-Augmented Engineering
+GitHub Copilot PR Review,AI-Augmented Engineering
+Microsoft Copilot (workflow automation & reasoning),AI-Augmented Engineering
+Notion AI (content generation & rewriting),AI-Augmented Engineering
+AI-based failure triage,AI-Augmented Engineering
+Stability analysis,AI-Augmented Engineering
+AI-assisted architecture exploration,AI-Augmented Engineering
+AI-assisted coding,AI-Augmented Engineering
+AI-assisted debugging,AI-Augmented Engineering
+AI-assisted documentation,AI-Augmented Engineering
+AI-augmented test generation,AI-Augmented Engineering
+Application of abstraction layers,Automation Architecture & Quality
+Architecture,Automation Architecture & Quality
+Architecture exploration,Automation Architecture & Quality
+Design,Automation Architecture & Quality
+Design patterns,Automation Architecture & Quality
+Abstraction layers,Automation Architecture & Quality
+Data-driven frameworks,Automation Architecture & Quality
+Java automation frameworks,Automation Architecture & Quality
+Orchestration design,Automation Architecture & Quality
+Page Object Model (POM),Automation Architecture & Quality
+Python automation frameworks,Automation Architecture & Quality
+Reusable components,Automation Architecture & Quality
+Scalable UI/API automation,Automation Architecture & Quality
+Selenium WebDriver,Automation Architecture & Quality
+Test data management,Automation Architecture & Quality
+TestNG,Automation Architecture & Quality
+Automation,Automation Architecture & Quality
+Automation framework design,Automation Architecture & Quality
+Automation troubleshooting,Automation Architecture & Quality
+Device automation,Automation Architecture & Quality
+Orchestration,Automation Architecture & Quality
+Artifact management,Platform CI/CD & Infrastructure
+CI/CD,Platform CI/CD & Infrastructure
+CI/CD troubleshooting,Platform CI/CD & Infrastructure
+Continuous testing workflows,Platform CI/CD & Infrastructure
+Git,Platform CI/CD & Infrastructure
+GitHub Actions,Platform CI/CD & Infrastructure
+Jenkins,Platform CI/CD & Infrastructure
+Pipeline design,Platform CI/CD & Infrastructure
+Quality gates,Platform CI/CD & Infrastructure
+Test reliability engineering,Platform CI/CD & Infrastructure
+Versioning automation,Platform CI/CD & Infrastructure
+Collaboration,Technical Leadership & Collaboration
+Mentoring,Technical Leadership & Collaboration
+Process improvement,Technical Leadership & Collaboration
+Test planning,Technical Leadership & Collaboration
+Test strategy for automation frameworks,Technical Leadership & Collaboration
+Jira,Technical Leadership & Collaboration
+Analysis,Programming Debugging & Engineering Fundamentals
+Analysis of requirements,Programming Debugging & Engineering Fundamentals
+Communication,Programming Debugging & Engineering Fundamentals
+Debugging,Programming Debugging & Engineering Fundamentals
+Documentation,Programming Debugging & Engineering Fundamentals
+Pattern recognition,Programming Debugging & Engineering Fundamentals
+Defect isolation,Programming Debugging & Engineering Fundamentals
+Environment debugging,Programming Debugging & Engineering Fundamentals
+Environment reliability,Programming Debugging & Engineering Fundamentals
+Log analysis,Programming Debugging & Engineering Fundamentals
+Metrics/monitoring interpretation,Programming Debugging & Engineering Fundamentals
+Observability,Programming Debugging & Engineering Fundamentals
+Performance profiling,Programming Debugging & Engineering Fundamentals
+Regression analysis,Programming Debugging & Engineering Fundamentals
+Root cause analysis,Programming Debugging & Engineering Fundamentals
+Distributed tracing,Platform CI/CD & Infrastructure
+Hybrid cloud interactions (on-prem <-> cloud),Platform CI/CD & Infrastructure
+Multi-device automation labs,Platform CI/CD & Infrastructure
+VM-based testbeds,Platform CI/CD & Infrastructure
+Docker,Platform CI/CD & Infrastructure
+Environment management,Platform CI/CD & Infrastructure
+Linux command-line,Platform CI/CD & Infrastructure
+TCP/IP fundamentals,Platform CI/CD & Infrastructure
+Bash,Programming Debugging & Engineering Fundamentals
+C,Programming Debugging & Engineering Fundamentals
+C++,Programming Debugging & Engineering Fundamentals
+Groovy,Programming Debugging & Engineering Fundamentals
+Java,Programming Debugging & Engineering Fundamentals
+JavaScript,Programming Debugging & Engineering Fundamentals
+Python,Programming Debugging & Engineering Fundamentals
+Shell scripting,Programming Debugging & Engineering Fundamentals
+TypeScript,Programming Debugging & Engineering Fundamentals
+Exploratory testing,Automation Architecture & Quality
+Integration testing,Automation Architecture & Quality
+Issue triage,Automation Architecture & Quality
+Quality strategy,Automation Architecture & Quality
+Release readiness,Automation Architecture & Quality
+Requirements/testability analysis,Automation Architecture & Quality
+Acceptance testing,Automation Architecture & Quality
+Android UI automation (ADB),Automation Architecture & Quality
+Android UI automation (UI Automator),Automation Architecture & Quality
+API contract/schema validation,Automation Architecture & Quality
+Automation testing,Automation Architecture & Quality
+CLI automation,Automation Architecture & Quality
+End-to-end testing,Automation Architecture & Quality
+Functional testing,Automation Architecture & Quality
+JUnit 4,Automation Architecture & Quality
+JUnit 5,Automation Architecture & Quality
+Multi-environment compatibility testing,Automation Architecture & Quality
+Parallel execution,Automation Architecture & Quality
+Regression testing,Automation Architecture & Quality
+REST API testing,Automation Architecture & Quality
+Risk-based testing,Automation Architecture & Quality
+Service-layer automation (Serial),Automation Architecture & Quality
+Service-layer automation (SSH),Automation Architecture & Quality
+Service-layer automation (Telnet),Automation Architecture & Quality
+Smoke testing,Automation Architecture & Quality
+Spock,Automation Architecture & Quality
+System testing,Automation Architecture & Quality
+ADB,Automation Architecture & Quality
+Automation Architecture,Automation Architecture & Quality
+Automation Strategy,Automation Architecture & Quality
+Capability-Driven Design,Automation Architecture & Quality
+Code Review,Technical Leadership & Collaboration
+Dependency Management,Platform CI/CD & Infrastructure
+Developer Tooling,Platform CI/CD & Infrastructure
+Distributed Execution,Platform CI/CD & Infrastructure
+Distributed Systems,Platform CI/CD & Infrastructure
+Framework Design,Automation Architecture & Quality
+Distributed Lab Infrastructure,Platform CI/CD & Infrastructure
+Logging,Programming Debugging & Engineering Fundamentals
+Playwright,Automation Architecture & Quality
+Process Design,Technical Leadership & Collaboration
+Prototype Design,Automation Architecture & Quality
+Pytest,Automation Architecture & Quality
+REST/SOAP Integration,Automation Architecture & Quality
+Technical Leadership,Technical Leadership & Collaboration
+Telnet/CLI Automation,Automation Architecture & Quality
+Test Lab Automation,Automation Architecture & Quality
+UI & Model-Agnostic Abstractions,Automation Architecture & Quality
+Web UI Automation,Automation Architecture & Quality
+Hardware Abstraction,Automation Architecture & Quality

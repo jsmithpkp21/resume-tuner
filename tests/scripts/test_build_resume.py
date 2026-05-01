@@ -611,7 +611,7 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     assert snapshot["profile"]["linkedin_url"] == expected_linkedin
     assert snapshot["profile"]["github"] == profile.github
     assert snapshot["profile"]["github_url"] == expected_github
-    assert "Staff Programming Debugging & Engineering Fundamentals" in md_text
+    assert "Programming Debugging & Engineering Fundamentals" in md_text
     assert "Python" in md_text
     assert "Java" in md_text
     assert int(snapshot["skills_category_count"]) == 5
@@ -682,7 +682,7 @@ def test_build_resume_cli_processed_mode_applies_filtering(
 
     assert raw_count >= processed_count
     raw_md = (raw_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
-    assert "Staff Programming Debugging & Engineering Fundamentals" in raw_md
+    assert "Programming Debugging & Engineering Fundamentals" in raw_md
 
     # Issue #42 e2e assertion: processed rendered skills stay in 11-13 lines.
     processed_html = (processed_dir / "latest_resume_processed.html").read_text(
@@ -2371,7 +2371,7 @@ def test_compute_bullet_line_budget_drops_when_non_bullet_layout_pressure_is_hig
             REPO_ROOT / "data" / "experience" / "experience_db.toml"
         ),
         skills_by_category={
-            "Staff Automation Architecture & Quality": [
+            "Automation Architecture & Quality": [
                 "Capability-Driven Design",
                 "Distributed Execution",
                 "Model-Agnostic Abstractions",
@@ -2379,7 +2379,7 @@ def test_compute_bullet_line_budget_drops_when_non_bullet_layout_pressure_is_hig
                 "Playwright",
                 "Pytest",
             ],
-            "Staff Platform CI/CD & Infrastructure": [
+            "Platform CI/CD & Infrastructure": [
                 "CI/CD",
                 "GitHub Actions",
                 "Docker",

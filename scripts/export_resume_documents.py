@@ -20,15 +20,9 @@ from typing import Any
 
 if __package__ in {None, ""}:
     import build_resume
-    from _runtime_guard import (
-        assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
-    )
     from select_skills import SKILLS_SEPARATOR
 else:
     from scripts import build_resume
-    from scripts._runtime_guard import (
-        assert_not_blocked_runtime_input as _assert_not_blocked_runtime_input,
-    )
     from scripts.select_skills import SKILLS_SEPARATOR
 
 
@@ -484,75 +478,32 @@ def _drop_tail_skill_from_category_row(text: str) -> str:
     return f"**{category}:** {separator.join(skills_raw[:-1])}"
 
 
-def _trim_trailing_word(text: str) -> str:
-    words = text.strip().split()
-    if len(words) <= 6:
-        return text
-    shortened = " ".join(words[:-1]).rstrip(" ,;:")
-    if text.strip().endswith((".", "!", "?")) and not shortened.endswith(
-        (".", "!", "?")
-    ):
-        shortened += "."
-    return shortened
-
-
-def _job_context_has_community_signal(args: argparse.Namespace) -> bool:
-    signal_terms = {
-        "community",
-        "dei",
-        "diversity",
-        "inclusion",
-        "activism",
-        "volunteer",
-        "philanthropy",
-        "outreach",
-        "nonprofit",
-    }
-    source_parts = [args.target_role or "", args.company or ""]
-    if args.job_text_file is not None:
-        job_text_path = Path(args.job_text_file)
-        _assert_not_blocked_runtime_input(job_text_path)
-        if job_text_path.exists():
-            source_parts.append(job_text_path.read_text(encoding="utf-8"))
-    haystack = "\n".join(source_parts).lower()
-    return any(term in haystack for term in signal_terms)
-
-
 def _apply_post_layout_cleanup(
     source_text: str,
     *,
     args: argparse.Namespace,
 ) -> str:
-    """Deterministically tighten assembled blocks before DOCX/PDF render."""
+    """Deterministically tighten assembled blocks before DOCX/PDF render.
+
+    Leadership & Community entries are required content and pass through
+    unchanged. Professional Experience bullets are also passed through
+    verbatim — silently dropping a bullet's trailing word to fight a
+    one-word wrap-tail mangles meaning (``cycle.`` and ``engineers.``
+    were both lost this way historically); rewrite the bullet at source
+    if a wrap is unacceptable. Per-role mentoring bullets that need to
+    yield space are handled upstream by bullet priority in
+    ``build_resume.trim_by_rules``, not here.
+
+    The skills-section single-word-tail trim still fires because
+    dropping the *last skill* from a category list does not change
+    meaning — only verbosity.
+    """
     blocks = _iter_markdown_blocks(source_text)
     if not blocks:
         return source_text
 
-    has_mentoring_in_experience = False
-    section = ""
-    for kind, text in blocks:
-        if kind == "h2":
-            section = text.strip().lower()
-            continue
-        if section == "professional experience" and kind == "bullet":
-            if "mentor" in _normalize_inline_text(text).lower():
-                has_mentoring_in_experience = True
-                break
-
     filtered_blocks: list[tuple[str, str]] = []
     section = ""
-    removed_mentoring = False
-    removed_philanthropy = False
-    pending_leadership_detail_drop = False
-    has_community_signal = _job_context_has_community_signal(args)
-    philanthropy_terms = {
-        "philanthropy",
-        "volunteer",
-        "community",
-        "advocacy",
-        "outreach",
-        "nonprofit",
-    }
 
     for kind, text in blocks:
         if kind == "h2":
@@ -567,39 +518,6 @@ def _apply_post_layout_cleanup(
             ):
                 candidate = _drop_tail_skill_from_category_row(candidate)
             filtered_blocks.append((kind, candidate))
-            continue
-
-        if section == "professional experience" and kind == "bullet":
-            candidate = text
-            if _has_single_word_wrap_tail(
-                candidate, line_width=build_resume.DEFAULT_BULLET_LINE_WIDTH
-            ):
-                candidate = _trim_trailing_word(candidate)
-            filtered_blocks.append((kind, candidate))
-            continue
-
-        if section == "leadership & community" and kind == "bullet":
-            if pending_leadership_detail_drop:
-                pending_leadership_detail_drop = False
-                continue
-            lowered = _normalize_inline_text(text).lower()
-            if (
-                has_mentoring_in_experience
-                and not removed_mentoring
-                and "mentor" in lowered
-            ):
-                removed_mentoring = True
-                pending_leadership_detail_drop = True
-                continue
-            if (
-                not has_community_signal
-                and not removed_philanthropy
-                and any(term in lowered for term in philanthropy_terms)
-            ):
-                removed_philanthropy = True
-                pending_leadership_detail_drop = True
-                continue
-            filtered_blocks.append((kind, text))
             continue
 
         filtered_blocks.append((kind, text))
@@ -664,12 +582,13 @@ def _render_docx(md_text: str, output_path: Path) -> None:
     bullet_hanging_indent_pt = 14.4  # 0.20in
 
     doc = Document()
-    # Narrow margins to match HTML template (0.5in each side)
+    # Narrow margins to match HTML template (0.5in side margins;
+    # top/bottom shaved by ~3pt to recover one line of vertical headroom).
     for section in doc.sections:
         section.left_margin = Inches(0.5)
         section.right_margin = Inches(0.5)
-        section.top_margin = Inches(0.5)
-        section.bottom_margin = Inches(0.5)
+        section.top_margin = Inches(0.46)
+        section.bottom_margin = Inches(0.46)
     # Base style
     normal = doc.styles["Normal"]
     _set_docx_font_name(normal, "Calibri")
@@ -725,7 +644,7 @@ def _render_docx(md_text: str, output_path: Path) -> None:
             previous_paragraph = p
         elif kind == "h2":
             p = doc.add_paragraph()
-            p.paragraph_format.space_before = Pt(8)
+            p.paragraph_format.space_before = Pt(7)
             p.paragraph_format.space_after = Pt(0)
             run = p.add_run(text)
             run.bold = True

@@ -609,38 +609,6 @@ def test_run_fragment_warning_uses_render_source_text(
     )
 
 
-def test_job_context_community_signal_checks_runtime_guard(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    job_text_file = tmp_path / "job_text.txt"
-    job_text_file.write_text(
-        "Volunteer outreach and community programs.", encoding="utf-8"
-    )
-    args = type(
-        "Args",
-        (),
-        {
-            "target_role": "",
-            "company": "",
-            "job_text_file": job_text_file,
-        },
-    )()
-
-    seen: dict[str, Path | None] = {"path": None}
-
-    def fake_guard(path: Path) -> None:
-        seen["path"] = path
-
-    monkeypatch.setattr(
-        export_resume_documents,
-        "_assert_not_blocked_runtime_input",
-        fake_guard,
-    )
-
-    assert export_resume_documents._job_context_has_community_signal(args) is True
-    assert seen["path"] == job_text_file
-
-
 def test_contains_trailing_connector_fragment_uses_real_detection_logic() -> None:
     assert (
         export_resume_documents._contains_trailing_connector_fragment(
@@ -892,15 +860,12 @@ def test_apply_post_layout_cleanup_drops_last_skill_for_single_word_tail_wrap(
     assert "Mentoring • Coaching • Communication" in cleaned
 
 
-def test_apply_post_layout_cleanup_trims_professional_bullet_single_word_tail(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        export_resume_documents,
-        "_has_single_word_wrap_tail",
-        lambda _text, *, line_width: True,
-    )
-
+def test_apply_post_layout_cleanup_preserves_professional_bullet_text() -> None:
+    """Professional experience bullets pass through verbatim. Silent
+    trailing-word truncation has been removed because it mangled meaning
+    (e.g. dropping 'cycle' from '...per release cycle' or 'engineers'
+    from '...mentoring six engineers'). Wrap-tail concerns are now
+    handled by rewriting the bullet at source."""
     args = type(
         "Args",
         (),
@@ -913,13 +878,15 @@ def test_apply_post_layout_cleanup_trims_professional_bullet_single_word_tail(
 
     cleaned = export_resume_documents._apply_post_layout_cleanup(markdown, args=args)
 
-    assert "teams quickly" not in cleaned
-    assert "Built deterministic automation pipelines across teams" in cleaned
+    assert "Built deterministic automation pipelines across teams quickly" in cleaned
 
 
-def test_apply_post_layout_cleanup_drops_leadership_mentoring_when_present_in_bullets() -> (
+def test_apply_post_layout_cleanup_keeps_leadership_mentoring_when_present_in_bullets() -> (
     None
 ):
+    """Leadership & Community is required content; never silently deduped against
+    role bullets. If a render is space-tight, trim role bullets via build_resume
+    bullet-priority rules instead of dropping leadership entries here."""
     args = type(
         "Args",
         (),
@@ -937,13 +904,15 @@ def test_apply_post_layout_cleanup_drops_leadership_mentoring_when_present_in_bu
 
     cleaned = export_resume_documents._apply_post_layout_cleanup(markdown, args=args)
 
-    assert "Mentoring Lead | Internal Community" not in cleaned
-    assert "Supported peer growth circles" not in cleaned
+    assert "Mentoring Lead | Internal Community" in cleaned
+    assert "Supported peer growth circles" in cleaned
 
 
-def test_apply_post_layout_cleanup_filters_philanthropy_without_company_signal() -> (
+def test_apply_post_layout_cleanup_keeps_philanthropy_regardless_of_company_signal() -> (
     None
 ):
+    """Leadership & Community entries pass through unchanged; the prior
+    job-context philanthropy filter has been removed."""
     args = type(
         "Args",
         (),
@@ -961,8 +930,8 @@ def test_apply_post_layout_cleanup_filters_philanthropy_without_company_signal()
 
     cleaned = export_resume_documents._apply_post_layout_cleanup(markdown, args=args)
 
-    assert "Volunteer outreach board member" not in cleaned
-    assert "Led local nonprofit robotics workshops" not in cleaned
+    assert "Volunteer outreach board member" in cleaned
+    assert "Led local nonprofit robotics workshops" in cleaned
 
 
 def test_apply_post_layout_cleanup_preserves_html_resume_title_block() -> None:

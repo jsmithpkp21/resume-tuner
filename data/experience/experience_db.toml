@@ -70,7 +70,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_architect_python_video_202306_b07"
-text = "Established pre-QA triage across automation, firmware, configuration, and timing/network conditions (especially unannounced UI changes) for manual QA handoffs, saving two weeks of retest churn per release cycle."
+text = "Established pre-QA triage across automation, firmware, config, and timing/network signals (especially silent UI changes) for manual QA handoffs, saving two weeks of retest per release cycle."
 skills = ["Issue triage", "Defect isolation", "Root cause analysis", "Debugging"]
 categories = ["Debugging & Analysis", "Quality & Testing Strategy"]
 impact_type = "reliability"
@@ -122,7 +122,7 @@ related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_technical_advisor_sdet_headset_202003_b01"
-text = "Provided architectural guidance, code reviews, and hands-on development support while mentoring six engineers."
+text = "Provided architectural guidance, code reviews, and hands-on development support for six engineers."
 skills = ["Python", "Code Review", "Technical Leadership"]
 categories = ["Technical Leadership", "Architecture"]
 impact_type = "mentoring"
@@ -232,7 +232,7 @@ related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b01"
-text = "Provided technical leadership for a distributed group of 15 engineers across four countries and five time zones, mentoring at least one engineer per location into first-line framework ownership while local successors grew into the next generation of framework architects, improving engineering quality and reducing new-test creation time by 30 percent."
+text = "Provided technical leadership for a distributed group of 15 engineers across four countries and five time zones, improving engineering quality and reducing new-test creation time by 30 percent."
 skills = ["Technical Leadership", "Mentoring", "Process Design", "Java", "JUnit 4"]
 categories = ["Technical Leadership", "Architecture"]
 impact_type = "mentoring"

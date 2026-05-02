@@ -301,6 +301,14 @@ categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "architecture"
 domain = "video"
 
+[[experience.bullet_bank]]
+id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b10"
+text = "Validated multi-protocol video interop end-to-end (H.323 + SIP, point-to-point through 8-way multi-point including mixed-protocol calls) across the Group Series endpoint family with built-in MCU bridges and third-party Microsoft Lync / Skype-for-Business interop, producing per-protocol pass-rate reporting that drove framework-side reliability investment."
+skills = ["SIP", "H.323", "MCU", "Multi-protocol Interop", "End-to-end testing"]
+categories = ["Automation & Frameworks", "Quality & Testing Strategy"]
+impact_type = "reliability"
+domain = "video"
+
 [cross_org_architectural_leadership]
 title = "Cross-Org Architectural Leadership"
 

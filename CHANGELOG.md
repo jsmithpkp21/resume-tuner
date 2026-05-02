@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.24.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.23.0...v0.24.0) (2026-05-02)
+
+
+### Features
+
+* **select-skills:** alias-aware token normalization for JD variants ([f897d5a](https://github.com/jsmithpkp21/resume-builder/commit/f897d5a7522ef261eb1b81db8d4c09aa7f1c93a3)), closes [#184](https://github.com/jsmithpkp21/resume-builder/issues/184)
+
+
+### Bug Fixes
+
+* **select-skills:** address PR [#189](https://github.com/jsmithpkp21/resume-builder/issues/189) review feedback ([c34e4bb](https://github.com/jsmithpkp21/resume-builder/commit/c34e4bbd2b2c72905e460943dc0a94dcfb783149))
+
 ## [0.23.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.22.0...v0.23.0) (2026-05-02)
 
 

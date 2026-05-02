@@ -301,11 +301,11 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          # HEAD points to the post-sync commit if version metadata drifted, or to
-          # the release commit if no sync was needed. Using git rev-parse HEAD pins
-          # release/stable to the exact intended commit without a fetch, avoiding a
-          # race where an unrelated push could land on main between the sync step
-          # and this fetch.
+          # The prior "Sync version metadata after release" step installs an EXIT
+          # trap that detaches HEAD back to the release SHA, so HEAD here is always
+          # the release commit. Using git rev-parse HEAD pins release/stable to that
+          # commit directly, avoiding a race where an unrelated push could land on
+          # main between the sync step and this branch update/push.
           STABLE_SHA=$(git rev-parse HEAD)
           git branch -f release/stable "$STABLE_SHA"
           git push --force-with-lease origin release/stable

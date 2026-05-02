@@ -70,6 +70,12 @@ At enterprise scale (tech companies, finance, healthcare), pre-commit hooks must
 
 ### 4. Markdown Lint (No Bare URLs)
 
+> **Runtime policy:** This hook follows the repo-family local-tooling runtime
+> policy — local binary first, pinned Docker fallback second, hard-fail with
+> remediation otherwise. The policy and its required invariants are documented
+> in [ADR-0001](adr/0001-local-tooling-runtime-policy.md). The same pattern
+> applies to `scripts/run_commitlint.sh`.
+
 **Purpose:** Enforce consistent Markdown link style; bare URLs must be wrapped as
 Markdown links `[text](url)` in prose.
 
@@ -314,6 +320,7 @@ git commit --no-verify -m "emergency fix"
 
 ## Related Documentation
 
+- **Local Tooling Runtime Policy (ADR-0001):** [`adr/0001-local-tooling-runtime-policy.md`](adr/0001-local-tooling-runtime-policy.md) — canonical decision record for the local-first / Docker-fallback resolution pattern used by this hook and `scripts/run_commitlint.sh`.
 - **Branch Protection:** `.github/BRANCH_PROTECTION.md`
 - **Contributing Guide:** `CONTRIBUTING.md`
 - **Enterprise Tasks:** `ENTERPRISE_SCALE_TASKS.md`

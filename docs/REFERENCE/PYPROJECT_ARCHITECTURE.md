@@ -62,6 +62,13 @@ Instead of syncing `pyproject.toml` directly, projects store only metadata in `.
   or generated `pyproject.toml` and expect them to flow back into `tooling`.
 - **Python source of truth:** `tooling.toml [python].version` is the contract; `pyproject.toml`
   should receive `requires-python` through `scripts/merge_pyproject.py`, not manual edits.
+- **Python version precision is consumer-owned:** the value in `[python].version` sets the
+  policy. A full `M.m.p` (e.g. `3.11.14`) is enforced strictly by `scripts/create_env.sh`,
+  `scripts/verify_env.sh`, and the merged `pyproject.toml` (`requires-python = "==M.m.p"`).
+  A `M.m` value (e.g. `3.11`) is enforced loosely (`requires-python = ">=M.m"`, env scripts
+  compare major.minor only). Tooling does not bake a specific version; it honors whatever
+  precision the consumer pins. If a single project needs a different Python (or a different
+  language runtime entirely), use a layer rather than weakening this contract.
 - **Sync changes intentionally:** After a shared change lands in `tooling`, update consumer repos
   with `make sync-tooling`, regenerate derived files, then run verification before opening PRs.
 - **Manual-update exception:** `scripts/sync_tooling.sh` is tooling-owned, but consumer repos may

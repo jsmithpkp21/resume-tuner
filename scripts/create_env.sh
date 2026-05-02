@@ -182,19 +182,34 @@ else
     exit 1
 fi
 
-# Verify interpreter version (major.minor only, since apt-installed python3.11 reports 3.11 not 3.11.14)
-ACTUAL_PY_VERSION="$($PYTHON_BIN -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)" || {
+# Verify interpreter version against the precision the consumer pinned in
+# tooling.toml: full M.m.p ⇒ strict patch compare, M.m ⇒ loose compare.
+# See docs/REFERENCE/PYPROJECT_ARCHITECTURE.md for the policy.
+case "$EXPECTED_PY_VERSION" in
+    *.*.*) PY_VERSION_FORMAT='{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}' ;;
+    *)     PY_VERSION_FORMAT='{sys.version_info.major}.{sys.version_info.minor}' ;;
+esac
+
+ACTUAL_PY_VERSION="$($PYTHON_BIN -c "import sys; print(f'$PY_VERSION_FORMAT')" 2>/dev/null)" || {
     echo "ERROR: Could not determine Python version for $PYTHON_BIN"
     exit 1
 }
 
-# Extract major.minor from expected version for comparison (3.11.14 → 3.11)
-EXPECTED_PY_MAJOR_MINOR="$(echo "$EXPECTED_PY_VERSION" | cut -d. -f1-2)"
-
-if [ "$ACTUAL_PY_VERSION" != "$EXPECTED_PY_MAJOR_MINOR" ]; then
+if [ "$ACTUAL_PY_VERSION" != "$EXPECTED_PY_VERSION" ]; then
     echo "ERROR: Python version mismatch"
-    echo "Expected: $EXPECTED_PY_MAJOR_MINOR (from $EXPECTED_PY_VERSION)"
-    echo "Found:    $ACTUAL_PY_VERSION"
+    echo "Expected: $EXPECTED_PY_VERSION (from $PY_VERSION_SOURCE)"
+    echo "Found:    $ACTUAL_PY_VERSION (from $PYTHON_BIN)"
+    case "$EXPECTED_PY_VERSION" in
+        *.*.*)
+            echo
+            echo "The consumer pinned a strict patch version. The system 'python${PY_MAJOR}.${PY_MINOR}'"
+            echo "interpreter is locked to whatever patch your distro shipped, which often differs."
+            echo "Install the exact patch with pyenv, or run inside the project's Docker container:"
+            echo "  pyenv install $EXPECTED_PY_VERSION && pyenv local $EXPECTED_PY_VERSION"
+            echo "  # or (Docker — respects DOCKER_SERVICE from your Makefile):"
+            echo "  make docker-up && make docker-shell  # then inside: make setup"
+            ;;
+    esac
     exit 1
 fi
 

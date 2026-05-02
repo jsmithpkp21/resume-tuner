@@ -189,13 +189,19 @@ def _ensure_gh_auth() -> None:
             "GitHub CLI (gh) not found or could not be executed. Install it from https://cli.github.com/."
         ) from exc
     except subprocess.CalledProcessError as exc:
+        stdout = (exc.stdout or "").strip()
         stderr = (exc.stderr or "").strip()
         message = [
             "GitHub CLI authentication failed. Run: gh auth login",
             "If GITHUB_TOKEN is exported, verify or unset it (stale tokens can override stored credentials and cause 401s).",
         ]
+        output_parts: list[str] = []
+        if stdout:
+            output_parts.append(f"stdout: {stdout}")
         if stderr:
-            message.append(f"gh auth status output: {stderr}")
+            output_parts.append(f"stderr: {stderr}")
+        if output_parts:
+            message.append("gh auth status output:\n" + "\n".join(output_parts))
         raise RuntimeError("\n".join(message)) from exc
 
 

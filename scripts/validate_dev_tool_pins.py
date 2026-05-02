@@ -6,7 +6,8 @@ Covered locations:
 - scripts/run_commitlint.sh    -> COMMITLINT_VERSION="..."
 - requirements-dev.txt         -> ruff==X.Y.Z, mypy==X.Y.Z
 - .pre-commit-config.yaml      -> rev: vX.Y.Z (ruff-pre-commit, mirrors-mypy)
-- Makefile                     -> markdownlint-cli@X.Y.Z (npx fallback)
+- Makefile                     -> MARKDOWNLINT_VERSION ?= X.Y.Z (canonical),
+                                  and any residual markdownlint-cli@X.Y.Z literals
 """
 
 from __future__ import annotations
@@ -28,6 +29,9 @@ PRECOMMIT_REPO_RE = re.compile(r"^(?P<indent>\s*)-\s+repo:\s*(?P<url>\S+)\s*$")
 PRECOMMIT_REV_RE = re.compile(r"^(?P<prefix>\s*rev:\s*)(?P<ref>\S+)\s*$")
 MARKDOWNLINT_NPX_RE = re.compile(
     r"(?P<prefix>markdownlint-cli@)(?P<ver>[A-Za-z0-9_.\-]+)"
+)
+MARKDOWNLINT_VAR_RE = re.compile(
+    r"^(?P<prefix>MARKDOWNLINT_VERSION\s*\??=\s*)(?P<ver>[A-Za-z0-9_.\-]+)\s*$"
 )
 
 REQ_PACKAGES = {"ruff": "ruff", "mypy": "mypy"}
@@ -364,6 +368,26 @@ def _check_makefile(
     new_lines: list[str] = []
     for raw in lines:
         content, ending = _split_line_ending(raw)
+        var_match = MARKDOWNLINT_VAR_RE.match(content)
+        if var_match:
+            seen.add("markdownlint_cli")
+            actual = var_match.group("ver")
+            if actual != expected:
+                mismatches.append(
+                    Mismatch(
+                        file=path,
+                        key="markdownlint_cli",
+                        expected=expected,
+                        actual=actual,
+                        location="MARKDOWNLINT_VERSION",
+                    )
+                )
+                if fix:
+                    new_lines.append(f"{var_match.group('prefix')}{expected}{ending}")
+                    changed = True
+                    continue
+            new_lines.append(raw)
+            continue
         line_changed = False
         rebuilt = ""
         last = 0

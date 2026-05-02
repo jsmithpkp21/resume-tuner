@@ -22,7 +22,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 - `AGENTS.md` remains the synced baseline contract from tooling.
 - `AGENTS_LOCAL.md` is optional and consumer/local-branch owned for repo-specific overrides or additions.
 - When both files exist, apply `AGENTS.md` first, then apply `AGENTS_LOCAL.md` as additive/override guidance.
-- Never add `AGENTS_LOCAL.md` to the tooling source repo root `.tooling-sync-manifest.toml`; consumers should not have or edit that manifest locally, and local guidance must remain outside managed sync to avoid drift churn.
+- Never add `AGENTS_LOCAL.md` to the tooling source repo root `.tooling-sync-manifest.toml`; the tooling repo's copy is authoritative and consumers must not edit theirs, so local guidance must remain outside managed sync to avoid drift churn.
 
 ## Path-Scoped Instructions (`.github/instructions/*.instructions.md`)
 - Files under `.github/instructions/` use frontmatter `applyTo:` globs to surface narrower guidance when the agent edits a matching path. They restate (not replace) rules already in `AGENTS.md`, so the agent re-reads critical invariants when deep in a sensitive file.
@@ -36,7 +36,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 
 ## Architecture You Need First
 - Environment lifecycle is shell-first: `scripts/create_env.sh` creates and `scripts/verify_env.sh` verifies against metadata.
-- Sync is allow-list driven: the source-of-truth manifest lives in the tooling source repo root `.tooling-sync-manifest.toml`; consumers do not carry that file and instead record applied state in `.tooling-sync-manifest.lock`.
+- Sync is allow-list driven: the source-of-truth manifest lives in the tooling source repo root `.tooling-sync-manifest.toml`. The tooling repo's copy is authoritative; consumers may carry the file (it was historically synced and is referenced by tests/docs) but must not edit it, and they record applied state in `.tooling-sync-manifest.lock`.
 - `scripts/sync_tooling.sh` is bootstrap/security-sensitive (path traversal checks, symlink protections, lock-writing, stale-file handling).
 - `pyproject.toml` is generated in consumers via `scripts/merge_pyproject.py` + `.pyproject.meta.toml`; tooling provides the config schema and template only.
 - Service boundary matters: tooling changes flow outward through sync; consumer identity files do not flow back automatically.
@@ -55,7 +55,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 ## Enforced Policies in This Repo Family
 - Conventional commits are mandatory here and in synced consumers; enforcement is via `scripts/run_commitlint.sh` + `commitlint.config.mjs` in hooks and CI.
 - Direct commit/push to `main` is blocked by `.pre-commit-config.yaml`; use feature/epic branches and PRs.
-- `make markdown-lint` is intentionally local-binary first and Docker fallback second, matching the `Makefile`: fast when `markdownlint` is already installed (for example inside the project container), but still runnable on machines that only have Docker.
+- Local developer tooling is **local-runtime-first with Docker fallback** (see `docs/REFERENCE/adr/0001-local-tooling-runtime-policy.md`). `make markdown-lint` and `scripts/run_commitlint.sh` both follow this resolution order: pinned local runtime → pinned Docker fallback → hard-fail with remediation. Fully containerized workflows are an explicit opt-in via the `*-docker` make targets (`lint-docker`, `test-docker`, `check-docker`). Any new local tool that shells out to `docker` must satisfy the six invariants in ADR-0001 (pinned runtime, pinned image, hardened installs, sentinel exit code separating setup vs validation failure, actionable hard-fail, cached install artifacts on hot paths).
 - GitHub Actions must use strict semver tag pins (`@vX.Y.Z`, for example `actions/checkout@v6.0.2`); floating major pins such as `@v6` are not allowed. Keep refs aligned with `.github/workflow-action-lock.json`.
 
 ## Execution Guardrails for Agents
@@ -106,7 +106,7 @@ Rules enforced for every session:
 ## Files to Read Before Editing Core Logic
 - `Makefile`
 - `scripts/sync_tooling.sh`
-- `.tooling-sync-manifest.toml` (tooling source repo; not present in consumers)
+- `.tooling-sync-manifest.toml` (tooling source repo is authoritative; consumer copies must not be edited)
 - `FILE_DISTRIBUTION.md`
 - `docs/REFERENCE/SYNC_MANIFEST.md`
 - `docs/REFERENCE/PYPROJECT_ARCHITECTURE.md`

@@ -11,6 +11,9 @@ DOCKER_SERVICE ?= base_env
 DOCKER_EXEC := $(DOCKER_COMPOSE) exec -T $(DOCKER_SERVICE)
 DOCKER_RUN := $(DOCKER_EXEC) bash -lc
 MARKDOWN_LINT_TIMEOUT_SECONDS ?= 120
+# Pinned markdownlint-cli version (single source of truth for local + Docker paths).
+# See docs/REFERENCE/adr/0001-local-tooling-runtime-policy.md invariant (1).
+MARKDOWNLINT_VERSION ?= 0.47.0
 
 .PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper docker-up docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
 
@@ -116,38 +119,70 @@ markdown-lint-run:
 	@if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
 		echo "markdown-lint: git tracked-file context unavailable"; \
 		exit 1; \
-	elif command -v markdownlint >/dev/null 2>&1; then \
+	fi; \
+	USE_LOCAL=0; \
+	if command -v markdownlint >/dev/null 2>&1; then \
+		LOCAL_VER=$$(markdownlint --version 2>/dev/null | tr -d '[:space:]'); \
+		if [ "$$LOCAL_VER" = "$(MARKDOWNLINT_VERSION)" ]; then \
+			USE_LOCAL=1; \
+		else \
+			echo "markdown-lint: local markdownlint version '$$LOCAL_VER' does not match pinned $(MARKDOWNLINT_VERSION); falling back to pinned Docker runtime"; \
+		fi; \
+	fi; \
+	if [ "$$USE_LOCAL" = "1" ]; then \
+		LOCAL_RC=0; \
 		if git ls-files '*.md' | grep -q .; then \
 			git ls-files -z '*.md' | xargs -0 markdownlint --config .markdownlint.yaml; \
+			LOCAL_RC=$$?; \
 		fi; \
-	elif ! command -v docker >/dev/null 2>&1; then \
-		echo "markdown-lint: markdownlint not found and Docker is unavailable"; \
-		echo "Either run inside the project container (docker-compose up) or install Docker Desktop"; \
+		exit $$LOCAL_RC; \
+	fi; \
+	if ! command -v docker >/dev/null 2>&1; then \
+		echo "markdown-lint: pinned markdownlint $(MARKDOWNLINT_VERSION) not on PATH and Docker is unavailable"; \
+		echo "Either run inside the project container (\`make docker-up\` or \`docker compose up\`) or install Docker Desktop"; \
 		exit 1; \
-	elif ! docker info >/dev/null 2>&1; then \
-		echo "markdown-lint: markdownlint not found and Docker daemon is not running"; \
+	fi; \
+	if ! docker info >/dev/null 2>&1; then \
+		echo "markdown-lint: pinned markdownlint $(MARKDOWNLINT_VERSION) not on PATH and Docker daemon is not running"; \
 		echo "Start Docker Desktop. If using WSL2, enable Docker Desktop WSL integration for this distro"; \
 		exit 1; \
-	elif git ls-files '*.md' | grep -q .; then \
+	fi; \
+	if git ls-files '*.md' | grep -q .; then \
 		RC=0; \
+		CACHE_BASE=$${XDG_CACHE_HOME:-$$HOME/.cache}; \
+		CACHE_DIR=$$CACHE_BASE/tooling-markdownlint/$(MARKDOWNLINT_VERSION); \
+		mkdir -p "$$CACHE_DIR"; \
+		HOST_UID=$$(id -u); \
+		HOST_GID=$$(id -g); \
+		DOCKER_CMD="set -e; \
+			if [ ! -x /cache/node_modules/.bin/markdownlint ]; then \
+				npm install --no-save --ignore-scripts --no-audit --no-fund --prefix /cache 'markdownlint-cli@$(MARKDOWNLINT_VERSION)' >/cache/install.log 2>&1 || { cat /cache/install.log >&2; exit 1; }; \
+			fi; \
+			xargs -0 /cache/node_modules/.bin/markdownlint --config /repo/.markdownlint.yaml"; \
 		if command -v timeout >/dev/null 2>&1; then \
 			git ls-files -z '*.md' | timeout "$(MARKDOWN_LINT_TIMEOUT_SECONDS)"s docker run --rm -i \
+				--user "$$HOST_UID:$$HOST_GID" \
+				-e HOME=/tmp \
+				-e NPM_CONFIG_CACHE=/cache/.npm-cache \
 				-e NPM_CONFIG_LOGLEVEL=silent \
 				-e NPM_CONFIG_UPDATE_NOTIFIER=false \
-				-v "$$PWD":/repo -w /repo node:20-bullseye \
-				sh -lc "xargs -0 npx --yes --quiet markdownlint-cli@0.47.0 --config .markdownlint.yaml"; \
+				-v "$$PWD":/repo -v "$$CACHE_DIR":/cache -w /repo node:20-bullseye \
+				sh -lc "$$DOCKER_CMD"; \
 			RC=$$?; \
 		else \
 			git ls-files -z '*.md' | docker run --rm -i \
+				--user "$$HOST_UID:$$HOST_GID" \
+				-e HOME=/tmp \
+				-e NPM_CONFIG_CACHE=/cache/.npm-cache \
 				-e NPM_CONFIG_LOGLEVEL=silent \
 				-e NPM_CONFIG_UPDATE_NOTIFIER=false \
-				-v "$$PWD":/repo -w /repo node:20-bullseye \
-				sh -lc "xargs -0 npx --yes --quiet markdownlint-cli@0.47.0 --config .markdownlint.yaml"; \
+				-v "$$PWD":/repo -v "$$CACHE_DIR":/cache -w /repo node:20-bullseye \
+				sh -lc "$$DOCKER_CMD"; \
 			RC=$$?; \
 		fi; \
 		if [ $$RC -eq 124 ]; then \
 			echo "markdown-lint: Docker fallback timed out after $(MARKDOWN_LINT_TIMEOUT_SECONDS)s"; \
-			echo "Try running again, or install local markdownlint in the active environment/container."; \
+			echo "Try running again, or install local markdownlint $(MARKDOWNLINT_VERSION) in the active environment/container."; \
 			exit 1; \
 		fi; \
 		if [ $$RC -ne 0 ]; then \
@@ -284,31 +319,32 @@ consumer-contract-test: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && pytest -q tests/scripts/test_consumer_contract.py"
 
 # PR review helper wrapper.
-# Read-only: when scripts/pr_review_helper.py is present, fetches and summarizes
-# PR review comments / owner responses and emits JSON. Posting fix/defer/wontfix
-# replies is the agent's responsibility; this wrapper does not call gh post APIs.
-# PR_REVIEW_ACTION labels the proposed action in plan-mode JSON output; it does
-# not cause anything to be posted.
-# Note: scripts/pr_review_helper.py is not yet bundled in tooling and is not in
-# the sync manifest, so `make sync-tooling` will not install it today. Promotion
-# from the resume-builder prototype is tracked in
-# https://github.com/jsmithpkp21/tooling/issues/223. Until then, copy the helper
-# from a repo that already has it (e.g. resume-builder) into ./scripts/.
+# Read-only: fetches and summarizes PR review comments / owner responses and
+# emits JSON. Posting fix/defer/wontfix replies is the agent's responsibility;
+# this wrapper does not call gh post APIs. PR_REVIEW_ACTION labels the proposed
+# action in plan-mode JSON output; it does not cause anything to be posted.
+# scripts/pr_review_helper.py is bundled in tooling and synced to consumers via
+# `make sync-tooling`.
 # PR_REVIEW_* variables are prefixed to avoid environment variable collisions.
+# PR_REVIEW_SKIP_EXPANSION=1 passes --skip-review-expansion through to the helper
+# to avoid the per-review N+1 API call on large PRs (may miss comments only
+# visible via review-specific endpoints).
 # REPO_SLUG can override owner/repo derivation (default: auto-detect from gh repo view --json nameWithOwner).
 # Usage examples:
 #   make pr-review-helper PR=123
 #   make pr-review-helper PR=123 PR_REVIEW_ROOT_IDS=3112407343,3112407397 PR_REVIEW_MODE=plan PR_REVIEW_ACTION=fix PR_REVIEW_TIMING=1
+#   make pr-review-helper PR=123 PR_REVIEW_SKIP_EXPANSION=1
 #   make pr-review-helper PR=123 REPO_SLUG=owner/custom-repo
 PR_REVIEW_MODE ?= scan
 PR_REVIEW_ACTION ?= fix
 PR_REVIEW_CREATED_AFTER ?=
 PR_REVIEW_ROOT_IDS ?=
 PR_REVIEW_TIMING ?= 0
+PR_REVIEW_SKIP_EXPANSION ?= 0
 REPO_SLUG ?=
 pr-review-helper: env
 	@if [ -z "$(PR)" ]; then \
-		echo "ERROR: PR is required. Usage: make pr-review-helper PR=<num> [PR_REVIEW_MODE=scan|plan] [PR_REVIEW_ACTION=fix|defer|wontfix] [PR_REVIEW_CREATED_AFTER=<iso8601>] [PR_REVIEW_ROOT_IDS=id1,id2] [PR_REVIEW_TIMING=1] [REPO_SLUG=owner/repo]"; \
+		echo "ERROR: PR is required. Usage: make pr-review-helper PR=<num> [PR_REVIEW_MODE=scan|plan] [PR_REVIEW_ACTION=fix|defer|wontfix] [PR_REVIEW_CREATED_AFTER=<iso8601>] [PR_REVIEW_ROOT_IDS=id1,id2] [PR_REVIEW_TIMING=1] [PR_REVIEW_SKIP_EXPANSION=1] [REPO_SLUG=owner/repo]"; \
 		exit 1; \
 	fi
 	@if ! echo "$(PR)" | grep -qE '^[1-9][0-9]*$$'; then \
@@ -327,10 +363,8 @@ pr-review-helper: env
 	fi
 	@if [ ! -f scripts/pr_review_helper.py ]; then \
 		echo "ERROR: scripts/pr_review_helper.py was not found in this repo."; \
-		echo "The helper is not yet bundled in tooling and is not in the sync manifest;"; \
-		echo "  make sync-tooling will not install it. Copy the script from a repo that"; \
-		echo "  already has it (e.g. resume-builder/scripts/pr_review_helper.py) into"; \
-		echo "  ./scripts/, or wait for promotion: https://github.com/jsmithpkp21/tooling/issues/223"; \
+		echo "The helper is bundled in tooling and synced via the manifest;"; \
+		echo "  run: make sync-tooling"; \
 		exit 1; \
 	fi
 	@MODE_VAL="$(PR_REVIEW_MODE)"; \
@@ -352,6 +386,7 @@ pr-review-helper: env
 		if [ -n "$(PR_REVIEW_CREATED_AFTER)" ]; then CMD+=(--created-after "$(PR_REVIEW_CREATED_AFTER)"); fi; \
 		if [ -n "$(PR_REVIEW_ROOT_IDS)" ]; then CMD+=(--root-ids "$(PR_REVIEW_ROOT_IDS)"); fi; \
 		if [ "$(PR_REVIEW_TIMING)" = "1" ]; then CMD+=(--timing); fi; \
+		if [ "$(PR_REVIEW_SKIP_EXPANSION)" = "1" ]; then CMD+=(--skip-review-expansion); fi; \
 		if [ "$(PR_REVIEW_MODE)" = "plan" ]; then CMD+=(--action-plan-json --default-action "$(PR_REVIEW_ACTION)"); else CMD+=(--json); fi; \
 		"$${CMD[@]}"'
 

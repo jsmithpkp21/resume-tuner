@@ -2,6 +2,14 @@
 
 Docker containers provide a fully reproducible, isolated environment with all dependencies pre-installed. This eliminates "works on my machine" problems and system dependency issues.
 
+> **When to use Docker (policy):** This repo family defaults to **local-runtime-first
+> with Docker fallback** for individual developer tools (see
+> [`docs/REFERENCE/adr/0001-local-tooling-runtime-policy.md`](docs/REFERENCE/adr/0001-local-tooling-runtime-policy.md)).
+> The flows documented below — `make docker-up`, `make lint-docker`,
+> `make test-docker`, `make check-docker` — are the supported **explicit Docker
+> track**: opt in here when you want a fully containerized substrate end-to-end
+> rather than the per-tool fallback path.
+
 ---
 
 ## Quick Start with Docker
@@ -16,7 +24,7 @@ docker-compose up
 
 # You'll be inside a bash shell in the container with the venv activated
 $ python --version
-Python 3.11.x  # from pyproject.toml
+Python X.Y.Z  # from tooling.toml [python].version
 
 $ which python
 /opt/venv/bin/python
@@ -35,7 +43,7 @@ docker run -it --rm \
 
 # Inside the container:
 $ python --version
-Python 3.11.x  # from pyproject.toml
+Python X.Y.Z  # from tooling.toml [python].version
 ```
 
 ---
@@ -214,7 +222,7 @@ ARG PYTHON_VERSION
 ARG PIP_VERSION
 
 FROM python:${PYTHON_VERSION}-slim
-# Python version comes from pyproject.toml (requires-python)
+# Python version comes from tooling.toml [python].version
 
 WORKDIR /repo
 # Set working directory
@@ -252,7 +260,7 @@ CMD ["/bin/bash", "-c", "source $VENV_PATH/bin/activate && /bin/bash"]
 ```
 
 **Key Points:**
-- Python version is sourced from `pyproject.toml` (requires-python)
+- Python version is sourced from `tooling.toml [python].version`
 - pip version is sourced from `tooling.toml`
 - System packages use latest versions from the Python base image
 - Docker build args are passed in by CI and `scripts/docker_build.sh`

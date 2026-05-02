@@ -8,7 +8,7 @@ Before starting, ensure you have:
 
 - **Git** installed and configured (`git config --global user.name` and `git config --global user.email`)
 - **GitHub CLI** (`gh`) installed and authenticated (`gh auth login`)
-- **Docker** installed (or local Python 3.11.x if skipping Docker — runtime scripts compare major.minor only today; the strict-patch policy is tracked in [#167](https://github.com/jsmithpkp21/tooling/issues/167))
+- **Docker** installed (or local Python matching the version pinned in your project's `tooling.toml` `[python].version` — env scripts compare exactly the precision you pin: a full `M.m.p` is enforced strictly, a `M.m` value is enforced loosely)
 - **WSL 2** (on Windows) or native macOS/Linux shell
 - **A GitHub repo created** for your new project (empty, no README)
 
@@ -285,32 +285,44 @@ Currently a placeholder; adds frontend scaffolding in future versions.
 
 ### Error: Python version mismatch
 
-**Symptom:**
+**Symptom (strict patch pin in `tooling.toml`):**
+```
+ERROR: Python version mismatch
+Expected: 3.11.14 (from tooling.toml)
+Found:    3.11.10 (from /usr/bin/python3.11)
+```
+
+**Cause:** Your project's `tooling.toml` pins a full `M.m.p` (e.g. `3.11.14`), but
+the system `python3.11` reports a different patch level. Distro-installed
+interpreters are locked to whatever patch the distro shipped.
+
+**Fix — pick one:**
+
+1. Install the exact patch with pyenv (recommended for local dev):
+   ```bash
+   pyenv install 3.11.14
+   pyenv local 3.11.14
+   make setup
+   ```
+2. Or run inside the project's Docker container, which already has the pinned
+   interpreter:
+   ```bash
+   docker compose up -d
+   docker compose exec base_env make setup
+   ```
+3. Or, if your project does not need strict-patch reproducibility, relax the
+   pin in **your own** `tooling.toml` to major.minor (`version = "3.11"`).
+
+**Symptom (interpreter missing entirely):**
 ```
 ERROR: Required interpreter python3.11 not found.
-# or
-ERROR: Python version mismatch
-Expected: 3.11 (from 3.11.14)
-Found:    <different-major.minor>
 ```
 
-**Fix:** Install Python 3.11 and confirm it is available in your shell:
+**Fix:** Install the major.minor interpreter:
 
 ```bash
-python3.11 --version
-command -v python3.11
-
 # Ubuntu/Debian
 sudo apt install python3.11 python3.11-venv python3.11-dev
-
-# Then re-run make setup
-```
-
-Or use Docker (which has the right Python pre-installed):
-
-```bash
-docker compose exec base_env bash
-make setup
 ```
 
 ### Error: gawk not found

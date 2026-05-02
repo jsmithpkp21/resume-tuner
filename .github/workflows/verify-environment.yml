@@ -89,6 +89,18 @@ jobs:
 
       - name: Compute Docker input fingerprint
         id: docker_inputs
+        # Cache key is derived from files that actually shape the runtime image
+        # (base + system deps + Python deps + image-build glue), NOT every tracked
+        # file in the repo. The Dockerfile still does `COPY . .`, so the cached
+        # image's baked-in code can drift from the PR branch — `test-fast`,
+        # `test-slow`, and `verify` therefore mount the workspace at runtime so
+        # they always exercise the PR's actual code, not whatever the cache hit
+        # served. See issue #297 for the perf rationale.
+        #
+        # To extend the fingerprint in a consumer (e.g. a generated requirements
+        # file or extra meta), drop a newline-delimited list of repo-relative
+        # paths into `.github/extra-fingerprint-files.txt` (tracked, optional).
+        # Comments (#) and blank lines are ignored.
         run: |
           set -euo pipefail
           if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -96,14 +108,64 @@ jobs:
             exit 1
           fi
 
-          # Hash all tracked files because Docker build context uses COPY . .
-          tracked_count=$(git ls-files | wc -l | tr -d '[:space:]')
-          if [ "$tracked_count" = "0" ]; then
-            echo "ERROR: No tracked files found for build-context fingerprint."
+          # Files whose contents actually influence the Docker image. Keep this
+          # list aligned with the Dockerfile: any path the Dockerfile reads
+          # before `COPY . .` (system deps, Python deps, build args) AND any
+          # path the Dockerfile executes during the build (e.g. the
+          # `RUN ... scripts/verify_env.sh` step) belongs here. Files COPY'd
+          # into the image but only used at runtime do NOT belong here —
+          # those are mounted by downstream jobs.
+          allowlist=(
+            "Dockerfile"
+            ".dockerignore"
+            "requirements.txt"
+            "requirements-dev.txt"
+            "pyproject.toml"
+            ".pyproject.meta.toml"
+            "tooling.toml"
+            "VERSION"
+            # Executed by the Dockerfile at build time; a change here changes
+            # whether the image build succeeds. Excluding it would let a
+            # stale cached tarball mask a verification-logic regression.
+            "scripts/verify_env.sh"
+          )
+
+          extra_file=".github/extra-fingerprint-files.txt"
+          if [ -f "$extra_file" ]; then
+            while IFS= read -r line || [ -n "$line" ]; do
+              # Strip leading/trailing whitespace; skip blanks and comments.
+              trimmed="${line#"${line%%[![:space:]]*}"}"
+              trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+              [ -z "$trimmed" ] && continue
+              case "$trimmed" in \#*) continue ;; esac
+              # Reject path-traversal and absolute paths defensively.
+              case "$trimmed" in
+                /*|*..*)
+                  echo "ERROR: $extra_file entry rejected (absolute or traversal): $trimmed"
+                  exit 1
+                  ;;
+              esac
+              allowlist+=("$trimmed")
+            done < "$extra_file"
+          fi
+
+          present=()
+          for f in "${allowlist[@]}"; do
+            if [ -f "$f" ]; then
+              present+=("$f")
+            fi
+          done
+
+          if [ "${#present[@]}" -eq 0 ]; then
+            echo "ERROR: No image-affecting files found for build-context fingerprint."
+            echo "Expected at least one of: ${allowlist[*]}"
             exit 1
           fi
 
-          git ls-files -z \
+          echo "Fingerprinting ${#present[@]} file(s):"
+          printf '  %s\n' "${present[@]}"
+
+          printf '%s\0' "${present[@]}" \
             | sort -z \
             | xargs -0 sha256sum \
             | sha256sum \
@@ -205,13 +267,17 @@ jobs:
     # logic-only) is deselected via `-m 'not slow'` and runs in ~7s; the slow
     # subset (~9 tests, real subprocesses) runs in `test-slow` below.
     #
-    # No actions/checkout step: `docker run` doesn't mount the workspace, so
-    # the container uses the code COPY'd into the image at build time. Pulling
-    # the source onto the runner would be unused work.
+    # The workspace is mounted with `-v` (issue #297) so the container exercises
+    # the PR's actual code rather than whatever was COPY'd into the cached
+    # image. The image carries the runtime (system deps, Python deps); the
+    # workspace mount carries the code under test.
     name: Run Tests (fast)
     runs-on: ubuntu-24.04
     needs: build
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+
       - name: Download Docker image artifact
         uses: actions/download-artifact@v8.0.1
         with:
@@ -222,13 +288,18 @@ jobs:
         run: docker load -i /tmp/${{ needs.build.outputs.repo_name }}.tar
 
       - name: Run fast tests
-        run: docker run --rm ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} make test-fast
+        run: docker run --rm -v "${{ github.workspace }}:/repo" -w /repo ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} bash -lc 'git config --global --add safe.directory /repo && make test-fast'
 
   test-slow:
+    # Same mount-workspace contract as test-fast: image = runtime,
+    # mounted workspace = code under test (issue #297).
     name: Run Tests (slow)
     runs-on: ubuntu-24.04
     needs: build
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+
       - name: Download Docker image artifact
         uses: actions/download-artifact@v8.0.1
         with:
@@ -239,17 +310,21 @@ jobs:
         run: docker load -i /tmp/${{ needs.build.outputs.repo_name }}.tar
 
       - name: Run slow tests
-        run: docker run --rm ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} make test-slow
+        run: docker run --rm -v "${{ github.workspace }}:/repo" -w /repo ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} bash -lc 'git config --global --add safe.directory /repo && make test-slow'
 
   verify:
     name: Verify Environment
     runs-on: ubuntu-24.04
     needs: build
-    # No actions/checkout step: every `docker run` below omits `-v` so the
-    # container uses the code COPY'd into the image at build time. Pulling
-    # the source onto the runner would be unused work — same reasoning as
-    # the test-fast/test-slow jobs above.
+    # Same mount-workspace contract as test-fast/test-slow: image = runtime,
+    # mounted workspace = code under test (issue #297). Required because the
+    # narrowed Docker fingerprint can serve a cache-hit image whose baked-in
+    # code is from a prior commit; mounting guarantees these checks run
+    # against the PR's actual files.
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+
       - name: Download Docker image artifact
         uses: actions/download-artifact@v8.0.1
         with:
@@ -260,16 +335,16 @@ jobs:
         run: docker load -i /tmp/${{ needs.build.outputs.repo_name }}.tar
 
       - name: Verify environment
-        run: docker run --rm ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} make verify
+        run: docker run --rm -v "${{ github.workspace }}:/repo" -w /repo ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} bash -lc 'git config --global --add safe.directory /repo && make verify'
 
       - name: Validate managed-file drift contract
-        run: docker run --rm ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} make drift-check
+        run: docker run --rm -v "${{ github.workspace }}:/repo" -w /repo ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} bash -lc 'git config --global --add safe.directory /repo && make drift-check'
 
       - name: Validate workflow action pin lock
-        run: docker run --rm ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} make action-pin-check
+        run: docker run --rm -v "${{ github.workspace }}:/repo" -w /repo ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} bash -lc 'git config --global --add safe.directory /repo && make action-pin-check'
 
       - name: Validate AGENTS.md / copilot-instructions.md drift
-        run: docker run --rm ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} make agents-drift-check
+        run: docker run --rm -v "${{ github.workspace }}:/repo" -w /repo ${{ needs.build.outputs.repo_name }}:${{ needs.build.outputs.version }} bash -lc 'git config --global --add safe.directory /repo && make agents-drift-check'
 
   consumer-contract:
     name: Consumer Contract Gate

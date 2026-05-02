@@ -71,6 +71,7 @@ fi
 # Extract required Python version from tooling.toml [python] section (DRY layout - source of truth)
 # Use awk stateful parser (consistent with create_env.sh) to avoid Python 3.11+ dependency
 EXPECTED_PY_VERSION=""
+PY_VERSION_SOURCE=""
 if [ -f "$REPO_ROOT/tooling.toml" ]; then
     # Extract version from [python] section using awk (POSIX tools, no Python dependency)
     # awk tracks state: in_python=1 inside [python] section, stops at next [section]
@@ -90,12 +91,18 @@ if [ -f "$REPO_ROOT/tooling.toml" ]; then
         exit
       }
     ' "$REPO_ROOT/tooling.toml")"
+    if [ -n "$EXPECTED_PY_VERSION" ]; then
+        PY_VERSION_SOURCE="tooling.toml"
+    fi
 fi
 
 if [ -z "$EXPECTED_PY_VERSION" ]; then
     # Fallback: try pyproject.toml for repos that still have [project]
     REQUIRES_LINE="$(grep -E 'requires-python' "$REPO_ROOT/pyproject.toml" || true)"
     EXPECTED_PY_VERSION="$(echo "$REQUIRES_LINE" | grep -oE '[0-9]+\.[0-9]+' | head -1)"
+    if [ -n "$EXPECTED_PY_VERSION" ]; then
+        PY_VERSION_SOURCE="pyproject.toml"
+    fi
 fi
 
 if [ -z "$EXPECTED_PY_VERSION" ]; then
@@ -124,18 +131,29 @@ echo "Active environment: $VIRTUAL_ENV"
 # Verify Python version
 # -----------------------------------------
 
-ACTUAL_PY_VERSION="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)" || {
+# Match the precision pinned in tooling.toml: full M.m.p ⇒ strict patch
+# compare, M.m ⇒ loose. See docs/REFERENCE/PYPROJECT_ARCHITECTURE.md.
+case "$EXPECTED_PY_VERSION" in
+    *.*.*) PY_VERSION_FORMAT='{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}' ;;
+    *)     PY_VERSION_FORMAT='{sys.version_info.major}.{sys.version_info.minor}' ;;
+esac
+
+ACTUAL_PY_VERSION="$(python3 -c "import sys; print(f'$PY_VERSION_FORMAT')" 2>/dev/null)" || {
     echo "ERROR: Could not determine Python version"
     exit 1
 }
 
-# Extract major.minor from expected version for comparison (3.11.14 → 3.11)
-EXPECTED_PY_MAJOR_MINOR="$(echo "$EXPECTED_PY_VERSION" | cut -d. -f1-2)"
-
-if [ "$ACTUAL_PY_VERSION" != "$EXPECTED_PY_MAJOR_MINOR" ]; then
+if [ "$ACTUAL_PY_VERSION" != "$EXPECTED_PY_VERSION" ]; then
     echo "ERROR: Python version mismatch"
-    echo "Expected: $EXPECTED_PY_MAJOR_MINOR (from $EXPECTED_PY_VERSION)"
-    echo "Found:    $ACTUAL_PY_VERSION"
+    echo "Expected: $EXPECTED_PY_VERSION (from $PY_VERSION_SOURCE)"
+    echo "Found:    $ACTUAL_PY_VERSION (from active venv)"
+    case "$EXPECTED_PY_VERSION" in
+        *.*.*)
+            echo
+            echo "The consumer pinned a strict patch version. Recreate the venv with the"
+            echo "exact interpreter (pyenv install $EXPECTED_PY_VERSION) or run via Docker."
+            ;;
+    esac
     exit 1
 fi
 

@@ -1,6 +1,6 @@
 # Tooling TOML — project-specific configuration
 # Update 'version' to pin a specific tooling release (tag or branch)
-version = "v1.19.1"
+version = "v1.20.3"
 repo = "https://github.com/jsmithpkp21/tooling"
 
 [tooling]

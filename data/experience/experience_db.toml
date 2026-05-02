@@ -248,7 +248,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b02b"
-text = "Originated the UI-agnostic design while preparing for a SOAP-based API that was later cancelled in favor of REST: kept the auto-generated POJO model, reused it for the REST UI, and normalized Telnet and Web responses into the same POJOs so tests no longer knew which UI executed; used reflection to roll over to alternate UIs when an operation was unimplemented on the primary, allowing a single test to run unchanged across product variants where no single UI exposed every capability."
+text = "Originated the UI-agnostic design by reusing auto-generated POJOs from a cancelled SOAP API as the canonical response model across REST, Telnet, and Web, with reflection-based fallback to alternate UIs when an operation was unimplemented on the primary — letting a single test run unchanged across product variants where no UI exposed every capability."
 skills = ["Capability-Driven Design", "UI & Model-Agnostic Abstractions", "REST/SOAP Integration", "Java", "Architecture"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "architecture"
@@ -279,7 +279,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b04"
-text = "Unified Telnet, REST, and Web execution into a single JUnit-based test flow so tests no longer cared which transport a target endpoint exposed, normalizing call/result handling across protocols."
+text = "Unified Telnet, REST, and Web execution into a single JUnit-based test flow, collapsing three parallel UI-specific test paths into one and eliminating per-UI test forks across 16 endpoint models — turning the model into one suite per capability instead of one suite per transport."
 skills = ["REST/SOAP Integration", "Telnet/CLI Automation", "Web UI Automation", "Java", "JUnit 4"]
 categories = ["Automation & Frameworks", "API Testing"]
 impact_type = "delivery-speed"
@@ -319,7 +319,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b11"
-text = "Built XML-driven test generation that read a single parameter-typed UI definition and emitted positive and negative get/set tests for every parameter, eliminating roughly one week of basic-functionality UI testing per UI per release in waterfall and reducing new-API test additions to minutes of text-file edits."
+text = "Built XML-driven test generation that read a single parameter-typed UI definition and emitted positive and negative get/set tests for every parameter, eliminating one week of basic-functionality UI testing per UI per release in waterfall and reducing new-API test additions to minutes of text-file edits."
 skills = ["Java", "JUnit 4", "REST/SOAP Integration", "Test data management"]
 categories = ["Automation & Frameworks", "API Testing"]
 impact_type = "delivery-speed"
@@ -327,7 +327,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b12"
-text = "Codified a configuration-UI vs. test-UI separation: setup ran through whichever UI was most stable and fastest (typically REST — predictable responses, no text parsing, infrequent change), while the test exercised only the UI under test, cutting setup-induced flake and decoupling configuration churn from test results."
+text = "Codified a configuration-UI vs. test-UI separation that ran setup through the most stable and fastest transport (typically REST — predictable responses, no text parsing, infrequent change) while exercising only the UI under test in the test phase, eliminating two of three transports as setup-induced flake sources so reported failures isolated to the system under test."
 skills = ["Architecture", "REST/SOAP Integration", "Test reliability engineering"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "reliability"

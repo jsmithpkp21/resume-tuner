@@ -17,6 +17,13 @@ Local overrides and branch-scoped guidance layered after `AGENTS.md`.
 - If a review item is deferred or needs clarification, add a PR-thread comment stating why, open a follow-up issue, and include the issue link in that thread.
 - If a deferred item is picked up later, add a follow-up thread comment linking both the issue and the fixing PR/commit.
 
+## Copilot Review Rhythm
+Copilot reviews run on PR creation only (GitHub default); per-commit auto-kickoff was removed in issue #167 because re-review on every push produced diminishing-returns feedback. Re-request review manually:
+1. Open PR → Copilot reviews automatically on creation.
+2. Push the fix-round commits.
+3. When the round is complete, re-request review explicitly via the PR UI ("Re-request review" next to Copilot in the Reviewers panel).
+4. Cap at ~3 rounds; remaining threads roll into a follow-up issue.
+
 ## WSL Path Handling (Windows + WSL Workspace)
 This workspace runs on WSL (Ubuntu) but is opened from a Windows JetBrains editor.
 File paths surfaced by the editor use Windows UNC format:

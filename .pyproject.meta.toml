@@ -1,6 +1,17 @@
-# Project metadata — merged with shared tooling configs during sync
-# This file stores ONLY project-specific [project] section fields.
-# Tool configurations are sourced from tooling/pyproject.toml.
+# Project metadata — deep-merged with shared tooling configs at generation
+# time by scripts/merge_pyproject.py. Two kinds of content live here:
+#
+#   1. The [project] section — required project-specific fields (name,
+#      version, description, authors).
+#   2. Optional [tool.*] override blocks — consumer-side tweaks to the
+#      tooling baseline at tooling/pyproject.toml. The merge is recursive:
+#      keys present here win, keys absent here inherit from tooling.
+#      Use sparingly; prefer landing config changes in tooling so other
+#      consumers benefit.
+#
+# Edits to pyproject.toml are NOT durable — that file is generated. To
+# change tool config in this consumer, edit a [tool.*] block here and
+# run `python3 scripts/merge_pyproject.py` to regenerate pyproject.toml.
 
 [project]
 name = "resume-builder"

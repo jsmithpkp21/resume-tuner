@@ -55,7 +55,12 @@ _SKILL_ALIAS_CANONICAL: dict[str, str] = {
     "ci-cd": "ci/cd",
     "continuousintegration/continuousdelivery": "ci/cd",
     "continuousintegrationandcontinuousdelivery": "ci/cd",
+    "h323": "h.323",
+    "h.323": "h.323",
+    "multiprotocol": "multi-protocol",
+    "multi-protocol": "multi-protocol",
 }
+_TOKEN_PUNCTUATION_RE = re.compile(r"[.\-/]")
 
 _INDUSTRY_PROFILE_KEYWORDS: dict[str, frozenset[str]] = {
     "fintech": frozenset(
@@ -512,6 +517,27 @@ def normalize_skill_near_dupes(
     return deduped
 
 
+def _expand_token_forms(token: str) -> set[str]:
+    """Return alternate forms of a token for punctuation-tolerant JD matching.
+
+    Covers: the token itself; the punctuation-stripped form (so ``h.323`` and
+    ``h323`` collide); the alias-canonical form via ``_SKILL_ALIAS_CANONICAL``
+    (so ``cicd`` resolves to ``ci/cd``); and the sub-tokens produced by
+    splitting on ``.``/``-``/``/`` (so ``multi-protocol`` matches a JD that
+    says ``multi protocol``).
+    """
+    forms: set[str] = {token}
+    stripped = _TOKEN_PUNCTUATION_RE.sub("", token)
+    if len(stripped) >= 2:
+        forms.add(stripped)
+        forms.add(_SKILL_ALIAS_CANONICAL.get(stripped, stripped))
+    forms.add(_SKILL_ALIAS_CANONICAL.get(token, token))
+    for sub in _TOKEN_PUNCTUATION_RE.split(token):
+        if len(sub) >= 2 and sub not in _ROLE_STOPWORDS:
+            forms.add(sub)
+    return forms
+
+
 def _skill_role_relevance(skill: str, role_text: str, role_tokens: set[str]) -> float:
     if not role_text:
         return 0.0
@@ -525,7 +551,15 @@ def _skill_role_relevance(skill: str, role_text: str, role_tokens: set[str]) -> 
         return 0.0
 
     exact_phrase_bonus = 1.0 if normalized_skill in role_text else 0.0
-    overlap_ratio = len(skill_tokens & role_tokens) / len(skill_tokens)
+    expanded_jd_forms: set[str] = set()
+    for jd_token in role_tokens:
+        expanded_jd_forms.update(_expand_token_forms(jd_token))
+    matched = sum(
+        1
+        for skill_token in skill_tokens
+        if _expand_token_forms(skill_token) & expanded_jd_forms
+    )
+    overlap_ratio = matched / len(skill_tokens)
     return exact_phrase_bonus + overlap_ratio
 
 

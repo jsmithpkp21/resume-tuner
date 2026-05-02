@@ -17,7 +17,10 @@ from scripts.select_skills import (
     TOP_N_SKILLS,
     _compute_category_industry_weights,
     _compute_skill_scores,
+    _normalize_skill_near_dupe_key,
     _section_layout,
+    _skill_role_relevance,
+    _tokenize_role_text,
     _wrap_widths,
     cap_skills_by_score,
     estimate_line_count,
@@ -444,6 +447,51 @@ def test_normalize_skill_near_dupes_prefers_shorter_variant_on_score_tie() -> No
     assert normalized == {
         "Tooling": ["CI/CD", "Jenkins"],
     }
+
+
+def _role_relevance(skill: str, jd_text: str) -> float:
+    role_text = jd_text.lower()
+    return _skill_role_relevance(skill, role_text, _tokenize_role_text(role_text))
+
+
+def test_skill_role_relevance_matches_dotted_variant_against_no_dot_jd() -> None:
+    # Issue #184: H.323 in matrix vs H323 in JD must score full overlap.
+    relevance = _role_relevance("H.323", "Need experience with H323 video stacks")
+    assert relevance == pytest.approx(1.0)
+
+
+def test_skill_role_relevance_matches_no_dot_skill_against_dotted_jd() -> None:
+    relevance = _role_relevance("H323", "Need experience with H.323 video stacks")
+    assert relevance == pytest.approx(1.0)
+
+
+def test_skill_role_relevance_matches_hyphenated_skill_against_spaced_jd() -> None:
+    # Issue #184: Multi-protocol Interop vs "multi protocol interop" must hit 1.0.
+    relevance = _role_relevance(
+        "Multi-protocol Interop", "Looking for multi protocol interop background"
+    )
+    assert relevance == pytest.approx(1.0)
+
+
+def test_skill_role_relevance_matches_alias_no_separator_for_cicd() -> None:
+    # Issue #184: CICD in JD must reach the CI/CD skill via alias canonicalization.
+    relevance = _role_relevance("CI/CD", "Modern CICD pipelines required")
+    assert relevance >= 1.0
+
+
+def test_skill_role_relevance_does_not_invent_matches_for_unrelated_skills() -> None:
+    # Regression guard: AWS-only JD must not score GCP / Azure above zero.
+    role_text = "aws cloud engineer"
+    role_tokens = _tokenize_role_text(role_text)
+    assert _skill_role_relevance("AWS", role_text, role_tokens) > 1.0
+    assert _skill_role_relevance("GCP", role_text, role_tokens) == 0.0
+    assert _skill_role_relevance("Azure", role_text, role_tokens) == 0.0
+
+
+def test_normalize_skill_near_dupe_key_collapses_h323_punctuation_variants() -> None:
+    assert _normalize_skill_near_dupe_key("H.323") == _normalize_skill_near_dupe_key(
+        "H323"
+    )
 
 
 def test_compute_skill_scores_includes_role_relevant_matrix_only_skills() -> None:

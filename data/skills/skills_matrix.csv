@@ -11,6 +11,10 @@ AI-assisted coding,AI-Augmented Engineering
 AI-assisted debugging,AI-Augmented Engineering
 AI-assisted documentation,AI-Augmented Engineering
 AI-augmented test generation,AI-Augmented Engineering
+SIP,Automation Architecture & Quality
+H.323,Automation Architecture & Quality
+Video MCU,Automation Architecture & Quality
+Multi-protocol Interop,Automation Architecture & Quality
 Application of abstraction layers,Automation Architecture & Quality
 Architecture,Automation Architecture & Quality
 Architecture exploration,Automation Architecture & Quality
@@ -131,7 +135,3 @@ Test Lab Automation,Automation Architecture & Quality
 UI & Model-Agnostic Abstractions,Automation Architecture & Quality
 Web UI Automation,Automation Architecture & Quality
 Hardware Abstraction,Automation Architecture & Quality
-SIP,Automation Architecture & Quality
-H.323,Automation Architecture & Quality
-MCU,Automation Architecture & Quality
-Multi-protocol Interop,Automation Architecture & Quality

@@ -240,7 +240,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b02"
-text = "Designed a capability-driven framework architecture with UI-agnostic flows and shared model normalization across SOAP/REST and product variants, improving cross-product portability across hardware generations and 16 endpoint models."
+text = "Established a capability-driven design pattern within that framework — UI-agnostic flows and shared model normalization across SOAP/REST and product variants — enabling cross-product portability across hardware generations and 16 endpoint models."
 skills = ["Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design", "Java", "JUnit 4"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "scalability"
@@ -291,6 +291,14 @@ text = "Drove the migration from JUnit 4 to JUnit 5 across the framework and tes
 skills = ["Java", "JUnit 4", "JUnit 5", "Framework Design", "Dependency Management"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "maintainability"
+domain = "video"
+
+[[experience.bullet_bank]]
+id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b09"
+text = "Created Polycom Video SQA's first general-purpose Java/JUnit automation framework — designed at project start for a new video product line that had neither hardware nor software yet; under the naming and architectural standards established, it became the platform for all new Polycom Video product testing, extended to third-party endpoints and physical/remote content sources, and remained in active use for legacy product testing for years after new-product testing had migrated to a successor framework."
+skills = ["Java", "JUnit 4", "Framework Design", "Architecture", "Automation Strategy"]
+categories = ["Automation & Frameworks", "Architecture"]
+impact_type = "architecture"
 domain = "video"
 
 [cross_org_architectural_leadership]

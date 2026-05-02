@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.24.0...v0.24.1) (2026-05-02)
+
+
+### Reverts
+
+* **docs:** drop CONTRIBUTING.md edit (synced from tooling) ([527f198](https://github.com/jsmithpkp21/resume-builder/commit/527f198aa160a6522b30c80552b52b540ba71857)), closes [#167](https://github.com/jsmithpkp21/resume-builder/issues/167)
+
 ## [0.24.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.23.0...v0.24.0) (2026-05-02)
 
 

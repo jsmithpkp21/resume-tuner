@@ -140,12 +140,6 @@ git push origin feature/your-feature-name
 - Push updates (same branch)
 - Mark conversations as resolved
 
-**Copilot review rhythm:**
-- Copilot reviews automatically when the PR is opened (GitHub default).
-- Push the fix-round commits — Copilot will *not* re-review on each push.
-- When the round is complete, re-request review explicitly via the PR UI ("Re-request review" next to Copilot in the Reviewers panel).
-- Cap at ~3 rounds; remaining threads roll into a follow-up issue.
-
 ### 6. Merge
 
 Once approved:

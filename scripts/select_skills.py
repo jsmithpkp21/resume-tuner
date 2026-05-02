@@ -410,6 +410,7 @@ def _compute_skill_scores(resume: Any) -> dict[str, float]:
     related_skills list.
     """
     role_text, role_tokens = _extract_role_context(resume)
+    expanded_jd_forms = _expand_jd_forms(role_tokens)
     bullet_counts, related_counts = _collect_skill_usage_signals(resume)
     skills_by_category: dict[str, list[str]] = (
         getattr(resume, "skills_by_category", None) or {}
@@ -420,7 +421,7 @@ def _compute_skill_scores(resume: Any) -> dict[str, float]:
 
     scores: dict[str, float] = {}
     for skill in set(bullet_counts) | set(related_counts) | all_matrix_skills:
-        role_relevance = _skill_role_relevance(skill, role_text, role_tokens)
+        role_relevance = _skill_role_relevance(skill, role_text, expanded_jd_forms)
         scores[skill] = (
             bullet_counts[skill] * _BULLET_COUNT_WEIGHT
             + related_counts[skill] * _RELATED_SKILL_WEIGHT
@@ -517,14 +518,12 @@ def normalize_skill_near_dupes(
     return deduped
 
 
-def _expand_token_forms(token: str) -> set[str]:
-    """Return alternate forms of a token for punctuation-tolerant JD matching.
+def _token_single_forms(token: str) -> set[str]:
+    """Return forms individually sufficient to match a token.
 
-    Covers: the token itself; the punctuation-stripped form (so ``h.323`` and
-    ``h323`` collide); the alias-canonical form via ``_SKILL_ALIAS_CANONICAL``
-    (so ``cicd`` resolves to ``ci/cd``); and the sub-tokens produced by
-    splitting on ``.``/``-``/``/`` (so ``multi-protocol`` matches a JD that
-    says ``multi protocol``).
+    Includes the raw lowercase token, the punctuation-stripped form (so
+    ``h.323`` and ``h323`` collide), and the alias-canonical form via
+    ``_SKILL_ALIAS_CANONICAL`` (so ``cicd`` resolves to ``ci/cd``).
     """
     forms: set[str] = {token}
     stripped = _TOKEN_PUNCTUATION_RE.sub("", token)
@@ -532,13 +531,58 @@ def _expand_token_forms(token: str) -> set[str]:
         forms.add(stripped)
         forms.add(_SKILL_ALIAS_CANONICAL.get(stripped, stripped))
     forms.add(_SKILL_ALIAS_CANONICAL.get(token, token))
-    for sub in _TOKEN_PUNCTUATION_RE.split(token):
-        if len(sub) >= 2 and sub not in _ROLE_STOPWORDS:
-            forms.add(sub)
     return forms
 
 
-def _skill_role_relevance(skill: str, role_text: str, role_tokens: set[str]) -> float:
+def _token_punctuation_subtokens(token: str) -> tuple[str, ...]:
+    """Return meaningful sub-tokens after splitting on ``.``/``-``/``/``.
+
+    Filters out short fragments, stopwords, and numeric-only fragments so
+    that ``h.323`` does not synthesize a spurious ``323`` match against an
+    unrelated JD.
+    """
+    return tuple(
+        sub
+        for sub in _TOKEN_PUNCTUATION_RE.split(token)
+        if len(sub) >= 2
+        and sub not in _ROLE_STOPWORDS
+        and any(ch.isalpha() for ch in sub)
+    )
+
+
+def _expand_jd_forms(role_tokens: set[str]) -> set[str]:
+    """Build the union of forms a JD provides for matching.
+
+    Each JD token contributes its single forms plus any meaningful
+    punctuation sub-tokens, so a skill's hyphen-split sub-tokens can match
+    a JD that uses spaces between the same parts.
+    """
+    forms: set[str] = set()
+    for token in role_tokens:
+        forms |= _token_single_forms(token)
+        forms.update(_token_punctuation_subtokens(token))
+    return forms
+
+
+def _skill_token_matches(skill_token: str, expanded_jd_forms: set[str]) -> bool:
+    """Return True if a skill token matches the JD's expanded forms.
+
+    Counts as matched when either (a) any single form (raw, stripped, or
+    alias-canonical) is in the JD forms, or (b) every meaningful
+    punctuation sub-token of the skill token is independently present.
+    Requiring *all* sub-tokens for path (b) avoids overcounting partial
+    mentions (e.g., ``multi-protocol`` should not match a JD that only
+    says ``multi``).
+    """
+    if _token_single_forms(skill_token) & expanded_jd_forms:
+        return True
+    subtokens = _token_punctuation_subtokens(skill_token)
+    return bool(subtokens) and all(sub in expanded_jd_forms for sub in subtokens)
+
+
+def _skill_role_relevance(
+    skill: str, role_text: str, expanded_jd_forms: set[str]
+) -> float:
     if not role_text:
         return 0.0
 
@@ -551,13 +595,10 @@ def _skill_role_relevance(skill: str, role_text: str, role_tokens: set[str]) -> 
         return 0.0
 
     exact_phrase_bonus = 1.0 if normalized_skill in role_text else 0.0
-    expanded_jd_forms: set[str] = set()
-    for jd_token in role_tokens:
-        expanded_jd_forms.update(_expand_token_forms(jd_token))
     matched = sum(
         1
         for skill_token in skill_tokens
-        if _expand_token_forms(skill_token) & expanded_jd_forms
+        if _skill_token_matches(skill_token, expanded_jd_forms)
     )
     overlap_ratio = matched / len(skill_tokens)
     return exact_phrase_bonus + overlap_ratio

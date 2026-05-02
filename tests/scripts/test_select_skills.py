@@ -17,6 +17,7 @@ from scripts.select_skills import (
     TOP_N_SKILLS,
     _compute_category_industry_weights,
     _compute_skill_scores,
+    _expand_jd_forms,
     _normalize_skill_near_dupe_key,
     _section_layout,
     _skill_role_relevance,
@@ -451,7 +452,8 @@ def test_normalize_skill_near_dupes_prefers_shorter_variant_on_score_tie() -> No
 
 def _role_relevance(skill: str, jd_text: str) -> float:
     role_text = jd_text.lower()
-    return _skill_role_relevance(skill, role_text, _tokenize_role_text(role_text))
+    expanded = _expand_jd_forms(_tokenize_role_text(role_text))
+    return _skill_role_relevance(skill, role_text, expanded)
 
 
 def test_skill_role_relevance_matches_dotted_variant_against_no_dot_jd() -> None:
@@ -482,10 +484,29 @@ def test_skill_role_relevance_matches_alias_no_separator_for_cicd() -> None:
 def test_skill_role_relevance_does_not_invent_matches_for_unrelated_skills() -> None:
     # Regression guard: AWS-only JD must not score GCP / Azure above zero.
     role_text = "aws cloud engineer"
-    role_tokens = _tokenize_role_text(role_text)
-    assert _skill_role_relevance("AWS", role_text, role_tokens) > 1.0
-    assert _skill_role_relevance("GCP", role_text, role_tokens) == 0.0
-    assert _skill_role_relevance("Azure", role_text, role_tokens) == 0.0
+    expanded = _expand_jd_forms(_tokenize_role_text(role_text))
+    assert _skill_role_relevance("AWS", role_text, expanded) > 1.0
+    assert _skill_role_relevance("GCP", role_text, expanded) == 0.0
+    assert _skill_role_relevance("Azure", role_text, expanded) == 0.0
+
+
+def test_skill_role_relevance_split_subtokens_require_all_present() -> None:
+    # Review feedback (PR #189): hyphenated skill must NOT match a JD that
+    # only contains one half. `multi` alone should not pull in
+    # `Multi-protocol Interop` via the split-subtoken path.
+    relevance = _role_relevance(
+        "Multi-protocol Interop", "experience with multi tenant systems"
+    )
+    # `interop` not in JD; `multi-protocol` only matches if BOTH `multi` and
+    # `protocol` are present, which they are not.
+    assert relevance == pytest.approx(0.0)
+
+
+def test_skill_role_relevance_ignores_numeric_only_subtoken_collisions() -> None:
+    # Review feedback (PR #189): split-subtoken path must reject numeric-only
+    # fragments so `H.323` does not match a JD that incidentally contains 323.
+    relevance = _role_relevance("H.323", "ticket 323 has been triaged")
+    assert relevance == pytest.approx(0.0)
 
 
 def test_normalize_skill_near_dupe_key_collapses_h323_punctuation_variants() -> None:

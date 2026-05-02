@@ -478,7 +478,7 @@ def test_skill_role_relevance_matches_hyphenated_skill_against_spaced_jd() -> No
 def test_skill_role_relevance_matches_alias_no_separator_for_cicd() -> None:
     # Issue #184: CICD in JD must reach the CI/CD skill via alias canonicalization.
     relevance = _role_relevance("CI/CD", "Modern CICD pipelines required")
-    assert relevance >= 1.0
+    assert relevance == pytest.approx(1.0)
 
 
 def test_skill_role_relevance_does_not_invent_matches_for_unrelated_skills() -> None:

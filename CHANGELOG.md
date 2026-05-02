@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.20.2...v0.20.3) (2026-05-02)
+
+
+### Documentation
+
+* **pyproject-meta:** clarify that .pyproject.meta.toml accepts tool overrides ([bfc0f3a](https://github.com/jsmithpkp21/resume-builder/commit/bfc0f3a3e347832c6288e3a89e1098958a27c609))
+
 ## [0.20.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.20.1...v0.20.2) (2026-04-30)
 
 

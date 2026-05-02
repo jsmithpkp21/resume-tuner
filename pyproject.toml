@@ -40,6 +40,8 @@ exclude = [
 ]
 
 [tool.ruff.lint]
+preview = true
+explicit-preview-rules = true
 select = [
     "E",
     "F",
@@ -47,6 +49,7 @@ select = [
     "I",
     "B",
     "UP",
+    "PLW1514",
 ]
 ignore = [
     "E501",
@@ -73,8 +76,9 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 ignore_missing_imports = true
 strict = true
-overrides = [
-    { module = "tests.*", disallow_untyped_decorators = false },
+disallow_untyped_decorators = false
+exclude = [
+    "^sandbox/",
 ]
 
 [tool.pytest.ini_options]
@@ -85,3 +89,6 @@ testpaths = [
     "tests",
 ]
 addopts = "-ra --disable-warnings"
+markers = [
+    "slow: tests that spawn real subprocesses or hit the filesystem heavily; opt out via `-m 'not slow'` for fast iteration",
+]

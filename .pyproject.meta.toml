@@ -14,3 +14,8 @@ authors = [
 # Examples:
 # [tool.ruff.lint]
 # select = ["E", "F"]
+
+[tool.mypy]
+exclude = [
+    "^sandbox/",
+]

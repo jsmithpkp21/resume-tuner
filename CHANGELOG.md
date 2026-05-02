@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.21.0...v0.22.0) (2026-05-02)
+
+
+### Features
+
+* **experience:** integrate Candidate [#1](https://github.com/jsmithpkp21/resume-builder/issues/1) — first general-purpose Java/JUnit framework bullet ([#166](https://github.com/jsmithpkp21/resume-builder/issues/166)) ([66b2ecf](https://github.com/jsmithpkp21/resume-builder/commit/66b2ecfd8296911221d043cbe614f61725b67ba8))
+
 ## [0.21.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.20.3...v0.21.0) (2026-05-02)
 
 

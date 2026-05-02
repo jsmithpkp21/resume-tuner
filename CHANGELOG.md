@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.24.1...v0.24.2) (2026-05-02)
+
+
+### Bug Fixes
+
+* **release:** add x-release-please-version marker to VERSION ([b21df44](https://github.com/jsmithpkp21/resume-builder/commit/b21df44bb3f51c1b89450c23a45e95066dda0e48))
+
 ## [0.24.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.24.0...v0.24.1) (2026-05-02)
 
 

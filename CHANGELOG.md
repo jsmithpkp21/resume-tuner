@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.23.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.22.0...v0.23.0) (2026-05-02)
+
+
+### Features
+
+* **experience:** integrate Candidate [#3](https://github.com/jsmithpkp21/resume-builder/issues/3) — multi-protocol video interop matrix bullet ([#166](https://github.com/jsmithpkp21/resume-builder/issues/166)) ([35b52a2](https://github.com/jsmithpkp21/resume-builder/commit/35b52a2e62d3746febbf5de3ea546d7d3a98a071))
+* **skills:** add SIP, H.323, MCU, Multi-protocol Interop to skills_matrix ([#166](https://github.com/jsmithpkp21/resume-builder/issues/166)) ([3b5cefc](https://github.com/jsmithpkp21/resume-builder/commit/3b5cefcb673b8ce56655b929acc74626ce547907))
+
+
+### Bug Fixes
+
+* **experience:** address PR [#179](https://github.com/jsmithpkp21/resume-builder/issues/179) + [#180](https://github.com/jsmithpkp21/resume-builder/issues/180) review feedback ([#166](https://github.com/jsmithpkp21/resume-builder/issues/166)) ([34024e0](https://github.com/jsmithpkp21/resume-builder/commit/34024e03d59bd7aa463218687b95847e3e01ad25))
+* **skills:** rename MCU → Video MCU; reorder protocol skills earlier in matrix ([#166](https://github.com/jsmithpkp21/resume-builder/issues/166)) ([76fffe6](https://github.com/jsmithpkp21/resume-builder/commit/76fffe62cddb6cc68da57f4681e4f46fcc4759d8))
+
 ## [0.22.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.21.0...v0.22.0) (2026-05-02)
 
 

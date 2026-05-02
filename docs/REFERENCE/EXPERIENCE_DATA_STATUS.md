@@ -2,7 +2,7 @@
 
 ## Overview
 
-The canonical experience database (`data/experience/experience_db.toml`) contains 6 roles spanning 2008–2026 with 23 total bullets across all positions.
+The canonical experience database (`data/experience/experience_db.toml`) contains 6 roles spanning 2008–2026 with 35 total bullets across all positions.
 
 ---
 
@@ -12,14 +12,14 @@ The canonical experience database (`data/experience/experience_db.toml`) contain
 
 | Role ID | Job Title | Company | Period | Bullets | Status |
 |---------|-----------|---------|--------|---------|--------|
-| `exp_hp_poly_architect_python_video_202306` | Architect, Python Test Framework | HP / Poly | 2023-06 to 2026-01 | 4 | ✅ Complete |
+| `exp_hp_poly_architect_python_video_202306` | Architect, Python Test Framework | HP / Poly | 2023-06 to 2026-01 | 8 | ✅ Complete |
 | `exp_hp_poly_technical_advisor_sdet_audio_202105` | Technical Advisor / SDET, Audio Team | HP / Poly | 2021-05 to 2023-06 | 3 | ✅ Complete |
 | `exp_hp_poly_technical_advisor_sdet_headset_202003` | Technical Advisor / SDET, Headset Team | HP / Poly | 2020-03 to 2021-05 | 3 | ✅ Complete |
 | `exp_hp_poly_technical_lead_framework_integration_201906` | Technical Lead, Corporate Framework Integration | HP / Poly | 2019-06 to 2020-03 | 4 | ✅ Complete |
 | `exp_hp_poly_lead_technical_designer_corp_automation_201506` | Lead Technical Designer, Corporate Automation Initiative | HP / Poly | 2015-06 to 2019-06 | 3 | ✅ Complete |
-| `exp_hp_poly_lead_framework_designer_video_sqa_200808` | Lead Framework Designer, Video SQA Automation | HP / Poly | 2008-08 to 2015-06 | 4 | ✅ Complete |
+| `exp_hp_poly_lead_framework_designer_video_sqa_200808` | Lead Framework Designer, Video SQA Automation | HP / Poly | 2008-08 to 2015-06 | 14 | ✅ Complete |
 
-**Total Bullets**: 23
+**Total Bullets**: 35
 
 ### ✅ Data Structure Validation
 
@@ -139,11 +139,11 @@ All bullets use categories from the skills matrix. Examples:
 | Metric | Value | Status |
 |--------|-------|--------|
 | Total roles | 6 | ✅ |
-| Total bullets | 23 | ✅ |
-| Avg bullets per role | 3.8 | ✅ Good coverage |
+| Total bullets | 35 | ✅ |
+| Avg bullets per role | 5.8 | ✅ Good coverage |
 | Roles with skills tagged | 6/6 | ✅ 100% |
-| Bullets with impact_type | 23/23 | ✅ 100% |
-| Bullets with domain | 23/23 | ✅ 100% |
+| Bullets with impact_type | 35/35 | ✅ 100% |
+| Bullets with domain | 35/35 | ✅ 100% |
 | Schema validation errors | 0 | ✅ |
 
 ---

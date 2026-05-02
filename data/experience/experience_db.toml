@@ -227,12 +227,12 @@ company = "HP / Poly"
 start_date = "2008-08"
 end_date = "2018-03"
 general_role_description = "Principal architect and long-term technical steward of the Video SQA automation framework, a system that supported 16 endpoint models, 30-40 releases, and remained in active use for over a decade across global SQA teams."
-related_skills = ["Technical Leadership", "Java", "JUnit 4", "JUnit 5", "Mentoring", "Process Design", "Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design", "CI/CD", "Test reliability engineering", "Distributed Execution", "REST/SOAP Integration", "Telnet/CLI Automation", "Web UI Automation", "SIP", "H.323", "Video MCU", "Multi-protocol Interop"]
+related_skills = ["Technical Leadership", "Java", "JUnit 4", "JUnit 5", "Mentoring", "Process Design", "Capability-Driven Design", "UI & Model-Agnostic Abstractions", "Framework Design", "Architecture", "CI/CD", "Test reliability engineering", "Test data management", "Distributed Execution", "REST/SOAP Integration", "Telnet/CLI Automation", "Web UI Automation", "SIP", "H.323", "Video MCU", "Multi-protocol Interop"]
 related_skills_inferred = []
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b01"
-text = "Provided technical leadership for a distributed group of 15 engineers across four countries and five time zones, improving engineering quality and reducing new-test creation time by 30 percent."
+text = "Provided technical leadership for a distributed group of 15 engineers across three countries and four time zones, improving engineering quality and reducing new-test creation time by 30 percent."
 skills = ["Technical Leadership", "Mentoring", "Process Design", "Java", "JUnit 4"]
 categories = ["Technical Leadership", "Architecture"]
 impact_type = "mentoring"
@@ -247,8 +247,16 @@ impact_type = "scalability"
 domain = "video"
 
 [[experience.bullet_bank]]
+id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b02b"
+text = "Originated the UI-agnostic design while preparing for a SOAP-based API that was later cancelled in favor of REST: kept the auto-generated POJO model, reused it for the REST UI, and normalized Telnet and Web responses into the same POJOs so tests no longer knew which UI executed; used reflection to roll over to alternate UIs when an operation was unimplemented on the primary, allowing a single test to run unchanged across product variants where no single UI exposed every capability."
+skills = ["Capability-Driven Design", "UI & Model-Agnostic Abstractions", "REST/SOAP Integration", "Java", "Architecture"]
+categories = ["Automation & Frameworks", "Architecture"]
+impact_type = "architecture"
+domain = "video"
+
+[[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b03"
-text = "Architected a four-stage CI quality-gate pipeline — branch merge gates, full suite runs, main branch integration gates, and QA acceptance checks — with stability rules improving deterministic execution across more than 30 releases."
+text = "Architected a four-stage CI quality-gate pipeline — branch merge gates, full suite runs, main branch integration gates, and QA acceptance checks — with stability rules improving deterministic execution across more than 30 releases; the resulting suites continued running unchanged through five years of sustaining and end-of-life on the original product line."
 skills = ["CI/CD", "Test reliability engineering", "Distributed Execution"]
 impact_type = "reliability"
 domain = "video"
@@ -271,7 +279,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b04"
-text = "Unified Telnet, REST, and Web execution into a single JUnit-based test flow, separated configuration UI from test UI logic, and added XML-driven get/set code generation that removed one week of testing per UI per test cycle while reducing new API test additions to minutes."
+text = "Unified Telnet, REST, and Web execution into a single JUnit-based test flow so tests no longer cared which transport a target endpoint exposed, normalizing call/result handling across protocols."
 skills = ["REST/SOAP Integration", "Telnet/CLI Automation", "Web UI Automation", "Java", "JUnit 4"]
 categories = ["Automation & Frameworks", "API Testing"]
 impact_type = "delivery-speed"
@@ -307,6 +315,30 @@ text = "Validated multi-protocol video interop end-to-end (H.323 + SIP, point-to
 skills = ["SIP", "H.323", "Video MCU", "Multi-protocol Interop", "End-to-end testing"]
 categories = ["Automation & Frameworks", "Quality & Testing Strategy"]
 impact_type = "reliability"
+domain = "video"
+
+[[experience.bullet_bank]]
+id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b11"
+text = "Built XML-driven test generation that read a single parameter-typed UI definition and emitted positive and negative get/set tests for every parameter, eliminating roughly one week of basic-functionality UI testing per UI per release in waterfall and reducing new-API test additions to minutes of text-file edits."
+skills = ["Java", "JUnit 4", "REST/SOAP Integration", "Test data management"]
+categories = ["Automation & Frameworks", "API Testing"]
+impact_type = "delivery-speed"
+domain = "video"
+
+[[experience.bullet_bank]]
+id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b12"
+text = "Codified a configuration-UI vs. test-UI separation: setup ran through whichever UI was most stable and fastest (typically REST — predictable responses, no text parsing, infrequent change), while the test exercised only the UI under test, cutting setup-induced flake and decoupling configuration churn from test results."
+skills = ["Architecture", "REST/SOAP Integration", "Test reliability engineering"]
+categories = ["Automation & Frameworks", "Architecture"]
+impact_type = "reliability"
+domain = "video"
+
+[[experience.bullet_bank]]
+id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b13"
+text = "Scaled framework support across distributed teams by elevating one or two top engineers per remote site as designated site leads for first-level triage, filtering framework escalations before they reached the architect role and absorbing the routine support load locally without proportional growth in central time."
+skills = ["Process Design", "Technical Leadership", "Mentoring"]
+categories = ["Technical Leadership"]
+impact_type = "mentoring"
 domain = "video"
 
 [cross_org_architectural_leadership]

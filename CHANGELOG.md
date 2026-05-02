@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.21.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.20.3...v0.21.0) (2026-05-02)
+
+
+### Features
+
+* **experience:** consolidate role-bullet mentoring and tighten three bullets at source ([#166](https://github.com/jsmithpkp21/resume-builder/issues/166)) ([21eeff9](https://github.com/jsmithpkp21/resume-builder/commit/21eeff9f53807412b4ffd44a445084856a0405c4))
+
+
+### Bug Fixes
+
+* **export:** make Leadership & Community required content and stop silent bullet truncation ([#166](https://github.com/jsmithpkp21/resume-builder/issues/166)) ([08a79fe](https://github.com/jsmithpkp21/resume-builder/commit/08a79fe33913ce83ea9fbfc37e4ffad196d7f337))
+
 ## [0.20.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.20.2...v0.20.3) (2026-05-02)
 
 

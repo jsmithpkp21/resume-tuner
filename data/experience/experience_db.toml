@@ -341,6 +341,105 @@ categories = ["Technical Leadership"]
 impact_type = "mentoring"
 domain = "video"
 
+[[experience]]
+id = "exp_jjs_dev_labs_independent_se_202602"
+job_title = "Independent Software Engineer"
+company = "JJS Dev Labs"
+start_date = "2026-02"
+end_date = "present"
+general_role_description = "Self-directed software engineering practice covering AI-assisted application development, multi-repo platform engineering, and standardized Python project tooling. Work is organized as a managed multi-repo platform: shared automation flows from a source-of-truth repository into consumer projects under conventional commits, release-please versioning, and drift-checked sync manifests, with new applications added as the platform matures."
+related_skills = [
+  "Python",
+  "Multi-repo platform engineering",
+  "Sync manifest architecture",
+  "LLM application engineering",
+  "Anthropic API integration",
+  "Claude Code (agentic coding assistant)",
+  "Conventional Commits",
+  "Release-please",
+  "GitHub Actions",
+  "Architecture",
+  "Technical Leadership",
+]
+related_skills_inferred = []
+
+[[experience.bullet_bank]]
+id = "exp_jjs_dev_labs_independent_se_202602_b01"
+text = "Built a multi-repo platform with a managed sync system that distributes shared automation files from a single source-of-truth repository to consumer projects via an allow-listed manifest, eliminating duplicate bootstrap work across two consumers and shipping 87 platform releases in three months."
+skills = ["Multi-repo platform engineering", "Sync manifest architecture", "Versioning automation", "Pipeline design"]
+categories = ["Architecture", "Platform Engineering"]
+impact_type = "scalability"
+domain = "platform-engineering"
+
+[[experience.bullet_bank]]
+id = "exp_jjs_dev_labs_independent_se_202602_b02"
+text = "Created a reusable Python project base providing deterministic environment lifecycle, generated pyproject configuration from consumer-identity inputs, and contract-tested sync compliance, cutting per-project bootstrap from one to two days down to under one hour for new application work."
+skills = ["Python", "Environment management", "Pytest", "Developer Tooling"]
+categories = ["Developer Tooling", "Architecture"]
+impact_type = "delivery-speed"
+domain = "platform-engineering"
+
+[[experience.bullet_bank]]
+id = "exp_jjs_dev_labs_independent_se_202602_b03"
+text = "Designed and shipped an AI-assisted application built around an LLM-driven content selection and rewriting pipeline, integrating provider APIs and an agentic coding assistant for primary development, scaling the project from zero to a working canonical-data, selection, and layout pipeline across 46 releases in three months."
+skills = ["Python", "LLM application engineering", "Anthropic API integration", "Architecture"]
+categories = ["AI-Augmented Engineering", "Architecture"]
+impact_type = "delivery-speed"
+domain = "ai-applications"
+
+[[experience.bullet_bank]]
+id = "exp_jjs_dev_labs_independent_se_202602_b04"
+text = "Standardized conventional commits, release-please-driven semantic versioning, branch-protection-as-code, and version-pinned GitHub Actions across three repositories, eliminating manual version bumps and shipping 148 coordinated releases in three months."
+skills = ["Conventional Commits", "Release-please", "GitHub Actions", "Branch protection as code"]
+categories = ["CI/CD", "Process"]
+impact_type = "maintainability"
+domain = "platform-engineering"
+
+[[experience.bullet_bank]]
+id = "exp_jjs_dev_labs_independent_se_202602_b05"
+text = "Used an agentic coding assistant as the primary development surface — including hooks, memory, custom skills, and multi-agent code review — accelerating execution across 403 PRs in three months while maintaining conventional-commits discipline and review hygiene across the platform."
+skills = ["Claude Code (agentic coding assistant)", "AI-assisted coding", "AI-assisted debugging", "AI-assisted documentation"]
+categories = ["AI-Augmented Engineering"]
+impact_type = "delivery-speed"
+domain = "ai-tooling"
+
+[[experience.bullet_bank]]
+id = "exp_jjs_dev_labs_independent_se_202602_b06"
+text = "Chose a platform-first build order — standardized base, then sync platform, then first AI-assisted consumer — so each new project after the first inherits deterministic environments, generated configuration, and shared CI infrastructure rather than re-deriving them, eliminating bootstrap duplication for the next three planned applications."
+skills = ["Architecture", "Design patterns", "Process improvement"]
+categories = ["Architecture", "Decision-Making"]
+impact_type = "architecture"
+domain = "platform-engineering"
+
+[independent_projects]
+title = "Independent Projects"
+visibility = "private"
+
+[[independent_projects.items]]
+name = "Multi-repo platform & sync infrastructure"
+summary = "Source-of-truth repository for shared developer automation, delivering managed file sync, deterministic environments, and contract-tested rollouts to consumer projects."
+key_skills = ["Multi-repo platform engineering", "Sync manifest architecture", "GitHub Actions", "CI/CD"]
+source_bullet_ids = [
+  "exp_jjs_dev_labs_independent_se_202602_b01",
+  "exp_jjs_dev_labs_independent_se_202602_b04",
+]
+
+[[independent_projects.items]]
+name = "Standardized Python project base"
+summary = "Reusable application base providing generated pyproject configuration, environment lifecycle scripts, and consumer-contract tests so new projects start from a managed baseline."
+key_skills = ["Python", "Developer Tooling", "Pytest", "Environment management"]
+source_bullet_ids = [
+  "exp_jjs_dev_labs_independent_se_202602_b02",
+]
+
+[[independent_projects.items]]
+name = "AI-assisted resume generation application"
+summary = "First consumer of the platform: an LLM-driven resume builder with canonical experience and skills data, reconciliation worksheets, scoring-based bullet selection, and layout-aware output."
+key_skills = ["LLM application engineering", "Anthropic API integration", "Python", "Architecture"]
+source_bullet_ids = [
+  "exp_jjs_dev_labs_independent_se_202602_b03",
+]
+
 [cross_org_architectural_leadership]
 title = "Cross-Org Architectural Leadership"
 

@@ -135,3 +135,11 @@ Test Lab Automation,Automation Architecture & Quality
 UI & Model-Agnostic Abstractions,Automation Architecture & Quality
 Web UI Automation,Automation Architecture & Quality
 Hardware Abstraction,Automation Architecture & Quality
+LLM application engineering,AI-Augmented Engineering
+Anthropic API integration,AI-Augmented Engineering
+Claude Code (agentic coding assistant),AI-Augmented Engineering
+Multi-repo platform engineering,Automation Architecture & Quality
+Sync manifest architecture,Automation Architecture & Quality
+Conventional Commits,Platform CI/CD & Infrastructure
+Release-please,Platform CI/CD & Infrastructure
+Branch protection as code,Platform CI/CD & Infrastructure

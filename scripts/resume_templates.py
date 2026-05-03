@@ -34,6 +34,7 @@ class TemplateContext:
     leadership_html: list[str]  # Pre-rendered leadership items
     cross_org_html: list[str] = field(default_factory=list)
     selected_achievements_html: list[str] = field(default_factory=list)
+    independent_projects_html: list[str] = field(default_factory=list)
 
 
 class ResumeTemplate(ABC):
@@ -98,6 +99,13 @@ class ResumeTemplate(ABC):
                 [
                     "  <h2>Selected Achievements</h2>",
                     *context.selected_achievements_html,
+                ]
+            )
+        if context.independent_projects_html:
+            sections.extend(
+                [
+                    "  <h2>Independent Projects</h2>",
+                    *context.independent_projects_html,
                 ]
             )
         sections.extend(

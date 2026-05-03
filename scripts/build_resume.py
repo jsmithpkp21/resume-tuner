@@ -159,6 +159,15 @@ class SelectedAchievementEntry:
 
 
 @dataclass(frozen=True)
+class IndependentProjectEntry:
+    name: str
+    summary: str
+    key_skills: tuple[str, ...]
+    source_bullet_ids: tuple[str, ...]
+    url: str = ""
+
+
+@dataclass(frozen=True)
 class Bullet:
     id: str
     text: str
@@ -197,6 +206,10 @@ class ResumeIR:
     selected_achievements: tuple[SelectedAchievementEntry, ...] = field(
         default_factory=tuple
     )
+    independent_projects: tuple[IndependentProjectEntry, ...] = field(
+        default_factory=tuple
+    )
+    independent_projects_visibility: str = "private"
 
 
 def parse_args() -> argparse.Namespace:
@@ -226,6 +239,15 @@ def parse_args() -> argparse.Namespace:
         "--skip-markdown",
         action="store_true",
         help="Skip Markdown output; HTML plus JSON/text IR snapshots are still written.",
+    )
+    parser.add_argument(
+        "--include-private-projects",
+        action="store_true",
+        help=(
+            "Render the [independent_projects] section even when "
+            'visibility="private" in experience_db.toml. Lets the user preview '
+            "rendered output without flipping the canonical visibility flag."
+        ),
     )
     parser.add_argument(
         "--template",
@@ -639,6 +661,82 @@ def load_selected_achievements(
     return tuple(entries)
 
 
+_INDEPENDENT_PROJECTS_VALID_VISIBILITY = ("public", "private")
+
+
+def load_independent_projects(
+    path: Path,
+    *,
+    experiences: tuple[Experience, ...],
+) -> tuple[tuple[IndependentProjectEntry, ...], str]:
+    payload = _read_toml(path)
+    section = payload.get("independent_projects", {})
+    if not isinstance(section, dict):
+        raise ValueError("independent_projects must be a table")
+
+    visibility_raw = section.get("visibility", "private")
+    visibility = str(visibility_raw).strip().lower()
+    if visibility not in _INDEPENDENT_PROJECTS_VALID_VISIBILITY:
+        raise ValueError(
+            "independent_projects.visibility must be one of: "
+            + ", ".join(_INDEPENDENT_PROJECTS_VALID_VISIBILITY)
+        )
+
+    raw_items = section.get("items", [])
+    if raw_items in (None, ""):
+        return (), visibility
+    if not isinstance(raw_items, list):
+        raise ValueError("independent_projects.items must use [[...items]] entries")
+
+    known_bullet_ids = {
+        bullet.id for experience in experiences for bullet in experience.bullets
+    }
+    entries: list[IndependentProjectEntry] = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            raise ValueError(
+                "Each [[independent_projects.items]] entry must be a table"
+            )
+        name = str(item.get("name", "")).strip()
+        summary = str(item.get("summary", "")).strip()
+        url = str(item.get("url", "")).strip()
+
+        raw_skills = item.get("key_skills", [])
+        if not isinstance(raw_skills, list):
+            raise ValueError("independent_projects.items.key_skills must be a list")
+        key_skills = tuple(
+            str(value).strip() for value in raw_skills if str(value).strip()
+        )
+
+        raw_ids = item.get("source_bullet_ids", [])
+        if not isinstance(raw_ids, list):
+            raise ValueError(
+                "independent_projects.items.source_bullet_ids must be a list"
+            )
+        source_ids = tuple(
+            str(value).strip() for value in raw_ids if str(value).strip()
+        )
+        unknown = sorted(
+            source_id for source_id in source_ids if source_id not in known_bullet_ids
+        )
+        if unknown:
+            raise ValueError(
+                "Unknown independent_projects source_bullet_ids: " + ", ".join(unknown)
+            )
+        if name:
+            entries.append(
+                IndependentProjectEntry(
+                    name=name,
+                    summary=summary,
+                    key_skills=key_skills,
+                    source_bullet_ids=source_ids,
+                    url=url,
+                )
+            )
+
+    return tuple(entries), visibility
+
+
 def load_skills_by_category(path: Path) -> dict[str, list[str]]:
     assert_not_blocked_runtime_input(path)
     skills_by_category: dict[str, list[str]] = {}
@@ -665,6 +763,8 @@ def assemble_baseline_resume(
     skills_by_category: dict[str, list[str]],
     cross_org_architectural_leadership: tuple[CrossOrgLeadershipEntry, ...] = (),
     selected_achievements: tuple[SelectedAchievementEntry, ...] = (),
+    independent_projects: tuple[IndependentProjectEntry, ...] = (),
+    independent_projects_visibility: str = "private",
 ) -> ResumeIR:
     """Assemble baseline IR with unchanged canonical content."""
     return ResumeIR(
@@ -678,6 +778,8 @@ def assemble_baseline_resume(
         enrichment_by_bullet_id={},
         cross_org_architectural_leadership=cross_org_architectural_leadership,
         selected_achievements=selected_achievements,
+        independent_projects=independent_projects,
+        independent_projects_visibility=independent_projects_visibility,
     )
 
 
@@ -737,6 +839,8 @@ def transform_for_role(resume: ResumeIR) -> ResumeIR:
         enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
         cross_org_architectural_leadership=resume.cross_org_architectural_leadership,
         selected_achievements=resume.selected_achievements,
+        independent_projects=resume.independent_projects,
+        independent_projects_visibility=resume.independent_projects_visibility,
     )
 
 
@@ -999,6 +1103,8 @@ def trim_for_role(resume: ResumeIR) -> ResumeIR:
         enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
         cross_org_architectural_leadership=resume.cross_org_architectural_leadership,
         selected_achievements=resume.selected_achievements,
+        independent_projects=resume.independent_projects,
+        independent_projects_visibility=resume.independent_projects_visibility,
     )
 
 
@@ -1253,6 +1359,8 @@ def enrich_data(resume: ResumeIR) -> ResumeIR:
         enrichment_by_bullet_id=merged,
         cross_org_architectural_leadership=resume.cross_org_architectural_leadership,
         selected_achievements=resume.selected_achievements,
+        independent_projects=resume.independent_projects,
+        independent_projects_visibility=resume.independent_projects_visibility,
     )
 
 
@@ -1378,6 +1486,8 @@ def trim_by_rules(resume: ResumeIR) -> ResumeIR:
         enrichment_by_bullet_id=filtered_enrichment,
         cross_org_architectural_leadership=resume.cross_org_architectural_leadership,
         selected_achievements=resume.selected_achievements,
+        independent_projects=resume.independent_projects,
+        independent_projects_visibility=resume.independent_projects_visibility,
     )
 
 
@@ -2025,6 +2135,8 @@ def _compute_bullet_line_budget(resume: ResumeIR) -> int:
         section_header_lines += 1
     if resume.selected_achievements:
         section_header_lines += 1
+    if resume.independent_projects:
+        section_header_lines += 1
     if resume.profile.education_entries:
         section_header_lines += 1
     if resume.profile.leadership_community_entries:
@@ -2046,6 +2158,15 @@ def _compute_bullet_line_budget(resume: ResumeIR) -> int:
         _estimate_wrapped_line_count(item.text, DEFAULT_BULLET_LINE_WIDTH)
         for item in resume.selected_achievements
     )
+    independent_project_lines = 0
+    for project in resume.independent_projects:
+        independent_project_lines += _estimate_wrapped_line_count(
+            project.name, DEFAULT_BULLET_LINE_WIDTH
+        )
+        if project.summary.strip():
+            independent_project_lines += _estimate_wrapped_line_count(
+                project.summary, DEFAULT_BULLET_LINE_WIDTH
+            )
 
     role_header_lines = 0
     company_blocks = _company_block_ranges(resume.experiences)
@@ -2112,6 +2233,7 @@ def _compute_bullet_line_budget(resume: ResumeIR) -> int:
         + skills_lines
         + cross_org_lines
         + selected_achievement_lines
+        + independent_project_lines
         + role_header_lines
         + education_lines
         + leadership_lines
@@ -2591,6 +2713,30 @@ def render_html(
             )
         )
 
+    independent_projects_html: list[str] = []
+    for project in resume.independent_projects:
+        if project.url.strip():
+            name_inner = (
+                f'<a href="{_html_escape(project.url)}">'
+                f"{_html_escape(project.name)}</a>"
+            )
+        else:
+            name_inner = _html_escape(project.name)
+        independent_projects_html.append(
+            "\n".join(
+                [
+                    '<section class="info-item">',
+                    f"<p><strong>{name_inner}</strong></p>",
+                    (
+                        f"<p>{_html_escape(project.summary)}</p>"
+                        if project.summary.strip()
+                        else ""
+                    ),
+                    "</section>",
+                ]
+            )
+        )
+
     template = get_template(template_name)
     context = TemplateContext(
         name=resume.profile.name,
@@ -2606,6 +2752,7 @@ def render_html(
         leadership_html=leadership_html,
         cross_org_html=cross_org_html,
         selected_achievements_html=selected_achievements_html,
+        independent_projects_html=independent_projects_html,
     )
     output_path.write_text(template.render(context), encoding="utf-8")
 
@@ -2643,6 +2790,16 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
         lines.extend(["", "## Selected Achievements", ""])
         for selected_achievement in resume.selected_achievements:
             lines.append(f"- {selected_achievement.text}")
+
+    if resume.independent_projects:
+        lines.extend(["", "## Independent Projects", ""])
+        for project in resume.independent_projects:
+            if project.url.strip():
+                lines.append(f"- **[{project.name}]({project.url})**")
+            else:
+                lines.append(f"- **{project.name}**")
+            if project.summary.strip():
+                lines.append(f"  - {project.summary}")
 
     lines.extend(["", "## Professional Experience", ""])
 
@@ -2738,6 +2895,8 @@ def write_ir_snapshot(resume: ResumeIR, output_path: Path) -> None:
             resume.cross_org_architectural_leadership
         ),
         "selected_achievements_count": len(resume.selected_achievements),
+        "independent_projects_count": len(resume.independent_projects),
+        "independent_projects_visibility": resume.independent_projects_visibility,
     }
     if resume.job_context is not None:
         payload["job_context"] = resume.job_context.to_dict()
@@ -2844,6 +3003,27 @@ def write_text_snapshot(resume: ResumeIR, output_path: Path) -> None:
                 ]
             )
 
+    lines.extend(
+        [
+            "",
+            f"independent_projects_visibility: {resume.independent_projects_visibility}",
+            "independent_projects:",
+        ]
+    )
+    if not resume.independent_projects:
+        lines.append("- none")
+    else:
+        for project in resume.independent_projects:
+            lines.extend(
+                [
+                    f"- name: {project.name}",
+                    f"  summary: {project.summary}",
+                    f"  url: {project.url}",
+                    f"  key_skills: {', '.join(project.key_skills)}",
+                    f"  source_bullet_ids: {', '.join(project.source_bullet_ids)}",
+                ]
+            )
+
     lines.extend(["", "job_context:"])
     if resume.job_context is None:
         lines.append("- none")
@@ -2872,6 +3052,10 @@ def run_pipeline(args: argparse.Namespace) -> int:
         experiences=experiences,
     )
     selected_achievements = load_selected_achievements(
+        args.experience_db,
+        experiences=experiences,
+    )
+    independent_projects, independent_projects_visibility = load_independent_projects(
         args.experience_db,
         experiences=experiences,
     )
@@ -2908,6 +3092,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
         skills_by_category=skills_by_category,
         cross_org_architectural_leadership=cross_org_architectural_leadership,
         selected_achievements=selected_achievements,
+        independent_projects=independent_projects,
+        independent_projects_visibility=independent_projects_visibility,
     )
     if args.processing_mode == "processed":
         resume = transform_for_role(resume)
@@ -2918,6 +3104,12 @@ def run_pipeline(args: argparse.Namespace) -> int:
         resume = summarize_for_role(resume)
         resume = select_skills(resume)
         resume = summarize_profile_for_role(resume)
+
+    if (
+        resume.independent_projects_visibility == "private"
+        and not args.include_private_projects
+    ):
+        resume = dc_replace(resume, independent_projects=())
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 

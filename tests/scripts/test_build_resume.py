@@ -485,6 +485,290 @@ source_bullet_ids = ["missing-bullet-id"]
         )
 
 
+def test_load_independent_projects_resolves_source_ids() -> None:
+    experience_path = REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    experiences = load_experiences(experience_path)
+
+    entries, visibility = build_resume.load_independent_projects(
+        experience_path, experiences=experiences
+    )
+
+    assert visibility in ("public", "private")
+    assert len(entries) >= 3
+    assert entries[0].name
+    assert entries[0].source_bullet_ids
+    all_source_ids = {
+        source_id for entry in entries for source_id in entry.source_bullet_ids
+    }
+    assert "exp_jjs_dev_labs_independent_se_202602_b01" in all_source_ids
+
+
+def test_load_independent_projects_rejects_unknown_source_ids(
+    tmp_path: Path,
+) -> None:
+    experience_path = tmp_path / "experience_db.toml"
+    experience_path.write_text(
+        """
+[[experience]]
+id = "exp-1"
+job_title = "Engineer"
+company = "Contoso"
+start_date = "2021-01"
+end_date = "2022-01"
+general_role_description = "Did things"
+related_skills = ["Python"]
+
+[[experience.bullet_bank]]
+id = "b1"
+text = "Built tests"
+skills = ["Python"]
+impact_type = "quality"
+domain = "automation"
+
+[independent_projects]
+title = "Independent Projects"
+visibility = "public"
+
+[[independent_projects.items]]
+name = "Sample Project"
+summary = "Summary"
+key_skills = ["Python"]
+source_bullet_ids = ["missing-bullet-id"]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    experiences = load_experiences(experience_path)
+    with pytest.raises(ValueError, match="Unknown independent_projects"):
+        build_resume.load_independent_projects(
+            experience_path,
+            experiences=experiences,
+        )
+
+
+def test_load_independent_projects_rejects_invalid_visibility(tmp_path: Path) -> None:
+    experience_path = tmp_path / "experience_db.toml"
+    experience_path.write_text(
+        """
+[[experience]]
+id = "exp-1"
+job_title = "Engineer"
+company = "Contoso"
+start_date = "2021-01"
+end_date = "2022-01"
+general_role_description = "Did things"
+related_skills = ["Python"]
+
+[[experience.bullet_bank]]
+id = "b1"
+text = "Built tests"
+skills = ["Python"]
+impact_type = "quality"
+domain = "automation"
+
+[independent_projects]
+visibility = "internal"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    experiences = load_experiences(experience_path)
+    with pytest.raises(ValueError, match="independent_projects.visibility"):
+        build_resume.load_independent_projects(
+            experience_path,
+            experiences=experiences,
+        )
+
+
+def _independent_projects_test_experience_db(*, visibility: str, items: str) -> str:
+    return (
+        """
+[[experience]]
+id = "exp-acme"
+job_title = "Engineer"
+company = "Acme"
+start_date = "2021-01"
+end_date = "2022-01"
+general_role_description = "Did things"
+related_skills = ["Python"]
+
+[[experience.bullet_bank]]
+id = "exp-acme-b1"
+text = "Built deterministic CI quality gates."
+skills = ["Python", "CI"]
+impact_type = "quality"
+domain = "automation"
+
+[independent_projects]
+title = "Independent Projects"
+"""
+        + f'visibility = "{visibility}"\n'
+        + items
+    )
+
+
+def _run_build_resume_cli(
+    *,
+    experience_db: Path,
+    profile_path: Path,
+    output_dir: Path,
+    extra_args: tuple[str, ...] = (),
+) -> subprocess.CompletedProcess[str]:
+    args = [
+        sys.executable,
+        str(SCRIPT),
+        "--profile",
+        str(profile_path),
+        "--experience-db",
+        str(experience_db),
+        "--output-dir",
+        str(output_dir),
+        "--target-role",
+        "Staff Software Engineer",
+        *extra_args,
+    ]
+    return subprocess.run(
+        args,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_independent_projects_private_skipped_by_default(tmp_path: Path) -> None:
+    """Canonical private visibility omits the section unless the flag is set."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+    result = _run_build_resume_cli(
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        profile_path=profile_path,
+        output_dir=output_dir,
+    )
+    assert result.returncode == 0, result.stderr
+
+    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
+    md_text = (output_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
+    snapshot = json.loads(
+        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+    )
+
+    assert "<h2>Independent Projects</h2>" not in html_text
+    assert "## Independent Projects" not in md_text
+    assert snapshot["independent_projects_visibility"] == "private"
+    # Filter zeroes the rendered list, but visibility is preserved for audit.
+    assert int(snapshot["independent_projects_count"]) == 0
+
+
+def test_independent_projects_included_with_flag(tmp_path: Path) -> None:
+    """`--include-private-projects` opts the canonical private section in."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+    result = _run_build_resume_cli(
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        profile_path=profile_path,
+        output_dir=output_dir,
+        extra_args=("--include-private-projects",),
+    )
+    assert result.returncode == 0, result.stderr
+
+    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
+    md_text = (output_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
+    snapshot = json.loads(
+        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+    )
+
+    assert "<h2>Independent Projects</h2>" in html_text
+    assert "## Independent Projects" in md_text
+    assert "Multi-repo platform" in html_text
+    assert "Multi-repo platform" in md_text
+    assert int(snapshot["independent_projects_count"]) >= 3
+    # Section sits between Selected Achievements and Professional Experience.
+    assert html_text.index("<h2>Selected Achievements</h2>") < html_text.index(
+        "<h2>Independent Projects</h2>"
+    )
+    assert html_text.index("<h2>Independent Projects</h2>") < html_text.index(
+        "<h2>Professional Experience</h2>"
+    )
+    assert md_text.index("## Selected Achievements") < md_text.index(
+        "## Independent Projects"
+    )
+    assert md_text.index("## Independent Projects") < md_text.index(
+        "## Professional Experience"
+    )
+
+
+def test_independent_projects_public_visibility_renders_without_flag(
+    tmp_path: Path,
+) -> None:
+    items = """
+[[independent_projects.items]]
+name = "Public Repo Showcase"
+summary = "Open-source platform demoing CI quality gates."
+key_skills = ["Python", "CI"]
+source_bullet_ids = ["exp-acme-b1"]
+url = "https://example.com/repo"
+"""
+    experience_db = tmp_path / "experience_db.toml"
+    experience_db.write_text(
+        _independent_projects_test_experience_db(visibility="public", items=items),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _run_build_resume_cli(
+        experience_db=experience_db,
+        profile_path=profile_path,
+        output_dir=output_dir,
+    )
+    assert result.returncode == 0, result.stderr
+
+    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
+    md_text = (output_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
+
+    assert "<h2>Independent Projects</h2>" in html_text
+    assert 'href="https://example.com/repo"' in html_text
+    assert "Public Repo Showcase" in html_text
+    assert "## Independent Projects" in md_text
+    assert "[Public Repo Showcase](https://example.com/repo)" in md_text
+
+
+def test_independent_projects_public_empty_section_omitted(tmp_path: Path) -> None:
+    """A public section with no items still omits the header."""
+    experience_db = tmp_path / "experience_db.toml"
+    experience_db.write_text(
+        _independent_projects_test_experience_db(visibility="public", items=""),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _run_build_resume_cli(
+        experience_db=experience_db,
+        profile_path=profile_path,
+        output_dir=output_dir,
+    )
+    assert result.returncode == 0, result.stderr
+
+    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
+    md_text = (output_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
+    snapshot = json.loads(
+        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+    )
+
+    assert "<h2>Independent Projects</h2>" not in html_text
+    assert "## Independent Projects" not in md_text
+    assert int(snapshot["independent_projects_count"]) == 0
+    assert snapshot["independent_projects_visibility"] == "public"
+
+
 def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
     output_dir = tmp_path / "baseline"
     profile_path = tmp_path / "profile.toml"

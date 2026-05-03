@@ -347,12 +347,13 @@ Section ordering (top to bottom):
 3. **Key Skills and Expertise** — ranked, packed skills grid (always present)
 4. **Cross-Org Architectural Leadership** — curated highlight list sourced from `[cross_org_architectural_leadership]` in `experience_db.toml`; omitted when the section has no items
 5. **Selected Achievements** — curated highlight list sourced from `[selected_achievements]` in `experience_db.toml`; omitted when the section has no items
-6. **Professional Experience** — role blocks with scored/trimmed bullet banks (always present)
-7. **Education** — omitted when no education data is present
-8. **Leadership & Community** — omitted when no leadership data is present
+6. **Independent Projects** — curated project showcase sourced from `[independent_projects]` in `experience_db.toml`; renders project name (and any future `url`) plus a one-line summary. Honors a section-level `visibility` flag: when `"private"` (current canonical default) the section is suppressed unless `--include-private-projects` is passed; when `"public"` the section renders by default. Omitted when the section has no items.
+7. **Professional Experience** — role blocks with scored/trimmed bullet banks (always present)
+8. **Education** — omitted when no education data is present
+9. **Leadership & Community** — omitted when no leadership data is present
 
 Invariants:
-- Sections 4 and 5 are optional; their presence is data-driven, not template-driven.
+- Sections 4, 5, and 6 are optional; their presence is data-driven, not template-driven. Section 6 additionally honors the `visibility` flag plus the `--include-private-projects` opt-in.
 - Section ordering is fixed; individual sections may be absent but never reordered.
 - DOCX and PDF export derive section order from the HTML output via `_ResumeHtmlBlockParser`; no separate ordering logic exists in `scripts/export_resume_documents.py`.
 ---

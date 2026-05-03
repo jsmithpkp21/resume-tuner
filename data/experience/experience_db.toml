@@ -319,7 +319,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b11"
-text = "Built XML-driven test generation that read a single parameter-typed UI definition and emitted positive and negative get/set tests for every parameter, eliminating one week of basic-functionality UI testing per UI per release in waterfall and reducing new-API test additions to minutes of text-file edits."
+text = "Built XML-driven test generation that read a single parameter-typed UI definition and emitted positive and negative get/set tests for every parameter, eliminating one week of basic-functionality UI testing per UI per test cycle in waterfall and reducing new-API test additions to minutes of text-file edits."
 skills = ["Java", "JUnit 4", "REST/SOAP Integration", "Test data management"]
 categories = ["Automation & Frameworks", "API Testing"]
 impact_type = "delivery-speed"

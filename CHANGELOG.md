@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.25.0...v0.26.0) (2026-05-03)
+
+
+### Features
+
+* **experience:** capture JJS Dev Labs independent engineering practice ([b34d84e](https://github.com/jsmithpkp21/resume-builder/commit/b34d84e4e887b8aee9c0213b0df39d449291189d)), closes [#19](https://github.com/jsmithpkp21/resume-builder/issues/19)
+
 ## [0.25.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.24.2...v0.25.0) (2026-05-03)
 
 

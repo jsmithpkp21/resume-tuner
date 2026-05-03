@@ -355,6 +355,10 @@ related_skills = [
   "LLM application engineering",
   "Anthropic API integration",
   "Claude Code (agentic coding assistant)",
+  "GitHub Copilot (IDE coding assistance)",
+  "GitHub Copilot Chat",
+  "GitHub Copilot PR Review",
+  "AI-assisted architecture exploration",
   "Conventional Commits",
   "Release-please",
   "GitHub Actions",
@@ -410,6 +414,14 @@ skills = ["Architecture", "Design patterns", "Process improvement"]
 categories = ["Architecture", "Decision-Making"]
 impact_type = "architecture"
 domain = "platform-engineering"
+
+[[experience.bullet_bank]]
+id = "exp_jjs_dev_labs_independent_se_202602_b07"
+text = "Used GitHub Copilot in the IDE and Copilot Chat in the browser for pair-coding, PR review, and initial-design exploration of two of three repositories, accelerating early-design iteration alongside the agentic primary surface during 403 PRs over three months."
+skills = ["GitHub Copilot (IDE coding assistance)", "GitHub Copilot Chat", "GitHub Copilot PR Review", "AI-assisted architecture exploration"]
+categories = ["AI-Augmented Engineering"]
+impact_type = "delivery-speed"
+domain = "ai-tooling"
 
 [independent_projects]
 title = "Independent Projects"

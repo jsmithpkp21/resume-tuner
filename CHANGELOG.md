@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.27.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.26.0...v0.27.0) (2026-05-03)
+
+
+### Features
+
+* **experience:** add Copilot tooling bullet to JJS Dev Labs role ([ccd3126](https://github.com/jsmithpkp21/resume-builder/commit/ccd3126a5e55b98f6a4cfc9a2ae659e09603f105)), closes [#19](https://github.com/jsmithpkp21/resume-builder/issues/19)
+
+
+### Bug Fixes
+
+* **experience:** keep b05 worksheet provenance gh-source-pure ([55b040f](https://github.com/jsmithpkp21/resume-builder/commit/55b040f8b4a5e9e6045b5f7ad8b46c62d0a529da))
+* **experience:** scope b07 Copilot metric and correct b05 timeline ([66c6e29](https://github.com/jsmithpkp21/resume-builder/commit/66c6e296d17daedffe400cc9eef46a4f16515203))
+
 ## [0.26.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.25.0...v0.26.0) (2026-05-03)
 
 

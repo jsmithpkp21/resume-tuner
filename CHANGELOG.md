@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.25.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.24.2...v0.25.0) (2026-05-03)
+
+
+### Features
+
+* **experience:** enrich 2008-08 Lead Framework Designer role from memory notes ([#18](https://github.com/jsmithpkp21/resume-builder/issues/18)) ([262188d](https://github.com/jsmithpkp21/resume-builder/commit/262188d367d70898fe220de60b4d65f72c5fef1f))
+
+
+### Bug Fixes
+
+* **experience:** address PR [#199](https://github.com/jsmithpkp21/resume-builder/issues/199) review feedback ([2fc72a5](https://github.com/jsmithpkp21/resume-builder/commit/2fc72a5bd86d0868c8c5ab1f4c2d123255f4d5e6))
+* **experience:** address PR [#199](https://github.com/jsmithpkp21/resume-builder/issues/199) second review pass ([3ca710a](https://github.com/jsmithpkp21/resume-builder/commit/3ca710a518c22efd22b277e1ebaccdc274d27ce2))
+* **experience:** address PR [#199](https://github.com/jsmithpkp21/resume-builder/issues/199) third review pass ([fbfca40](https://github.com/jsmithpkp21/resume-builder/commit/fbfca40408ee33db9f3cb6b724c5c54f0a4de454))
+* **experience:** align b11 to per test cycle ([38dbcec](https://github.com/jsmithpkp21/resume-builder/commit/38dbcec039fffe6802a6698420fc9f4f039950e6))
+* **experience:** correct b04 to per-test-cycle and clean up worksheet typos ([7eccf29](https://github.com/jsmithpkp21/resume-builder/commit/7eccf29e1462df59a5e04bfe77e72db04f50359d))
+
 ## [0.24.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.24.1...v0.24.2) (2026-05-02)
 
 

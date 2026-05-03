@@ -4,7 +4,9 @@ Use this worksheet to reconcile experience data from resumes one-by-one into the
 
 ## Row grain
 
-Create one row per extracted role candidate from a single source resume.
+For initial extraction from a source resume, create one row per extracted role candidate from that source.
+
+For delta reconciliation against an already-promoted canonical role (for example, follow-up memory notes that revise or extend specific bullets), one row per affected canonical change is allowed and preferred — each row carries the provenance quote and notes for that single change. This pattern keeps audit trails granular when later evidence touches multiple bullets within one role from one source.
 
 Worksheet rows are provenance records. They are used to verify source coverage and reconciliation decisions, not to constrain runtime bullet selection.
 

@@ -279,7 +279,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b04"
-text = "Unified Telnet, REST, and Web execution into a single JUnit-based test flow, collapsing three parallel UI-specific test paths into one and eliminating per-UI test forks across 16 endpoint models — turning the model into one suite per capability instead of one suite per transport."
+text = "Unified Telnet, REST, and Web execution into a single JUnit-based test flow, collapsing three parallel UI-specific test paths into one and saving one week per UI per test cycle previously spent on per-UI test maintenance across 16 endpoint models — turning the model into one suite per capability instead of one suite per transport."
 skills = ["REST/SOAP Integration", "Telnet/CLI Automation", "Web UI Automation", "Java", "JUnit 4"]
 categories = ["Automation & Frameworks", "API Testing"]
 impact_type = "delivery-speed"

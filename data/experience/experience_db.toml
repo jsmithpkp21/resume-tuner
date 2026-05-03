@@ -401,7 +401,7 @@ domain = "platform-engineering"
 
 [[experience.bullet_bank]]
 id = "exp_jjs_dev_labs_independent_se_202602_b05"
-text = "Used an agentic coding assistant as the primary development surface — including hooks, memory, custom skills, and multi-agent code review — accelerating execution across 403 PRs in three months while maintaining conventional-commits discipline and review hygiene across the platform."
+text = "Adopted an agentic coding assistant in the final week of a three-month build period as a development surface — including hooks, memory, custom skills, and multi-agent code review — accelerating execution across the platform while maintaining conventional-commits discipline and review hygiene."
 skills = ["Claude Code (agentic coding assistant)", "AI-assisted coding", "AI-assisted debugging", "AI-assisted documentation"]
 categories = ["AI-Augmented Engineering"]
 impact_type = "delivery-speed"
@@ -417,7 +417,7 @@ domain = "platform-engineering"
 
 [[experience.bullet_bank]]
 id = "exp_jjs_dev_labs_independent_se_202602_b07"
-text = "Used GitHub Copilot in the IDE and Copilot Chat in the browser for pair-coding, PR review, and initial-design exploration of two of three repositories, accelerating early-design iteration alongside the agentic primary surface during 403 PRs over three months."
+text = "Used GitHub Copilot in the IDE for pair-coding and PR review and Copilot Chat in the browser for initial-design exploration of two of three repositories, accelerating execution across most of 403 PRs over three months before transitioning to an agentic coding assistant in the final week."
 skills = ["GitHub Copilot (IDE coding assistance)", "GitHub Copilot Chat", "GitHub Copilot PR Review", "AI-assisted architecture exploration"]
 categories = ["AI-Augmented Engineering"]
 impact_type = "delivery-speed"

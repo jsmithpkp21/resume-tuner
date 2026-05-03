@@ -248,7 +248,7 @@ domain = "video"
 
 [[experience.bullet_bank]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808_b02b"
-text = "Pivoted a SOAP-centric test framework into a UI-agnostic design when the product redirected from SOAP to REST: reused the auto-generated SOAP POJOs as the canonical response model across REST, Telnet, and Web, normalized other transports into the same shape, and added reflection-based fallback to alternate UIs when an operation was unimplemented on the primary — letting a single test run unchanged across product variants where no UI exposed every capability."
+text = "Pivoted a SOAP-centric test framework into a UI-agnostic design when the product redirected from SOAP to REST: reused the auto-generated SOAP POJOs as the canonical response model across all three transports (REST, Telnet, and Web), eliminating per-UI test variants by normalizing alternate transport responses into the same shape and adding reflection-based fallback when an operation was unimplemented on the primary — letting a single test run unchanged across product variants where no UI exposed every capability."
 skills = ["Capability-Driven Design", "UI & Model-Agnostic Abstractions", "REST/SOAP Integration", "Java", "Architecture"]
 categories = ["Automation & Frameworks", "Architecture"]
 impact_type = "architecture"

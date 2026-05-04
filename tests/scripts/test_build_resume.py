@@ -739,6 +739,116 @@ url = "https://example.com/repo"
     assert "[Public Repo Showcase](https://example.com/repo)" in md_text
 
 
+def test_independent_projects_processed_mode_respects_visibility_flag(
+    tmp_path: Path,
+) -> None:
+    """Processed-mode pipeline both omits and includes the section under the flag."""
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    suppressed_dir = tmp_path / "suppressed"
+    suppressed_result = _run_build_resume_cli(
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        profile_path=profile_path,
+        output_dir=suppressed_dir,
+        extra_args=("--processing-mode", "processed"),
+    )
+    assert suppressed_result.returncode == 0, suppressed_result.stderr
+    suppressed_html = (suppressed_dir / "latest_resume_processed.html").read_text(
+        encoding="utf-8"
+    )
+    suppressed_md = (suppressed_dir / "latest_resume_processed.md").read_text(
+        encoding="utf-8"
+    )
+    suppressed_snapshot = json.loads(
+        (suppressed_dir / "latest_resume_processed_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert "<h2>Independent Projects</h2>" not in suppressed_html
+    assert "## Independent Projects" not in suppressed_md
+    assert int(suppressed_snapshot["independent_projects_count"]) == 0
+
+    included_dir = tmp_path / "included"
+    included_result = _run_build_resume_cli(
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        profile_path=profile_path,
+        output_dir=included_dir,
+        extra_args=("--processing-mode", "processed", "--include-private-projects"),
+    )
+    assert included_result.returncode == 0, included_result.stderr
+    included_html = (included_dir / "latest_resume_processed.html").read_text(
+        encoding="utf-8"
+    )
+    included_md = (included_dir / "latest_resume_processed.md").read_text(
+        encoding="utf-8"
+    )
+    included_snapshot = json.loads(
+        (included_dir / "latest_resume_processed_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert "<h2>Independent Projects</h2>" in included_html
+    assert "## Independent Projects" in included_md
+    assert int(included_snapshot["independent_projects_count"]) >= 3
+
+
+def test_independent_projects_url_normalization_and_safety(tmp_path: Path) -> None:
+    """Loader prepends https:// to bare domains and rejects unsafe schemes."""
+    items = """
+[[independent_projects.items]]
+name = "Bare Domain"
+summary = "Bare domain URL gets https:// prepended."
+key_skills = ["Python"]
+source_bullet_ids = ["exp-acme-b1"]
+url = "github.com/example/repo"
+
+[[independent_projects.items]]
+name = "Unsafe Scheme"
+summary = "Unsafe scheme is dropped."
+key_skills = ["Python"]
+source_bullet_ids = ["exp-acme-b1"]
+url = "javascript:alert(1)"
+
+[[independent_projects.items]]
+name = "Already Https"
+summary = "https URL passes through unchanged."
+key_skills = ["Python"]
+source_bullet_ids = ["exp-acme-b1"]
+url = "https://example.com/full"
+"""
+    experience_db = tmp_path / "experience_db.toml"
+    experience_db.write_text(
+        _independent_projects_test_experience_db(visibility="public", items=items),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _run_build_resume_cli(
+        experience_db=experience_db,
+        profile_path=profile_path,
+        output_dir=output_dir,
+    )
+    assert result.returncode == 0, result.stderr
+
+    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
+    md_text = (output_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
+
+    # Bare domain becomes https://
+    assert 'href="https://github.com/example/repo"' in html_text
+    assert "[Bare Domain](https://github.com/example/repo)" in md_text
+    # javascript: scheme is dropped (name renders without anchor / link)
+    assert "javascript:" not in html_text
+    assert "javascript:" not in md_text
+    assert "<strong>Unsafe Scheme</strong>" in html_text
+    assert "- **Unsafe Scheme**" in md_text
+    # Pre-formed https passes through
+    assert 'href="https://example.com/full"' in html_text
+    assert "[Already Https](https://example.com/full)" in md_text
+
+
 def test_independent_projects_public_empty_section_omitted(tmp_path: Path) -> None:
     """A public section with no items still omits the header."""
     experience_db = tmp_path / "experience_db.toml"

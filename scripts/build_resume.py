@@ -662,6 +662,28 @@ def load_selected_achievements(
 
 
 _INDEPENDENT_PROJECTS_VALID_VISIBILITY = ("public", "private")
+# RFC 3986 scheme grammar: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+_INDEPENDENT_PROJECT_URL_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*:")
+_INDEPENDENT_PROJECT_URL_SAFE_SCHEMES = ("http://", "https://")
+
+
+def _normalize_independent_project_url(raw: str) -> str:
+    """Return a safe http/https URL or empty string.
+
+    - If the input has no scheme (e.g. ``github.com/org/repo``), prepend
+      ``https://`` so authors can write bare domains.
+    - If the scheme is anything other than ``http://`` / ``https://``
+      (e.g. ``javascript:``, ``data:``, ``ftp:``), drop the URL entirely
+      to keep generated HTML safe.
+    """
+    candidate = raw.strip()
+    if not candidate:
+        return ""
+    if _INDEPENDENT_PROJECT_URL_SCHEME_RE.match(candidate):
+        if candidate.lower().startswith(_INDEPENDENT_PROJECT_URL_SAFE_SCHEMES):
+            return candidate
+        return ""
+    return f"https://{candidate}"
 
 
 def load_independent_projects(
@@ -699,7 +721,7 @@ def load_independent_projects(
             )
         name = str(item.get("name", "")).strip()
         summary = str(item.get("summary", "")).strip()
-        url = str(item.get("url", "")).strip()
+        url = _normalize_independent_project_url(str(item.get("url", "")))
 
         raw_skills = item.get("key_skills", [])
         if not isinstance(raw_skills, list):
@@ -3095,6 +3117,15 @@ def run_pipeline(args: argparse.Namespace) -> int:
         independent_projects=independent_projects,
         independent_projects_visibility=independent_projects_visibility,
     )
+    # Apply visibility filter before processed-mode stages so suppressed
+    # independent_projects do not consume layout budget in
+    # _compute_bullet_line_budget() and cannot influence trim/selection.
+    if (
+        resume.independent_projects_visibility == "private"
+        and not args.include_private_projects
+    ):
+        resume = dc_replace(resume, independent_projects=())
+
     if args.processing_mode == "processed":
         resume = transform_for_role(resume)
         resume = trim_for_role(resume)
@@ -3104,12 +3135,6 @@ def run_pipeline(args: argparse.Namespace) -> int:
         resume = summarize_for_role(resume)
         resume = select_skills(resume)
         resume = summarize_profile_for_role(resume)
-
-    if (
-        resume.independent_projects_visibility == "private"
-        and not args.include_private_projects
-    ):
-        resume = dc_replace(resume, independent_projects=())
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 

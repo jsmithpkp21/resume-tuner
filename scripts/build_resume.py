@@ -676,6 +676,8 @@ def _normalize_independent_project_url(raw: str) -> str:
     - If the scheme is anything other than ``http`` / ``https``
       (e.g. ``javascript:``, ``data:``, ``ftp:``), drop the URL entirely
       to keep generated HTML safe.
+    - After normalization, reject URLs with an empty netloc (e.g. ``http://``)
+      to avoid passing malformed inputs to the HTML renderer.
     """
     candidate = raw.strip()
     if not candidate:
@@ -686,10 +688,16 @@ def _normalize_independent_project_url(raw: str) -> str:
     # with a dot it has mistakenly parsed a bare hostname (e.g. "github.com" in
     # "github.com:8443/org/repo") as the scheme component.
     if not scheme or "." in scheme:
-        return f"https://{candidate}"
-    if scheme in ("http", "https"):
-        return candidate
-    return ""
+        normalized = f"https://{candidate}"
+    elif scheme in ("http", "https"):
+        normalized = candidate
+    else:
+        return ""
+    # Guard against malformed inputs like "http://" that have a valid scheme
+    # but an empty netloc; such strings would produce broken anchor tags.
+    if not urllib.parse.urlsplit(normalized).netloc:
+        return ""
+    return normalized
 
 
 def load_independent_projects(

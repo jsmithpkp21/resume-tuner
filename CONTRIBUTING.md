@@ -109,6 +109,9 @@ git push origin feature/your-feature-name
 
 ### 4. Create Pull Request
 
+For child-issue PRs, prefer `make pr-epic` (see below) — it picks the right
+base automatically. To create a PR by hand on GitHub.com:
+
 1. Visit GitHub.com
 2. Click "New Pull Request"
 3. Select the correct base branch:
@@ -123,6 +126,60 @@ git push origin feature/your-feature-name
 6. Request review from team members
 
 **Important:** GitHub defaults PR base to `main`. Change it manually whenever the work belongs in an epic first.
+
+#### Helper: `make pr-epic ISSUE=<num>`
+
+Use this from a child-issue branch to open a draft PR with the right base
+without remembering the epic name:
+
+```bash
+# from feature/87-add-pr-epic-... :
+make pr-epic ISSUE=87
+```
+
+Resolution order for the PR base (first match wins):
+
+1. `BASE=<branch>` — explicit override, used as-is.
+2. `EPIC=<branch>` — explicit epic branch (must already exist on `origin`).
+3. Auto-detect via the GitHub sub-issue parent of the issue, mapped to a
+   matching `epic/<parent>-*` branch on `origin`.
+4. Fall back to `main`, with a `WARN:` line so the choice is visible in
+   the terminal.
+
+Common variants:
+
+```bash
+# force a specific epic, e.g. when sub-issue links are missing
+make pr-epic ISSUE=87 EPIC=epic/58-some-epic
+
+# explicit non-epic PR (skips auto-detect entirely)
+make pr-epic ISSUE=87 BASE=main
+
+# open ready-for-review instead of draft
+make pr-epic ISSUE=87 READY=1
+
+# override the title (defaults to the issue title)
+make pr-epic ISSUE=87 TITLE="feat(scope): custom title"
+```
+
+Troubleshooting:
+
+- **`gh) not found` / `not authenticated`** — install GitHub CLI and run
+  `gh auth login` (see `docs/SETUP/GITHUB_CLI_AUTH.md`). A stale
+  `GITHUB_TOKEN` in your shell silently overrides stored credentials.
+- **`cannot run pr-epic on 'main'` / `... on an epic branch`** — switch
+  to the child-issue branch first (`make branch ISSUE=<num>`).
+- **`current branch '...' does not match issue #<num>`** — the current
+  branch must follow the canonical `<type>/<num>-<slug>` convention that
+  `make branch ISSUE=<num>` produces, with the issue number bounded by
+  `/` and `-` (so `feature/87-foo` matches but `feature/187-foo` does
+  not).
+- **`branch '...' is not on origin yet; pushing now`** — informational;
+  the helper auto-pushes with `git push -u origin "$BRANCH"` (the current
+  branch name).
+- **`explicit EPIC=... does not exist on origin`** — typo or the epic
+  branch hasn't been pushed; verify with `git ls-remote --heads origin
+  'epic/*'`.
 
 ### 5. Code Review
 
@@ -213,7 +270,7 @@ Short identifier for the area being modified:
 - Explain **why** this change is needed
 - Explain **what** problem it solves
 - Separate from subject with blank line
-- Wrap at 100 characters
+- Wrap at 120 characters
 - Reference issues if applicable
 
 ### Footer (Optional)
@@ -292,8 +349,8 @@ $ git commit -m "added feature"
 # Invalid commit: body line too long (also rejected by CI)
 $ git commit -m "fix: short subject
 >
-> $(python3 -c "print('x'*101)")"
-✗ body-max-line-length: body's lines must not be longer than 100 characters
+> $(python3 -c "print('x'*121)")"
+✗ body-max-line-length: body's lines must not be longer than 120 characters
 ```
 
 ### Setup

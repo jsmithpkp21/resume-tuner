@@ -68,7 +68,7 @@ The resume-builder fixture is defined in `_make_resume_builder_consumer()` insid
 
 - `tooling.toml` — Python 3.11 + pip version declaration
 - `.pyproject.meta.toml` — resume-builder project identity
-- `VERSION` — semver project version
+- `VERSION` — semver project version with the `# x-release-please-version` annotation (see [NEW_PROJECT.md → `VERSION`](../SETUP/NEW_PROJECT.md#version))
 - `pyproject.toml` — minimal PEP 621 metadata
 - `requirements.txt` — minimal dependency list
 - `requirements-dev.txt` — synced shared dev-tool dependency list

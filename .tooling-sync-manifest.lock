@@ -46,7 +46,7 @@
       "sha256": "685f55f5dc1993f49ea4b68d8b35ddda207def419bd980d3b0f549ec77cc887e"
     },
     "AGENTS.md": {
-      "sha256": "6a589a548313d6ab4eaf28eb2a4f57277cf150abc7521cfd4f31f045f3420d2a"
+      "sha256": "712f871a893ab8ee4dd201ba5b8719ba55d9f9e9891386b39fbca12bf1673d85"
     },
     "CLAUDE.md": {
       "sha256": "6a676ef88e9f075ae313d16e15d68d3359e958418535974399008654a1666548"
@@ -55,7 +55,7 @@
       "sha256": "a119ba8ab7e5440b248716040e80b22aa90e296a24b6bbbfc3a2ff24556cf51d"
     },
     "CONTRIBUTING.md": {
-      "sha256": "8fe09fd269dcfd5f6b79b2d1aadd86f0adabd2f1493cd1b56603aeb902aeeab1"
+      "sha256": "d591a6175638e91383452075e70eb82dc2eab419188c04f8aba3eb3e8486863b"
     },
     "DOCKER.md": {
       "sha256": "406e98c9910e71636f807169e6092cf04c6a82f450d915430a718647ebb1f824"
@@ -70,10 +70,10 @@
       "sha256": "90441f19e84cb77a9f4302d50dd3e9178011f8d1e2e20df43775838711589783"
     },
     "Makefile": {
-      "sha256": "60abcd0dbc8c1fd4b597df8dc7923d09c5ce0a13276f65f32a35a8638ae200d7"
+      "sha256": "d2bbfda7dc723b40863cd0a09e5ac870839988f7da01b10f3de8663265f0c0ce"
     },
     "commitlint.config.mjs": {
-      "sha256": "2bd8a8ea01caa7ff68e9b9096007a80336a061de9f60ac3f06492eb8ef7a7ae0"
+      "sha256": "ae0ebfa1b37453c8e29eff7c5af0b8eec5dc73f373298288cf7d79692b76daea"
     },
     "docker-compose.yml": {
       "sha256": "7a27947936ee30c11099fc97415e841fb09256daa733c65998a5c6baea425d55"
@@ -94,7 +94,7 @@
       "sha256": "1dfa3f2b5a20998573deeba03aa271d251f235002735077fd55d583dbab86ebe"
     },
     "docs/REFERENCE/CONSUMER_CONTRACT.md": {
-      "sha256": "2ccaed194baba8c96dfd46265832d718282cd6218ae7f743f58a8819609ff063"
+      "sha256": "c7c7bdd34ce617d4927f3417985b719c39f063874f999b660f7d98a2afdc3f2c"
     },
     "docs/REFERENCE/COPILOT-INSTRUCTIONS.md": {
       "sha256": "93cbfff93738cf79c0a4e6ab2cfc28d63e22f37c5b4f6229f2db16cfe5e17e42"
@@ -166,7 +166,7 @@
       "sha256": "29768ba94d9083d1ff23f55ee0c66c00008f915e4ab41d681907b4f93485a064"
     },
     "docs/SETUP/NEW_PROJECT.md": {
-      "sha256": "335df1461f7266ac006f7864080ec4cfb3b91db468f32141735bf5dc59bf7d5f"
+      "sha256": "f34e34e36715e5b334edd8918ed596577536ea474217bbc4bc0c4c438b4e33e2"
     },
     "requirements-dev.txt": {
       "sha256": "6e69da3cb5facbacea56ee987d749f71d2a983b38c7a1552488cf80556af0748"
@@ -182,6 +182,9 @@
     },
     "scripts/create_github_issues.py": {
       "sha256": "a97b0baf52eac190335bcbe47edde1b9ee47d16cd34965455fc72754860e0947"
+    },
+    "scripts/create_pr_epic.sh": {
+      "sha256": "a42ac60644a805a79af30adba12fe1d9881a42f1c803b51611b79588f87135f4"
     },
     "scripts/create_sync_hardening_issues.py": {
       "sha256": "a214a35207d46882354f5ee23cc5f6945ca78c64f4cd671e4958f080994a7d12"
@@ -238,7 +241,7 @@
       "sha256": "31a800374b8baa45a923f519a3b5fe56a6901286e181229a5894c4ebe1550d90"
     },
     "scripts/validate_version_sync.py": {
-      "sha256": "db91fd7d4f6e1dd69a2d0f4eb7ec77db12cc7b32d04486456ad0f957d34229e6"
+      "sha256": "567d9342b86591234a59bbdfc7397f9a11d0e2c02b38c2e3a04de14f83b9c9b0"
     },
     "scripts/validate_workflow_action_pins.py": {
       "sha256": "d694fd30505844fc9664bc88206e014eb02979ba0518e0815daece96067738f2"
@@ -247,15 +250,15 @@
       "sha256": "fa448cb402c6de47fef5aa2e28e68b4d05caea878e7513cfb31243206a7d1b9f"
     },
     "tests/scripts/test_consumer_contract.py": {
-      "sha256": "d3baec6098084d511d37e794c89718046783e9cb60564766f9fba74d27ff25cc"
+      "sha256": "fd655eb71fd557432e6de4ff556a92a373f4256df0d91d0469a129762ce1c5ed"
     },
     "tests/workflows/test_action_runtime_compatibility.py": {
       "sha256": "eac4b80328394dacc977662feaf2f59062fde36d33d5ab7976ffd9be407413f0"
     }
   },
-  "generated_at_utc": "2026-05-02T14:26:58Z",
-  "requested_ref": "v1.20.3",
-  "resolved_ref": "18ef4beca456af0f80cd4f33e3a2c092094898bb",
+  "generated_at_utc": "2026-05-04T02:10:55Z",
+  "requested_ref": "v1.22.0",
+  "resolved_ref": "370d227410a88d8b6205d8c661eddf7a5cc58bac",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

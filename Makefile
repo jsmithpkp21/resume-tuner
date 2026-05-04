@@ -15,7 +15,7 @@ MARKDOWN_LINT_TIMEOUT_SECONDS ?= 120
 # See docs/REFERENCE/adr/0001-local-tooling-runtime-policy.md invariant (1).
 MARKDOWNLINT_VERSION ?= 0.47.0
 
-.PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper docker-up docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
+.PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper pr-epic docker-up docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
 
 env:
 	scripts/create_env.sh
@@ -266,6 +266,36 @@ install-act:
 
 branch:
 	@bash scripts/create_branch.sh $(ISSUE)
+
+# Open a draft PR from the current issue branch to the parent epic (or main).
+# Resolution order: BASE=<branch> -> EPIC=<branch> -> auto-detect parent epic
+# via GitHub sub-issues -> fallback to main with a warning.
+# Usage:
+#   make pr-epic ISSUE=<num>
+#   make pr-epic ISSUE=<num> EPIC=epic/58-some-epic
+#   make pr-epic ISSUE=<num> BASE=main
+#   make pr-epic ISSUE=<num> READY=1   # non-draft
+EPIC :=
+BASE :=
+TITLE :=
+READY :=
+# User-supplied values are passed via target-scoped exports rather than
+# interpolated into the recipe. `export VAR := $(MAKE_VAR)` sets the env var
+# directly through make's variable system, so a TITLE containing shell
+# metacharacters such as `$(date)` cannot escape the quote context and execute
+# as a command substitution.
+pr-epic: export PR_EPIC_ISSUE := $(ISSUE)
+pr-epic: export PR_EPIC_EPIC  := $(EPIC)
+pr-epic: export PR_EPIC_BASE  := $(BASE)
+pr-epic: export PR_EPIC_TITLE := $(TITLE)
+pr-epic: export PR_EPIC_READY := $(READY)
+pr-epic:
+	@if [ -z "$(ISSUE)" ]; then \
+		echo "ERROR: ISSUE is required."; \
+		echo "Usage: make pr-epic ISSUE=<num> [EPIC=<branch>] [BASE=<branch>] [TITLE=<text>] [READY=1]"; \
+		exit 2; \
+	fi
+	@bash scripts/create_pr_epic.sh
 
 # Reword the first commit on a PR branch to fix "Initial plan" commitlint failures.
 # Usage: make fix-pr-initial-commit PR=<num> [MSG=<message>]

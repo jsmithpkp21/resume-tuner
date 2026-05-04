@@ -76,6 +76,16 @@ pytest -q tests/scripts/test_consumer_contract.py
 - CI/workflow behavior is repo-name dynamic (see `docs/REFERENCE/DYNAMIC_WORKFLOWS.md`, `.github/workflows/*.yml`).
 - Release metadata integration: sync can update consumer `.release-please-config.json` from `.pyproject.meta.toml` package name.
 
+## Tooling Promotion Policy (Consumer → Tooling)
+When a change made in a consumer repo (for example `resume-builder`) is a candidate for standardization across the repo family, follow this order so the pattern can be promoted into `tooling` quickly and without rediscovery:
+
+1. **Open a tooling tracking issue first.** Before merging the consumer-side change, create an issue in the `tooling` repo describing the candidate rule, its motivation, and which consumer repo originated it. Link the consumer PR (or planned PR) from that issue.
+2. **Land the consumer change.** Implement and merge the immediate fix/feature in the consumer repo so the team is unblocked. Reference the tooling issue from the consumer PR description.
+3. **Post a promotion comment on the tooling issue** as soon as the consumer change merges. Include exactly what was added: file paths touched, the rule text or code that should be promoted, and a one-line rationale. This turns the tooling issue into a ready-to-implement spec rather than a re-investigation.
+4. **Cross-link.** When the tooling-side change ships, comment on the original consumer PR with a link to the tooling PR/commit so the audit trail is closed in both directions.
+
+This policy applies whether the consumer change is a doc, a workflow tweak, a Makefile target, or a script — anything that other repos in the family would benefit from. If the change is genuinely consumer-specific (e.g. resume content, project-specific data), no tooling issue is needed.
+
 ## PR Review Conventions
 
 - When reviewing a PR whose branch starts with `copilot/`, the changes were authored by GitHub Copilot's SWE agent. Post review comments directed at `@copilot` so the agent receives and acts on the feedback.

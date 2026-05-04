@@ -30,20 +30,28 @@ def _read_version_file(path: Path) -> str:
     return value
 
 
+def _version_file_needs_annotation(path: Path) -> bool:
+    # The release-please `generic` extra-files updater bumps a line only when
+    # it carries the `x-release-please-version` marker, so a missing marker is
+    # itself a form of drift even when all four version literals already agree
+    # (issue #296). `_read_version_file` strips comments before comparison, so
+    # the equality check in `run()` cannot detect this on its own.
+    if not path.exists():
+        return False
+    first = next(iter(path.read_text(encoding="utf-8").splitlines()), "")
+    return "x-release-please-version" not in first
+
+
 def _write_version_file(path: Path, version: str) -> None:
-    # Preserve the `x-release-please-version` annotation if the existing file
-    # carries it; release-please needs that annotation on the same line as the
-    # version literal to bump VERSION on each release (issue #272). Write the
-    # canonical annotated form rather than regex-substituting the existing
-    # line, so `--fix` is deterministic even if the file has an unexpected
-    # prefix (e.g. `v`-prefixed) that wouldn't match the semver regex.
-    if path.exists():
-        existing = path.read_text(encoding="utf-8")
-        first = next(iter(existing.splitlines()), "")
-        if "x-release-please-version" in first:
-            path.write_text(f"{version} # x-release-please-version\n", encoding="utf-8")
-            return
-    path.write_text(f"{version}\n", encoding="utf-8")
+    # Always emit the `x-release-please-version` annotation. Release-please's
+    # `generic` extra-files updater only rewrites lines carrying that marker,
+    # so an unannotated VERSION silently drifts on every release (issues #272,
+    # #296). Writing the annotation unconditionally upgrades consumer repos
+    # the first time `--fix` runs (locally, in the pre-commit hook, or via the
+    # post-release-sync workflow), and leaves already-annotated files
+    # unchanged. Other VERSION readers strip `#` comments, so the annotation
+    # is inert for them.
+    path.write_text(f"{version} # x-release-please-version\n", encoding="utf-8")
 
 
 def _read_project_version(path: Path) -> str:
@@ -182,11 +190,19 @@ def run(root: Path, fix: bool = False, target_version: str | None = None) -> int
         target_version if target_version else versions[".release-please-manifest.json"]
     )
     is_synced = len(set(versions.values())) == 1
+    needs_annotation = _version_file_needs_annotation(version_path)
 
-    if not fix and not is_synced:
-        print("ERROR: Version mismatch detected:", file=sys.stderr)
-        for name, value in versions.items():
-            print(f"  - {name}: {value}", file=sys.stderr)
+    if not fix and (not is_synced or needs_annotation):
+        if not is_synced:
+            print("ERROR: Version mismatch detected:", file=sys.stderr)
+            for name, value in versions.items():
+                print(f"  - {name}: {value}", file=sys.stderr)
+        else:
+            print(
+                "ERROR: VERSION is missing the `# x-release-please-version` "
+                "annotation; release-please will not bump it on the next release.",
+                file=sys.stderr,
+            )
         print(
             "Fix: run `python3 scripts/validate_version_sync.py --root . --fix` "
             "or set an explicit version with `--version X.Y.Z --fix`.",
@@ -194,7 +210,7 @@ def run(root: Path, fix: bool = False, target_version: str | None = None) -> int
         )
         return 1
 
-    if fix and (not is_synced or target_version is not None):
+    if fix and (not is_synced or needs_annotation or target_version is not None):
         try:
             _apply_fix(
                 version_path,

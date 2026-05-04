@@ -180,6 +180,38 @@ Records the **applied state** of synced files:
 - Run `scripts/merge_pyproject.py` to regenerate `pyproject.toml`
 - Do **not** edit `pyproject.toml` directly (it's generated)
 
+### `VERSION`
+
+Single-line semver file consumed by `scripts/create_env.sh`,
+`scripts/verify_env.sh`, `scripts/load_build_env.sh`, the
+`verify-environment` workflow, and the release-please bumper.
+
+The version literal **must** carry the `# x-release-please-version` annotation:
+
+```
+0.1.0 # x-release-please-version
+```
+
+Release-please's `generic` extra-files updater only rewrites lines that carry
+this marker (see issues #272 and #296). Without it, the `chore(main): release
+X.Y.Z` commit silently leaves `VERSION` at the previous version, the
+`version-sync-check` pre-push hook then blocks every feature-branch push, and a
+follow-up `chore/post-release-sync-vX.Y.Z` PR is required each cycle.
+
+If your `VERSION` file is currently a bare semver string (no annotation),
+upgrade it once with:
+
+```bash
+python3 scripts/validate_version_sync.py --root . --fix
+git add VERSION
+git commit -m "chore: annotate VERSION for release-please"
+```
+
+`validate_version_sync.py` always writes the annotated form, so the upgrade is
+idempotent and other readers (`scripts/create_env.sh`, `scripts/verify_env.sh`,
+`scripts/load_build_env.sh`, the `verify-environment` workflow) strip `#`
+comments when reading the file.
+
 ### `tooling.toml`
 
 **Your** project-specific tool config. Keys actually parsed by tooling scripts today:
@@ -310,8 +342,21 @@ interpreters are locked to whatever patch the distro shipped.
    docker compose up -d
    docker compose exec base_env make setup
    ```
-3. Or, if your project does not need strict-patch reproducibility, relax the
-   pin in **your own** `tooling.toml` to major.minor (`version = "3.11"`).
+
+> **Note — pin precision is consumer-owned, not a per-environment workaround.**
+> The precision in `tooling.toml [python].version` *is* the contract: a full
+> `M.m.p` is enforced strictly by `create_env.sh` / `verify_env.sh`; a `M.m`
+> value is enforced loosely. If your project genuinely does not need
+> patch-level reproducibility, that is a project-wide decision — change the
+> `[python].version` field (the one nested under the `[python]` table, **not**
+> the top-level `version` that pins the tooling release) to `M.m`, then
+> regenerate `pyproject.toml` so its `requires-python` stays in sync (run
+> `make sync-tooling`, or `python3 scripts/merge_pyproject.py .` if you only
+> want the merge step), and commit both files together. Do not relax the pin
+> just to unstick a single machine; fix the interpreter via pyenv or Docker
+> instead. See
+> [pyproject.toml Architecture](../REFERENCE/PYPROJECT_ARCHITECTURE.md) for
+> the full precision policy.
 
 **Symptom (interpreter missing entirely):**
 ```

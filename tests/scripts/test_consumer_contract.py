@@ -85,7 +85,13 @@ def _make_resume_builder_consumer(tmp_path: Path) -> Path:
     (consumer / ".pyproject.meta.toml").write_text(
         _RESUME_BUILDER_PYPROJECT_META, encoding="utf-8"
     )
-    (consumer / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    # Match the annotated form documented in CONSUMER_CONTRACT.md / NEW_PROJECT.md;
+    # release-please's `generic` updater requires the marker to bump VERSION
+    # (issue #296). Sync does not touch VERSION, so the annotation is inert
+    # for the contract assertions but reflects the realistic consumer state.
+    (consumer / "VERSION").write_text(
+        "0.1.0 # x-release-please-version\n", encoding="utf-8"
+    )
     (consumer / "requirements.txt").write_text(
         "# resume-builder app/runtime dependencies\nclick==8.1.7\n", encoding="utf-8"
     )

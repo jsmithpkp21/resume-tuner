@@ -15,7 +15,7 @@
 
 [project]
 name = "resume-builder"
-version = "0.27.0"
+version = "0.28.0"
 description = "AI-driven résumé builder: relevance-scored, layout-aware, two-page PDF/DOCX output."
 authors = [
     { name = "Jonathan Smith" }

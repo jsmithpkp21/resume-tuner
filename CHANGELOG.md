@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.28.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.27.0...v0.28.0) (2026-05-04)
+
+
+### Features
+
+* **render:** render [independent_projects] section with visibility opt-in ([808d825](https://github.com/jsmithpkp21/resume-builder/commit/808d8257a150ba40f7ac108f3f08264978fef9d1)), closes [#205](https://github.com/jsmithpkp21/resume-builder/issues/205)
+
+
+### Bug Fixes
+
+* **render:** add netloc validation to _normalize_independent_project_url ([f6d1736](https://github.com/jsmithpkp21/resume-builder/commit/f6d173636262a1c0409ce76b562c126927d3170f))
+* **render:** address PR [#207](https://github.com/jsmithpkp21/resume-builder/issues/207) Copilot review feedback ([d11774d](https://github.com/jsmithpkp21/resume-builder/commit/d11774d63e639ce343f7b1d0552cf33646a19bd8))
+* **render:** backwards-compatible run_pipeline + plumb private-projects to export ([a491b4f](https://github.com/jsmithpkp21/resume-builder/commit/a491b4f8cdb7631a948b6b409c102f80ec41c7a0))
+* **render:** use urlsplit to handle bare domain:port URLs in _normalize_independent_project_url ([881eb08](https://github.com/jsmithpkp21/resume-builder/commit/881eb084948cd9dc84945ea1d12799b954fa92fb))
+
 ## [0.27.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.26.0...v0.27.0) (2026-05-03)
 
 

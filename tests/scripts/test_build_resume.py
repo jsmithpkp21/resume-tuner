@@ -804,6 +804,13 @@ source_bullet_ids = ["exp-acme-b1"]
 url = "github.com/example/repo"
 
 [[independent_projects.items]]
+name = "Bare Domain Port"
+summary = "Bare domain:port URL gets https:// prepended."
+key_skills = ["Python"]
+source_bullet_ids = ["exp-acme-b1"]
+url = "github.com:8443/org/repo"
+
+[[independent_projects.items]]
 name = "Unsafe Scheme"
 summary = "Unsafe scheme is dropped."
 key_skills = ["Python"]
@@ -839,6 +846,9 @@ url = "https://example.com/full"
     # Bare domain becomes https://
     assert 'href="https://github.com/example/repo"' in html_text
     assert "[Bare Domain](https://github.com/example/repo)" in md_text
+    # Bare domain:port also becomes https:// (not dropped as an unknown scheme)
+    assert 'href="https://github.com:8443/org/repo"' in html_text
+    assert "[Bare Domain Port](https://github.com:8443/org/repo)" in md_text
     # javascript: scheme is dropped (name renders without anchor / link)
     assert "javascript:" not in html_text
     assert "javascript:" not in md_text

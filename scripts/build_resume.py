@@ -13,6 +13,7 @@ import re
 import sys
 import textwrap
 import tomllib
+import urllib.parse
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from dataclasses import replace as dc_replace
@@ -662,9 +663,6 @@ def load_selected_achievements(
 
 
 _INDEPENDENT_PROJECTS_VALID_VISIBILITY = ("public", "private")
-# RFC 3986 scheme grammar: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
-_INDEPENDENT_PROJECT_URL_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*:")
-_INDEPENDENT_PROJECT_URL_SAFE_SCHEMES = ("http://", "https://")
 
 
 def _normalize_independent_project_url(raw: str) -> str:
@@ -672,18 +670,26 @@ def _normalize_independent_project_url(raw: str) -> str:
 
     - If the input has no scheme (e.g. ``github.com/org/repo``), prepend
       ``https://`` so authors can write bare domains.
-    - If the scheme is anything other than ``http://`` / ``https://``
+    - If the apparent "scheme" contains a dot (e.g. ``github.com:8443/org/repo``
+      which :func:`urllib.parse.urlsplit` parses as scheme ``github.com``),
+      treat it as a bare domain:port pattern and prepend ``https://``.
+    - If the scheme is anything other than ``http`` / ``https``
       (e.g. ``javascript:``, ``data:``, ``ftp:``), drop the URL entirely
       to keep generated HTML safe.
     """
     candidate = raw.strip()
     if not candidate:
         return ""
-    if _INDEPENDENT_PROJECT_URL_SCHEME_RE.match(candidate):
-        if candidate.lower().startswith(_INDEPENDENT_PROJECT_URL_SAFE_SCHEMES):
-            return candidate
-        return ""
-    return f"https://{candidate}"
+    parsed = urllib.parse.urlsplit(candidate)
+    scheme = parsed.scheme.lower()
+    # Real RFC 3986 schemes never contain a dot; if urlsplit produces a scheme
+    # with a dot it has mistakenly parsed a bare hostname (e.g. "github.com" in
+    # "github.com:8443/org/repo") as the scheme component.
+    if not scheme or "." in scheme:
+        return f"https://{candidate}"
+    if scheme in ("http", "https"):
+        return candidate
+    return ""
 
 
 def load_independent_projects(

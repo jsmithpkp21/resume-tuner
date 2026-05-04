@@ -3134,9 +3134,13 @@ def run_pipeline(args: argparse.Namespace) -> int:
     # Apply visibility filter before processed-mode stages so suppressed
     # independent_projects do not consume layout budget in
     # _compute_bullet_line_budget() and cannot influence trim/selection.
+    # Use getattr so programmatic callers that build a Namespace without this
+    # field (e.g. scripts/export_resume_documents.py) still work — the default
+    # matches the CLI default (private projects suppressed).
+    include_private_projects = getattr(args, "include_private_projects", False)
     if (
         resume.independent_projects_visibility == "private"
-        and not args.include_private_projects
+        and not include_private_projects
     ):
         resume = dc_replace(resume, independent_projects=())
 

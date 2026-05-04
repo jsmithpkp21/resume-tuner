@@ -739,6 +739,39 @@ url = "https://example.com/repo"
     assert "[Public Repo Showcase](https://example.com/repo)" in md_text
 
 
+def test_run_pipeline_tolerates_namespace_without_include_private_projects(
+    tmp_path: Path,
+) -> None:
+    """Programmatic callers (e.g. export_resume_documents) build a Namespace
+    by hand. run_pipeline must not raise AttributeError when the field is
+    absent — the defensive getattr should fall back to the CLI default
+    (private projects suppressed)."""
+    import argparse
+
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+    output_dir = tmp_path / "out"
+
+    # No `include_private_projects` attribute on this Namespace, intentionally.
+    pipeline_args = argparse.Namespace(
+        profile=profile_path,
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        skills_matrix=REPO_ROOT / "data" / "skills" / "skills_matrix.csv",
+        job_url="",
+        job_text_file=None,
+        target_role="Staff Software Engineer",
+        output_dir=output_dir,
+        processing_mode="raw",
+        skip_markdown=False,
+        template="modern",
+    )
+    rc = build_resume.run_pipeline(pipeline_args)
+    assert rc == 0
+    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
+    # Default behavior: canonical visibility is private, so section is suppressed.
+    assert "<h2>Independent Projects</h2>" not in html_text
+
+
 def test_independent_projects_processed_mode_respects_visibility_flag(
     tmp_path: Path,
 ) -> None:

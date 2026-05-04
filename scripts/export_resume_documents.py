@@ -88,6 +88,15 @@ def parse_args() -> argparse.Namespace:
             "Set to 'disabled' for strict source fidelity/debug exports."
         ),
     )
+    parser.add_argument(
+        "--include-private-projects",
+        action="store_true",
+        help=(
+            "Render the [independent_projects] section in DOCX/PDF outputs "
+            'even when visibility="private" in experience_db.toml. Mirrors '
+            "the build_resume.py flag of the same name."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -318,6 +327,7 @@ def _run_build_pipeline(args: argparse.Namespace) -> Path:
         processing_mode=args.processing_mode,
         skip_markdown=False,
         template=args.template,
+        include_private_projects=getattr(args, "include_private_projects", False),
     )
     rc = build_resume.run_pipeline(pipeline_args)
     if rc != 0:

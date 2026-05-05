@@ -276,10 +276,13 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Company slug source for canonical export names "
-            "(<company>_resume.{pdf,docx}). When omitted, build_resume "
-            "auto-derives the slug from --job-url / --job-text-file via the "
-            "JD ingest LLM if a company name is detected; otherwise falls "
-            "back to 'company'."
+            "(<company>_resume.{pdf,docx}). When omitted and a JD is "
+            "supplied (--job-url / --job-text-file), build_resume "
+            "auto-derives the slug in two tiers: first the deterministic "
+            "regex/heuristic in scripts/jd_ingest.py; then an LLM "
+            "extraction fallback (only when RESUME_BUILDER_LLM_ENABLED=1 "
+            "or fixture mode is active). Falls back to 'company' if both "
+            "tiers come up empty."
         ),
     )
     parser.add_argument(

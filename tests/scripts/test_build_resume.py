@@ -5071,21 +5071,14 @@ def test_company_falls_back_to_default_when_no_jd(tmp_path: Path) -> None:
     assert (output_dir / "company_resume.pdf").exists()
 
 
-def test_company_via_llm_fallback_when_regex_misses(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_extract_company_via_llm_returns_llm_payload(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When --job-text-file has no `Company:` header but LLM is enabled,
-    build_resume calls _extract_company_via_llm and uses the result."""
-
+    """Unit-level: _extract_company_via_llm returns whatever the LLM payload
+    says for the `company` field, with a stubbed LLMClient."""
     from scripts.build_resume import _extract_company_via_llm
     from scripts.jd_ingest import JobContext
 
-    output_dir = tmp_path / "out"
-    output_dir.mkdir()
-    profile_path = tmp_path / "profile.toml"
-    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
-
-    # Sanity: the helper itself returns the LLM payload's `company` value.
     class _FakeClient:
         @classmethod
         def from_env(cls) -> _FakeClient:
@@ -5102,7 +5095,6 @@ def test_company_via_llm_fallback_when_regex_misses(
             return {"company": "Elite Technology"}
 
     monkeypatch.setattr(build_resume, "LLMClient", _FakeClient)
-    monkeypatch.setattr(build_resume, "_llm_stage_enabled", lambda: True)
 
     jc = JobContext(
         input_url="",
@@ -5118,3 +5110,58 @@ def test_company_via_llm_fallback_when_regex_misses(
         company_research=None,
     )
     assert _extract_company_via_llm(jc) == "Elite Technology"
+
+
+def test_run_pipeline_uses_llm_company_in_output_filename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Integration: when the deterministic ingest returns no company name and
+    LLM is enabled, run_pipeline routes the JD through _extract_company_via_llm
+    and the resulting slug shapes the canonical filename."""
+    import argparse as _argparse
+
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+    jd_path = tmp_path / "jd.txt"
+    # Free-form text the deterministic regex extractor cannot match
+    # (no `Company:` header, no `join X` pattern).
+    jd_path.write_text(
+        "Senior Staff Software Engineer at Elite Technology, "
+        "focused on payments and risk.\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(build_resume, "_llm_stage_enabled", lambda: True)
+    monkeypatch.setattr(
+        build_resume,
+        "_extract_company_via_llm",
+        lambda _job_context: "Elite Technology",
+    )
+
+    pipeline_args = _argparse.Namespace(
+        profile=profile_path,
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        skills_matrix=REPO_ROOT / "data" / "skills" / "skills_matrix.csv",
+        job_url="",
+        job_text_file=jd_path,
+        target_role="Staff Software Engineer",
+        output_dir=output_dir,
+        processing_mode="processed",
+        outputs=("pdf",),
+        company=None,
+        pdf_filename=None,
+        docx_filename=None,
+        allow_overflow_pdf=True,
+        post_layout_cleanup="enabled",
+        template="modern",
+        include_private_projects=False,
+    )
+    rc = build_resume.run_pipeline(pipeline_args)
+    assert rc == 0
+    # LLM-derived company drove the canonical slug.
+    assert (output_dir / "elite_technology_resume.pdf").exists()
+    assert not (output_dir / "company_resume.pdf").exists()
+    # The pipeline mutates args.company in place to the resolved name.
+    assert pipeline_args.company == "Elite Technology"

@@ -547,7 +547,10 @@ def render_docx(md_text: str, output_path: Path) -> None:
         elif kind == "h2":
             p = doc.add_paragraph()
             p.paragraph_format.space_before = Pt(7)
-            p.paragraph_format.space_after = Pt(0)
+            # 4pt below matches the inter-role h3 space_before so the first
+            # paragraph of a section (e.g. company-line under Professional
+            # Experience) does not crowd the H2 bottom border. See #214.
+            p.paragraph_format.space_after = Pt(4)
             run = p.add_run(text)
             run.bold = True
             _set_docx_font_name(run, "Calibri")

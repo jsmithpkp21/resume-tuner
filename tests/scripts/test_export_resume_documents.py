@@ -1776,7 +1776,9 @@ Summary paragraph for spacing baseline.
         assert token in summary_block
 
     heading_block = paragraph_containing("Key Skills and Expertise")
-    assert 'w:after="0"' in heading_block
+    # Section headers carry 4pt (80 twips) space_after so the first content
+    # paragraph of the section does not crowd the H2 bottom border (#214).
+    assert 'w:after="80"' in heading_block
 
     skills_block = paragraph_containing("Programming &amp; Scripting:")
     assert "Java" in skills_block and "Python" in skills_block
@@ -1821,6 +1823,159 @@ Role summary two.
     # 4pt before in DOCX XML twips (4 * 20 = 80)
     assert 'w:before="80"' in second_role_block
     assert 'w:after="0"' in second_role_block
+
+
+def test_render_docx_h2_breathing_below_matches_inter_role_gap(tmp_path: Path) -> None:
+    """Issue #214: company-line under Professional Experience must not crowd the H2."""
+    output_path = tmp_path / "resume.docx"
+    html = """<!doctype html><html><body>
+<h2>Independent Projects</h2>
+<section class=\"info-item\">
+<p><strong>Side Project</strong></p>
+<p>One-line description.</p>
+</section>
+<h2>Professional Experience</h2>
+<section class=\"experience-item\">
+<p class=\"company-line\"><strong>Acme Corp</strong><span>2020 - 2024</span></p>
+<h3 class=\"job-title-line\">Staff Engineer<span>2022 - 2024</span></h3>
+<ul><li>Bullet one.</li></ul>
+</section>
+<section class=\"experience-item\">
+<p class=\"company-line\"><strong>Beta LLC</strong><span>2018 - 2020</span></p>
+<h3 class=\"job-title-line\">Senior Engineer<span>2018 - 2020</span></h3>
+<ul><li>Bullet two.</li></ul>
+</section>
+</body></html>"""
+
+    export_resume_documents._render_docx(html, output_path)
+
+    xml = (
+        ZipFile(output_path).read("word/document.xml").decode("utf-8", errors="ignore")
+    )
+    paragraphs: list[str] = re.findall(r"<w:p\b[^>]*>.*?</w:p>", xml, re.DOTALL)
+
+    def paragraph_containing(token: str) -> str:
+        for block in paragraphs:
+            if token in block:
+                return block
+        raise AssertionError(f"paragraph containing token not found: {token}")
+
+    h2_block = paragraph_containing("Professional Experience")
+    # 4pt below H2 == inter-role gap (h3 space_before for subsequent roles).
+    assert 'w:after="80"' in h2_block
+
+    first_company_block = paragraph_containing("Acme Corp")
+    # The next paragraph below H2 keeps space_before=0; the visible breathing
+    # comes from the H2 space_after (matches role-to-role pattern).
+    assert 'w:before="0"' in first_company_block
+
+    second_company_block = paragraph_containing("Beta LLC")
+    assert 'w:before="0"' in second_company_block
+
+
+def test_render_pdf_h2_breathing_below_at_least_inter_role_gap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #214: PDF section break must not crowd content vs. inter-role gap."""
+    output_path = tmp_path / "resume.pdf"
+    text_positions: dict[str, list[float]] = {}
+
+    class FakeCanvas:
+        def __init__(self, buf: io_mod.BytesIO, **_kwargs: object):
+            self._buf = buf
+
+        def showPage(self) -> None:
+            pass
+
+        def setFont(self, _font_name: str, _font_size: int) -> None:
+            pass
+
+        def drawString(self, _x: float, y: float, line: str) -> None:
+            text_positions.setdefault(line, []).append(y)
+
+        def setStrokeColorRGB(self, *_args: float) -> None:
+            pass
+
+        def setLineWidth(self, _width: float) -> None:
+            pass
+
+        def line(self, *_args: float) -> None:
+            pass
+
+        def save(self) -> None:
+            self._buf.write(b"%PDF-FAKE")
+
+    monkeypatch.setattr(
+        document_export,
+        "require_reportlab",
+        lambda: (
+            (612, 792),
+            type("CanvasModule", (), {"Canvas": FakeCanvas}),
+            lambda text, _font_name, _font_size: len(text) * 5,
+        ),
+    )
+    monkeypatch.setattr(
+        document_export,
+        "require_calibri_pdf_fonts",
+        lambda: ("Calibri", "Calibri-Bold"),
+    )
+
+    html = """<!doctype html><html><body>
+<h2>Independent Projects</h2>
+<section class=\"info-item\">
+<p><strong>Side Project</strong></p>
+<p>Project summary line.</p>
+</section>
+<h2>Professional Experience</h2>
+<section class=\"experience-item\">
+<p class=\"company-line\"><strong>Acme Corp</strong><span>2020 - 2024</span></p>
+<h3 class=\"job-title-line\">Staff Engineer<span>2022 - 2024</span></h3>
+<ul><li>Bullet alpha.</li></ul>
+</section>
+<section class=\"experience-item\">
+<p class=\"company-line\"><strong>Beta LLC</strong><span>2018 - 2020</span></p>
+<h3 class=\"job-title-line\">Senior Engineer<span>2018 - 2020</span></h3>
+<ul><li>Bullet beta.</li></ul>
+</section>
+</body></html>"""
+
+    export_resume_documents._render_pdf(html, output_path, enforce_page_limit=False)
+
+    project_y = text_positions["Project summary line."][0]
+    first_company_y = text_positions["Acme Corp"][0]
+    role_last_bullet_y = text_positions["Bullet alpha."][0]
+    second_company_y = text_positions["Beta LLC"][0]
+
+    section_break_gap = project_y - first_company_y
+    inter_role_gap = role_last_bullet_y - second_company_y
+
+    # Section transition (with H2 in between) must breathe at least as much
+    # as a plain role-to-role transition.
+    assert section_break_gap >= inter_role_gap
+
+
+def test_default_template_h2_bottom_margin_matches_or_exceeds_role_gap() -> None:
+    """Issue #214: HTML CSS section gap >= inter-role h3 top margin."""
+    from scripts.resume_templates import get_template
+
+    css = get_template("default").get_css()
+    h2_match = re.search(r"h2\s*\{[^}]*margin:\s*([^;]+);", css)
+    assert h2_match is not None
+    margin_parts = h2_match.group(1).split()
+    # margin: top right bottom left -> bottom is the third token
+    assert len(margin_parts) >= 3
+    bottom_match = re.match(r"([\d.]+)", margin_parts[2])
+    assert bottom_match is not None
+    h2_bottom_px = float(bottom_match.group(1))
+
+    role_gap_match = re.search(
+        r"h3\.job-title-line:not\(:first-of-type\)\s*\{[^}]*margin-top:\s*([\d.]+)px",
+        css,
+    )
+    assert role_gap_match is not None
+    role_gap_px = float(role_gap_match.group(1))
+
+    assert h2_bottom_px >= role_gap_px
 
 
 def test_wrap_mixed_style_paragraph_for_pdf_short_line_fits_on_one_line(

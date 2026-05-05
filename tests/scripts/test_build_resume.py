@@ -619,6 +619,8 @@ def _run_build_resume_cli(
     args = [
         sys.executable,
         str(SCRIPT),
+        "--outputs",
+        "html,md",
         "--profile",
         str(profile_path),
         "--experience-db",
@@ -627,8 +629,10 @@ def _run_build_resume_cli(
         str(output_dir),
         "--target-role",
         "Staff Software Engineer",
-        *extra_args,
     ]
+    if not any(arg.startswith("--outputs") for arg in extra_args):
+        args += ["--outputs", "html,md"]
+    args += list(extra_args)
     return subprocess.run(
         args,
         cwd=REPO_ROOT,
@@ -762,7 +766,7 @@ def test_run_pipeline_tolerates_namespace_without_include_private_projects(
         target_role="Staff Software Engineer",
         output_dir=output_dir,
         processing_mode="raw",
-        skip_markdown=False,
+        outputs=("html", "md"),
         template="modern",
     )
     rc = build_resume.run_pipeline(pipeline_args)
@@ -930,6 +934,8 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--profile",
             str(profile_path),
             "--output-dir",
@@ -1077,6 +1083,8 @@ def test_build_resume_cli_processed_mode_applies_filtering(
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--output-dir",
             str(raw_dir),
             "--processing-mode",
@@ -1093,6 +1101,8 @@ def test_build_resume_cli_processed_mode_applies_filtering(
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--output-dir",
             str(processed_dir),
             "--processing-mode",
@@ -1156,6 +1166,8 @@ def test_build_resume_cli_modern_template_renders_centered_header(
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--output-dir",
             str(output_dir),
             "--template",
@@ -1213,6 +1225,8 @@ def test_build_resume_cli_processed_mode_does_not_mutate_experience_db(
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--output-dir",
             str(output_dir),
             "--processing-mode",
@@ -1258,13 +1272,14 @@ def test_build_resume_cli_processed_mode_emits_gap_summary_for_job_text(
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html",
             "--output-dir",
             str(output_dir),
             "--processing-mode",
             "processed",
             "--job-text-file",
             str(job_text_file),
-            "--skip-markdown",
         ],
         cwd=REPO_ROOT,
         capture_output=True,
@@ -1286,6 +1301,8 @@ def test_build_resume_cli_rejects_unknown_template(tmp_path: Path) -> None:
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--output-dir",
             str(output_dir),
             "--template",
@@ -1418,6 +1435,8 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--output-dir",
             str(output_dir),
             "--job-url",
@@ -1463,6 +1482,8 @@ def test_build_resume_cli_job_url_snapshot_contract_is_complete_and_deterministi
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--output-dir",
             str(output_dir),
             "--job-url",
@@ -1507,6 +1528,8 @@ def test_build_resume_cli_explicit_target_role_overrides_job_context_hint(
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--output-dir",
             str(output_dir),
             "--job-url",
@@ -1544,6 +1567,8 @@ def test_build_resume_cli_rejects_job_url_and_job_text_file_together(
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--output-dir",
             str(output_dir),
             "--job-url",
@@ -1582,6 +1607,8 @@ def test_build_resume_cli_accepts_job_text_file(tmp_path: Path) -> None:
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--output-dir",
             str(output_dir),
             "--job-text-file",
@@ -1622,6 +1649,8 @@ def test_build_resume_cli_job_text_without_company_omits_company_research(
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--output-dir",
             str(output_dir),
             "--job-text-file",
@@ -1660,6 +1689,8 @@ def test_build_resume_cli_rejects_typo_hjob_text_file_flag(tmp_path: Path) -> No
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--output-dir",
             str(output_dir),
             "--hjob-text-file",
@@ -1683,6 +1714,8 @@ def test_build_resume_cli_deduplicates_equivalent_headline_and_resume_title(
         [
             sys.executable,
             str(SCRIPT),
+            "--outputs",
+            "html,md",
             "--profile",
             str(_TRACKED_PROFILE_PATH),
             "--output-dir",
@@ -2229,7 +2262,16 @@ def test_ingest_job_context_linkedin_login_wall_falls_back_to_keywords(
     import sys
 
     result = subprocess.run(
-        [sys.executable, str(SCRIPT), "--output-dir", str(tmp_path), "--job-url", url],
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--outputs",
+            "html,md",
+            "--output-dir",
+            str(tmp_path),
+            "--job-url",
+            url,
+        ],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -4670,3 +4712,246 @@ def test_apply_display_experience_selection_filters_enrichment_for_removed_roles
         "recent-b1": {"confidence": 0.9},
         "recent-b2": {"confidence": 0.8},
     }
+
+
+# ---------------------------------------------------------------------------
+# --outputs flag (issue #206)
+# ---------------------------------------------------------------------------
+
+
+def _outputs_cli(
+    *,
+    output_dir: Path,
+    profile_path: Path,
+    extra_args: tuple[str, ...] = (),
+) -> subprocess.CompletedProcess[str]:
+    args = [
+        sys.executable,
+        str(SCRIPT),
+        "--profile",
+        str(profile_path),
+        "--experience-db",
+        str(REPO_ROOT / "data" / "experience" / "experience_db.toml"),
+        "--output-dir",
+        str(output_dir),
+        "--target-role",
+        "Staff Software Engineer",
+        "--processing-mode",
+        "processed",
+        "--allow-overflow-pdf",
+        *extra_args,
+    ]
+    return subprocess.run(
+        args,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_outputs_default_writes_only_pdf_and_ir(tmp_path: Path) -> None:
+    """Default --outputs=pdf produces PDF + IR snapshots; no HTML/MD/DOCX."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _outputs_cli(output_dir=output_dir, profile_path=profile_path)
+    assert result.returncode == 0, result.stderr
+
+    assert (output_dir / "company_resume.pdf").exists()
+    assert (output_dir / "latest_resume_processed_ir_snapshot.json").exists()
+    assert (output_dir / "latest_resume_processed_ir_snapshot.txt").exists()
+
+    # HTML, MD, DOCX absent under default --outputs=pdf.
+    assert not (output_dir / "latest_resume_processed.html").exists()
+    assert not (output_dir / "latest_default_resume_processed.html").exists()
+    assert not (output_dir / "latest_resume_processed.md").exists()
+    assert not (output_dir / "company_resume.docx").exists()
+
+
+def test_outputs_all_four_formats(tmp_path: Path) -> None:
+    """`--outputs=pdf,docx,md,html` writes all four canonical artifacts."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _outputs_cli(
+        output_dir=output_dir,
+        profile_path=profile_path,
+        extra_args=("--outputs", "pdf,docx,md,html"),
+    )
+    assert result.returncode == 0, result.stderr
+
+    assert (output_dir / "company_resume.pdf").exists()
+    assert (output_dir / "company_resume.docx").exists()
+    assert (output_dir / "latest_resume_processed.md").exists()
+    assert (output_dir / "latest_resume_processed.html").exists()
+    assert (output_dir / "latest_default_resume_processed.html").exists()
+
+
+def test_outputs_html_and_md_only_skips_pdf_and_docx(tmp_path: Path) -> None:
+    """`--outputs=html,md` writes neither PDF nor DOCX."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _outputs_cli(
+        output_dir=output_dir,
+        profile_path=profile_path,
+        extra_args=("--outputs", "html,md"),
+    )
+    assert result.returncode == 0, result.stderr
+
+    assert (output_dir / "latest_resume_processed.html").exists()
+    assert (output_dir / "latest_resume_processed.md").exists()
+    assert not (output_dir / "company_resume.pdf").exists()
+    assert not (output_dir / "company_resume.docx").exists()
+
+
+def test_outputs_unknown_token_rejected(tmp_path: Path) -> None:
+    """Unknown --outputs token is rejected with a clear error listing valid tokens."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _outputs_cli(
+        output_dir=output_dir,
+        profile_path=profile_path,
+        extra_args=("--outputs", "pdf,xml"),
+    )
+    assert result.returncode != 0
+    assert "unknown token(s) xml" in result.stderr
+    assert "valid tokens: pdf, docx, md, html" in result.stderr
+
+
+def test_outputs_filename_overrides_land_under_output_dir(tmp_path: Path) -> None:
+    """`--pdf-filename`/`--docx-filename` overrides land under --output-dir."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _outputs_cli(
+        output_dir=output_dir,
+        profile_path=profile_path,
+        extra_args=(
+            "--outputs",
+            "pdf,docx",
+            "--pdf-filename",
+            "custom.pdf",
+            "--docx-filename",
+            "nested/custom.docx",
+        ),
+    )
+    assert result.returncode == 0, result.stderr
+
+    assert (output_dir / "custom.pdf").exists()
+    assert (output_dir / "nested" / "custom.docx").exists()
+    # Canonical names not produced when overrides are supplied.
+    assert not (output_dir / "company_resume.pdf").exists()
+    assert not (output_dir / "company_resume.docx").exists()
+
+
+def test_outputs_filename_override_rejects_absolute_path(tmp_path: Path) -> None:
+    """Absolute path in --pdf-filename is rejected."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _outputs_cli(
+        output_dir=output_dir,
+        profile_path=profile_path,
+        extra_args=("--outputs", "pdf", "--pdf-filename", "/tmp/evil.pdf"),
+    )
+    assert result.returncode != 0
+    assert "--pdf-filename must be a path under --output-dir" in result.stderr
+
+
+def test_outputs_filename_override_rejects_path_traversal(tmp_path: Path) -> None:
+    """Path traversal (../) in --docx-filename is rejected."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _outputs_cli(
+        output_dir=output_dir,
+        profile_path=profile_path,
+        extra_args=("--outputs", "docx", "--docx-filename", "../escape.docx"),
+    )
+    assert result.returncode != 0
+    assert "--docx-filename must remain under --output-dir" in result.stderr
+
+
+def test_outputs_pdf_with_include_private_projects_renders_section(
+    tmp_path: Path,
+) -> None:
+    """--include-private-projects × --outputs=pdf includes Independent Projects in PDF."""
+    pypdf = pytest.importorskip("pypdf")
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _outputs_cli(
+        output_dir=output_dir,
+        profile_path=profile_path,
+        extra_args=("--outputs", "pdf", "--include-private-projects"),
+    )
+    assert result.returncode == 0, result.stderr
+
+    pdf_path = output_dir / "company_resume.pdf"
+    assert pdf_path.exists()
+    reader = pypdf.PdfReader(str(pdf_path))
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    assert "Independent Projects" in text
+
+
+def test_outputs_company_slug_drives_canonical_filename(tmp_path: Path) -> None:
+    """--company slug feeds <slug>_resume.{pdf,docx} canonical naming."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _outputs_cli(
+        output_dir=output_dir,
+        profile_path=profile_path,
+        extra_args=("--outputs", "pdf,docx", "--company", "Acme Corp"),
+    )
+    assert result.returncode == 0, result.stderr
+
+    assert (output_dir / "acme_corp_resume.pdf").exists()
+    assert (output_dir / "acme_corp_resume.docx").exists()
+    assert not (output_dir / "company_resume.pdf").exists()
+
+
+def test_export_resume_documents_shim_produces_canonical_outputs(
+    tmp_path: Path,
+) -> None:
+    """The export_resume_documents.py shim still produces canonical DOCX+PDF."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "export_resume_documents.py"),
+            "--profile",
+            str(profile_path),
+            "--experience-db",
+            str(REPO_ROOT / "data" / "experience" / "experience_db.toml"),
+            "--output-dir",
+            str(output_dir),
+            "--target-role",
+            "Staff Software Engineer",
+            "--processing-mode",
+            "processed",
+            "--allow-overflow-pdf",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (output_dir / "company_resume.pdf").exists()
+    assert (output_dir / "company_resume.docx").exists()

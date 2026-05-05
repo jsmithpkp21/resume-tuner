@@ -1,29 +1,74 @@
 #!/usr/bin/env python3
-"""Generate DOCX and PDF resume artifacts from the assembled resume output.
-This command runs the existing build pipeline once, then exports both formats in a
-deterministic order, preferring processed default-template HTML when available and
-falling back to the assembled markdown artifact otherwise.
+"""Back-compat shim for DOCX/PDF resume export.
+
+The renderer logic moved to ``scripts/document_export.py`` and the unified CLI
+lives in ``scripts/build_resume.py`` (see ``--outputs``). This module remains
+as a thin wrapper so existing invocations of ``python scripts/export_resume_documents.py``
+keep working: it delegates the build to ``build_resume.run_pipeline`` (with
+``--outputs=html,md``) and then renders DOCX+PDF using the shared helpers
+re-exported below.
+
+Full removal is tracked as a follow-up.
 """
 
 from __future__ import annotations
 
 import argparse
-import os
-import re
-import subprocess
 import sys
-import time
-import uuid
-from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any
 
 if __package__ in {None, ""}:
     import build_resume
-    from select_skills import SKILLS_SEPARATOR
+    import document_export
 else:
-    from scripts import build_resume
-    from scripts.select_skills import SKILLS_SEPARATOR
+    from scripts import build_resume, document_export
+
+# ---------------------------------------------------------------------------
+# Back-compat re-exports.
+#
+# The cross-module API in ``scripts/document_export.py`` uses public (non-
+# underscore) names. This shim keeps the old underscore-prefixed aliases
+# pointing at the public helpers so existing imports and tests that
+# monkeypatch attributes on this module (e.g. ``monkeypatch.setattr(
+# export_resume_documents, "_render_docx", ...)``) keep working. New code
+# should import from ``scripts.document_export`` directly.
+# ---------------------------------------------------------------------------
+_SKIP_LINE_RE = document_export._SKIP_LINE_RE
+_BOLD_SPLIT_RE = document_export._BOLD_SPLIT_RE
+_MD_LINK_RE = document_export._MD_LINK_RE
+_MD_CODE_RE = document_export._MD_CODE_RE
+_SKILLS_CATEGORY_RE = document_export._SKILLS_CATEGORY_RE
+_HIDDEN_HTML_CLASS_TOKENS = document_export._HIDDEN_HTML_CLASS_TOKENS
+_ResumeHtmlBlockParser = document_export.ResumeHtmlBlockParser
+_canonical_export_filename = document_export.canonical_export_filename
+_staging_path = document_export.staging_path
+_resolve_export_output_path = document_export.resolve_export_output_path
+_remove_stale_legacy_exports = document_export.remove_stale_legacy_exports
+_require_python_docx = document_export.require_python_docx
+_require_reportlab = document_export.require_reportlab
+_require_calibri_pdf_fonts = document_export.require_calibri_pdf_fonts
+_find_calibri_path = document_export.find_calibri_path
+_find_fontconfig_font_path = document_export.find_fontconfig_font_path
+_iter_html_blocks = document_export.iter_html_blocks
+_iter_markdown_blocks = document_export.iter_markdown_blocks
+_apply_post_layout_cleanup = document_export.apply_post_layout_cleanup
+_render_docx = document_export.render_docx
+_render_pdf = document_export.render_pdf
+_add_rich_runs = document_export._add_rich_runs
+_set_docx_font_name = document_export._set_docx_font_name
+_strip_markdown_markup = document_export._strip_markdown_markup
+_split_skills_category_line = document_export._split_skills_category_line
+_has_single_word_wrap_tail = document_export._has_single_word_wrap_tail
+_drop_tail_skill_from_category_row = document_export._drop_tail_skill_from_category_row
+_normalize_inline_text = document_export._normalize_inline_text
+_wrap_text_for_pdf = document_export._wrap_text_for_pdf
+_wrap_skills_category_for_pdf = document_export._wrap_skills_category_for_pdf
+_wrap_mixed_style_paragraph_for_pdf = (
+    document_export._wrap_mixed_style_paragraph_for_pdf
+)
+_contains_trailing_connector_fragment = (
+    document_export.contains_trailing_connector_fragment
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -100,197 +145,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _snake_case(value: str) -> str:
-    token = re.sub(r"[^a-z0-9]+", "_", value.strip().lower())
-    token = token.strip("_")
-    return token or "company"
-
-
-def _canonical_export_filename(company: str, extension: str) -> str:
-    ext = extension.lower().lstrip(".")
-    return f"{_snake_case(company)}_resume.{ext}"
-
-
-def _staging_path(output_path: Path, *, label: str) -> Path:
-    token = f"tmp-export-{os.getpid()}-{time.time_ns()}-{uuid.uuid4().hex}"
-    return output_path.with_name(f".{output_path.name}.{token}.{label}")
-
-
-def _resolve_export_output_path(
-    output_dir: Path,
-    *,
-    filename_override: str | None,
-    default_name: str,
-    flag_name: str,
-) -> Path:
-    base_dir = output_dir.resolve(strict=False)
-    if filename_override is None:
-        return (base_dir / default_name).resolve(strict=False)
-
-    override = Path(filename_override)
-    if override.is_absolute():
-        raise RuntimeError(
-            f"{flag_name} must be a path under --output-dir; absolute paths are not allowed."
-        )
-
-    candidate = (base_dir / override).resolve(strict=False)
-    try:
-        candidate.relative_to(base_dir)
-    except ValueError as exc:
-        raise RuntimeError(
-            f"{flag_name} must remain under --output-dir; path traversal is not allowed."
-        ) from exc
-    return candidate
-
-
-def _remove_stale_legacy_exports(output_dir: Path, keep_paths: set[Path]) -> list[Path]:
-    """Remove outdated legacy export aliases that can mask the current outputs."""
-    removed: list[Path] = []
-    for legacy_name in ("latest_resume_export.docx", "latest_resume_export.pdf"):
-        legacy_path = output_dir / legacy_name
-        if legacy_path in keep_paths or not legacy_path.exists():
-            continue
-        legacy_path.unlink()
-        removed.append(legacy_path)
-    return removed
-
-
-def _require_python_docx() -> tuple[Any, Any, Any]:
-    try:
-        from docx import Document
-        from docx.shared import Inches, Pt
-    except ImportError as exc:
-        raise RuntimeError(
-            "python-docx is required for DOCX export. "
-            f"Install dependencies from requirements.txt. Import error: {exc}"
-        ) from exc
-    return Document, Pt, Inches
-
-
-def _require_reportlab() -> tuple[Any, Any, Any]:
-    try:
-        from reportlab.lib.pagesizes import LETTER
-        from reportlab.pdfbase.pdfmetrics import stringWidth
-        from reportlab.pdfgen import canvas
-    except ImportError as exc:
-        raise RuntimeError(
-            "reportlab is required for PDF export. "
-            f"Install dependencies from requirements.txt. Import error: {exc}"
-        ) from exc
-    return LETTER, canvas, stringWidth
-
-
-def _find_calibri_path(style: str = "Regular") -> Path | None:
-    """Locate exact Calibri TTF via WSL Windows mount, then fontconfig."""
-    file_map = {
-        "Regular": "calibri.ttf",
-        "Bold": "calibrib.ttf",
-    }
-    expected_file = file_map.get(style)
-    if expected_file is None:
-        return None
-
-    # Prefer exact Windows font files to avoid style substitutions like Calibri Light.
-    windows_path = Path("/mnt/c/Windows/Fonts") / expected_file
-    if windows_path.exists():
-        return windows_path
-
-    try:
-        result = subprocess.run(
-            [
-                "fc-list",
-                f":family=Calibri:style={style}",
-                "--format=%{file}\n",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        for line in result.stdout.splitlines():
-            path = Path(line.strip())
-            if path.exists() and path.name.lower() == expected_file:
-                return path
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
-    return None
-
-
-def _find_fontconfig_font_path(family: str, style: str) -> Path | None:
-    """Locate a font file from fontconfig for a given family/style pair."""
-    try:
-        result = subprocess.run(
-            [
-                "fc-list",
-                f":family={family}:style={style}",
-                "--format=%{file}\n",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return None
-
-    for line in result.stdout.splitlines():
-        path = Path(line.strip())
-        if path.exists():
-            return path
-    return None
-
-
-def _require_calibri_pdf_fonts() -> tuple[str, str]:
-    """Register and return PDF font names, preferring Calibri then deterministic fallbacks."""
-    strict_calibri = os.getenv("RESUME_PDF_STRICT_CALIBRI", "0") == "1"
-    regular_path = _find_calibri_path("Regular")
-    bold_path = _find_calibri_path("Bold")
-
-    try:
-        from reportlab.pdfbase import pdfmetrics
-        from reportlab.pdfbase.ttfonts import TTFont
-    except ImportError as exc:  # pragma: no cover
-        raise RuntimeError(
-            "reportlab is required for PDF export. Install dependencies from requirements.txt"
-        ) from exc
-
-    regular_name = "Calibri"
-    bold_name = "Calibri-Bold"
-    registered = set(pdfmetrics.getRegisteredFontNames())
-
-    if regular_path is not None and bold_path is not None:
-        if regular_name not in registered:
-            pdfmetrics.registerFont(TTFont(regular_name, str(regular_path)))
-        if bold_name not in registered:
-            pdfmetrics.registerFont(TTFont(bold_name, str(bold_path)))
-        return regular_name, bold_name
-
-    if strict_calibri:
-        raise FileNotFoundError(
-            "Strict Calibri mode is enabled but exact Calibri fonts were not found.\n"
-            "Set RESUME_PDF_STRICT_CALIBRI=0 to allow fallback fonts, or install:\n"
-            "  /mnt/c/Windows/Fonts/calibri.ttf\n"
-            "  /mnt/c/Windows/Fonts/calibrib.ttf"
-        )
-
-    # CI/container fallback path keeps PDF export deterministic without proprietary fonts.
-    fallback_candidates = (
-        ("Carlito", "Carlito-Bold"),
-        ("Liberation Sans", "Liberation Sans Bold"),
-    )
-    for family_regular, family_bold in fallback_candidates:
-        fallback_regular = _find_fontconfig_font_path(family_regular, "Regular")
-        fallback_bold = _find_fontconfig_font_path(family_regular, "Bold")
-        if fallback_regular is None or fallback_bold is None:
-            continue
-        if family_regular not in registered:
-            pdfmetrics.registerFont(TTFont(family_regular, str(fallback_regular)))
-        if family_bold not in registered:
-            pdfmetrics.registerFont(TTFont(family_bold, str(fallback_bold)))
-        return family_regular, family_bold
-
-    # Final fallback avoids hard dependency on fontconfig/fc-list in minimal containers.
-    return "Helvetica", "Helvetica-Bold"
-
-
 def _pipeline_markdown_path(output_dir: Path, processing_mode: str) -> Path:
     suffix = "processed" if processing_mode == "processed" else "raw"
     return output_dir / f"latest_resume_{suffix}.md"
@@ -298,7 +152,6 @@ def _pipeline_markdown_path(output_dir: Path, processing_mode: str) -> Path:
 
 def _pipeline_default_html_path(args: argparse.Namespace) -> Path:
     """Return the left-justified default-template HTML path from build output."""
-    # Keep naming local to avoid coupling to build_resume private helpers.
     output_prefix = f"latest_resume_{args.processing_mode}"
     primary_template = "modern" if args.processing_mode == "processed" else "default"
     if primary_template == "default":
@@ -311,11 +164,15 @@ def _pipeline_default_html_path(args: argparse.Namespace) -> Path:
         secondary_prefix = f"latest_default_resume_{args.processing_mode}"
         return Path(args.output_dir) / f"{secondary_prefix}.html"
 
-    # Fallback for custom template invocations: default to primary HTML.
     return Path(args.output_dir) / f"{output_prefix}.html"
 
 
 def _run_build_pipeline(args: argparse.Namespace) -> Path:
+    """Delegate the build to build_resume.run_pipeline with --outputs=html,md.
+
+    Returns the path to the rendered markdown so the existing render flow can
+    pick HTML or markdown as its render source.
+    """
     pipeline_args = argparse.Namespace(
         profile=args.profile,
         experience_db=args.experience_db,
@@ -325,7 +182,12 @@ def _run_build_pipeline(args: argparse.Namespace) -> Path:
         target_role=args.target_role,
         output_dir=args.output_dir,
         processing_mode=args.processing_mode,
-        skip_markdown=False,
+        outputs=("html", "md"),
+        company=getattr(args, "company", "company"),
+        pdf_filename=None,
+        docx_filename=None,
+        allow_overflow_pdf=False,
+        post_layout_cleanup=getattr(args, "post_layout_cleanup", "enabled"),
         template=args.template,
         include_private_projects=getattr(args, "include_private_projects", False),
     )
@@ -338,992 +200,6 @@ def _run_build_pipeline(args: argparse.Namespace) -> Path:
     return md_path
 
 
-# ---------------------------------------------------------------------------
-# Shared markdown block parser
-# ---------------------------------------------------------------------------
-_SKIP_LINE_RE = re.compile(r"^Related skills:", re.IGNORECASE)
-_BOLD_SPLIT_RE = re.compile(r"\*\*(.+?)\*\*")
-_MD_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
-_MD_CODE_RE = re.compile(r"`([^`]+)`")
-_SKILLS_CATEGORY_RE = re.compile(r"^\*\*(.+?:)\*\*\s*(.+)$")
-_HIDDEN_HTML_CLASS_TOKENS = {"related-skills"}
-
-
-class _ResumeHtmlBlockParser(HTMLParser):
-    """Extract visible heading/paragraph/list blocks in DOM order."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.blocks: list[tuple[str, str]] = []
-        self._capture_stack: list[dict[str, Any]] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        # Inline elements: inject bold markers / tab separator into current block
-        if tag == "strong" and self._capture_stack:
-            self._capture_stack[-1]["parts"].append("**")
-            return
-        if tag == "span" and self._capture_stack:
-            self._capture_stack[-1]["parts"].append("	")
-            return
-        attrs_map = {name: (value or "") for name, value in attrs}
-        class_tokens = [token for token in attrs_map.get("class", "").split() if token]
-        if tag == "hr" and "header-divider" in class_tokens:
-            self.blocks.append(("divider", ""))
-            return
-        if tag not in {"h1", "h2", "h3", "p", "li"}:
-            return
-        self._capture_stack.append({"tag": tag, "class": class_tokens, "parts": []})
-
-    def handle_data(self, data: str) -> None:
-        if not self._capture_stack:
-            return
-        self._capture_stack[-1]["parts"].append(data)
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag == "strong" and self._capture_stack:
-            self._capture_stack[-1]["parts"].append("**")
-            return
-        if tag == "span":
-            return  # span content already captured via handle_data
-        if not self._capture_stack or self._capture_stack[-1]["tag"] != tag:
-            return
-        captured = self._capture_stack.pop()
-        raw = "".join(captured["parts"])
-        # Preserve \t separators injected from <span> tags; only normalize other whitespace.
-        if "	" in raw:
-            text = "	".join(
-                " ".join(seg.split()) for seg in raw.split("	")
-            ).strip()
-        else:
-            text = " ".join(raw.split()).strip()
-        if not text:
-            return
-
-        class_tokens: list[str] = captured["class"]
-        if any(token in _HIDDEN_HTML_CLASS_TOKENS for token in class_tokens):
-            return
-        if tag == "h1":
-            self.blocks.append(("h1", text))
-        elif tag == "h2":
-            self.blocks.append(("h2", text))
-        elif tag == "h3":
-            self.blocks.append(("h3", text))
-        elif tag == "li":
-            self.blocks.append(("bullet", text))
-        elif "resume-title" in class_tokens:
-            self.blocks.append(("title", text))
-        elif "skills-category" in class_tokens:
-            # Skills category rows render as paragraph lines (no leading list bullet).
-            self.blocks.append(("p", text))
-        else:
-            self.blocks.append(("p", text))
-
-
-def _iter_html_blocks(html_text: str) -> list[tuple[str, str]]:
-    parser = _ResumeHtmlBlockParser()
-    parser.feed(html_text)
-    parser.close()
-    return parser.blocks
-
-
-def _iter_markdown_blocks(md_text: str) -> list[tuple[str, str]]:
-    """Return (kind, text) pairs from markdown or HTML source text."""
-    if "<html" in md_text.lower() or "<!doctype html" in md_text.lower():
-        return _iter_html_blocks(md_text)
-
-    blocks: list[tuple[str, str]] = []
-    for raw in md_text.splitlines():
-        line = raw.rstrip()
-        if not line:
-            continue
-        if _SKIP_LINE_RE.match(line):
-            continue
-        if line.startswith("# "):
-            blocks.append(("h1", line[2:].strip()))
-        elif line.startswith("## "):
-            blocks.append(("h2", line[3:].strip()))
-        elif line.startswith("### "):
-            blocks.append(("h3", line[4:].strip()))
-        elif re.match(r"^\s*---+\s*$", line):
-            blocks.append(("divider", ""))
-        elif line.startswith("[RESUME_TITLE] "):
-            title_text = line[len("[RESUME_TITLE] ") :].strip()
-            blocks.append(("title", _normalize_inline_text(title_text)))
-        elif re.match(r"^\s*-\s+", line):
-            blocks.append(("bullet", re.sub(r"^\s*-\s+", "", line, count=1).strip()))
-        else:
-            blocks.append(("p", line))
-    return blocks
-
-
-def _normalize_inline_text(text: str) -> str:
-    return " ".join(text.replace("**", "").split())
-
-
-def _has_single_word_wrap_tail(text: str, *, line_width: int) -> bool:
-    normalized = _normalize_inline_text(text)
-    wrapped = build_resume._summary_wrap_lines(normalized, line_width=line_width)
-    return len(wrapped) > 1 and len(wrapped[-1].split()) == 1
-
-
-def _drop_tail_skill_from_category_row(text: str) -> str:
-    match = re.match(r"^\*\*(.+?):\*\*\s*(.+)$", text)
-    if not match:
-        return text
-    category = match.group(1).strip()
-    skills_text = match.group(2).strip()
-    separator = SKILLS_SEPARATOR if SKILLS_SEPARATOR in skills_text else ", "
-    if separator == SKILLS_SEPARATOR:
-        skills_raw = [
-            skill.strip()
-            for skill in skills_text.split(SKILLS_SEPARATOR)
-            if skill.strip()
-        ]
-    else:
-        skills_raw = [
-            skill.strip() for skill in re.split(r",\s*", skills_text) if skill.strip()
-        ]
-    if len(skills_raw) <= 1:
-        return text
-    return f"**{category}:** {separator.join(skills_raw[:-1])}"
-
-
-def _apply_post_layout_cleanup(
-    source_text: str,
-    *,
-    args: argparse.Namespace,
-) -> str:
-    """Deterministically tighten assembled blocks before DOCX/PDF render.
-
-    Leadership & Community entries are required content and pass through
-    unchanged. Professional Experience bullets are also passed through
-    verbatim — silently dropping a bullet's trailing word to fight a
-    one-word wrap-tail mangles meaning (``cycle.`` and ``engineers.``
-    were both lost this way historically); rewrite the bullet at source
-    if a wrap is unacceptable. Per-role mentoring bullets that need to
-    yield space are handled upstream by bullet priority in
-    ``build_resume.trim_by_rules``, not here.
-
-    The skills-section single-word-tail trim still fires because
-    dropping the *last skill* from a category list does not change
-    meaning — only verbosity.
-    """
-    blocks = _iter_markdown_blocks(source_text)
-    if not blocks:
-        return source_text
-
-    filtered_blocks: list[tuple[str, str]] = []
-    section = ""
-
-    for kind, text in blocks:
-        if kind == "h2":
-            section = text.strip().lower()
-            filtered_blocks.append((kind, text))
-            continue
-
-        if section == "key skills and expertise" and kind in {"bullet", "p"}:
-            candidate = text
-            if _has_single_word_wrap_tail(
-                candidate, line_width=build_resume.DEFAULT_BULLET_LINE_WIDTH
-            ):
-                candidate = _drop_tail_skill_from_category_row(candidate)
-            filtered_blocks.append((kind, candidate))
-            continue
-
-        filtered_blocks.append((kind, text))
-
-    lines: list[str] = []
-    for kind, text in filtered_blocks:
-        if kind == "h1":
-            lines.extend([f"# {text}", ""])
-        elif kind == "h2":
-            lines.extend([f"## {text}", ""])
-        elif kind == "h3":
-            lines.extend([f"### {text}", ""])
-        elif kind == "title":
-            lines.extend([f"[RESUME_TITLE] {text}", ""])
-        elif kind == "divider":
-            lines.extend(["---", ""])
-        elif kind == "bullet":
-            lines.append(f"- {text}")
-        else:
-            lines.append(text)
-
-    return "\n".join(lines).strip() + "\n"
-
-
-# ---------------------------------------------------------------------------
-# DOCX renderer
-# ---------------------------------------------------------------------------
-def _add_rich_runs(
-    paragraph: Any, text: str, base_size_pt: float, bold_base: bool = False
-) -> None:
-    """Add runs to a paragraph, honouring **bold** markers, stripping link syntax."""
-    _, Pt, _ = _require_python_docx()
-    text = _MD_LINK_RE.sub(r"\1", text)
-    text = _MD_CODE_RE.sub(r"\1", text)
-    parts = _BOLD_SPLIT_RE.split(text)
-    for i, part in enumerate(parts):
-        if not part:
-            continue
-        run = paragraph.add_run(part)
-        _set_docx_font_name(run, "Calibri")
-        run.font.size = Pt(base_size_pt)
-        # odd-indexed splits are the captured bold groups
-        run.bold = bold_base or (i % 2 == 1)
-
-
-def _set_docx_font_name(target: Any, font_name: str) -> None:
-    """Force font name across Word script channels (ascii/hAnsi/eastAsia/cs)."""
-    from docx.oxml.ns import qn
-
-    target.font.name = font_name
-    rpr = target._element.get_or_add_rPr()
-    rfonts = rpr.get_or_add_rFonts()
-    for key in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
-        rfonts.set(qn(key), font_name)
-
-
-def _render_docx(md_text: str, output_path: Path) -> None:
-    Document, Pt, Inches = _require_python_docx()
-    from docx.enum.text import WD_LINE_SPACING
-
-    divider_after_pt = 12
-    bullet_hanging_indent_pt = 14.4  # 0.20in
-
-    doc = Document()
-    # Narrow margins to match HTML template (0.5in side margins;
-    # top/bottom shaved by ~3pt to recover one line of vertical headroom).
-    for section in doc.sections:
-        section.left_margin = Inches(0.5)
-        section.right_margin = Inches(0.5)
-        section.top_margin = Inches(0.46)
-        section.bottom_margin = Inches(0.46)
-    # Base style
-    normal = doc.styles["Normal"]
-    _set_docx_font_name(normal, "Calibri")
-    normal.font.size = Pt(11)
-
-    def add_paragraph_bottom_border(
-        paragraph: Any, *, color: str, size: int, space: int = 1
-    ) -> None:
-        from docx.oxml import OxmlElement
-        from docx.oxml.ns import qn
-
-        p_pr = paragraph._p.get_or_add_pPr()
-        p_bdr = p_pr.find(qn("w:pBdr"))
-        if p_bdr is None:
-            p_bdr = OxmlElement("w:pBdr")
-            p_pr.append(p_bdr)
-        bottom = OxmlElement("w:bottom")
-        bottom.set(qn("w:val"), "single")
-        bottom.set(qn("w:sz"), str(size))
-        bottom.set(qn("w:space"), str(space))
-        bottom.set(qn("w:color"), color)
-        p_bdr.append(bottom)
-
-    def add_horizontal_rule(
-        *, color: str, size: int, before_pt: float, after_pt: float
-    ) -> None:
-        p = doc.add_paragraph()
-        p.paragraph_format.space_before = Pt(before_pt)
-        p.paragraph_format.space_after = Pt(after_pt)
-        p.add_run("")
-        add_paragraph_bottom_border(p, color=color, size=size)
-
-    def apply_word_body_paragraph_settings(paragraph: Any) -> None:
-        """Match Word paragraph settings used in the approved sample output."""
-        paragraph.paragraph_format.space_before = Pt(0)
-        paragraph.paragraph_format.space_after = Pt(0)
-        # Keep body/list text at a fixed single-line equivalent to reduce drift.
-        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
-        paragraph.paragraph_format.line_spacing = Pt(11)
-
-    previous_paragraph: Any | None = None
-    seen_role_title = False
-
-    for kind, text in _iter_markdown_blocks(md_text):
-        if kind == "h1":
-            p = doc.add_paragraph()
-            p.paragraph_format.space_before = Pt(0)
-            p.paragraph_format.space_after = Pt(0)
-            run = p.add_run(text)
-            run.bold = True
-            _set_docx_font_name(run, "Calibri")
-            run.font.size = Pt(18)
-            previous_paragraph = p
-        elif kind == "h2":
-            p = doc.add_paragraph()
-            p.paragraph_format.space_before = Pt(7)
-            p.paragraph_format.space_after = Pt(0)
-            run = p.add_run(text)
-            run.bold = True
-            _set_docx_font_name(run, "Calibri")
-            run.font.size = Pt(12)
-            add_paragraph_bottom_border(p, color="CCCCCC", size=8, space=0)
-            previous_paragraph = p
-        elif kind == "h3":
-            p = doc.add_paragraph()
-            p.paragraph_format.space_before = Pt(0 if not seen_role_title else 4)
-            p.paragraph_format.space_after = Pt(0)
-            if "	" in text:
-                title_part, date_part = text.split("	", 1)
-                title_plain = _strip_markdown_markup(title_part).strip()
-                date_plain = _strip_markdown_markup(date_part).strip()
-                run = p.add_run(title_plain)
-                run.bold = True
-                _set_docx_font_name(run, "Calibri")
-                run.font.size = Pt(11)
-                # Right tab stop at content width (7.5 in = 10800 twips)
-                from docx.oxml import OxmlElement
-                from docx.oxml.ns import qn
-
-                pPr = p._p.get_or_add_pPr()
-                tabs_el = OxmlElement("w:tabs")
-                tab_el = OxmlElement("w:tab")
-                tab_el.set(qn("w:val"), "right")
-                tab_el.set(qn("w:pos"), "10800")
-                tabs_el.append(tab_el)
-                pPr.append(tabs_el)
-                date_run = p.add_run("	" + date_plain)
-                date_run.bold = False
-                _set_docx_font_name(date_run, "Calibri")
-                date_run.font.size = Pt(11)
-            else:
-                run = p.add_run(text)
-                run.bold = True
-                _set_docx_font_name(run, "Calibri")
-                run.font.size = Pt(11)
-            seen_role_title = True
-            previous_paragraph = p
-        elif kind == "title":
-            p = doc.add_paragraph()
-            p.paragraph_format.space_before = Pt(0)
-            p.paragraph_format.space_after = Pt(2)
-            run = p.add_run(_strip_markdown_markup(text))
-            run.bold = True
-            _set_docx_font_name(run, "Calibri")
-            run.font.size = Pt(11)
-            previous_paragraph = p
-        elif kind == "bullet":
-            p = doc.add_paragraph(style="List Bullet")
-            apply_word_body_paragraph_settings(p)
-            # Force a deterministic hanging indent for wrapped bullet lines.
-            p.paragraph_format.left_indent = Pt(bullet_hanging_indent_pt)
-            p.paragraph_format.first_line_indent = Pt(-bullet_hanging_indent_pt)
-            _add_rich_runs(p, text, 11)
-            previous_paragraph = p
-        elif kind == "divider":
-            if previous_paragraph is None:
-                add_horizontal_rule(
-                    color="000000", size=12, before_pt=0, after_pt=divider_after_pt
-                )
-            else:
-                add_paragraph_bottom_border(
-                    previous_paragraph, color="000000", size=12, space=0
-                )
-                previous_paragraph.paragraph_format.space_after = Pt(divider_after_pt)
-        else:  # p — contact line, date line, role summary, company line, skills
-            p = doc.add_paragraph()
-            apply_word_body_paragraph_settings(p)
-            if "	" in text:
-                # Company line: "**Company, Location**	Date Range"
-                left_part, right_part = text.split("	", 1)
-                left_plain = _strip_markdown_markup(left_part).strip()
-                right_plain = _strip_markdown_markup(right_part).strip()
-                run = p.add_run(left_plain)
-                run.bold = True
-                _set_docx_font_name(run, "Calibri")
-                run.font.size = Pt(11)
-                from docx.oxml import OxmlElement
-                from docx.oxml.ns import qn
-
-                pPr = p._p.get_or_add_pPr()
-                tabs_el = OxmlElement("w:tabs")
-                tab_el = OxmlElement("w:tab")
-                tab_el.set(qn("w:val"), "right")
-                tab_el.set(qn("w:pos"), "10800")
-                tabs_el.append(tab_el)
-                pPr.append(tabs_el)
-                date_run = p.add_run("	" + right_plain)
-                date_run.bold = True
-                _set_docx_font_name(date_run, "Calibri")
-                date_run.font.size = Pt(11)
-            elif (skills_parts := _split_skills_category_line(text)) is not None:
-                category, skills = skills_parts
-                cat_run = p.add_run(f"{category} ")
-                cat_run.bold = True
-                _set_docx_font_name(cat_run, "Calibri")
-                cat_run.font.size = Pt(11)
-                skills_run = p.add_run(skills)
-                skills_run.bold = False
-                _set_docx_font_name(skills_run, "Calibri")
-                skills_run.font.size = Pt(11)
-            else:
-                _add_rich_runs(p, text, 11)
-            previous_paragraph = p
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    doc.save(output_path)
-
-
-# ---------------------------------------------------------------------------
-# PDF renderer
-# ---------------------------------------------------------------------------
-def _wrap_text_for_pdf(
-    text: str, max_width: float, font_name: str, font_size: int
-) -> list[str]:
-    _LETTER, _canvas, string_width = _require_reportlab()
-    words = text.split()
-    if not words:
-        return [""]
-    lines: list[str] = []
-    current = words[0]
-    for word in words[1:]:
-        candidate = f"{current} {word}"
-        if string_width(candidate, font_name, font_size) <= max_width:
-            current = candidate
-        else:
-            lines.append(current)
-            current = word
-    lines.append(current)
-    return lines
-
-
-def _wrap_skills_category_for_pdf(
-    bold_prefix: str,
-    regular_text: str,
-    max_width: float,
-    fn_bold: str,
-    fn_regular: str,
-    font_size: int,
-) -> list[tuple[str, str]]:
-    """Wrap a skills-category line using the correct font per segment.
-    Returns a list of (bold_part, regular_part) tuples, one per output line.
-    The bold_prefix is measured with fn_bold; remaining words with fn_regular,
-    so wrap points reflect the actual rendered glyph widths.
-    """
-    _LETTER, _canvas, sw = _require_reportlab()
-    prefix_w = sw(bold_prefix, fn_bold, font_size)
-    words = regular_text.split()
-    lines: list[tuple[str, str]] = []
-    # --- First line: starts with bold prefix ---
-    current_regular = ""
-    current_w = prefix_w
-    for i, word in enumerate(words):
-        sep = " " if current_regular else ""
-        word_w = sw(sep + word, fn_regular, font_size)
-        if current_w + word_w <= max_width:
-            current_regular += sep + word
-            current_w += word_w
-        else:
-            lines.append((bold_prefix, current_regular))
-            remaining = words[i:]
-            break
-    else:
-        # All words fit on first line
-        lines.append((bold_prefix, current_regular))
-        return lines
-    # --- Subsequent lines: all regular ---
-    if remaining:
-        current = remaining[0]
-        for word in remaining[1:]:
-            candidate = f"{current} {word}"
-            if sw(candidate, fn_regular, font_size) <= max_width:
-                current = candidate
-            else:
-                lines.append(("", current))
-                current = word
-        lines.append(("", current))
-    return lines
-
-
-def _wrap_mixed_style_paragraph_for_pdf(
-    bold_parts: list[str],
-    max_width: float,
-    fn_bold: str,
-    fn_regular: str,
-    font_size: int,
-) -> list[list[tuple[str, bool]]]:
-    """Wrap a mixed bold/regular paragraph to max_width, preserving style per segment.
-
-    Args:
-        bold_parts: Result of _BOLD_SPLIT_RE.split(text). Odd indices are bold, even regular.
-        max_width: Maximum line width in PDF points.
-        fn_bold: PDF font name for bold text.
-        fn_regular: PDF font name for regular text.
-        font_size: Font size in points.
-
-    Returns:
-        List of lines, where each line is a list of (text, is_bold) tuples.
-        Each tuple represents a drawable segment: text to draw and whether it's bold.
-        Whitespace runs are normalized to a single space between tokens.
-    """
-    _LETTER, _canvas, sw = _require_reportlab()
-
-    # Build (word, is_bold, has_space_before) triples while tracking whether
-    # whitespace existed between tokens (runs are normalized to single spaces).
-    # bold_parts comes from _BOLD_SPLIT_RE.split(text): even indices are regular, odd are bold.
-    # At style boundaries we check actual source whitespace rather than assuming a space,
-    # so that adjacent-punctuation cases like **bold**, do not gain a spurious space.
-    words_with_style: list[tuple[str, bool, bool]] = []
-
-    for i, part in enumerate(bold_parts):
-        if not part:
-            continue
-        part_plain = _strip_markdown_markup(part)
-        is_bold = i % 2 == 1
-
-        # Split into interleaved [token, sep, token, sep, ...]; separators match r"\s+".
-        raw_tokens = re.split(r"(\s+)", part_plain)
-        prev_was_space = False
-        first_word_in_part = True
-
-        for tok in raw_tokens:
-            if not tok:
-                continue
-            if tok.isspace():
-                prev_was_space = True
-                continue
-            # Non-whitespace token -- determine whether whitespace precedes it.
-            if first_word_in_part:
-                if prev_was_space:
-                    # The part itself opened with whitespace.
-                    has_space = True
-                elif not words_with_style:
-                    # First token ever -- no preceding content.
-                    has_space = False
-                else:
-                    # Cross-style boundary: check whether the previous non-empty segment
-                    # ended with whitespace (if so, there is a natural word separator).
-                    prev_idx = i - 1
-                    while prev_idx >= 0 and not bold_parts[prev_idx]:
-                        prev_idx -= 1
-                    if prev_idx < 0:
-                        has_space = False
-                    else:
-                        prev_plain = _strip_markdown_markup(bold_parts[prev_idx])
-                        has_space = bool(prev_plain) and prev_plain[-1] in " \t\n"
-                first_word_in_part = False
-            else:
-                # Within the same segment, whitespace was present iff prev token was a sep.
-                has_space = prev_was_space
-
-            words_with_style.append((tok, is_bold, has_space))
-            prev_was_space = False
-
-    if not words_with_style:
-        return [[]]
-
-    # Greedily pack tokens into lines, measuring widths per style.
-    # Boundaries without source whitespace are treated as glued: if they do not
-    # fit at line end, the preceding token is moved to the next line so suffix
-    # punctuation/tokens cannot be orphaned onto their own line.
-    lines: list[list[tuple[str, bool]]] = []
-    current_tokens: list[tuple[str, bool, bool]] = []
-    current_width = 0.0
-
-    def _font_for(is_bold: bool) -> str:
-        return fn_bold if is_bold else fn_regular
-
-    width_cache: dict[tuple[str, bool], float] = {}
-
-    def _text_width(text: str, is_bold: bool) -> float:
-        key = (text, is_bold)
-        cached = width_cache.get(key)
-        if cached is not None:
-            return cached
-        measured = float(sw(text, _font_for(is_bold), font_size))
-        width_cache[key] = measured
-        return measured
-
-    def _token_width(
-        token: tuple[str, bool, bool], prev: tuple[str, bool, bool] | None
-    ) -> float:
-        word, is_bold, has_space_before = token
-        word_w = _text_width(word, is_bold)
-        if has_space_before and prev is not None:
-            sep_w = _text_width(" ", prev[1])
-            return sep_w + word_w
-        return word_w
-
-    def _render_line(tokens: list[tuple[str, bool, bool]]) -> list[tuple[str, bool]]:
-        segments: list[tuple[str, bool]] = []
-        for i, (word, is_bold, has_space_before) in enumerate(tokens):
-            if i == 0:
-                segments.append((word, is_bold))
-                continue
-
-            if has_space_before and segments:
-                last_text, last_is_bold = segments[-1]
-                segments[-1] = (last_text + " ", last_is_bold)
-
-            if segments and segments[-1][1] == is_bold:
-                last_text, _ = segments[-1]
-                segments[-1] = (last_text + word, is_bold)
-            else:
-                segments.append((word, is_bold))
-        return segments
-
-    for word, is_bold, has_space_before in words_with_style:
-        token = (word, is_bold, has_space_before)
-        prev = current_tokens[-1] if current_tokens else None
-        token_width = _token_width(token, prev)
-        candidate_width = current_width + token_width
-
-        if candidate_width <= max_width:
-            current_tokens.append(token)
-            current_width = candidate_width
-            continue
-
-        # Glued boundary (no whitespace): keep this token with previous token.
-        if not has_space_before and current_tokens:
-            moved = current_tokens.pop()
-            moved_prev = current_tokens[-1] if current_tokens else None
-            current_width = max(0.0, current_width - _token_width(moved, moved_prev))
-            if current_tokens:
-                lines.append(_render_line(current_tokens))
-            current_tokens = [(moved[0], moved[1], False), (word, is_bold, False)]
-            first = current_tokens[0]
-            second = current_tokens[1]
-            current_width = _token_width(first, None) + _token_width(second, first)
-            continue
-
-        if current_tokens:
-            lines.append(_render_line(current_tokens))
-        current_tokens = [(word, is_bold, False)]
-        current_width = _token_width(current_tokens[0], None)
-
-    if current_tokens:
-        lines.append(_render_line(current_tokens))
-
-    return lines if lines else [[]]
-
-
-def _strip_markdown_markup(text: str) -> str:
-    """Strip bold, links, and inline code markers for plain-text renderers."""
-    text = _BOLD_SPLIT_RE.sub(r"\1", text)
-    text = _MD_LINK_RE.sub(r"\1", text)
-    text = _MD_CODE_RE.sub(r"\1", text)
-    return text
-
-
-def _split_skills_category_line(text: str) -> tuple[str, str] | None:
-    """Return (category, skills) for lines like '**Category:** skill1 • skill2'."""
-    match = _SKILLS_CATEGORY_RE.match(text.strip())
-    if not match:
-        return None
-    return match.group(1).strip(), match.group(2).strip()
-
-
-def _render_pdf(
-    md_text: str, output_path: Path, *, enforce_page_limit: bool = True
-) -> None:
-    import io as _io
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.unlink(missing_ok=True)
-
-    LETTER, canvas_mod, _sw = _require_reportlab()
-    fn_regular, fn_bold = _require_calibri_pdf_fonts()
-    buf = _io.BytesIO()
-    pdf = canvas_mod.Canvas(buf, pagesize=LETTER)
-    width, height = LETTER
-    # Keep near-HTML width while preserving a stable two-page PDF envelope.
-    margin_x: float = 36
-    margin_top: float = 36
-    margin_bottom: float = 36
-    y: float = height - margin_top
-    page_count = 1
-    content_width = width - 2 * margin_x
-    seen_divider = False
-    last_text_baseline_y: float | None = None
-
-    def new_page() -> None:
-        nonlocal y, page_count
-        pdf.showPage()
-        page_count += 1
-        y = height - margin_top
-
-    def ensure_space(needed_pts: float) -> None:
-        if y - needed_pts < margin_bottom:
-            new_page()
-
-    def ensure_line_space(line_height: float) -> None:
-        ensure_space(line_height)
-
-    def draw_text(
-        x: float, y_pos: float, value: str, font_name: str, font_size: int
-    ) -> None:
-        pdf.setFont(font_name, font_size)
-        pdf.drawString(x, y_pos, value)
-
-    def draw_horizontal_rule(
-        *, before_pts: float, after_pts: float, width: float = 1.0, gray: float = 0.0
-    ) -> None:
-        """Draw a rule in its own vertical row so it never overlaps text."""
-        nonlocal y
-        ensure_space(before_pts + 1 + after_pts)
-        y -= before_pts
-        pdf.setStrokeColorRGB(gray, gray, gray)
-        pdf.setLineWidth(width)
-        pdf.line(margin_x, y, margin_x + content_width, y)
-        y -= after_pts
-
-    for kind, text in _iter_markdown_blocks(md_text):
-        plain = _strip_markdown_markup(text)
-        if kind == "h1":
-            fn, fs, lh = fn_bold, 18, 15.2
-            ensure_space(lh + 4)
-            draw_text(margin_x, y, plain, fn, fs)
-            last_text_baseline_y = y
-            y -= lh
-        elif kind == "h2":
-            fn, fs, lh = fn_bold, 12, 15
-            ensure_space(lh + 16)
-            y -= 5
-            heading_y = y
-            draw_text(margin_x, heading_y, plain, fn, fs)
-            last_text_baseline_y = heading_y
-            line_y = heading_y - 2
-            pdf.setStrokeColorRGB(0.8, 0.8, 0.8)
-            pdf.setLineWidth(0.8)
-            pdf.line(margin_x, line_y, margin_x + content_width, line_y)
-            y = line_y - 14
-        elif kind == "h3":
-            fn_bold_name, fn_reg_name, fs, lh = fn_bold, fn_regular, 11, 13.2
-            ensure_space(lh + 2)
-            y -= 1  # space before job title
-            if "	" in text:
-                title_part, date_part = text.split("	", 1)
-                title_plain = _strip_markdown_markup(title_part).strip()
-                date_plain = _strip_markdown_markup(date_part).strip()
-            else:
-                title_plain = plain
-                date_plain = None
-            draw_text(margin_x, y, title_plain, fn_bold_name, fs)
-            last_text_baseline_y = y
-            if date_plain:
-                _sw = _require_reportlab()[2]
-                dw = _sw(date_plain, fn_reg_name, 11)
-                draw_text(margin_x + content_width - dw, y, date_plain, fn_reg_name, 11)
-            y -= lh
-        elif kind == "title":
-            fn, fs, lh = fn_bold, 11, 13
-            ensure_space(lh + 2)
-            draw_text(margin_x, y, plain, fn, fs)
-            last_text_baseline_y = y
-            y -= lh
-        elif kind == "divider":
-            seen_divider = True
-            # Match h2 behavior: line sits just under the preceding text and leaves 16pt after.
-            if last_text_baseline_y is None:
-                draw_horizontal_rule(before_pts=0, after_pts=16, width=1.0, gray=0.0)
-            else:
-                line_y = last_text_baseline_y - 2
-                pdf.setStrokeColorRGB(0.0, 0.0, 0.0)
-                pdf.setLineWidth(1.0)
-                pdf.line(margin_x, line_y, margin_x + content_width, line_y)
-                y = line_y - 16
-        elif kind == "bullet":
-            fn, fn_bold_name, fs, lh = fn_regular, fn_bold, 11, 12.0
-            bullet_x = margin_x + 1
-            text_x = margin_x + 14
-            avail = content_width - (text_x - margin_x)
-            lines: list[str]
-            if (skills_parts := _split_skills_category_line(text)) is not None:
-                category, skills = skills_parts
-                category_with_space = f"{category} "
-                _sw = _require_reportlab()[2]
-                category_w = _sw(category_with_space, fn_bold_name, fs)
-                skills_w = _sw(skills, fn, fs)
-                if category_w + skills_w <= avail:
-                    ensure_space(lh + 1)
-                    ensure_line_space(lh)
-                    draw_text(bullet_x, y, "•", fn, fs)
-                    draw_text(text_x, y, category_with_space, fn_bold_name, fs)
-                    draw_text(text_x + category_w, y, skills, fn, fs)
-                    last_text_baseline_y = y
-                    y -= lh
-                else:
-                    wrapped_lines = _wrap_skills_category_for_pdf(
-                        category_with_space,
-                        skills,
-                        avail,
-                        fn_bold_name,
-                        fn,
-                        fs,
-                    )
-                    ensure_space(len(wrapped_lines) * lh + 1)
-                    for i, (bold_text, regular_text) in enumerate(wrapped_lines):
-                        ensure_line_space(lh)
-                        if i == 0:
-                            draw_text(bullet_x, y, "•", fn, fs)
-                        if bold_text:
-                            draw_text(text_x, y, bold_text, fn_bold_name, fs)
-                        if regular_text:
-                            bold_w = (
-                                _sw(bold_text, fn_bold_name, fs) if bold_text else 0
-                            )
-                            draw_text(text_x + bold_w, y, regular_text, fn, fs)
-                        last_text_baseline_y = y
-                        y -= lh
-                y -= 0.2
-            else:
-                text_font = fn
-                if "**" in text:
-                    bold_parts = _BOLD_SPLIT_RE.split(text)
-                    # Fully-bold markdown bullet line: **...**
-                    if (
-                        len(bold_parts) == 3
-                        and not bold_parts[0].strip()
-                        and not bold_parts[2].strip()
-                    ):
-                        text_font = fn_bold_name
-                        bullet_text = _strip_markdown_markup(bold_parts[1])
-                        lines = _wrap_text_for_pdf(bullet_text, avail, text_font, fs)
-                    else:
-                        lines = _wrap_text_for_pdf(plain, avail, text_font, fs)
-                else:
-                    lines = _wrap_text_for_pdf(plain, avail, text_font, fs)
-                ensure_space(len(lines) * lh + 1)
-                for i, line in enumerate(lines):
-                    ensure_line_space(lh)
-                    if i == 0:
-                        draw_text(bullet_x, y, "•", text_font, fs)
-                    draw_text(text_x, y, line, text_font, fs)
-                    last_text_baseline_y = y
-                    y -= lh
-                y -= 0.2
-        else:  # p — contact, date, role summary, company line, skills
-            fn, fn_bold_name, fs, lh = fn_regular, fn_bold, 11, 11.0
-            post_gap = 0 if not seen_divider else 0.2
-            if "	" in text:
-                # Company line: "**Company, Location**	Date Range"
-                left_part, right_part = text.split("	", 1)
-                left_plain = _strip_markdown_markup(left_part).strip()
-                right_plain = _strip_markdown_markup(right_part).strip()
-                ensure_space(lh + 1)
-                _sw = _require_reportlab()[2]
-                rw = _sw(right_plain, fn_bold_name, 11)
-                draw_text(margin_x, y, left_plain, fn_bold_name, fs)
-                last_text_baseline_y = y
-                draw_text(
-                    margin_x + content_width - rw, y, right_plain, fn_bold_name, 11
-                )
-                y -= lh
-                y -= post_gap
-            elif (skills_parts := _split_skills_category_line(text)) is not None:
-                category, skills = skills_parts
-                category_with_space = f"{category} "
-                _sw = _require_reportlab()[2]
-                category_w = _sw(category_with_space, fn_bold_name, fs)
-                skills_w = _sw(skills, fn, fs)
-                ensure_space(lh + 1)
-                if category_w + skills_w <= content_width:
-                    draw_text(margin_x, y, category_with_space, fn_bold_name, fs)
-                    draw_text(margin_x + category_w, y, skills, fn, fs)
-                    last_text_baseline_y = y
-                    y -= lh
-                else:
-                    wrapped_lines = _wrap_skills_category_for_pdf(
-                        category_with_space,
-                        skills,
-                        content_width,
-                        fn_bold_name,
-                        fn,
-                        fs,
-                    )
-                    ensure_space(len(wrapped_lines) * lh + 1)
-                    for bold_text, regular_text in wrapped_lines:
-                        ensure_line_space(lh)
-                        if bold_text:
-                            draw_text(margin_x, y, bold_text, fn_bold_name, fs)
-                        if regular_text:
-                            bold_w = (
-                                _sw(bold_text, fn_bold_name, fs) if bold_text else 0
-                            )
-                            draw_text(margin_x + bold_w, y, regular_text, fn, fs)
-                        last_text_baseline_y = y
-                        y -= lh
-                y -= post_gap
-            else:
-                # Check for inline bold markers (e.g. degree line: **Bachelor of Science...**)
-                if "**" in text:
-                    _sw_fn = _require_reportlab()[2]
-                    # Split on bold markers: odd-indexed parts are bold
-                    bold_parts = _BOLD_SPLIT_RE.split(text)
-                    # If entirely bold (single bold group wrapping all content), render bold
-                    if (
-                        len(bold_parts) == 3
-                        and not bold_parts[0].strip()
-                        and not bold_parts[2].strip()
-                    ):
-                        bold_text = _strip_markdown_markup(bold_parts[1])
-                        lines = _wrap_text_for_pdf(
-                            bold_text, content_width, fn_bold_name, fs
-                        )
-                        ensure_space(len(lines) * lh + 1)
-                        for line in lines:
-                            ensure_line_space(lh)
-                            draw_text(margin_x, y, line, fn_bold_name, fs)
-                            last_text_baseline_y = y
-                            y -= lh
-                    else:
-                        # Mixed bold/regular: wrap while preserving style spans
-                        mixed_wrapped_lines: list[list[tuple[str, bool]]] = (
-                            _wrap_mixed_style_paragraph_for_pdf(
-                                bold_parts,
-                                content_width,
-                                fn_bold_name,
-                                fn,
-                                fs,
-                            )
-                        )
-                        ensure_space(len(mixed_wrapped_lines) * lh + 1)
-                        for line_segments in mixed_wrapped_lines:
-                            ensure_line_space(lh)
-                            x_cursor = margin_x
-                            for part_text, is_bold in line_segments:
-                                cur_fn = fn_bold_name if is_bold else fn
-                                pw = _sw_fn(part_text, cur_fn, fs)
-                                draw_text(x_cursor, y, part_text, cur_fn, fs)
-                                x_cursor += pw
-                            last_text_baseline_y = y
-                            y -= lh
-                    y -= post_gap
-                else:
-                    lines = _wrap_text_for_pdf(plain, content_width, fn, fs)
-                    ensure_space(len(lines) * lh + 1)
-                    for line in lines:
-                        ensure_line_space(lh)
-                        draw_text(margin_x, y, line, fn, fs)
-                        last_text_baseline_y = y
-                        y -= lh
-                    y -= post_gap
-    pdf.save()
-    if enforce_page_limit and page_count > 2:
-        output_path.unlink(missing_ok=True)
-        raise RuntimeError(
-            f"PDF exceeded two-page limit ({page_count} pages): {output_path}"
-        )
-    output_path.write_bytes(buf.getvalue())
-
-
-# ---------------------------------------------------------------------------
-# Fragment quality guard
-# ---------------------------------------------------------------------------
-def _contains_trailing_connector_fragment(md_text: str) -> bool:
-    bad_tail = {"and", "or", "to", "with", "for", "of", "in", "a", "an", "the"}
-    for _kind, text in _iter_markdown_blocks(md_text):
-        words = re.findall(r"[A-Za-z]+", text.lower())
-        if words and words[-1] in bad_tail:
-            return True
-    return False
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 def run() -> int:
     args = parse_args()
     try:
@@ -1343,7 +219,8 @@ def run() -> int:
             )
         if _contains_trailing_connector_fragment(render_source_text):
             print(
-                "WARNING: render source contains trailing connector fragments; review final DOCX/PDF for awkward wraps",
+                "WARNING: render source contains trailing connector fragments; "
+                "review final DOCX/PDF for awkward wraps",
                 file=sys.stderr,
             )
         output_dir = Path(args.output_dir)
@@ -1402,7 +279,6 @@ def run() -> int:
             elif not pdf_existed_before_finalize:
                 pdf_output.unlink(missing_ok=True)
             raise
-        # Backup cleanup is best-effort: a failure here must not undo a successful export.
         for backup in (backup_docx, backup_pdf):
             try:
                 backup.unlink(missing_ok=True)

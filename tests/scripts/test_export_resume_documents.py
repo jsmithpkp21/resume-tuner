@@ -10,7 +10,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from scripts import build_resume, export_resume_documents
+from scripts import build_resume, document_export, export_resume_documents
 
 
 def test_run_generates_docx_and_pdf_from_same_markdown(
@@ -657,8 +657,8 @@ def test_render_pdf_raises_when_output_exceeds_two_pages(
             self._buf.write(b"%PDF-FAKE")
 
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (300, 150),
             type("CanvasModule", (), {"Canvas": FakeCanvas}),
@@ -666,8 +666,8 @@ def test_render_pdf_raises_when_output_exceeds_two_pages(
         ),
     )
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_calibri_pdf_fonts",
+        document_export,
+        "require_calibri_pdf_fonts",
         lambda: ("Calibri", "Calibri-Bold"),
     )
 
@@ -702,8 +702,8 @@ def test_render_pdf_can_keep_overflow_pdf_for_review_exports(
             self._buf.write(b"%PDF-FAKE")
 
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (300, 150),
             type("CanvasModule", (), {"Canvas": FakeCanvas}),
@@ -711,8 +711,8 @@ def test_render_pdf_can_keep_overflow_pdf_for_review_exports(
         ),
     )
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_calibri_pdf_fonts",
+        document_export,
+        "require_calibri_pdf_fonts",
         lambda: ("Calibri", "Calibri-Bold"),
     )
 
@@ -728,8 +728,8 @@ def test_render_pdf_removes_stale_output_when_renderer_fails_early(
     output_path.write_bytes(b"stale pdf")
 
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (_ for _ in ()).throw(RuntimeError("reportlab unavailable")),
     )
 
@@ -805,12 +805,10 @@ def test_require_calibri_pdf_fonts_falls_back_to_helvetica_without_fontconfig(
     monkeypatch.setitem(sys.modules, "reportlab.pdfbase.ttfonts", ttfonts_module)
 
     monkeypatch.setenv("RESUME_PDF_STRICT_CALIBRI", "0")
+    monkeypatch.setattr(document_export, "find_calibri_path", lambda _style: None)
     monkeypatch.setattr(
-        export_resume_documents, "_find_calibri_path", lambda _style: None
-    )
-    monkeypatch.setattr(
-        export_resume_documents,
-        "_find_fontconfig_font_path",
+        document_export,
+        "find_fontconfig_font_path",
         lambda _family, _style: None,
     )
 
@@ -1047,8 +1045,8 @@ def test_render_pdf_html_skills_category_has_no_leading_bullet(
             self._buf.write(b"%PDF-FAKE")
 
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             type("CanvasModule", (), {"Canvas": FakeCanvas}),
@@ -1056,8 +1054,8 @@ def test_render_pdf_html_skills_category_has_no_leading_bullet(
         ),
     )
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_calibri_pdf_fonts",
+        document_export,
+        "require_calibri_pdf_fonts",
         lambda: ("Calibri", "Calibri-Bold"),
     )
 
@@ -1421,8 +1419,8 @@ def test_render_pdf_draws_section_rule_immediately_under_heading(
             self._buf.write(b"%PDF-FAKE")
 
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             type("CanvasModule", (), {"Canvas": FakeCanvas}),
@@ -1430,8 +1428,8 @@ def test_render_pdf_draws_section_rule_immediately_under_heading(
         ),
     )
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_calibri_pdf_fonts",
+        document_export,
+        "require_calibri_pdf_fonts",
         lambda: ("Calibri", "Calibri-Bold"),
     )
 
@@ -1487,8 +1485,8 @@ def test_render_pdf_header_divider_uses_same_text_to_line_offset_as_h2(
             self._buf.write(b"%PDF-FAKE")
 
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             type("CanvasModule", (), {"Canvas": FakeCanvas}),
@@ -1496,8 +1494,8 @@ def test_render_pdf_header_divider_uses_same_text_to_line_offset_as_h2(
         ),
     )
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_calibri_pdf_fonts",
+        document_export,
+        "require_calibri_pdf_fonts",
         lambda: ("Calibri", "Calibri-Bold"),
     )
 
@@ -1589,8 +1587,8 @@ def test_render_pdf_renders_fully_bold_markdown_bullets_in_bold_font(
             self._buf.write(b"%PDF-FAKE")
 
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             type("CanvasModule", (), {"Canvas": FakeCanvas}),
@@ -1598,8 +1596,8 @@ def test_render_pdf_renders_fully_bold_markdown_bullets_in_bold_font(
         ),
     )
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_calibri_pdf_fonts",
+        document_export,
+        "require_calibri_pdf_fonts",
         lambda: ("Calibri", "Calibri-Bold"),
     )
 
@@ -1659,8 +1657,8 @@ def test_render_pdf_renders_bold_skills_prefix_inside_bullet_lines(
             self._buf.write(b"%PDF-FAKE")
 
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             type("CanvasModule", (), {"Canvas": FakeCanvas}),
@@ -1668,8 +1666,8 @@ def test_render_pdf_renders_bold_skills_prefix_inside_bullet_lines(
         ),
     )
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_calibri_pdf_fonts",
+        document_export,
+        "require_calibri_pdf_fonts",
         lambda: ("Calibri", "Calibri-Bold"),
     )
 
@@ -1688,8 +1686,8 @@ def test_wrap_skills_category_for_pdf_uses_mixed_font_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             object(),
@@ -1716,8 +1714,8 @@ def test_wrap_skills_category_for_pdf_handles_overlong_prefix(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             object(),
@@ -1830,8 +1828,8 @@ def test_wrap_mixed_style_paragraph_for_pdf_short_line_fits_on_one_line(
 ) -> None:
     """With short text, mixed-style paragraph renders on a single line unchanged."""
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             object(),
@@ -1861,8 +1859,8 @@ def test_wrap_mixed_style_paragraph_for_pdf_long_line_wraps_with_style_preserved
 ) -> None:
     """With long mixed-style text, wrapping preserves style per segment across lines."""
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             object(),
@@ -1906,8 +1904,8 @@ def test_wrap_mixed_style_paragraph_for_pdf_alternating_styles_preserved(
 ) -> None:
     """Alternating bold/regular styles are preserved with correct markup."""
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             object(),
@@ -1969,8 +1967,8 @@ def test_render_pdf_mixed_style_paragraph_wraps_to_content_width(
             self._buf.write(b"%PDF-FAKE")
 
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             type("CanvasModule", (), {"Canvas": FakeCanvas}),
@@ -1979,8 +1977,8 @@ def test_render_pdf_mixed_style_paragraph_wraps_to_content_width(
         ),
     )
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_calibri_pdf_fonts",
+        document_export,
+        "require_calibri_pdf_fonts",
         lambda: ("Calibri", "Calibri-Bold"),
     )
     # A paragraph with mixed bold/regular that should wrap when constraint is tight
@@ -2019,8 +2017,8 @@ def test_wrap_mixed_style_paragraph_for_pdf_preserves_spaces_at_style_boundaries
 ) -> None:
     """Spaces at style boundaries must be preserved on the preceding segment style."""
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             object(),
@@ -2082,8 +2080,8 @@ def test_render_pdf_mixed_style_validates_segment_widths(
             self._buf.write(b"%PDF-FAKE")
 
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             type("CanvasModule", (), {"Canvas": FakeCanvas}),
@@ -2091,8 +2089,8 @@ def test_render_pdf_mixed_style_validates_segment_widths(
         ),
     )
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_calibri_pdf_fonts",
+        document_export,
+        "require_calibri_pdf_fonts",
         lambda: ("Calibri", "Calibri-Bold"),
     )
     markdown = """## Section
@@ -2127,8 +2125,8 @@ def test_wrap_mixed_style_paragraph_for_pdf_no_spurious_space_before_punctuation
     Expected reconstruction: "Led initiative, good work" (no space before comma).
     """
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             object(),
@@ -2161,8 +2159,8 @@ def test_wrap_mixed_style_paragraph_for_pdf_does_not_orphan_glued_punctuation(
 ) -> None:
     """Punctuation adjacent to a style boundary should not wrap onto its own line."""
     monkeypatch.setattr(
-        export_resume_documents,
-        "_require_reportlab",
+        document_export,
+        "require_reportlab",
         lambda: (
             (612, 792),
             object(),

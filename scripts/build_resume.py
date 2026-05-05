@@ -30,6 +30,7 @@ else:
 # Use local import when run as `python scripts/build_resume.py`,
 # and package import when loaded as `scripts.build_resume`.
 if __package__ in {None, ""}:
+    import document_export
     from _runtime_guard import assert_not_blocked_runtime_input
     from jd_ingest import JobContext, ingest_job_context, ingest_job_text
     from llm_client import LLMClient
@@ -37,6 +38,7 @@ if __package__ in {None, ""}:
         has_measurable_outcome as _shared_has_measurable_outcome,
     )
 else:
+    from scripts import document_export
     from scripts._runtime_guard import assert_not_blocked_runtime_input
     from scripts.jd_ingest import JobContext, ingest_job_context, ingest_job_text
     from scripts.llm_client import LLMClient
@@ -213,6 +215,29 @@ class ResumeIR:
     independent_projects_visibility: str = "private"
 
 
+VALID_OUTPUT_TOKENS = ("pdf", "docx", "md", "html")
+DEFAULT_OUTPUTS = ("pdf",)
+
+
+def _parse_outputs(value: str) -> tuple[str, ...]:
+    tokens = [token.strip().lower() for token in value.split(",") if token.strip()]
+    if not tokens:
+        raise argparse.ArgumentTypeError(
+            f"--outputs requires at least one of: {', '.join(VALID_OUTPUT_TOKENS)}"
+        )
+    invalid = [token for token in tokens if token not in VALID_OUTPUT_TOKENS]
+    if invalid:
+        raise argparse.ArgumentTypeError(
+            f"--outputs received unknown token(s) {', '.join(invalid)}; "
+            f"valid tokens: {', '.join(VALID_OUTPUT_TOKENS)}"
+        )
+    seen: list[str] = []
+    for token in tokens:
+        if token not in seen:
+            seen.append(token)
+    return tuple(seen)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", type=Path, default=DEFAULT_PROFILE)
@@ -237,9 +262,48 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--skip-markdown",
+        "--outputs",
+        type=_parse_outputs,
+        default=DEFAULT_OUTPUTS,
+        help=(
+            "Comma-separated artifacts to emit. Valid tokens: "
+            f"{', '.join(VALID_OUTPUT_TOKENS)}. Default: pdf (submission-ready)."
+        ),
+    )
+    parser.add_argument(
+        "--company",
+        type=str,
+        default="company",
+        help="Company slug source for canonical export names (<company>_resume.{pdf,docx}).",
+    )
+    parser.add_argument(
+        "--pdf-filename",
+        type=str,
+        default=None,
+        help="Optional PDF file name override under --output-dir.",
+    )
+    parser.add_argument(
+        "--docx-filename",
+        type=str,
+        default=None,
+        help="Optional DOCX file name override under --output-dir.",
+    )
+    parser.add_argument(
+        "--allow-overflow-pdf",
         action="store_true",
-        help="Skip Markdown output; HTML plus JSON/text IR snapshots are still written.",
+        help=(
+            "Keep the generated PDF even when it exceeds the default two-page "
+            "submission guard. Useful for review/debug exports."
+        ),
+    )
+    parser.add_argument(
+        "--post-layout-cleanup",
+        choices=("enabled", "disabled"),
+        default="enabled",
+        help=(
+            "Apply deterministic post-layout cleanup before DOCX/PDF render. "
+            "Set to 'disabled' for strict source fidelity/debug exports."
+        ),
     )
     parser.add_argument(
         "--include-private-projects",
@@ -3173,12 +3237,34 @@ def run_pipeline(args: argparse.Namespace) -> int:
     text_snapshot_output = args.output_dir / f"{output_prefix}_ir_snapshot.txt"
     gap_output = args.output_dir / f"{output_prefix}_gap_summary.json"
 
-    render_html(resume, html_output, template_name=primary_template)
-    render_html(resume, secondary_html_output, template_name=secondary_template)
-    if not args.skip_markdown:
-        render_markdown(resume, md_output)
+    outputs = _resolve_outputs(args)
+    needs_html = "html" in outputs
+    needs_md = "md" in outputs
+    needs_docx = "docx" in outputs
+    needs_pdf = "pdf" in outputs
+    needs_html_render_source = needs_docx or needs_pdf
+    needs_md_render_source = needs_docx or needs_pdf
+
+    written_paths: list[Path] = []
+
+    # Always emit IR snapshots (debug artifacts, preserved across modes).
     write_ir_snapshot(resume, ir_output)
     write_text_snapshot(resume, text_snapshot_output)
+    written_paths.extend([ir_output, text_snapshot_output])
+
+    # Render HTML/MD: persist when requested in --outputs; otherwise emit only
+    # when DOCX/PDF need a render source. The default-template HTML (left-justified)
+    # is the preferred render source; markdown is the fallback.
+    if needs_html or needs_html_render_source:
+        render_html(resume, html_output, template_name=primary_template)
+        render_html(resume, secondary_html_output, template_name=secondary_template)
+        if needs_html:
+            written_paths.extend([html_output, secondary_html_output])
+    if needs_md or needs_md_render_source:
+        render_markdown(resume, md_output)
+        if needs_md:
+            written_paths.append(md_output)
+
     should_emit_gap_summary = (
         args.processing_mode == "processed"
         and resume.job_context is not None
@@ -3186,17 +3272,221 @@ def run_pipeline(args: argparse.Namespace) -> int:
     )
     if should_emit_gap_summary:
         write_gap_summary(resume, gap_output)
+        written_paths.append(gap_output)
+
+    # Default-template (left-justified) HTML is the preferred DOCX/PDF render
+    # source for layout fidelity; fall back to markdown otherwise.
+    if primary_template == "default":
+        default_template_html = html_output
+    elif secondary_template == "default":
+        default_template_html = secondary_html_output
+    else:
+        default_template_html = None
+
+    docx_output: Path | None = None
+    pdf_output: Path | None = None
+    removed_legacy_outputs: list[Path] = []
+    if needs_docx or needs_pdf:
+        docx_output, pdf_output, removed_legacy_outputs = _render_docx_pdf_outputs(
+            args=args,
+            output_dir=args.output_dir,
+            html_render_source=default_template_html,
+            md_render_source=md_output
+            if (needs_md or needs_md_render_source)
+            else None,
+            emit_docx=needs_docx,
+            emit_pdf=needs_pdf,
+        )
+        if docx_output is not None:
+            written_paths.append(docx_output)
+        if pdf_output is not None:
+            written_paths.append(pdf_output)
+
+    # If HTML/MD were rendered solely as a render source for DOCX/PDF and the
+    # user did not request them, remove the staging copies so the on-disk output
+    # set matches --outputs exactly.
+    if needs_html_render_source and not needs_html:
+        html_output.unlink(missing_ok=True)
+        secondary_html_output.unlink(missing_ok=True)
+    if needs_md_render_source and not needs_md:
+        md_output.unlink(missing_ok=True)
 
     print(f"Resume output written to ({args.processing_mode} mode): {args.output_dir}")
-    print(f"- {html_output}")
-    print(f"- {secondary_html_output}")
-    if not args.skip_markdown:
-        print(f"- {md_output}")
-    print(f"- {ir_output}")
-    print(f"- {text_snapshot_output}")
-    if should_emit_gap_summary:
-        print(f"- {gap_output}")
+    for path in written_paths:
+        print(f"- {path}")
+    if removed_legacy_outputs:
+        print("- removed stale legacy exports:")
+        for removed_path in removed_legacy_outputs:
+            print(f"    {removed_path}")
     return 0
+
+
+def _resolve_outputs(args: argparse.Namespace) -> tuple[str, ...]:
+    """Return validated outputs tokens, defaulting if absent (programmatic callers)."""
+    raw = getattr(args, "outputs", DEFAULT_OUTPUTS)
+    if raw is None:
+        return DEFAULT_OUTPUTS
+    if isinstance(raw, str):
+        return _parse_outputs(raw)
+    tokens = tuple(raw)
+    invalid = [t for t in tokens if t not in VALID_OUTPUT_TOKENS]
+    if invalid:
+        raise ValueError(
+            f"--outputs received unknown token(s) {', '.join(invalid)}; "
+            f"valid tokens: {', '.join(VALID_OUTPUT_TOKENS)}"
+        )
+    return tokens
+
+
+def _render_docx_pdf_outputs(
+    *,
+    args: argparse.Namespace,
+    output_dir: Path,
+    html_render_source: Path | None,
+    md_render_source: Path | None,
+    emit_docx: bool,
+    emit_pdf: bool,
+) -> tuple[Path | None, Path | None, list[Path]]:
+    """Apply post-layout cleanup, then render DOCX/PDF with atomic staging/backup."""
+    if html_render_source is not None and html_render_source.exists():
+        render_source_text = html_render_source.read_text(encoding="utf-8")
+    elif md_render_source is not None and md_render_source.exists():
+        render_source_text = md_render_source.read_text(encoding="utf-8")
+    else:
+        raise RuntimeError(
+            "DOCX/PDF render requested but no HTML or markdown source is available."
+        )
+
+    post_layout_cleanup = getattr(args, "post_layout_cleanup", "enabled")
+    if post_layout_cleanup == "enabled":
+        render_source_text = document_export.apply_post_layout_cleanup(
+            render_source_text, args=args
+        )
+    if document_export.contains_trailing_connector_fragment(render_source_text):
+        print(
+            "WARNING: render source contains trailing connector fragments; "
+            "review final DOCX/PDF for awkward wraps",
+            file=sys.stderr,
+        )
+
+    company = getattr(args, "company", "company")
+    pdf_filename = getattr(args, "pdf_filename", None)
+    docx_filename = getattr(args, "docx_filename", None)
+    allow_overflow_pdf = getattr(args, "allow_overflow_pdf", False)
+
+    docx_output = (
+        document_export.resolve_export_output_path(
+            output_dir,
+            filename_override=docx_filename,
+            default_name=document_export.canonical_export_filename(company, "docx"),
+            flag_name="--docx-filename",
+        )
+        if emit_docx
+        else None
+    )
+    pdf_output = (
+        document_export.resolve_export_output_path(
+            output_dir,
+            filename_override=pdf_filename,
+            default_name=document_export.canonical_export_filename(company, "pdf"),
+            flag_name="--pdf-filename",
+        )
+        if emit_pdf
+        else None
+    )
+
+    if (
+        docx_output is not None
+        and pdf_output is not None
+        and docx_output.resolve(strict=False) == pdf_output.resolve(strict=False)
+    ):
+        raise RuntimeError(
+            "DOCX and PDF outputs must be different files; "
+            "choose distinct --docx-filename and --pdf-filename values."
+        )
+
+    staged_docx = (
+        document_export.staging_path(docx_output, label="docx")
+        if docx_output is not None
+        else None
+    )
+    staged_pdf = (
+        document_export.staging_path(pdf_output, label="pdf")
+        if pdf_output is not None
+        else None
+    )
+    backup_docx = (
+        document_export.staging_path(docx_output, label="docx.bak")
+        if docx_output is not None
+        else None
+    )
+    backup_pdf = (
+        document_export.staging_path(pdf_output, label="pdf.bak")
+        if pdf_output is not None
+        else None
+    )
+    docx_existed = docx_output.exists() if docx_output is not None else False
+    pdf_existed = pdf_output.exists() if pdf_output is not None else False
+
+    if docx_output is not None:
+        docx_output.parent.mkdir(parents=True, exist_ok=True)
+    if pdf_output is not None:
+        pdf_output.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        if staged_docx is not None:
+            document_export.render_docx(render_source_text, staged_docx)
+        if staged_pdf is not None:
+            document_export.render_pdf(
+                render_source_text,
+                staged_pdf,
+                enforce_page_limit=not allow_overflow_pdf,
+            )
+
+        if docx_existed and docx_output is not None and backup_docx is not None:
+            docx_output.replace(backup_docx)
+        if pdf_existed and pdf_output is not None and backup_pdf is not None:
+            pdf_output.replace(backup_pdf)
+
+        if staged_docx is not None and docx_output is not None:
+            staged_docx.replace(docx_output)
+        if staged_pdf is not None and pdf_output is not None:
+            staged_pdf.replace(pdf_output)
+    except Exception:
+        if staged_docx is not None:
+            staged_docx.unlink(missing_ok=True)
+        if staged_pdf is not None:
+            staged_pdf.unlink(missing_ok=True)
+        if backup_docx is not None and backup_docx.exists() and docx_output is not None:
+            backup_docx.replace(docx_output)
+        elif not docx_existed and docx_output is not None:
+            docx_output.unlink(missing_ok=True)
+        if backup_pdf is not None and backup_pdf.exists() and pdf_output is not None:
+            backup_pdf.replace(pdf_output)
+        elif not pdf_existed and pdf_output is not None:
+            pdf_output.unlink(missing_ok=True)
+        raise
+
+    for backup in (backup_docx, backup_pdf):
+        if backup is None:
+            continue
+        try:
+            backup.unlink(missing_ok=True)
+        except OSError as _e:
+            print(
+                f"WARNING: could not remove backup file {backup}: {_e}",
+                file=sys.stderr,
+            )
+
+    keep: set[Path] = set()
+    if docx_output is not None:
+        keep.add(docx_output)
+    if pdf_output is not None:
+        keep.add(pdf_output)
+    removed_legacy_outputs = document_export.remove_stale_legacy_exports(
+        output_dir.resolve(strict=False), keep
+    )
+    return docx_output, pdf_output, removed_legacy_outputs
 
 
 def main() -> int:

@@ -28,7 +28,7 @@
 - Principal
 - Staff Principal
 
-## Build Command Template (for Issue #120)
+## Build Command Template
 ```bash
 python scripts/build_resume.py \
   --profile data/profile/profile.toml \
@@ -36,10 +36,15 @@ python scripts/build_resume.py \
   --skills-matrix data/skills/skills_matrix.csv \
   --target-role "Graphcore Senior Principal Test Framework Software Engineer" \
   --output-dir /tmp/graphcore_resume_output \
-  --processing-mode processed
+  --processing-mode processed \
+  --outputs pdf,docx,html,md \
+  --include-private-projects
 ```
 
-**Then use:** `latest_default_resume_processed.html` (not `latest_resume_processed.html`)
+`scripts/build_resume.py` is the single CLI entry point. `--outputs` selects which artifacts to emit (`pdf`, `docx`, `md`, `html` — comma-separated). Default is `pdf` (the submission-ready artifact). `scripts/export_resume_documents.py` is a deprecated back-compat shim.
+
+**Submission-ready PDF:** `<company>_resume.pdf` (slug from `--company`, default `company`).
+**Review HTML:** `latest_default_resume_processed.html` (left-justified, preferred for visual review).
 
 **Important:**
 - `--target-role` = INTERNAL ONLY (used for role-specific LLM optimizations)
@@ -49,14 +54,16 @@ python scripts/build_resume.py \
 
 ## Notes
 - `latest_resume_processed.html` = Modern (centered) template
-- `latest_default_resume_processed.html` = Default (left-justified) template ← USE THIS ONE
+- `latest_default_resume_processed.html` = Default (left-justified) template ← USE THIS ONE for visual review
 
-## Output Artifacts Generated
-- `latest_default_resume_processed.html` — **PRIMARY** (left-justified, default layout)
-- `latest_resume_processed.html` — Secondary (centered, modern layout)
+## Output Artifacts Generated (when `--outputs=pdf,docx,html,md`)
+- `<company>_resume.pdf` — **SUBMISSION ARTIFACT** (default `--outputs` produces just this)
+- `<company>_resume.docx` — DOCX equivalent
+- `latest_default_resume_processed.html` — left-justified review HTML
+- `latest_resume_processed.html` — centered modern HTML
 - `latest_resume_processed.md` — Markdown version
-- `latest_resume_processed_ir_snapshot.json` — Internal representation (for debugging)
-- `latest_resume_processed_ir_snapshot.txt` — Text IR snapshot (for debugging)
+- `latest_resume_processed_ir_snapshot.json` — Internal representation (always emitted, for debugging)
+- `latest_resume_processed_ir_snapshot.txt` — Text IR snapshot (always emitted, for debugging)
 
 ## Implementation Status (updated)
 The target-role headline leakage issue is resolved in current code:

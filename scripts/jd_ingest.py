@@ -170,6 +170,7 @@ def ingest_job_context(
     company_name = _extract_company_name(
         source=source,
         netloc=parsed.netloc,
+        path=parsed.path,
         page_title=fetched.title,
         description=fetched.description,
     )
@@ -296,15 +297,68 @@ def _truncate_excerpt(text: str, *, limit: int = _MAX_DESCRIPTION_EXCERPT) -> st
     return text[:limit]
 
 
+# ATS (applicant tracking system) hosts where the URL path's first segment is
+# the hiring company's slug. Example: https://job-boards.greenhouse.io/<slug>/jobs/123.
+_ATS_PATH_SLUG_DOMAINS: tuple[str, ...] = (
+    "greenhouse.io",
+    "lever.co",
+    "ashbyhq.com",
+    "smartrecruiters.com",
+    "jobvite.com",
+)
+# ATS hosts where the netloc subdomain is the hiring company's slug.
+# Example: https://<slug>.bamboohr.com/jobs/view.php?id=...
+_ATS_SUBDOMAIN_DOMAINS: tuple[str, ...] = (
+    "myworkdayjobs.com",
+    "workdayjobs.com",
+    "bamboohr.com",
+    "breezy.hr",
+    "recruitee.com",
+    "personio.com",
+    "teamtailor.com",
+)
+
+
 def _infer_source(netloc: str) -> str:
     host = netloc.lower().split(":", maxsplit=1)[0]  # strip optional port
     if host == "linkedin.com" or host.endswith(".linkedin.com"):
         return "linkedin"
     if host == "indeed.com" or host.endswith(".indeed.com"):
         return "indeed"
+    for domain in _ATS_PATH_SLUG_DOMAINS + _ATS_SUBDOMAIN_DOMAINS:
+        if host == domain or host.endswith("." + domain):
+            return "ats"
     if host:
         return "company-site"
     return "unknown"
+
+
+def _extract_ats_company_slug(host: str, path: str) -> str:
+    """Extract the hiring company slug from a known ATS URL.
+
+    Returns an empty string if the URL doesn't match any known ATS host or if
+    the slug position is empty. Slugs are returned verbatim from the URL (no
+    word-splitting); callers can humanize via `.title()` or hand off to the
+    LLM for further refinement.
+    """
+    host = host.lower().split(":", maxsplit=1)[0]
+    if not host:
+        return ""
+
+    for domain in _ATS_PATH_SLUG_DOMAINS:
+        if host == domain or host.endswith("." + domain):
+            segments = [seg for seg in path.split("/") if seg.strip()]
+            return segments[0] if segments else ""
+
+    for domain in _ATS_SUBDOMAIN_DOMAINS:
+        if host.endswith("." + domain):
+            sub = host[: -(len(domain) + 1)]
+            labels = [label for label in sub.split(".") if label]
+            if labels and labels[0] != "www":
+                return labels[0]
+            if len(labels) >= 2:
+                return labels[1]
+    return ""
 
 
 def _extract_job_id(query: dict[str, list[str]], path: str) -> str:
@@ -347,7 +401,12 @@ def _extract_role_hint(
 
 
 def _extract_company_name(
-    *, source: str, netloc: str, page_title: str, description: str
+    *,
+    source: str,
+    netloc: str,
+    path: str = "",
+    page_title: str,
+    description: str,
 ) -> str:
     title = page_title.strip()
     if source == "linkedin" and title:
@@ -361,6 +420,11 @@ def _extract_company_name(
         segments = [segment.strip() for segment in raw.split(" - ") if segment.strip()]
         if len(segments) >= 3:
             return segments[2]
+
+    if source == "ats":
+        ats_slug = _extract_ats_company_slug(netloc, path)
+        if ats_slug:
+            return ats_slug
 
     marker = " at "
     lower = description.lower()

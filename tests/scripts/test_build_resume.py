@@ -5165,3 +5165,81 @@ def test_run_pipeline_uses_llm_company_in_output_filename(
     assert not (output_dir / "company_resume.pdf").exists()
     # The pipeline mutates args.company in place to the resolved name.
     assert pipeline_args.company == "Elite Technology"
+
+
+# ---------------------------------------------------------------------------
+# ATS host company extraction (issue #212 / greenhouse follow-up)
+# ---------------------------------------------------------------------------
+
+
+def test_ats_extraction_picks_company_from_greenhouse_path() -> None:
+    """`job-boards.greenhouse.io/<company>/jobs/<id>` → company is the path slug,
+    NOT the netloc's first label (which is "job-boards")."""
+    from urllib.parse import urlparse
+
+    from scripts.jd_ingest import _extract_company_name, _infer_source
+
+    parsed = urlparse(
+        "https://job-boards.greenhouse.io/elitetechnology/jobs/5206489008"
+    )
+    source = _infer_source(parsed.netloc)
+    assert source == "ats"
+    assert (
+        _extract_company_name(
+            source=source,
+            netloc=parsed.netloc,
+            path=parsed.path,
+            page_title="",
+            description="",
+        )
+        == "elitetechnology"
+    )
+
+
+def test_ats_extraction_handles_lever_workday_ashby_bamboohr() -> None:
+    """Common ATS host shapes resolve to the correct company slug."""
+    from urllib.parse import urlparse
+
+    from scripts.jd_ingest import _extract_company_name, _infer_source
+
+    cases = [
+        ("https://jobs.lever.co/acme/abc-123", "acme"),
+        ("https://nvidia.wd5.myworkdayjobs.com/job/r12345", "nvidia"),
+        ("https://jobs.ashbyhq.com/anthropic/abc", "anthropic"),
+        ("https://acme.bamboohr.com/jobs/view.php?id=12", "acme"),
+    ]
+    for url, expected in cases:
+        parsed = urlparse(url)
+        source = _infer_source(parsed.netloc)
+        assert source == "ats", f"expected ats source for {url}, got {source}"
+        assert (
+            _extract_company_name(
+                source=source,
+                netloc=parsed.netloc,
+                path=parsed.path,
+                page_title="",
+                description="",
+            )
+            == expected
+        ), f"wrong company for {url}"
+
+
+def test_company_site_extraction_unchanged_for_direct_career_pages() -> None:
+    """Direct company career pages still use netloc's first label."""
+    from urllib.parse import urlparse
+
+    from scripts.jd_ingest import _extract_company_name, _infer_source
+
+    parsed = urlparse("https://anthropic.com/careers/job-12")
+    source = _infer_source(parsed.netloc)
+    assert source == "company-site"
+    assert (
+        _extract_company_name(
+            source=source,
+            netloc=parsed.netloc,
+            path=parsed.path,
+            page_title="",
+            description="",
+        )
+        == "Anthropic"
+    )

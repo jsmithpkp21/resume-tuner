@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.29.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.28.0...v0.29.0) (2026-05-05)
+
+
+### Features
+
+* **build:** add --outputs flag for single-command pdf/docx/md/html ([4b30d6b](https://github.com/jsmithpkp21/resume-builder/commit/4b30d6b3cf421acf086e0e0e2b0987502d47bed6)), closes [#206](https://github.com/jsmithpkp21/resume-builder/issues/206)
+
+
+### Bug Fixes
+
+* **build:** address PR [#210](https://github.com/jsmithpkp21/resume-builder/issues/210) Copilot review feedback ([6040e60](https://github.com/jsmithpkp21/resume-builder/commit/6040e6014ac5b9614e0db76f1dfe60eee51850b9))
+
 ## [0.28.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.27.0...v0.28.0) (2026-05-04)
 
 

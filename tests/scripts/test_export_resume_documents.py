@@ -1824,10 +1824,13 @@ Role summary two.
 
 
 def test_render_docx_company_line_has_inter_role_breathing(tmp_path: Path) -> None:
-    """Issue #214: a new role's company-line must not sit flush against the
-    previous role's last bullet. Apply the same 4pt breathing as the inter-role
-    h3 space_before so role-to-role transitions across companies feel
-    consistent with same-company role-to-role transitions."""
+    """Issue #214: every company-line carries the same 4pt space_before as the
+    inter-role h3, so neither (a) the first role's company-line right after
+    the Professional Experience H2 nor (b) a subsequent role's company-line
+    right after the previous role's last bullet sits flush against what
+    precedes it. The first and second company-lines are both asserted because
+    the rule is uniform — applying it only to non-first company-lines would
+    leave the H2 -> first-role transition crowded."""
     output_path = tmp_path / "resume.docx"
     html = """<!doctype html><html><body>
 <h2>Professional Experience</h2>
@@ -1946,14 +1949,36 @@ def test_render_pdf_company_line_breathes_above(
 
 def test_default_template_company_line_has_top_margin() -> None:
     """Issue #214: HTML CSS adds a top margin on .company-line so a new role's
-    company name does not sit flush against the previous role's last bullet."""
+    company name does not sit flush against the previous role's last bullet.
+    Tolerant of the underlying serialization: accepts either the `margin:`
+    shorthand or an explicit `margin-top:` declaration, in `pt` or `px`."""
     from scripts.resume_templates import get_template
+
+    def extract_top_margin_pt(css: str) -> float | None:
+        body_match = re.search(r"\.company-line\s*\{([^}]*)\}", css)
+        if body_match is None:
+            return None
+        body = body_match.group(1)
+        # Last declaration wins in CSS; iterate top-to-bottom and overwrite.
+        top_pt: float | None = None
+        for prop_match in re.finditer(r"margin(?:-top)?\s*:\s*([^;]+);", body):
+            value = prop_match.group(1).strip()
+            tokens = value.split()
+            top_token = tokens[0]
+            num_match = re.match(r"([\d.]+)(pt|px)?", top_token)
+            if num_match is None:
+                continue
+            n = float(num_match.group(1))
+            unit = num_match.group(2) or "px"
+            top_pt = n if unit == "pt" else n * 0.75  # 1px == 0.75pt @96dpi
+        return top_pt
 
     for template_name in ("default", "modern"):
         css = get_template(template_name).get_css()
-        match = re.search(r"\.company-line\s*\{[^}]*margin:\s*([\d.]+)pt", css)
-        assert match is not None, f"{template_name} template: no .company-line margin"
-        top_pt = float(match.group(1))
+        top_pt = extract_top_margin_pt(css)
+        assert top_pt is not None, (
+            f"{template_name} template: no .company-line margin/margin-top"
+        )
         assert top_pt >= 4, (
             f"{template_name} template: .company-line top margin is "
             f"{top_pt}pt, want >= 4pt"

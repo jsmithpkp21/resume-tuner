@@ -1776,9 +1776,7 @@ Summary paragraph for spacing baseline.
         assert token in summary_block
 
     heading_block = paragraph_containing("Key Skills and Expertise")
-    # Section headers carry 8pt (160 twips) space_after so the first content
-    # paragraph of the section does not crowd the H2 bottom border (#214).
-    assert 'w:after="160"' in heading_block
+    assert 'w:after="0"' in heading_block
 
     skills_block = paragraph_containing("Programming &amp; Scripting:")
     assert "Java" in skills_block and "Python" in skills_block
@@ -1825,15 +1823,13 @@ Role summary two.
     assert 'w:after="0"' in second_role_block
 
 
-def test_render_docx_h2_breathing_below_matches_inter_role_gap(tmp_path: Path) -> None:
-    """Issue #214: company-line under Professional Experience must not crowd the H2."""
+def test_render_docx_company_line_has_inter_role_breathing(tmp_path: Path) -> None:
+    """Issue #214: a new role's company-line must not sit flush against the
+    previous role's last bullet. Apply the same 4pt breathing as the inter-role
+    h3 space_before so role-to-role transitions across companies feel
+    consistent with same-company role-to-role transitions."""
     output_path = tmp_path / "resume.docx"
     html = """<!doctype html><html><body>
-<h2>Independent Projects</h2>
-<section class=\"info-item\">
-<p><strong>Side Project</strong></p>
-<p>One-line description.</p>
-</section>
 <h2>Professional Experience</h2>
 <section class=\"experience-item\">
 <p class=\"company-line\"><strong>Acme Corp</strong><span>2020 - 2024</span></p>
@@ -1860,25 +1856,21 @@ def test_render_docx_h2_breathing_below_matches_inter_role_gap(tmp_path: Path) -
                 return block
         raise AssertionError(f"paragraph containing token not found: {token}")
 
-    h2_block = paragraph_containing("Professional Experience")
-    # 10pt above + 8pt below H2 give clear section separation; the inter-role
-    # h3 space_before (4pt) was visibly too subtle vs. the H2's light border.
-    assert 'w:before="200"' in h2_block
-    assert 'w:after="160"' in h2_block
-
+    # 4pt = 80 twips before each company-line. Matches the existing inter-role
+    # h3 space_before so role-to-role transitions across companies (where the
+    # next role starts with a company-line, not an h3) get the same breathing.
     first_company_block = paragraph_containing("Acme Corp")
-    # The next paragraph below H2 keeps space_before=0; the visible breathing
-    # comes from the H2 space_after (matches role-to-role pattern).
-    assert 'w:before="0"' in first_company_block
+    assert 'w:before="80"' in first_company_block
 
     second_company_block = paragraph_containing("Beta LLC")
-    assert 'w:before="0"' in second_company_block
+    assert 'w:before="80"' in second_company_block
 
 
-def test_render_pdf_h2_breathing_below_at_least_inter_role_gap(
+def test_render_pdf_company_line_breathes_above(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Issue #214: PDF section break must not crowd content vs. inter-role gap."""
+    """Issue #214: PDF role-to-role transition across companies must add
+    ~4pt of breathing before the new company-line (matches DOCX/HTML)."""
     output_path = tmp_path / "resume.pdf"
     text_positions: dict[str, list[float]] = {}
 
@@ -1943,41 +1935,29 @@ def test_render_pdf_h2_breathing_below_at_least_inter_role_gap(
 
     export_resume_documents._render_pdf(html, output_path, enforce_page_limit=False)
 
-    project_y = text_positions["Project summary line."][0]
-    first_company_y = text_positions["Acme Corp"][0]
     role_last_bullet_y = text_positions["Bullet alpha."][0]
     second_company_y = text_positions["Beta LLC"][0]
 
-    section_break_gap = project_y - first_company_y
-    inter_role_gap = role_last_bullet_y - second_company_y
-
-    # Section transition (with H2 in between) must breathe at least as much
-    # as a plain role-to-role transition.
-    assert section_break_gap >= inter_role_gap
+    # Bullet line height is 12pt; the company-line carries 4pt of breathing
+    # above it, so the gap from the last bullet baseline to the next company
+    # baseline should be at least 12 + 4 = 16pt.
+    assert role_last_bullet_y - second_company_y >= 16
 
 
-def test_default_template_h2_bottom_margin_matches_or_exceeds_role_gap() -> None:
-    """Issue #214: HTML CSS section gap >= inter-role h3 top margin."""
+def test_default_template_company_line_has_top_margin() -> None:
+    """Issue #214: HTML CSS adds a top margin on .company-line so a new role's
+    company name does not sit flush against the previous role's last bullet."""
     from scripts.resume_templates import get_template
 
-    css = get_template("default").get_css()
-    h2_match = re.search(r"h2\s*\{[^}]*margin:\s*([^;]+);", css)
-    assert h2_match is not None
-    margin_parts = h2_match.group(1).split()
-    # margin: top right bottom left -> bottom is the third token
-    assert len(margin_parts) >= 3
-    bottom_match = re.match(r"([\d.]+)", margin_parts[2])
-    assert bottom_match is not None
-    h2_bottom_px = float(bottom_match.group(1))
-
-    role_gap_match = re.search(
-        r"h3\.job-title-line:not\(:first-of-type\)\s*\{[^}]*margin-top:\s*([\d.]+)px",
-        css,
-    )
-    assert role_gap_match is not None
-    role_gap_px = float(role_gap_match.group(1))
-
-    assert h2_bottom_px >= role_gap_px
+    for template_name in ("default", "modern"):
+        css = get_template(template_name).get_css()
+        match = re.search(r"\.company-line\s*\{[^}]*margin:\s*([\d.]+)pt", css)
+        assert match is not None, f"{template_name} template: no .company-line margin"
+        top_pt = float(match.group(1))
+        assert top_pt >= 4, (
+            f"{template_name} template: .company-line top margin is "
+            f"{top_pt}pt, want >= 4pt"
+        )
 
 
 def test_wrap_mixed_style_paragraph_for_pdf_short_line_fits_on_one_line(

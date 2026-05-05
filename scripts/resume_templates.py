@@ -156,7 +156,7 @@ class DefaultTemplate(ResumeTemplate):
     .resume-title { margin: 0; font-size: 11.5pt; font-weight: 700; text-decoration: none; }
     .summary-text { margin: 2px 0 6px 0; font-size: 10.5pt; text-decoration: none; }
     h2 { font-size: 12pt; font-weight: 700; text-transform: none; letter-spacing: 0; margin: 12px 0 16px 0; border-bottom: 1px solid #ccc; padding-bottom: 0px; }
-    .company-line { margin: 0; display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5pt; line-height: 1.15; }
+    .company-line { margin: 4pt 0 0 0; display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5pt; line-height: 1.15; }
     .company-line span { margin-left: auto; text-align: right; font-size: 10pt; color: #222; font-weight: 700; }
     h3 { margin: 0; font-size: 11pt; font-weight: 700; }
     h3.job-title-line { display: flex; justify-content: space-between; align-items: baseline; line-height: 1.15; }
@@ -232,7 +232,7 @@ class ModernTemplate(ResumeTemplate):
     .resume-title { margin: 0; font-size: 11.5pt; font-weight: 700; text-align: center; text-decoration: none; }
     .summary-text { margin: 2px 0 6px 0; font-size: 10.5pt; text-align: center; text-decoration: none; }
     h2 { font-size: 12pt; font-weight: 700; text-transform: none; letter-spacing: 0; margin: 12px 0 16px 0; border-bottom: 1px solid #ccc; padding-bottom: 0px; text-align: center; width: 100%; display: block; }
-    .company-line { margin: 0; display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5pt; text-align: left; line-height: 1.15; }
+    .company-line { margin: 4pt 0 0 0; display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5pt; text-align: left; line-height: 1.15; }
     .company-line span { margin-left: auto; text-align: right; font-size: 10pt; color: #222; font-weight: 700; }
     h3 { margin: 0; font-size: 11pt; font-weight: 700; }
     h3.job-title-line { display: flex; justify-content: space-between; align-items: baseline; line-height: 1.15; }

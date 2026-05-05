@@ -546,13 +546,8 @@ def render_docx(md_text: str, output_path: Path) -> None:
             previous_paragraph = p
         elif kind == "h2":
             p = doc.add_paragraph()
-            # 10pt above + 8pt below give the section header clear breathing
-            # on both sides so the first content paragraph (e.g. company-line
-            # under Professional Experience) is visibly separated from the
-            # preceding section. The light-grey bottom border alone is too
-            # subtle to read as a section break at 4pt of whitespace. See #214.
-            p.paragraph_format.space_before = Pt(10)
-            p.paragraph_format.space_after = Pt(8)
+            p.paragraph_format.space_before = Pt(7)
+            p.paragraph_format.space_after = Pt(0)
             run = p.add_run(text)
             run.bold = True
             _set_docx_font_name(run, "Calibri")
@@ -622,6 +617,12 @@ def render_docx(md_text: str, output_path: Path) -> None:
             p = doc.add_paragraph()
             apply_word_body_paragraph_settings(p)
             if "\t" in text:
+                # Tab-separated bold-left/right paragraphs come from the
+                # company-line pattern (`<p class="company-line"><strong>X</strong>
+                # <span>date</span></p>`). Give it the same 4pt breathing as the
+                # inter-role h3 space_before so a new company doesn't sit flush
+                # against the previous role's last bullet (#214).
+                p.paragraph_format.space_before = Pt(4)
                 left_part, right_part = text.split("\t", 1)
                 left_plain = _strip_markdown_markup(left_part).strip()
                 right_plain = _strip_markdown_markup(right_part).strip()
@@ -1048,6 +1049,8 @@ def render_pdf(
             fn, fn_bold_name, fs, lh = fn_regular, fn_bold, 11, 11.0
             post_gap = 0 if not seen_divider else 0.2
             if "\t" in text:
+                # Company-line breathing — see render_docx note (#214).
+                y -= 4
                 left_part, right_part = text.split("\t", 1)
                 left_plain = _strip_markdown_markup(left_part).strip()
                 right_plain = _strip_markdown_markup(right_part).strip()

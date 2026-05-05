@@ -273,8 +273,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--company",
         type=str,
-        default="company",
-        help="Company slug source for canonical export names (<company>_resume.{pdf,docx}).",
+        default=None,
+        help=(
+            "Company slug source for canonical export names "
+            "(<company>_resume.{pdf,docx}). When omitted, build_resume "
+            "auto-derives the slug from --job-url / --job-text-file via the "
+            "JD ingest LLM if a company name is detected; otherwise falls "
+            "back to 'company'."
+        ),
     )
     parser.add_argument(
         "--pdf-filename",
@@ -1468,6 +1474,39 @@ def _llm_stage_enabled() -> bool:
     llm_enabled = os.getenv(LLM_ENABLED_ENV, "0").strip() == "1"
     fixture_enabled = os.getenv(LLM_FIXTURE_ENV, "0").strip() == "1"
     return llm_enabled or fixture_enabled
+
+
+def _extract_company_via_llm(job_context: JobContext) -> str:
+    """Ask the LLM to extract the hiring company name from a JD when the
+    deterministic ingest layer found nothing. Returns an empty string on any
+    failure so the caller can fall back to the default 'company' slug.
+    """
+    text_parts: list[str] = []
+    if job_context.page_title.strip():
+        text_parts.append(f"Page title: {job_context.page_title.strip()}")
+    if job_context.description_excerpt.strip():
+        text_parts.append(f"Description: {job_context.description_excerpt.strip()}")
+    if not text_parts:
+        return ""
+    payload_text = "\n\n".join(text_parts)
+    try:
+        client = LLMClient.from_env()
+        response = client.complete_json(
+            namespace="extract_company_name",
+            system_prompt=(
+                "You extract the hiring company name from job-description "
+                'text. Reply with JSON only: {"company": "<name>"}. If '
+                'no company is identifiable, reply with {"company": ""}.'
+            ),
+            user_payload={"text": payload_text},
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.info("LLM company extraction skipped: %s", exc)
+        return ""
+    company = response.get("company", "")
+    if not isinstance(company, str):
+        return ""
+    return company.strip()
 
 
 def _enrich_experience_bullets(
@@ -3175,6 +3214,18 @@ def run_pipeline(args: argparse.Namespace) -> int:
     elif has_job_url:
         job_context = ingest_job_context(job_url)
 
+    # When the deterministic JD extractor returned no company name, ask the
+    # LLM (gated by RESUME_BUILDER_LLM_ENABLED / fixture mode). Cheap to gate:
+    # the LLM cache makes repeat builds free.
+    if (
+        job_context is not None
+        and not job_context.company_name.strip()
+        and _llm_stage_enabled()
+    ):
+        llm_company = _extract_company_via_llm(job_context)
+        if llm_company:
+            job_context = dc_replace(job_context, company_name=llm_company)
+
     resolved_target_role = args.target_role.strip()
     if not resolved_target_role and job_context is not None:
         resolved_target_role = job_context.role_hint
@@ -3182,6 +3233,20 @@ def run_pipeline(args: argparse.Namespace) -> int:
     resolved_target_company = ""
     if job_context is not None:
         resolved_target_company = job_context.company_name
+
+    # Auto-derive --company filename slug from the JD when not explicitly set.
+    explicit_company = getattr(args, "company", None)
+    if explicit_company is None or not explicit_company.strip():
+        if job_context is not None and job_context.company_name.strip():
+            args.company = job_context.company_name.strip()
+            print(
+                f"--company auto-derived from job description: "
+                f"'{document_export.snake_case(args.company)}'"
+            )
+        else:
+            args.company = "company"
+    else:
+        args.company = explicit_company.strip()
 
     resume = assemble_baseline_resume(
         profile=profile,

@@ -4953,3 +4953,168 @@ def test_export_resume_documents_shim_produces_canonical_outputs(
     assert result.returncode == 0, result.stderr
     assert (output_dir / "company_resume.pdf").exists()
     assert (output_dir / "company_resume.docx").exists()
+
+
+# ---------------------------------------------------------------------------
+# --company auto-derive from JD (issue #212)
+# ---------------------------------------------------------------------------
+
+
+def test_company_auto_derived_from_job_text_file(tmp_path: Path) -> None:
+    """No --company + --job-text-file with a Company: header → snake_case slug."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+    jd_path = tmp_path / "jd.txt"
+    jd_path.write_text(
+        "Company: Elite Technology\n\nSenior Staff Software Engineer.\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--profile",
+            str(profile_path),
+            "--experience-db",
+            str(REPO_ROOT / "data" / "experience" / "experience_db.toml"),
+            "--output-dir",
+            str(output_dir),
+            "--processing-mode",
+            "processed",
+            "--allow-overflow-pdf",
+            "--outputs",
+            "pdf",
+            "--job-text-file",
+            str(jd_path),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "auto-derived from job description" in result.stdout
+    assert (output_dir / "elite_technology_resume.pdf").exists()
+    assert not (output_dir / "company_resume.pdf").exists()
+
+
+def test_company_explicit_overrides_jd_derived(tmp_path: Path) -> None:
+    """Explicit --company wins over a JD-derived company name."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+    jd_path = tmp_path / "jd.txt"
+    jd_path.write_text("Company: Elite Technology\n\nRole.\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--profile",
+            str(profile_path),
+            "--experience-db",
+            str(REPO_ROOT / "data" / "experience" / "experience_db.toml"),
+            "--output-dir",
+            str(output_dir),
+            "--processing-mode",
+            "processed",
+            "--allow-overflow-pdf",
+            "--outputs",
+            "pdf",
+            "--job-text-file",
+            str(jd_path),
+            "--company",
+            "Acme Corp",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "auto-derived from job description" not in result.stdout
+    assert (output_dir / "acme_corp_resume.pdf").exists()
+    assert not (output_dir / "elite_technology_resume.pdf").exists()
+
+
+def test_company_falls_back_to_default_when_no_jd(tmp_path: Path) -> None:
+    """No --company and no JD → fallback to 'company' slug."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--profile",
+            str(profile_path),
+            "--experience-db",
+            str(REPO_ROOT / "data" / "experience" / "experience_db.toml"),
+            "--output-dir",
+            str(output_dir),
+            "--processing-mode",
+            "processed",
+            "--allow-overflow-pdf",
+            "--outputs",
+            "pdf",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "auto-derived from job description" not in result.stdout
+    assert (output_dir / "company_resume.pdf").exists()
+
+
+def test_company_via_llm_fallback_when_regex_misses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When --job-text-file has no `Company:` header but LLM is enabled,
+    build_resume calls _extract_company_via_llm and uses the result."""
+
+    from scripts.build_resume import _extract_company_via_llm
+    from scripts.jd_ingest import JobContext
+
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    # Sanity: the helper itself returns the LLM payload's `company` value.
+    class _FakeClient:
+        @classmethod
+        def from_env(cls) -> _FakeClient:
+            return cls()
+
+        def complete_json(
+            self,
+            *,
+            namespace: str,
+            system_prompt: str,
+            user_payload: dict[str, object],
+        ) -> dict[str, Any]:
+            assert namespace == "extract_company_name"
+            return {"company": "Elite Technology"}
+
+    monkeypatch.setattr(build_resume, "LLMClient", _FakeClient)
+    monkeypatch.setattr(build_resume, "_llm_stage_enabled", lambda: True)
+
+    jc = JobContext(
+        input_url="",
+        normalized_url="",
+        source="job-text-file",
+        role_hint="Engineer",
+        company_name="",
+        job_id="",
+        fetch_status="provided_text",
+        page_title="Senior Engineer at Elite Technology",
+        description_excerpt="Build payment systems.",
+        notes=(),
+        company_research=None,
+    )
+    assert _extract_company_via_llm(jc) == "Elite Technology"

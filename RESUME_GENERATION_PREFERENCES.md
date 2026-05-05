@@ -43,7 +43,7 @@ python scripts/build_resume.py \
 
 `scripts/build_resume.py` is the single CLI entry point. `--outputs` selects which artifacts to emit (`pdf`, `docx`, `md`, `html` — comma-separated). Default is `pdf` (the submission-ready artifact). `scripts/export_resume_documents.py` is a deprecated back-compat shim.
 
-**Submission-ready PDF:** `<company>_resume.pdf` (slug from `--company`, default `company`).
+**Submission-ready PDF:** `<company>_resume.pdf`. The slug comes from `--company`. When `--company` is omitted and a JD is supplied (`--job-url` or `--job-text-file`), `build_resume.py` auto-derives the slug from the JD: deterministic regex first, then LLM fallback (when `RESUME_BUILDER_LLM_ENABLED=1`). When neither a `--company` nor a derivable JD company is available, the fallback slug is `company`.
 **Review HTML:** `latest_default_resume_processed.html` (left-justified, preferred for visual review).
 
 **Important:**

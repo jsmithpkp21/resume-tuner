@@ -49,7 +49,7 @@ def _build_resume_module() -> Any:
 # ---------------------------------------------------------------------------
 # Output naming and staging
 # ---------------------------------------------------------------------------
-def _snake_case(value: str) -> str:
+def snake_case(value: str) -> str:
     token = re.sub(r"[^a-z0-9]+", "_", value.strip().lower())
     token = token.strip("_")
     return token or "company"
@@ -57,7 +57,7 @@ def _snake_case(value: str) -> str:
 
 def canonical_export_filename(company: str, extension: str) -> str:
     ext = extension.lower().lstrip(".")
-    return f"{_snake_case(company)}_resume.{ext}"
+    return f"{snake_case(company)}_resume.{ext}"
 
 
 def staging_path(output_path: Path, *, label: str) -> Path:

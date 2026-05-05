@@ -546,11 +546,13 @@ def render_docx(md_text: str, output_path: Path) -> None:
             previous_paragraph = p
         elif kind == "h2":
             p = doc.add_paragraph()
-            p.paragraph_format.space_before = Pt(7)
-            # 4pt below matches the inter-role h3 space_before so the first
-            # paragraph of a section (e.g. company-line under Professional
-            # Experience) does not crowd the H2 bottom border. See #214.
-            p.paragraph_format.space_after = Pt(4)
+            # 10pt above + 8pt below give the section header clear breathing
+            # on both sides so the first content paragraph (e.g. company-line
+            # under Professional Experience) is visibly separated from the
+            # preceding section. The light-grey bottom border alone is too
+            # subtle to read as a section break at 4pt of whitespace. See #214.
+            p.paragraph_format.space_before = Pt(10)
+            p.paragraph_format.space_after = Pt(8)
             run = p.add_run(text)
             run.bold = True
             _set_docx_font_name(run, "Calibri")

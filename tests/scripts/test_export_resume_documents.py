@@ -1776,9 +1776,9 @@ Summary paragraph for spacing baseline.
         assert token in summary_block
 
     heading_block = paragraph_containing("Key Skills and Expertise")
-    # Section headers carry 4pt (80 twips) space_after so the first content
+    # Section headers carry 8pt (160 twips) space_after so the first content
     # paragraph of the section does not crowd the H2 bottom border (#214).
-    assert 'w:after="80"' in heading_block
+    assert 'w:after="160"' in heading_block
 
     skills_block = paragraph_containing("Programming &amp; Scripting:")
     assert "Java" in skills_block and "Python" in skills_block
@@ -1861,8 +1861,10 @@ def test_render_docx_h2_breathing_below_matches_inter_role_gap(tmp_path: Path) -
         raise AssertionError(f"paragraph containing token not found: {token}")
 
     h2_block = paragraph_containing("Professional Experience")
-    # 4pt below H2 == inter-role gap (h3 space_before for subsequent roles).
-    assert 'w:after="80"' in h2_block
+    # 10pt above + 8pt below H2 give clear section separation; the inter-role
+    # h3 space_before (4pt) was visibly too subtle vs. the H2's light border.
+    assert 'w:before="200"' in h2_block
+    assert 'w:after="160"' in h2_block
 
     first_company_block = paragraph_containing("Acme Corp")
     # The next paragraph below H2 keeps space_before=0; the visible breathing

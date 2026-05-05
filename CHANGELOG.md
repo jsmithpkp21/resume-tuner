@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.30.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.30.0...v0.30.1) (2026-05-05)
+
+
+### Bug Fixes
+
+* **render:** add 4pt breathing above company-line; revert H2 spacing ([50c4625](https://github.com/jsmithpkp21/resume-builder/commit/50c4625a9f791896d3820a1a8b296bc8c2c2df61))
+* **render:** add 4pt breathing below H2 in DOCX section headers ([0eb103d](https://github.com/jsmithpkp21/resume-builder/commit/0eb103d6b64b93351b091833197adae5225a767d))
+* **render:** bump DOCX H2 breathing to 10pt above / 8pt below ([46d1be0](https://github.com/jsmithpkp21/resume-builder/commit/46d1be0934d378904e91885c20f984e4b4df22d6))
+
 ## [0.30.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.29.0...v0.30.0) (2026-05-05)
 
 

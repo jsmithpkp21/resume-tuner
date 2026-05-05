@@ -355,7 +355,7 @@ Section ordering (top to bottom):
 Invariants:
 - Sections 4, 5, and 6 are optional; their presence is data-driven, not template-driven. Section 6 additionally honors the `visibility` flag plus the `--include-private-projects` opt-in.
 - Section ordering is fixed; individual sections may be absent but never reordered.
-- DOCX and PDF export derive section order from the HTML output via `_ResumeHtmlBlockParser`; no separate ordering logic exists. `_ResumeHtmlBlockParser` and the DOCX/PDF renderers live in `scripts/document_export.py`; `scripts/export_resume_documents.py` is a deprecated back-compat shim that delegates to `scripts/build_resume.py` (the single CLI entry point — see `--outputs`).
+- DOCX and PDF export derive section order from the HTML output via `document_export.ResumeHtmlBlockParser`; no separate ordering logic exists. The parser and the DOCX/PDF renderers live in `scripts/document_export.py`; `scripts/export_resume_documents.py` is a deprecated back-compat shim (re-exporting under the legacy `_ResumeHtmlBlockParser` alias) that delegates to `scripts/build_resume.py` (the single CLI entry point — see `--outputs`).
 ---
 # 12. End-to-End Workflow
 

@@ -619,8 +619,6 @@ def _run_build_resume_cli(
     args = [
         sys.executable,
         str(SCRIPT),
-        "--outputs",
-        "html,md",
         "--profile",
         str(profile_path),
         "--experience-db",

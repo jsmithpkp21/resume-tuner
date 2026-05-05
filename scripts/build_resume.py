@@ -3242,8 +3242,17 @@ def run_pipeline(args: argparse.Namespace) -> int:
     needs_md = "md" in outputs
     needs_docx = "docx" in outputs
     needs_pdf = "pdf" in outputs
+
+    # Default-template (left-justified) HTML is the preferred DOCX/PDF render
+    # source for layout fidelity; markdown is rendered only when explicitly
+    # requested or when no default-template HTML will be available
+    # (`document_export.iter_markdown_blocks` consumes HTML directly, so MD is
+    # not needed alongside HTML for DOCX/PDF rendering).
+    has_default_template_html = (
+        primary_template == "default" or secondary_template == "default"
+    )
     needs_html_render_source = needs_docx or needs_pdf
-    needs_md_render_source = needs_docx or needs_pdf
+    needs_md_render_source = (needs_docx or needs_pdf) and not has_default_template_html
 
     written_paths: list[Path] = []
 
@@ -3252,9 +3261,6 @@ def run_pipeline(args: argparse.Namespace) -> int:
     write_text_snapshot(resume, text_snapshot_output)
     written_paths.extend([ir_output, text_snapshot_output])
 
-    # Render HTML/MD: persist when requested in --outputs; otherwise emit only
-    # when DOCX/PDF need a render source. The default-template HTML (left-justified)
-    # is the preferred render source; markdown is the fallback.
     if needs_html or needs_html_render_source:
         render_html(resume, html_output, template_name=primary_template)
         render_html(resume, secondary_html_output, template_name=secondary_template)
@@ -3274,10 +3280,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
         write_gap_summary(resume, gap_output)
         written_paths.append(gap_output)
 
-    # Default-template (left-justified) HTML is the preferred DOCX/PDF render
-    # source for layout fidelity; fall back to markdown otherwise.
     if primary_template == "default":
-        default_template_html = html_output
+        default_template_html: Path | None = html_output
     elif secondary_template == "default":
         default_template_html = secondary_html_output
     else:

@@ -1,12 +1,20 @@
 """Shared DOCX/PDF rendering helpers for resume export.
 
-Lifted out of ``scripts/export_resume_documents.py`` so ``scripts/build_resume.py``
-can call them directly via its ``--outputs`` flag without the
-``build_resume → export → build_resume`` import cycle.
+Lifted out of ``scripts/export_resume_documents.py`` so
+``scripts/build_resume.py`` can call them directly via its ``--outputs``
+flag without the ``build_resume → export → build_resume`` import cycle.
+``build_resume`` imports this module as ``document_export`` and calls
+into its public API.
 
-``build_resume`` is imported lazily inside the helpers that need its
-``_summary_wrap_lines`` / ``DEFAULT_BULLET_LINE_WIDTH`` because
-``build_resume`` re-exports the public names from this module.
+``build_resume`` is imported lazily inside the helpers that need
+``build_resume._summary_wrap_lines`` /
+``build_resume.DEFAULT_BULLET_LINE_WIDTH`` (see
+``_build_resume_module``) so the module-level import order stays
+acyclic.
+
+``scripts/export_resume_documents.py`` is a back-compat shim that
+re-exports the names defined here under their old underscore-prefixed
+aliases for legacy callers and tests.
 """
 
 from __future__ import annotations

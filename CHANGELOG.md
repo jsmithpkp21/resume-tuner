@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.30.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.29.0...v0.30.0) (2026-05-05)
+
+
+### Features
+
+* **build:** auto-derive --company filename slug from job description ([720ee3a](https://github.com/jsmithpkp21/resume-builder/commit/720ee3aea3d95d34f6e021d7907d770b9e570f88)), closes [#212](https://github.com/jsmithpkp21/resume-builder/issues/212)
+
+
+### Bug Fixes
+
+* **build:** address PR [#213](https://github.com/jsmithpkp21/resume-builder/issues/213) Copilot review feedback ([0d25eeb](https://github.com/jsmithpkp21/resume-builder/commit/0d25eeb13e769fa38af867da16e15307042d6c89))
+* **jd-ingest:** extract company slug from ATS URL path/subdomain ([09d0f89](https://github.com/jsmithpkp21/resume-builder/commit/09d0f89d91b553a0d0fab3fb090080bc9907da52))
+
 ## [0.29.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.28.0...v0.29.0) (2026-05-05)
 
 

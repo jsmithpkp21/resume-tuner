@@ -2836,7 +2836,9 @@ def _make_minimal_budget_profile() -> build_resume.Profile:
 def test_compute_bullet_line_budget_drops_when_non_bullet_layout_pressure_is_high(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(build_resume, "DEFAULT_TOTAL_PAGE_LINES", 40)
+    # Force a tiny page budget so non-bullet pressure dominates and the bullet
+    # ceiling drops below the absolute hard ceiling.
+    monkeypatch.setattr(build_resume, "DEFAULT_TWO_PAGE_PT_BUDGET", 440)
 
     profile = _make_minimal_budget_profile()
     resume = assemble_baseline_resume(
@@ -2875,7 +2877,7 @@ def test_compute_bullet_line_budget_respects_hard_ceiling_constant(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(build_resume, "DEFAULT_MAX_BULLET_LINES", 7)
-    monkeypatch.setattr(build_resume, "DEFAULT_TOTAL_PAGE_LINES", 400)
+    monkeypatch.setattr(build_resume, "DEFAULT_TWO_PAGE_PT_BUDGET", 4400)
 
     profile = _make_minimal_budget_profile()
     resume = assemble_baseline_resume(
@@ -2896,7 +2898,15 @@ def test_compute_bullet_line_budget_matches_processed_html_header_structure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(build_resume, "DEFAULT_MAX_BULLET_LINES", 99)
-    monkeypatch.setattr(build_resume, "DEFAULT_TOTAL_PAGE_LINES", 20)
+    # Sized so this fixture's non_bullet_pt leaves exactly 7 bullet lines of
+    # remaining budget at PDF_BULLET_LINE_PT (12pt). non_bullet_pt for the
+    # fixture: 15.2 (h1) + 22 (contact+linkedin) + 16 (header divider) + 13
+    # (title) + 66 (summary block reserved at PROFILE_SUMMARY_MAX_LINES=6 *
+    # 11pt) + 42 (h2 x 2: Key Skills + Professional Experience) + 143
+    # (skills section reserved at TARGET_LINES_MAX=13 * 11pt) + 65.4 (1
+    # grouped company-line block, 2 h3s, 2 body role-summaries capped at
+    # SUMMARY_MAX_LINES=2) = 382.6pt. 470 - 382.6 = 87.4; 87.4 // 12 = 7.
+    monkeypatch.setattr(build_resume, "DEFAULT_TWO_PAGE_PT_BUDGET", 470)
     monkeypatch.setattr(
         build_resume, "_estimate_wrapped_line_count", lambda *_args, **_kwargs: 1
     )
@@ -5242,4 +5252,70 @@ def test_company_site_extraction_unchanged_for_direct_career_pages() -> None:
             description="",
         )
         == "Anthropic"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Two-page PDF page-fit regression (issue #219)
+# ---------------------------------------------------------------------------
+
+
+def test_processed_build_renders_two_page_pdf_at_full_content_shape(
+    tmp_path: Path,
+) -> None:
+    """Pin the points-based budget calibration: a build with the full content
+    shape (cross-org leadership, selected achievements, all displayed
+    experiences, education, leadership) must produce a 2-page PDF without
+    --allow-overflow-pdf. Locks in the issue #219 fix.
+    """
+    pypdf = pytest.importorskip("pypdf")
+
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    jd_path = tmp_path / "jd.txt"
+    jd_path.write_text(
+        "Company: Elite Technology\n\n"
+        "Senior Staff Software Engineer for automation and platform "
+        "engineering work across multiple product teams.\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--profile",
+            str(PROFILE),
+            "--experience-db",
+            str(REPO_ROOT / "data" / "experience" / "experience_db.toml"),
+            "--skills-matrix",
+            str(REPO_ROOT / "data" / "skills" / "skills_matrix.csv"),
+            "--output-dir",
+            str(output_dir),
+            "--processing-mode",
+            "processed",
+            "--outputs",
+            "pdf",
+            "--job-text-file",
+            str(jd_path),
+            "--company",
+            "Elite Technology",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"build failed without --allow-overflow-pdf: stderr={result.stderr!r} "
+        f"stdout={result.stdout!r}"
+    )
+
+    pdf_path = output_dir / "elite_technology_resume.pdf"
+    assert pdf_path.exists(), f"expected pdf at {pdf_path}"
+    reader = pypdf.PdfReader(str(pdf_path))
+    assert len(reader.pages) == 2, (
+        f"expected 2-page PDF, got {len(reader.pages)} — page-fit estimator "
+        "and renderer have drifted; rerun build and inspect "
+        "_compute_bullet_line_budget vs. render_pdf in document_export.py"
     )

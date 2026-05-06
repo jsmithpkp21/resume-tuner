@@ -22,10 +22,22 @@ from typing import Any
 
 if __package__ in {None, ""}:
     from resume_templates import TemplateContext, get_template
-    from select_skills import join_skills, select_skills
+    from select_skills import (
+        TARGET_LINES_MAX as _SKILLS_TARGET_LINES_MAX,
+    )
+    from select_skills import (
+        join_skills,
+        select_skills,
+    )
 else:
     from scripts.resume_templates import TemplateContext, get_template
-    from scripts.select_skills import join_skills, select_skills
+    from scripts.select_skills import (
+        TARGET_LINES_MAX as _SKILLS_TARGET_LINES_MAX,
+    )
+    from scripts.select_skills import (
+        join_skills,
+        select_skills,
+    )
 
 # Use local import when run as `python scripts/build_resume.py`,
 # and package import when loaded as `scripts.build_resume`.
@@ -56,11 +68,23 @@ DEFAULT_OUTPUT_DIR = Path("data/review/outputs/baseline")
 # Final output fitting is enforced by a line-budget pass.
 DEFAULT_BULLET_LINE_WIDTH = 108
 DEFAULT_MAX_BULLET_LINES = 52
-# Calibrated two-page line budget for pre-render trimming.
-# This value intentionally keeps processed output near full two-page utilization
-# under the current template while allowing dynamic reductions on high-pressure
-# layouts.
-DEFAULT_TOTAL_PAGE_LINES = 160
+# Two-page vertical-extent budget in PDF rendering points. Page is 11" tall
+# with 0.5" top + bottom margins (per render_pdf in scripts/document_export.py),
+# so usable height per page = 11" * 72 - 2 * 36 = 720pt. Two pages = 1440pt. We
+# subtract a small safety margin to absorb per-paragraph rounding plus the
+# trailing 0.2pt inter-bullet gap accumulated across ~20-25 bullets.
+DEFAULT_TWO_PAGE_PT_BUDGET = 1430
+# Per-paragraph rendered vertical extent in PDF points. These mirror render_pdf
+# (lh values + space-before adjustments) so the estimator matches the actual
+# layout, not a char-width-based abstraction.
+PDF_BODY_LINE_PT = 11
+PDF_BULLET_LINE_PT = 12
+PDF_H1_PT = 15.2
+PDF_H2_PT = 21
+PDF_H3_PT = 14.2
+PDF_TITLE_PT = 13
+PDF_HEADER_DIVIDER_PT = 16
+PDF_COMPANY_LINE_BLOCK_PT = 15
 DEFAULT_MAX_ACTION_WORD_OCCURRENCES = 2
 DEFAULT_MIN_BULLETS_PER_EXPERIENCE = 2
 EXPERIENCE_DISPLAY_RECENCY_YEARS = 15
@@ -2261,70 +2285,98 @@ def _estimate_total_bullet_lines(selected_by_experience: list[list[Bullet]]) -> 
 def _compute_bullet_line_budget(resume: ResumeIR) -> int:
     """Estimate the bullet-line ceiling from non-bullet layout pressure.
 
-    This budget is a ceiling, not a fill target; downstream selection never adds
-    bullets solely because budget remains.
+    Models the actual rendered vertical extent (in PDF points) of every
+    non-bullet element and converts the remaining space into a bullet-line
+    count at the bullet leading of PDF_BULLET_LINE_PT.
+
+    This budget is a ceiling, not a fill target; downstream selection never
+    adds bullets solely because budget remains.
     """
-    # Header block: name + display headline + contact + divider/title spacing.
-    header_lines = 4
-    title_line = 1
-    summary_lines = _estimate_wrapped_line_count(
-        resume.profile.summary,
-        PROFILE_SUMMARY_LINE_WIDTH,
+    # Header block: name (h1), contact line, linkedin line, header divider.
+    header_pt = (
+        PDF_H1_PT
+        + PDF_BODY_LINE_PT  # contact
+        + PDF_BODY_LINE_PT  # linkedin
+        + PDF_HEADER_DIVIDER_PT
     )
-    section_header_lines = 1  # Key Skills
-    section_header_lines += 1  # Professional Experience
+    title_pt = PDF_TITLE_PT
+    # Budget runs BEFORE summarize_profile_for_role, which generates a final
+    # profile summary up to PROFILE_SUMMARY_MAX_LINES wrap lines. Reserve the
+    # full max so we don't under-budget the rendered summary block.
+    summary_pt = PDF_BODY_LINE_PT * min(
+        PROFILE_SUMMARY_MAX_LINES,
+        max(
+            _estimate_wrapped_line_count(
+                resume.profile.summary,
+                PROFILE_SUMMARY_LINE_WIDTH,
+            ),
+            PROFILE_SUMMARY_MAX_LINES,
+        ),
+    )
+
+    section_header_pt = PDF_H2_PT  # Key Skills
+    section_header_pt += PDF_H2_PT  # Professional Experience
     if resume.cross_org_architectural_leadership:
-        section_header_lines += 1
+        section_header_pt += PDF_H2_PT
     if resume.selected_achievements:
-        section_header_lines += 1
+        section_header_pt += PDF_H2_PT
     if resume.independent_projects:
-        section_header_lines += 1
+        section_header_pt += PDF_H2_PT
     if resume.profile.education_entries:
-        section_header_lines += 1
+        section_header_pt += PDF_H2_PT
     if resume.profile.leadership_community_entries:
-        section_header_lines += 1
+        section_header_pt += PDF_H2_PT
 
-    skills_lines = sum(
-        _estimate_wrapped_line_count(
-            f"{category}: {join_skills(skills)}",
-            DEFAULT_BULLET_LINE_WIDTH,
-        )
-        for category, skills in resume.skills_by_category.items()
-    )
+    # Budget runs BEFORE select_skills, which packs the skills section to the
+    # TARGET_LINES_MIN..TARGET_LINES_MAX range from scripts/select_skills.py.
+    # Use TARGET_LINES_MAX as the upper bound rather than measuring the
+    # un-packed pre-stage skills (which is roughly 2-3x larger and inflates
+    # non_bullet_pt by ~150-220pt).
+    skills_pt = PDF_BODY_LINE_PT * _SKILLS_TARGET_LINES_MAX
 
-    cross_org_lines = sum(
+    # Cross-org and selected-achievement lists render as bulleted paragraphs in
+    # the templates (lh = PDF_BULLET_LINE_PT), not body paragraphs.
+    cross_org_pt = PDF_BULLET_LINE_PT * sum(
         _estimate_wrapped_line_count(item.text, DEFAULT_BULLET_LINE_WIDTH)
         for item in resume.cross_org_architectural_leadership
     )
-    selected_achievement_lines = sum(
+    selected_achievement_pt = PDF_BULLET_LINE_PT * sum(
         _estimate_wrapped_line_count(item.text, DEFAULT_BULLET_LINE_WIDTH)
         for item in resume.selected_achievements
     )
-    independent_project_lines = 0
+    independent_project_pt = 0.0
     for project in resume.independent_projects:
-        independent_project_lines += _estimate_wrapped_line_count(
+        independent_project_pt += PDF_BODY_LINE_PT * _estimate_wrapped_line_count(
             project.name, DEFAULT_BULLET_LINE_WIDTH
         )
         if project.summary.strip():
-            independent_project_lines += _estimate_wrapped_line_count(
+            independent_project_pt += PDF_BODY_LINE_PT * _estimate_wrapped_line_count(
                 project.summary, DEFAULT_BULLET_LINE_WIDTH
             )
 
-    role_header_lines = 0
+    role_header_pt = 0.0
     company_blocks = _company_block_ranges(resume.experiences)
 
     for exp_index, experience in enumerate(resume.experiences):
         if exp_index in company_blocks:
-            role_header_lines += 1  # grouped company-line header
-        role_header_lines += 1  # job-title-line already includes date range
-        role_header_lines += _estimate_wrapped_line_count(
-            experience.general_role_description,
-            SUMMARY_LINE_WIDTH,
+            role_header_pt += PDF_COMPANY_LINE_BLOCK_PT
+        role_header_pt += PDF_H3_PT  # job-title-line (h3)
+        # Budget runs BEFORE summarize_for_role, which caps role descriptions
+        # at SUMMARY_MAX_LINES (2) wrap-lines in the SUMMARY_LINE_WIDTH (72)
+        # column. Re-rendered at full content width that's ≤2 lines, so cap
+        # the wrap-line count at SUMMARY_MAX_LINES rather than measuring the
+        # pre-stage long enriched description directly.
+        role_header_pt += PDF_BODY_LINE_PT * min(
+            SUMMARY_MAX_LINES,
+            _estimate_wrapped_line_count(
+                experience.general_role_description,
+                DEFAULT_BULLET_LINE_WIDTH,
+            ),
         )
 
-    education_lines = 0
+    education_pt = 0.0
     for education_item in resume.profile.education_entries:
-        education_lines += 1
+        education_pt += PDF_BODY_LINE_PT  # degree
         metadata = " | ".join(
             part
             for part in [
@@ -2335,17 +2387,17 @@ def _compute_bullet_line_budget(resume: ResumeIR) -> int:
             if part.strip()
         )
         if metadata:
-            education_lines += _estimate_wrapped_line_count(
+            education_pt += PDF_BODY_LINE_PT * _estimate_wrapped_line_count(
                 metadata,
                 DEFAULT_BULLET_LINE_WIDTH,
             )
         if education_item.notes.strip():
-            education_lines += _estimate_wrapped_line_count(
+            education_pt += PDF_BODY_LINE_PT * _estimate_wrapped_line_count(
                 education_item.notes,
                 DEFAULT_BULLET_LINE_WIDTH,
             )
 
-    leadership_lines = 0
+    leadership_pt = 0.0
     for leadership_item in resume.profile.leadership_community_entries:
         header = " | ".join(
             part
@@ -2357,42 +2409,43 @@ def _compute_bullet_line_budget(resume: ResumeIR) -> int:
             if part.strip()
         )
         if header:
-            leadership_lines += _estimate_wrapped_line_count(
+            leadership_pt += PDF_BODY_LINE_PT * _estimate_wrapped_line_count(
                 header,
                 DEFAULT_BULLET_LINE_WIDTH,
             )
         if leadership_item.details.strip():
-            leadership_lines += _estimate_wrapped_line_count(
+            leadership_pt += PDF_BODY_LINE_PT * _estimate_wrapped_line_count(
                 leadership_item.details,
                 DEFAULT_BULLET_LINE_WIDTH,
             )
 
-    non_bullet_lines = (
-        header_lines
-        + title_line
-        + summary_lines
-        + section_header_lines
-        + skills_lines
-        + cross_org_lines
-        + selected_achievement_lines
-        + independent_project_lines
-        + role_header_lines
-        + education_lines
-        + leadership_lines
+    non_bullet_pt = (
+        header_pt
+        + title_pt
+        + summary_pt
+        + section_header_pt
+        + skills_pt
+        + cross_org_pt
+        + selected_achievement_pt
+        + independent_project_pt
+        + role_header_pt
+        + education_pt
+        + leadership_pt
     )
 
     minimum_floor_lines = _estimate_minimum_required_bullet_lines(resume.experiences)
-    computed_budget = max(
-        minimum_floor_lines, DEFAULT_TOTAL_PAGE_LINES - non_bullet_lines
-    )
+    available_bullet_pt = DEFAULT_TWO_PAGE_PT_BUDGET - non_bullet_pt
+    available_bullet_lines = int(available_bullet_pt // PDF_BULLET_LINE_PT)
+    computed_budget = max(minimum_floor_lines, available_bullet_lines)
 
-    # Keep the historical constant as a deterministic safety cap. This allows
-    # tests/config to force an intentionally strict cap and verify floor warnings.
+    # Keep the historical hard ceiling as a deterministic safety cap. This
+    # allows tests/config to force an intentionally strict cap and verify
+    # floor warnings.
     capped_budget = max(1, min(DEFAULT_MAX_BULLET_LINES, computed_budget))
     logger.debug(
-        "Computed bullet-line budget=%s (non_bullet_lines=%s, floor=%s)",
+        "Computed bullet-line budget=%s (non_bullet_pt=%.1f, floor=%s)",
         capped_budget,
-        non_bullet_lines,
+        non_bullet_pt,
         minimum_floor_lines,
     )
     return capped_budget

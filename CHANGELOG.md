@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.30.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.30.1...v0.30.2) (2026-05-06)
+
+
+### Bug Fixes
+
+* **build_resume:** address Copilot review feedback on PR [#220](https://github.com/jsmithpkp21/resume-builder/issues/220) ([2350909](https://github.com/jsmithpkp21/resume-builder/commit/2350909800fbf5c245a53ba5ba60f84efe0f5581))
+* **build_resume:** convert page-fit estimator from lines to PDF render points ([9bd4a66](https://github.com/jsmithpkp21/resume-builder/commit/9bd4a66a31a98f01612368a70c7eb9d80c6b006b)), closes [#219](https://github.com/jsmithpkp21/resume-builder/issues/219)
+
 ## [0.30.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.30.0...v0.30.1) (2026-05-05)
 
 

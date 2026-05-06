@@ -14,3 +14,9 @@ fonttools==4.62.1
 # Document export (issue #16)
 python-docx==1.2.0
 reportlab==4.4.4
+
+# PDF inspection — used by tests that verify rendered PDF page count and
+# content (e.g., the issue #219 two-page page-fit regression and the
+# private-projects PDF section assertion). Without this, those tests
+# silently skip via pytest.importorskip and the calibration is not pinned.
+pypdf==6.9.2

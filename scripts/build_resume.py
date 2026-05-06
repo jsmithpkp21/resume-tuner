@@ -2301,18 +2301,10 @@ def _compute_bullet_line_budget(resume: ResumeIR) -> int:
     )
     title_pt = PDF_TITLE_PT
     # Budget runs BEFORE summarize_profile_for_role, which generates a final
-    # profile summary up to PROFILE_SUMMARY_MAX_LINES wrap lines. Reserve the
-    # full max so we don't under-budget the rendered summary block.
-    summary_pt = PDF_BODY_LINE_PT * min(
-        PROFILE_SUMMARY_MAX_LINES,
-        max(
-            _estimate_wrapped_line_count(
-                resume.profile.summary,
-                PROFILE_SUMMARY_LINE_WIDTH,
-            ),
-            PROFILE_SUMMARY_MAX_LINES,
-        ),
-    )
+    # profile summary up to PROFILE_SUMMARY_MAX_LINES wrap lines. Always
+    # reserve the full max so we don't under-budget the rendered summary
+    # block when the generator expands a short input summary.
+    summary_pt = PDF_BODY_LINE_PT * PROFILE_SUMMARY_MAX_LINES
 
     section_header_pt = PDF_H2_PT  # Key Skills
     section_header_pt += PDF_H2_PT  # Professional Experience

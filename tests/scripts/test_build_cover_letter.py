@@ -820,3 +820,39 @@ def test_cover_letter_module_invokes_run_pipeline_collecting_paths(
     assert ns.target_role == "Senior Principal Test Framework Software Engineer"
     assert ns.output_dir == tmp_path / "cover_letters"
     assert ns.enforce_page_limit is False  # warn-only, never inherits resume's strict
+
+
+@pytest.mark.parametrize("bad_value", ["-0.1", "1.1", "2", "-1", "not-a-float"])
+def test_addressee_confidence_threshold_rejects_invalid(
+    bad_value: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        build_cover_letter.parse_args(["--addressee-confidence-threshold", bad_value])
+    assert excinfo.value.code == 2
+    err = capsys.readouterr().err
+    assert "--addressee-confidence-threshold" in err
+
+
+@pytest.mark.parametrize("good_value", ["0.0", "0.5", "1.0"])
+def test_addressee_confidence_threshold_accepts_unit_interval(
+    good_value: str,
+) -> None:
+    ns = build_cover_letter.parse_args(["--addressee-confidence-threshold", good_value])
+    assert ns.addressee_confidence_threshold == float(good_value)
+
+
+@pytest.mark.parametrize("bad_value", ["0", "-1", "-100", "not-an-int", "1.5"])
+def test_word_budget_rejects_non_positive_int(
+    bad_value: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        build_cover_letter.parse_args(["--word-budget", bad_value])
+    assert excinfo.value.code == 2
+    err = capsys.readouterr().err
+    assert "--word-budget" in err
+
+
+@pytest.mark.parametrize("good_value", ["1", "100", "350"])
+def test_word_budget_accepts_positive_int(good_value: str) -> None:
+    ns = build_cover_letter.parse_args(["--word-budget", good_value])
+    assert ns.word_budget == int(good_value)

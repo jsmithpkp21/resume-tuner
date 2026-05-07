@@ -120,6 +120,26 @@ EXIT_LLM_DISABLED = 2
 EXIT_RENDERED_WITH_WARNINGS = 3
 
 
+def _positive_int(value: str) -> int:
+    try:
+        n = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"expected integer, got {value!r}") from exc
+    if n < 1:
+        raise argparse.ArgumentTypeError(f"must be a positive integer, got {n}")
+    return n
+
+
+def _unit_interval_float(value: str) -> float:
+    try:
+        x = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"expected float, got {value!r}") from exc
+    if not (0.0 <= x <= 1.0):
+        raise argparse.ArgumentTypeError(f"must be in [0.0, 1.0], got {x}")
+    return x
+
+
 def _parse_outputs(value: str) -> tuple[str, ...]:
     tokens = [t.strip().lower() for t in value.split(",") if t.strip()]
     if not tokens:
@@ -172,7 +192,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--addressee-confidence-threshold",
-        type=float,
+        type=_unit_interval_float,
         default=DEFAULT_ADDRESSEE_CONFIDENCE,
         help=(
             "Minimum self-reported LLM confidence (0.0-1.0) to accept an "
@@ -197,7 +217,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--word-budget",
-        type=int,
+        type=_positive_int,
         default=DEFAULT_WORD_BUDGET,
         help="Soft hint to the LLM (and warning threshold). Default: %(default)s.",
     )

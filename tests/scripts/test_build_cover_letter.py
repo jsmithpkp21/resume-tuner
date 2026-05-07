@@ -883,10 +883,7 @@ def test_outputs_filter_propagates_to_cover_letter(
     honors the same --outputs filter as the resume — passing
     ('pdf',) here must not produce docx/md/html cover-letter files.
     """
-    if __package__ in {None, ""}:
-        from scripts import cover_letter
-    else:
-        from scripts import cover_letter
+    from scripts import cover_letter
 
     captured: dict[str, argparse.Namespace] = {}
 
@@ -931,10 +928,7 @@ def test_outputs_empty_tuple_passes_through_not_defaulted(
     artifacts get the same behavior as the standalone CLI rather than
     silently rehydrating defaults.
     """
-    if __package__ in {None, ""}:
-        from scripts import cover_letter
-    else:
-        from scripts import cover_letter
+    from scripts import cover_letter
 
     captured: dict[str, argparse.Namespace] = {}
 
@@ -974,10 +968,7 @@ def test_outputs_default_when_resume_omits_outputs(
 ) -> None:
     """When the resume Namespace has no `outputs` attr, fall back to the
     cover-letter default (pdf, docx) so older callers still work."""
-    if __package__ in {None, ""}:
-        from scripts import cover_letter
-    else:
-        from scripts import cover_letter
+    from scripts import cover_letter
 
     captured: dict[str, argparse.Namespace] = {}
 

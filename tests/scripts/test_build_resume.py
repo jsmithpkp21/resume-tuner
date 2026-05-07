@@ -5348,3 +5348,64 @@ def test_processed_build_renders_two_page_pdf_at_full_content_shape(
         "and renderer have drifted; rerun build and inspect "
         "_compute_bullet_line_budget vs. render_pdf in document_export.py"
     )
+
+
+# ----- issue #247: warn when JD ingest looks essentially empty ----------
+
+
+def _make_job_context(description_excerpt: str) -> jd_ingest.JobContext:
+    """Build a minimal JobContext for warning-helper tests."""
+    return jd_ingest.JobContext(
+        input_url="https://example.com/job",
+        normalized_url="https://example.com/job",
+        source="company-site",
+        role_hint="",
+        company_name="",
+        job_id="",
+        fetch_status="ok",
+        page_title="",
+        description_excerpt=description_excerpt,
+        notes=(),
+        company_research=None,
+    )
+
+
+def test_warn_if_jd_ingest_empty_fires_on_empty_description(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    job_url = "https://careers.example.com/listing/123"
+    build_resume._warn_if_jd_ingest_empty(
+        job_context=_make_job_context(""), job_url=job_url
+    )
+    err = capsys.readouterr().err
+    assert "WARNING:" in err
+    assert "JD ingest produced little or no usable content" in err
+    assert job_url in err
+    assert "--job-text-file" in err
+    assert "issues/247" in err
+
+
+def test_warn_if_jd_ingest_empty_fires_on_short_description(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A 100-char fetch is well under the 200-char threshold."""
+    short = "A" * 100
+    build_resume._warn_if_jd_ingest_empty(
+        job_context=_make_job_context(short),
+        job_url="https://example.com/job",
+    )
+    err = capsys.readouterr().err
+    assert "WARNING:" in err
+    assert "100 chars" in err
+
+
+def test_warn_if_jd_ingest_empty_silent_when_excerpt_is_substantive(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    substantive = "We are hiring a Staff Engineer. " * 40  # ~1280 chars
+    build_resume._warn_if_jd_ingest_empty(
+        job_context=_make_job_context(substantive),
+        job_url="https://example.com/job",
+    )
+    err = capsys.readouterr().err
+    assert err == ""

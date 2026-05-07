@@ -305,6 +305,10 @@ _ATS_PATH_SLUG_DOMAINS: tuple[str, ...] = (
     "ashbyhq.com",
     "smartrecruiters.com",
     "jobvite.com",
+    # Workable: apply.workable.com/<company>/j/<id>/ — first path segment is
+    # the company slug. The 'apply.' subdomain is treated like a path-slug
+    # ATS for company extraction.
+    "workable.com",
 )
 # ATS hosts where the netloc subdomain is the hiring company's slug.
 # Example: https://<slug>.bamboohr.com/jobs/view.php?id=...
@@ -316,6 +320,45 @@ _ATS_SUBDOMAIN_DOMAINS: tuple[str, ...] = (
     "recruitee.com",
     "personio.com",
     "teamtailor.com",
+)
+
+# Generic recruiting subdomain labels that we should walk past when falling
+# back to URL-derived company extraction. Without this, a hostname like
+# careers.westernunion.com yields "Careers" as the company, masking the
+# real brand sitting one label deeper.
+_GENERIC_RECRUITING_SUBDOMAINS: frozenset[str] = frozenset(
+    {
+        "www",
+        "careers",
+        "career",
+        "jobs",
+        "apply",
+        "recruiting",
+        "recruitment",
+        "hire",
+        "hiring",
+        "talent",
+        "people",
+        "boards",
+    }
+)
+
+# Page titles that the static fetcher gets stuck on when the JD body is
+# JS-rendered: the shell HTML's <title> is just navigation boilerplate,
+# not a real role. Rejecting these keeps URL/path-based role extraction
+# from being shadowed by a meaningless title.
+_GENERIC_PAGE_TITLES: frozenset[str] = frozenset(
+    {
+        "careers",
+        "career",
+        "jobs",
+        "job listings",
+        "career opportunities",
+        "join our team",
+        "open positions",
+        "open roles",
+        "current openings",
+    }
 )
 
 
@@ -437,9 +480,15 @@ def _extract_company_name(
     if source == "company-site":
         hostname = netloc.split(":", maxsplit=1)[0].strip().lower()
         labels = [label for label in hostname.split(".") if label]
-        if labels and labels[0] == "www":
+        # Strip leading generic recruiting subdomains (www, careers, jobs,
+        # apply, etc.) so e.g. careers.westernunion.com -> "westernunion"
+        # rather than "Careers". Walks the chain in case of multiple
+        # stacked generics like apply.careers.example.com.
+        while labels and labels[0] in _GENERIC_RECRUITING_SUBDOMAINS:
             labels = labels[1:]
         host_label = labels[0] if labels else ""
+        # Companies that bake "jobs" / "careers" into their host name
+        # (e.g. amazonjobs.com): strip the suffix to recover the brand.
         for suffix in ("jobs", "careers", "career"):
             if host_label.endswith(suffix) and len(host_label) > len(suffix):
                 host_label = host_label[: -len(suffix)]
@@ -453,6 +502,12 @@ def _extract_role_from_title(*, source: str, title: str) -> str:
     if not title.strip():
         return ""
     cleaned = title.split("|")[0].strip()
+    # When the static fetch only saw the navigation shell (typical on
+    # JS-rendered job boards), the title is often a generic recruiting
+    # boilerplate string. Treat those as no-signal so the caller falls
+    # through to URL/path/description-based role extraction instead.
+    if cleaned.lower() in _GENERIC_PAGE_TITLES:
+        return ""
     if source in {"linkedin", "indeed", "company-site"} and " - " in cleaned:
         return cleaned.split(" - ")[0].strip()
     return ""

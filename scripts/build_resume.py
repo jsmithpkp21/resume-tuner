@@ -3247,6 +3247,40 @@ def write_text_snapshot(resume: ResumeIR, output_path: Path) -> None:
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+# Below this many chars of JD description, the static-HTML fetch almost
+# certainly missed the JS-rendered body and the LLM tailoring stages will
+# run on essentially empty context. Loud-warn at that point. See issue
+# #247 for the underlying fetch-quality work.
+_MIN_JD_DESCRIPTION_CHARS = 200
+
+
+def _warn_if_jd_ingest_empty(*, job_context: JobContext, job_url: str) -> None:
+    """Print a prominent stderr warning when JD ingest looks essentially empty.
+
+    Detection-only — does not gate the build. Threshold is conservative:
+    real JDs are typically multiple paragraphs (>>200 chars), and a
+    hundred-char fetch is almost always navigation shell from a JS-
+    rendered job board (Workday, Workable, Greenhouse iframe, etc.)
+    where the actual JD body never reached us.
+    """
+    excerpt_len = len(job_context.description_excerpt or "")
+    if excerpt_len >= _MIN_JD_DESCRIPTION_CHARS:
+        return
+    print(
+        "WARNING: JD ingest produced little or no usable content for the "
+        f"supplied --job-url ({excerpt_len} chars).\n"
+        f"  URL: {job_url}\n"
+        "  Likely cause: the JD body is rendered by client-side JavaScript "
+        "and the static HTML fetcher only saw the navigation shell.\n"
+        "  Effect: LLM tailoring stages will run on near-empty context, "
+        "producing a resume close to the un-tailored baseline.\n"
+        "  Workaround: copy the JD text into a file and rerun with "
+        "--job-text-file <path> instead of --job-url.\n"
+        "  Tracking: https://github.com/jsmithpkp21/resume-builder/issues/247",
+        file=sys.stderr,
+    )
+
+
 def _resolve_output_dir(args: argparse.Namespace) -> Path:
     """Return the application-root directory for outputs.
 
@@ -3297,6 +3331,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
         job_context = ingest_job_text(job_text, source_hint="job-text-file")
     elif has_job_url:
         job_context = ingest_job_context(job_url)
+        _warn_if_jd_ingest_empty(job_context=job_context, job_url=job_url)
 
     # When the deterministic JD extractor returned no company name, ask the
     # LLM (gated by RESUME_BUILDER_LLM_ENABLED / fixture mode). Cheap to gate:

@@ -55,13 +55,13 @@ _apply_post_layout_cleanup = document_export.apply_post_layout_cleanup
 _render_docx = document_export.render_docx
 _render_pdf = document_export.render_pdf
 _add_rich_runs = document_export._add_rich_runs
-_set_docx_font_name = document_export._set_docx_font_name
+_set_docx_font_name = document_export.set_docx_font_name
 _strip_markdown_markup = document_export._strip_markdown_markup
 _split_skills_category_line = document_export._split_skills_category_line
 _has_single_word_wrap_tail = document_export._has_single_word_wrap_tail
 _drop_tail_skill_from_category_row = document_export._drop_tail_skill_from_category_row
 _normalize_inline_text = document_export._normalize_inline_text
-_wrap_text_for_pdf = document_export._wrap_text_for_pdf
+_wrap_text_for_pdf = document_export.wrap_text_for_pdf
 _wrap_skills_category_for_pdf = document_export._wrap_skills_category_for_pdf
 _wrap_mixed_style_paragraph_for_pdf = (
     document_export._wrap_mixed_style_paragraph_for_pdf

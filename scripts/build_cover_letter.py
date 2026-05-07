@@ -473,7 +473,7 @@ def _emit_outputs(
     *,
     ir: CoverLetterIR,
     args: argparse.Namespace,
-    company_slug_value: str,
+    company_name: str,
 ) -> tuple[list[Path], list[str]]:
     outputs = args.outputs
     output_dir: Path = args.output_dir
@@ -487,14 +487,14 @@ def _emit_outputs(
 
     if "md" in outputs:
         md_path = output_dir / canonical_export_filename(
-            company_slug_value, "md", kind="cover_letter"
+            company_name, "md", kind="cover_letter"
         )
         md_path.write_text(md_text, encoding="utf-8")
         written.append(md_path)
 
     if "html" in outputs:
         html_path = output_dir / canonical_export_filename(
-            company_slug_value, "html", kind="cover_letter"
+            company_name, "html", kind="cover_letter"
         )
         html_path.write_text(render_html(ir), encoding="utf-8")
         written.append(html_path)
@@ -504,7 +504,7 @@ def _emit_outputs(
             output_dir,
             filename_override=args.docx_filename,
             default_name=canonical_export_filename(
-                company_slug_value, "docx", kind="cover_letter"
+                company_name, "docx", kind="cover_letter"
             ),
             flag_name="--docx-filename",
         )
@@ -516,7 +516,7 @@ def _emit_outputs(
             output_dir,
             filename_override=args.pdf_filename,
             default_name=canonical_export_filename(
-                company_slug_value, "pdf", kind="cover_letter"
+                company_name, "pdf", kind="cover_letter"
             ),
             flag_name="--pdf-filename",
         )
@@ -603,7 +603,7 @@ def run_pipeline_collecting_paths(
     )
 
     company_slug = snake_case(company)
-    written, warnings = _emit_outputs(ir=ir, args=args, company_slug_value=company)
+    written, warnings = _emit_outputs(ir=ir, args=args, company_name=company)
 
     summary = {
         "company": company,

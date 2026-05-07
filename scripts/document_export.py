@@ -468,12 +468,12 @@ def _add_rich_runs(
         if not part:
             continue
         run = paragraph.add_run(part)
-        _set_docx_font_name(run, "Calibri")
+        set_docx_font_name(run, "Calibri")
         run.font.size = Pt(base_size_pt)
         run.bold = bold_base or (i % 2 == 1)
 
 
-def _set_docx_font_name(target: Any, font_name: str) -> None:
+def set_docx_font_name(target: Any, font_name: str) -> None:
     """Force font name across Word script channels (ascii/hAnsi/eastAsia/cs)."""
     from docx.oxml.ns import qn
 
@@ -498,7 +498,7 @@ def render_docx(md_text: str, output_path: Path) -> None:
         section.top_margin = Inches(0.46)
         section.bottom_margin = Inches(0.46)
     normal = doc.styles["Normal"]
-    _set_docx_font_name(normal, "Calibri")
+    set_docx_font_name(normal, "Calibri")
     normal.font.size = Pt(11)
 
     def add_paragraph_bottom_border(
@@ -544,7 +544,7 @@ def render_docx(md_text: str, output_path: Path) -> None:
             p.paragraph_format.space_after = Pt(0)
             run = p.add_run(text)
             run.bold = True
-            _set_docx_font_name(run, "Calibri")
+            set_docx_font_name(run, "Calibri")
             run.font.size = Pt(18)
             previous_paragraph = p
         elif kind == "h2":
@@ -553,7 +553,7 @@ def render_docx(md_text: str, output_path: Path) -> None:
             p.paragraph_format.space_after = Pt(0)
             run = p.add_run(text)
             run.bold = True
-            _set_docx_font_name(run, "Calibri")
+            set_docx_font_name(run, "Calibri")
             run.font.size = Pt(12)
             add_paragraph_bottom_border(p, color="CCCCCC", size=8, space=0)
             previous_paragraph = p
@@ -567,7 +567,7 @@ def render_docx(md_text: str, output_path: Path) -> None:
                 date_plain = _strip_markdown_markup(date_part).strip()
                 run = p.add_run(title_plain)
                 run.bold = True
-                _set_docx_font_name(run, "Calibri")
+                set_docx_font_name(run, "Calibri")
                 run.font.size = Pt(11)
                 from docx.oxml import OxmlElement
                 from docx.oxml.ns import qn
@@ -581,12 +581,12 @@ def render_docx(md_text: str, output_path: Path) -> None:
                 pPr.append(tabs_el)
                 date_run = p.add_run("\t" + date_plain)
                 date_run.bold = False
-                _set_docx_font_name(date_run, "Calibri")
+                set_docx_font_name(date_run, "Calibri")
                 date_run.font.size = Pt(11)
             else:
                 run = p.add_run(text)
                 run.bold = True
-                _set_docx_font_name(run, "Calibri")
+                set_docx_font_name(run, "Calibri")
                 run.font.size = Pt(11)
             seen_role_title = True
             previous_paragraph = p
@@ -596,7 +596,7 @@ def render_docx(md_text: str, output_path: Path) -> None:
             p.paragraph_format.space_after = Pt(2)
             run = p.add_run(_strip_markdown_markup(text))
             run.bold = True
-            _set_docx_font_name(run, "Calibri")
+            set_docx_font_name(run, "Calibri")
             run.font.size = Pt(11)
             previous_paragraph = p
         elif kind == "bullet":
@@ -631,7 +631,7 @@ def render_docx(md_text: str, output_path: Path) -> None:
                 right_plain = _strip_markdown_markup(right_part).strip()
                 run = p.add_run(left_plain)
                 run.bold = True
-                _set_docx_font_name(run, "Calibri")
+                set_docx_font_name(run, "Calibri")
                 run.font.size = Pt(11)
                 from docx.oxml import OxmlElement
                 from docx.oxml.ns import qn
@@ -645,17 +645,17 @@ def render_docx(md_text: str, output_path: Path) -> None:
                 pPr.append(tabs_el)
                 date_run = p.add_run("\t" + right_plain)
                 date_run.bold = True
-                _set_docx_font_name(date_run, "Calibri")
+                set_docx_font_name(date_run, "Calibri")
                 date_run.font.size = Pt(11)
             elif (skills_parts := _split_skills_category_line(text)) is not None:
                 category, skills = skills_parts
                 cat_run = p.add_run(f"{category} ")
                 cat_run.bold = True
-                _set_docx_font_name(cat_run, "Calibri")
+                set_docx_font_name(cat_run, "Calibri")
                 cat_run.font.size = Pt(11)
                 skills_run = p.add_run(skills)
                 skills_run.bold = False
-                _set_docx_font_name(skills_run, "Calibri")
+                set_docx_font_name(skills_run, "Calibri")
                 skills_run.font.size = Pt(11)
             else:
                 _add_rich_runs(p, text, 11)
@@ -667,7 +667,7 @@ def render_docx(md_text: str, output_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # PDF renderer
 # ---------------------------------------------------------------------------
-def _wrap_text_for_pdf(
+def wrap_text_for_pdf(
     text: str, max_width: float, font_name: str, font_size: int
 ) -> list[str]:
     _LETTER, _canvas, string_width = require_reportlab()
@@ -1034,11 +1034,11 @@ def render_pdf(
                     ):
                         text_font = fn_bold_name
                         bullet_text = _strip_markdown_markup(bold_parts[1])
-                        lines = _wrap_text_for_pdf(bullet_text, avail, text_font, fs)
+                        lines = wrap_text_for_pdf(bullet_text, avail, text_font, fs)
                     else:
-                        lines = _wrap_text_for_pdf(plain, avail, text_font, fs)
+                        lines = wrap_text_for_pdf(plain, avail, text_font, fs)
                 else:
-                    lines = _wrap_text_for_pdf(plain, avail, text_font, fs)
+                    lines = wrap_text_for_pdf(plain, avail, text_font, fs)
                 ensure_space(len(lines) * lh + 1)
                 for i, line in enumerate(lines):
                     ensure_line_space(lh)
@@ -1111,7 +1111,7 @@ def render_pdf(
                         and not bold_parts[2].strip()
                     ):
                         bold_text = _strip_markdown_markup(bold_parts[1])
-                        lines = _wrap_text_for_pdf(
+                        lines = wrap_text_for_pdf(
                             bold_text, content_width, fn_bold_name, fs
                         )
                         ensure_space(len(lines) * lh + 1)
@@ -1143,7 +1143,7 @@ def render_pdf(
                             y -= lh
                     y -= post_gap
                 else:
-                    lines = _wrap_text_for_pdf(plain, content_width, fn, fs)
+                    lines = wrap_text_for_pdf(plain, content_width, fn, fs)
                     ensure_space(len(lines) * lh + 1)
                     for line in lines:
                         ensure_line_space(lh)

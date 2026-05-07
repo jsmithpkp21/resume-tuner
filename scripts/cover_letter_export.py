@@ -20,20 +20,20 @@ from typing import Any
 if __package__ in {None, ""}:
     from cover_letter_template import CoverLetterIR
     from document_export import (
-        _set_docx_font_name,
-        _wrap_text_for_pdf,
         require_calibri_pdf_fonts,
         require_python_docx,
         require_reportlab,
+        set_docx_font_name,
+        wrap_text_for_pdf,
     )
 else:
     from scripts.cover_letter_template import CoverLetterIR
     from scripts.document_export import (
-        _set_docx_font_name,
-        _wrap_text_for_pdf,
         require_calibri_pdf_fonts,
         require_python_docx,
         require_reportlab,
+        set_docx_font_name,
+        wrap_text_for_pdf,
     )
 
 
@@ -48,7 +48,7 @@ def render_docx(ir: CoverLetterIR, output_path: Path) -> None:
         section.top_margin = Inches(1.0)
         section.bottom_margin = Inches(1.0)
     normal = doc.styles["Normal"]
-    _set_docx_font_name(normal, "Calibri")
+    set_docx_font_name(normal, "Calibri")
     normal.font.size = Pt(11)
 
     def add_paragraph(
@@ -61,7 +61,7 @@ def render_docx(ir: CoverLetterIR, output_path: Path) -> None:
         if text:
             run = p.add_run(text)
             run.bold = bold
-            _set_docx_font_name(run, "Calibri")
+            set_docx_font_name(run, "Calibri")
             run.font.size = Pt(11)
         return p
 
@@ -146,7 +146,7 @@ def render_pdf(
         nonlocal y
         if not text:
             return
-        wrapped = _wrap_text_for_pdf(text, content_width, font_name, font_size)
+        wrapped = wrap_text_for_pdf(text, content_width, font_name, font_size)
         for segment in wrapped:
             ensure_space(line_height)
             pdf.setFont(font_name, font_size)

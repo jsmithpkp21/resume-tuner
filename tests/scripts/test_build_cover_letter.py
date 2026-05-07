@@ -874,6 +874,95 @@ def test_cover_letter_module_invokes_run_pipeline_collecting_paths(
     assert ns.enforce_page_limit is False  # warn-only, never inherits resume's strict
 
 
+def test_outputs_filter_propagates_to_cover_letter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """build_resume's --outputs reaches the cover-letter pipeline verbatim.
+
+    Locks the issue #229 contract that the orchestrated cover letter
+    honors the same --outputs filter as the resume — passing
+    ('pdf',) here must not produce docx/md/html cover-letter files.
+    """
+    if __package__ in {None, ""}:
+        from scripts import cover_letter
+    else:
+        from scripts import cover_letter
+
+    captured: dict[str, argparse.Namespace] = {}
+
+    def fake_run(ns: argparse.Namespace) -> tuple[list[Path], list[str]]:
+        captured["ns"] = ns
+        return ([ns.output_dir / "graphcore_cover_letter.pdf"], [])
+
+    monkeypatch.setattr(
+        "scripts.build_cover_letter.run_pipeline_collecting_paths",
+        fake_run,
+        raising=True,
+    )
+
+    resume_args = argparse.Namespace(
+        profile=tmp_path / "profile.toml",
+        experience_db=tmp_path / "experience_db.toml",
+        job_url="",
+        job_text_file=tmp_path / "jd.txt",
+        target_role="Senior Principal Test Framework Software Engineer",
+        include_private_projects=False,
+        verbose=False,
+        outputs=("pdf",),
+    )
+
+    cover_letter.generate_cover_letter(
+        args=resume_args,
+        output_dir=tmp_path / "cover_letters",
+        company="Graphcore",
+        role="Senior Principal Test Framework Software Engineer",
+    )
+
+    assert captured["ns"].outputs == ("pdf",)
+
+
+def test_outputs_default_when_resume_omits_outputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the resume Namespace has no `outputs` attr, fall back to the
+    cover-letter default (pdf, docx) so older callers still work."""
+    if __package__ in {None, ""}:
+        from scripts import cover_letter
+    else:
+        from scripts import cover_letter
+
+    captured: dict[str, argparse.Namespace] = {}
+
+    def fake_run(ns: argparse.Namespace) -> tuple[list[Path], list[str]]:
+        captured["ns"] = ns
+        return ([], [])
+
+    monkeypatch.setattr(
+        "scripts.build_cover_letter.run_pipeline_collecting_paths",
+        fake_run,
+        raising=True,
+    )
+
+    resume_args = argparse.Namespace(
+        profile=tmp_path / "profile.toml",
+        experience_db=tmp_path / "experience_db.toml",
+        job_url="",
+        job_text_file=tmp_path / "jd.txt",
+        target_role="",
+        include_private_projects=False,
+        verbose=False,
+    )
+
+    cover_letter.generate_cover_letter(
+        args=resume_args,
+        output_dir=tmp_path / "cover_letters",
+        company="Graphcore",
+        role="",
+    )
+
+    assert captured["ns"].outputs == build_cover_letter.DEFAULT_OUTPUTS
+
+
 @pytest.mark.parametrize("bad_value", ["-0.1", "1.1", "2", "-1", "not-a-float"])
 def test_addressee_confidence_threshold_rejects_invalid(
     bad_value: str, capsys: pytest.CaptureFixture[str]

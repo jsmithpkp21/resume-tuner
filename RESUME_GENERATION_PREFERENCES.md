@@ -65,6 +65,69 @@ python scripts/build_resume.py \
 - `latest_resume_processed_ir_snapshot.json` — Internal representation (always emitted, for debugging)
 - `latest_resume_processed_ir_snapshot.txt` — Text IR snapshot (always emitted, for debugging)
 
+## Cover Letter Voice & Structure
+
+The `--cover-letter` flag on `scripts/build_resume.py` (and the standalone
+`scripts/build_cover_letter.py`) drafts an LLM-generated, role-and-company-
+specific letter. The body requires `RESUME_BUILDER_LLM_ENABLED=1` (or
+`RESUME_BUILDER_LLM_FIXTURE=1` for tests); there is no offline fallback.
+
+### Voice
+- First person, professional, direct.
+- Reference the target company by name — the cover letter is the **only**
+  artifact where company-specific framing belongs.
+- No AI tells: never write "as an AI", "large language model", "I cannot",
+  or "I'm sorry".
+- Use only facts present in the inputs (profile, experience DB, JD,
+  selected achievements). Do not invent metrics, team sizes, dollar
+  amounts, percentages, dates, or achievements.
+
+### Length
+- Soft target: ~350 words across all paragraphs combined (`--word-budget`,
+  default `350`). The pipeline warns when the rendered body exceeds the
+  budget. Use `--enforce-page-limit` to hard-fail when the rendered PDF
+  spills past one page (otherwise a single-page overflow only warns).
+
+### Structure
+- **Opening paragraph:** hook + role/company + (optional) one-sentence
+  level-gap framing.
+- **Body paragraphs (1–3):** specific evidence drawn from `experiences`,
+  `selected_achievements`, or `independent_projects`. 3–5 sentences each.
+- **Closing paragraph:** short call to action + thanks.
+
+### Level-Gap Framing Rule
+- When the candidate's profile `headline` reflects a lower level than the
+  `--target-role` (e.g., Senior Staff vs. Senior Principal), include
+  exactly **one** sentence in the opening or first body paragraph framing
+  the transition by scope/breadth/years.
+- When headlines align, omit any gap framing entirely.
+
+### Addressee
+- Pass `--hiring-manager "Name"` to address the letter explicitly.
+- Otherwise, an LLM stage attempts to infer a hiring manager from the JD
+  page. The inferred name must (a) clear the
+  `--addressee-confidence-threshold` (default `0.85`) and (b) appear
+  verbatim in the JD text. If either gate fails, the letter falls back to
+  the configured `addressee_fallback`.
+
+### Profile-Side `[cover_letter]` Table
+Optional table in `data/profile/profile.toml`. Both keys are optional and
+fall back to module defaults when omitted:
+
+```toml
+[cover_letter]
+closing = "Sincerely,"          # default: "Sincerely,"
+addressee_fallback = "Hiring Team"   # default: "Hiring Team"
+```
+
+### Output Filter
+The cover-letter pipeline shares the resume's `--outputs` filter when
+launched via `scripts/build_resume.py --cover-letter`. Valid tokens are
+`pdf, docx, md, html`. Default emits `pdf,docx`. Run
+`scripts/build_cover_letter.py` directly for finer control (custom word
+budget, hiring-manager override, addressee confidence threshold, custom
+filenames).
+
 ## Implementation Status (updated)
 The target-role headline leakage issue is resolved in current code:
 - `--target-role` is treated as an internal optimization hint

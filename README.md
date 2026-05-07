@@ -31,9 +31,12 @@ python scripts/build_resume.py --job-url <url> --cover-letter
 
 With no other flags, build_resume produces a submission-ready PDF
 (processed mode) tailored to the supplied JD. When `--cover-letter` is
-set, a placeholder cover letter is written alongside; the real
-LLM-tailored cover letter is tracked in
-[issue #229](https://github.com/jsmithpkp21/resume-builder/issues/229).
+set, an LLM-drafted cover letter is generated alongside (PDF + DOCX by
+default, honoring `--outputs`). The body requires
+`RESUME_BUILDER_LLM_ENABLED=1` (or `RESUME_BUILDER_LLM_FIXTURE=1` for
+tests); see [`RESUME_GENERATION_PREFERENCES.md`](RESUME_GENERATION_PREFERENCES.md)
+for the cover-letter voice/structure rules and the profile-side
+`[cover_letter]` table.
 
 Output layout (auto-routed when `--output-dir` is omitted AND a
 non-placeholder company slug is available — JD-derived or supplied via
@@ -46,7 +49,8 @@ data/outputs/<company-slug>/
     latest_resume_processed_ir_snapshot.json
     latest_resume_processed_ir_snapshot.txt
   cover_letters/                # only when --cover-letter is set
-    <slug>_cover_letter.md
+    <slug>_cover_letter.pdf
+    <slug>_cover_letter.docx
 ```
 
 The application root is the value of `--output-dir`; resume artifacts

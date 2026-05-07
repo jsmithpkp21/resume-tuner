@@ -35,6 +35,10 @@ def generate_cover_letter(
         from scripts import build_cover_letter as _cl
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    # Honor build_resume's --outputs filter so the cover letter and resume
+    # share the same artifact set. Both surfaces define the same valid
+    # tokens (pdf, docx, md, html), so a direct pass-through is safe.
+    requested_outputs = getattr(args, "outputs", None) or _cl.DEFAULT_OUTPUTS
     cl_ns = argparse.Namespace(
         profile=args.profile,
         experience_db=args.experience_db,
@@ -45,7 +49,7 @@ def generate_cover_letter(
         hiring_manager=None,
         addressee_confidence_threshold=_cl.DEFAULT_ADDRESSEE_CONFIDENCE,
         output_dir=output_dir,
-        outputs=_cl.DEFAULT_OUTPUTS,
+        outputs=tuple(requested_outputs),
         include_private_projects=getattr(args, "include_private_projects", False),
         word_budget=_cl.DEFAULT_WORD_BUDGET,
         enforce_page_limit=False,

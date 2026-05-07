@@ -263,38 +263,38 @@ def _parse_outputs(value: str) -> tuple[str, ...]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", type=Path, default=DEFAULT_PROFILE)
-    parser.add_argument("--experience-db", type=Path, default=DEFAULT_EXPERIENCE_DB)
-    parser.add_argument("--skills-matrix", type=Path, default=DEFAULT_SKILLS_MATRIX)
-    parser.add_argument("--job-url", type=str, default="")
-    parser.add_argument(
+    parser = argparse.ArgumentParser(
+        description=(
+            "Build tailored resume outputs from profile, experience, "
+            "and skills inputs.\n\n"
+            "Typical usage:\n"
+            "  python scripts/build_resume.py --job-url <url>\n\n"
+            "Override flags are listed under 'Advanced' for power users / debug."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    common = parser.add_argument_group("Common (typical run)")
+    advanced = parser.add_argument_group("Advanced (overrides & debug)")
+
+    common.add_argument(
+        "--job-url",
+        type=str,
+        default="",
+        help="URL of the job description page to tailor the resume against.",
+    )
+    common.add_argument(
         "--job-text-file",
         type=Path,
         default=None,
         help="Path to a plain-text file containing the full job description.",
     )
-    parser.add_argument("--target-role", type=str, default="")
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
-    parser.add_argument(
-        "--processing-mode",
-        choices=("raw", "processed"),
-        default="raw",
-        help=(
-            "raw keeps canonical content unfiltered (baseline contract); "
-            "processed runs transform/trim/enrich/rule/select stages."
-        ),
+    common.add_argument(
+        "--target-role",
+        type=str,
+        default="",
+        help="Internal role tailoring hint (not rendered in output).",
     )
-    parser.add_argument(
-        "--outputs",
-        type=_parse_outputs,
-        default=DEFAULT_OUTPUTS,
-        help=(
-            "Comma-separated artifacts to emit. Valid tokens: "
-            f"{', '.join(VALID_OUTPUT_TOKENS)}. Default: pdf (submission-ready)."
-        ),
-    )
-    parser.add_argument(
+    common.add_argument(
         "--company",
         type=str,
         default=None,
@@ -309,19 +309,66 @@ def parse_args() -> argparse.Namespace:
             "tiers come up empty."
         ),
     )
-    parser.add_argument(
+    common.add_argument(
+        "--output-dir",
+        type=Path,
+        default=DEFAULT_OUTPUT_DIR,
+        help=(
+            "Application root directory. Resume artifacts are written under "
+            "<output-dir>/resumes/; cover letter artifacts (when "
+            "--cover-letter is set) are written under <output-dir>/cover_letters/."
+        ),
+    )
+    common.add_argument(
+        "--outputs",
+        type=_parse_outputs,
+        default=DEFAULT_OUTPUTS,
+        help=(
+            "Comma-separated artifacts to emit. Valid tokens: "
+            f"{', '.join(VALID_OUTPUT_TOKENS)}. Default: pdf (submission-ready)."
+        ),
+    )
+    common.add_argument(
+        "--processing-mode",
+        choices=("raw", "processed"),
+        default="raw",
+        help=(
+            "raw keeps canonical content unfiltered (baseline contract); "
+            "processed runs transform/trim/enrich/rule/select stages."
+        ),
+    )
+
+    advanced.add_argument(
+        "--profile",
+        type=Path,
+        default=DEFAULT_PROFILE,
+        help="Profile data source TOML.",
+    )
+    advanced.add_argument(
+        "--experience-db",
+        type=Path,
+        default=DEFAULT_EXPERIENCE_DB,
+        help="Experience database TOML.",
+    )
+    advanced.add_argument(
+        "--skills-matrix",
+        type=Path,
+        default=DEFAULT_SKILLS_MATRIX,
+        help="Skills matrix CSV.",
+    )
+    advanced.add_argument(
         "--pdf-filename",
         type=str,
         default=None,
-        help="Optional PDF file name override under --output-dir.",
+        help="Optional PDF file name override under <output-dir>/resumes/.",
     )
-    parser.add_argument(
+    advanced.add_argument(
         "--docx-filename",
         type=str,
         default=None,
-        help="Optional DOCX file name override under --output-dir.",
+        help="Optional DOCX file name override under <output-dir>/resumes/.",
     )
-    parser.add_argument(
+    advanced.add_argument(
         "--allow-overflow-pdf",
         action="store_true",
         help=(
@@ -329,7 +376,7 @@ def parse_args() -> argparse.Namespace:
             "submission guard. Useful for review/debug exports."
         ),
     )
-    parser.add_argument(
+    advanced.add_argument(
         "--post-layout-cleanup",
         choices=("enabled", "disabled"),
         default="enabled",
@@ -338,7 +385,7 @@ def parse_args() -> argparse.Namespace:
             "Set to 'disabled' for strict source fidelity/debug exports."
         ),
     )
-    parser.add_argument(
+    advanced.add_argument(
         "--include-private-projects",
         action="store_true",
         help=(
@@ -347,7 +394,7 @@ def parse_args() -> argparse.Namespace:
             "rendered output without flipping the canonical visibility flag."
         ),
     )
-    parser.add_argument(
+    advanced.add_argument(
         "--template",
         type=str,
         default="modern",

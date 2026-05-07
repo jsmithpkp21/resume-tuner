@@ -480,7 +480,8 @@ def test_run_rejects_absolute_output_filename_override(
 
     assert export_resume_documents.run() == 1
     captured = capsys.readouterr()
-    assert "--docx-filename must be a path under --output-dir" in captured.err
+    assert "--docx-filename must be a path under" in captured.err
+    assert "absolute paths are not allowed" in captured.err
     assert calls == {"docx": 0, "pdf": 0}
 
 
@@ -543,7 +544,8 @@ def test_run_rejects_output_filename_path_traversal(
 
     assert export_resume_documents.run() == 1
     captured = capsys.readouterr()
-    assert "--docx-filename must remain under --output-dir" in captured.err
+    assert "--docx-filename must remain under" in captured.err
+    assert "path traversal is not allowed" in captured.err
     assert calls == {"docx": 0, "pdf": 0}
 
 

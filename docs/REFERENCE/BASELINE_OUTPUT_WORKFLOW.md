@@ -23,9 +23,10 @@ python scripts/build_resume.py --output-dir sandbox/outputs/resume_runs/local_re
 
 Output layout — `--output-dir` is the application root; resume
 artifacts are always written under `<output-dir>/resumes/`. When
-`--output-dir` is omitted, build_resume routes to
-`data/outputs/<company-slug>/` if a company is derivable from the JD,
-or to `data/outputs/baseline/` otherwise.
+`--output-dir` is omitted AND a non-placeholder company slug is
+available — either auto-derived from the JD or supplied via
+`--company` — build_resume routes to `data/outputs/<company-slug>/`.
+With no slug, it falls back to `data/outputs/baseline/`.
 
 Artifacts (processed mode defaults):
 

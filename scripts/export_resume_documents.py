@@ -298,6 +298,14 @@ def run() -> int:
         removed_legacy_outputs = _remove_stale_legacy_exports(
             resume_dir.resolve(strict=False), {docx_output, pdf_output}
         )
+        # Migration: pre-split exports landed directly in <output-dir>; sweep
+        # the root too so stale aliases from earlier runs don't persist.
+        if output_dir != resume_dir:
+            removed_legacy_outputs.extend(
+                _remove_stale_legacy_exports(
+                    output_dir.resolve(strict=False), {docx_output, pdf_output}
+                )
+            )
         print("Resume exports written:")
         print(f"  {docx_output}")
         print(f"  {pdf_output}")

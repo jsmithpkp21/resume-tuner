@@ -79,7 +79,8 @@ def resolve_export_output_path(
     override = Path(filename_override)
     if override.is_absolute():
         raise RuntimeError(
-            f"{flag_name} must be a path under --output-dir; absolute paths are not allowed."
+            f"{flag_name} must be a path under {base_dir}; "
+            "absolute paths are not allowed."
         )
 
     candidate = (base_dir / override).resolve(strict=False)
@@ -87,7 +88,7 @@ def resolve_export_output_path(
         candidate.relative_to(base_dir)
     except ValueError as exc:
         raise RuntimeError(
-            f"{flag_name} must remain under --output-dir; path traversal is not allowed."
+            f"{flag_name} must remain under {base_dir}; path traversal is not allowed."
         ) from exc
     return candidate
 

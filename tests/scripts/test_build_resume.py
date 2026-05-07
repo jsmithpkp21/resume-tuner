@@ -5015,7 +5015,8 @@ def test_outputs_filename_override_rejects_absolute_path(tmp_path: Path) -> None
         extra_args=("--outputs", "pdf", "--pdf-filename", "/tmp/evil.pdf"),
     )
     assert result.returncode != 0
-    assert "--pdf-filename must be a path under --output-dir" in result.stderr
+    assert "--pdf-filename must be a path under" in result.stderr
+    assert "absolute paths are not allowed" in result.stderr
 
 
 def test_outputs_filename_override_rejects_path_traversal(tmp_path: Path) -> None:
@@ -5030,7 +5031,8 @@ def test_outputs_filename_override_rejects_path_traversal(tmp_path: Path) -> Non
         extra_args=("--outputs", "docx", "--docx-filename", "../escape.docx"),
     )
     assert result.returncode != 0
-    assert "--docx-filename must remain under --output-dir" in result.stderr
+    assert "--docx-filename must remain under" in result.stderr
+    assert "path traversal is not allowed" in result.stderr
 
 
 def test_outputs_pdf_with_include_private_projects_renders_section(

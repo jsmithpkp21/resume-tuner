@@ -35,8 +35,9 @@ set, a placeholder cover letter is written alongside; the real
 LLM-tailored cover letter is tracked in
 [issue #229](https://github.com/jsmithpkp21/resume-builder/issues/229).
 
-Output layout (auto-routed when a JD is supplied and a company is
-derivable; falls back to `data/outputs/baseline/` otherwise):
+Output layout (auto-routed when `--output-dir` is omitted AND a
+non-placeholder company slug is available — JD-derived or supplied via
+`--company`; falls back to `data/outputs/baseline/` otherwise):
 
 ```
 data/outputs/<company-slug>/

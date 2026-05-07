@@ -324,9 +324,10 @@ def parse_args() -> argparse.Namespace:
             "Application root directory. Resume artifacts are written under "
             "<output-dir>/resumes/; cover letter artifacts (when "
             "--cover-letter is set) are written under <output-dir>/cover_letters/. "
-            f"When omitted and a JD is supplied, defaults to "
-            f"{DEFAULT_OUTPUT_BASE}/<company-slug>/; otherwise "
-            f"{DEFAULT_OUTPUT_DIR}/."
+            "When omitted and a non-placeholder company slug is available "
+            "(either auto-derived from --job-url/--job-text-file or supplied "
+            f"via --company), defaults to {DEFAULT_OUTPUT_BASE}/<company-slug>/; "
+            f"otherwise {DEFAULT_OUTPUT_DIR}/."
         ),
     )
     common.add_argument(
@@ -3304,9 +3305,10 @@ def write_text_snapshot(resume: ResumeIR, output_path: Path) -> None:
 def _resolve_output_dir(args: argparse.Namespace) -> Path:
     """Return the application-root directory for outputs.
 
-    When the user did not pass --output-dir AND a real (non-placeholder)
-    company slug was derived, route to data/outputs/<slug>/. Otherwise return
-    the user-supplied value or the baseline default.
+    When --output-dir is unset AND a non-placeholder company slug is
+    available — whether JD-derived or supplied explicitly via --company —
+    route to data/outputs/<slug>/. Otherwise return the user-supplied
+    --output-dir value or the baseline default.
     """
     user_value: Path | None = getattr(args, "output_dir", None)
     if user_value is not None:
@@ -3712,6 +3714,17 @@ def _render_docx_pdf_outputs(
     removed_legacy_outputs = document_export.remove_stale_legacy_exports(
         output_dir.resolve(strict=False), keep
     )
+    # Migration: pre-split runs wrote legacy aliases directly to the application
+    # root. Sweep that location too so leftover state from earlier runs does not
+    # quietly persist after the layout change. Cheap, idempotent, no-op when the
+    # files are absent.
+    application_root = getattr(args, "output_dir", None)
+    if application_root is not None and application_root != output_dir:
+        removed_legacy_outputs.extend(
+            document_export.remove_stale_legacy_exports(
+                Path(application_root).resolve(strict=False), keep
+            )
+        )
     return docx_output, pdf_output, removed_legacy_outputs
 
 

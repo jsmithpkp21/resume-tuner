@@ -483,8 +483,11 @@ def _extract_company_name(
         # Strip leading generic recruiting subdomains (www, careers, jobs,
         # apply, etc.) so e.g. careers.westernunion.com -> "westernunion"
         # rather than "Careers". Walks the chain in case of multiple
-        # stacked generics like apply.careers.example.com.
-        while labels and labels[0] in _GENERIC_RECRUITING_SUBDOMAINS:
+        # stacked generics like apply.careers.example.com. Stop while
+        # the registrable domain (label + TLD) is still intact — without
+        # this guard, an apex hostname like jobs.com or careers.com would
+        # collapse to just "Com".
+        while len(labels) > 2 and labels[0] in _GENERIC_RECRUITING_SUBDOMAINS:
             labels = labels[1:]
         host_label = labels[0] if labels else ""
         # Companies that bake "jobs" / "careers" into their host name

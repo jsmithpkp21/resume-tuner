@@ -59,13 +59,42 @@ def test_workable_apply_subdomain_uses_path_slug_for_company() -> None:
         # www stays handled (regression check on prior behavior).
         ("www.example.com", "Example"),
         ("www.careers.example.com", "Example"),
-        # Empty after stripping all generics returns empty (degenerate URL).
-        ("careers.jobs.apply.", ""),
     ],
 )
 def test_company_site_skips_generic_recruiting_subdomains(
     netloc: str, expected: str
 ) -> None:
+    name = _extract_company_name(
+        source="company-site",
+        netloc=netloc,
+        path="/",
+        page_title="",
+        description="",
+    )
+    assert name == expected
+
+
+@pytest.mark.parametrize(
+    "netloc, expected",
+    [
+        # Apex hostname where the leading label happens to match a generic.
+        # Without the registrable-domain guard, the strip loop would
+        # collapse these to just the TLD ("Com"). With the guard we keep
+        # the brand intact, even if the brand IS the generic word.
+        ("jobs.com", "Jobs"),
+        ("careers.com", "Careers"),
+        ("people.com", "People"),
+        ("hire.com", "Hire"),
+    ],
+)
+def test_company_site_does_not_strip_past_registrable_domain(
+    netloc: str, expected: str
+) -> None:
+    """Copilot review on PR #249: don't strip the registrable label.
+
+    For a hostname like ``jobs.com`` the only label before the TLD is
+    ``jobs``; stripping it would produce ``Com`` as the company name.
+    """
     name = _extract_company_name(
         source="company-site",
         netloc=netloc,

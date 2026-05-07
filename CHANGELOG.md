@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.33.0...v0.33.1) (2026-05-07)
+
+
+### Bug Fixes
+
+* **select_skills:** reword warning to describe top-N cap drop, not matrix gap ([f96e46a](https://github.com/jsmithpkp21/resume-builder/commit/f96e46a8189c8567afa1b364fe49bb32d949e705)), closes [#217](https://github.com/jsmithpkp21/resume-builder/issues/217)
+
 ## [0.33.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.32.0...v0.33.0) (2026-05-07)
 
 

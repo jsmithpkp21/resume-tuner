@@ -21,35 +21,66 @@ See `docs/REFERENCE/DATA_LAYOUT.md` for the full layout contract.
 
 ## Baseline Resume Output (Milestone 1)
 
-Generate a full editable baseline resume from canonical data:
+Typical one-liner usage:
 
 ```bash
 make active
-python scripts/build_resume.py
-python scripts/build_resume.py --output-dir sandbox/outputs/resume_runs/local_review
+python scripts/build_resume.py --job-url <url>
+python scripts/build_resume.py --job-url <url> --cover-letter
 ```
 
-Default artifacts (raw mode):
+With no other flags, build_resume produces a submission-ready PDF
+(processed mode) tailored to the supplied JD. When `--cover-letter` is
+set, a placeholder cover letter is written alongside; the real
+LLM-tailored cover letter is tracked in
+[issue #229](https://github.com/jsmithpkp21/resume-builder/issues/229).
 
-- `data/review/outputs/baseline/latest_resume_raw.html`
-- `data/review/outputs/baseline/latest_modern_resume_raw.html`
-- `data/review/outputs/baseline/latest_resume_raw.md`
-- `data/review/outputs/baseline/latest_resume_raw_ir_snapshot.json`
-- `data/review/outputs/baseline/latest_resume_raw_ir_snapshot.txt`
+Output layout (auto-routed when a JD is supplied and a company is
+derivable; falls back to `data/outputs/baseline/` otherwise):
 
-Default artifacts (processed mode):
+```
+data/outputs/<company-slug>/
+  resumes/
+    <slug>_resume.pdf
+    latest_resume_processed_ir_snapshot.json
+    latest_resume_processed_ir_snapshot.txt
+  cover_letters/                # only when --cover-letter is set
+    <slug>_cover_letter.md
+```
 
-- `data/review/outputs/baseline/latest_resume_processed.html` (primary modern template)
-- `data/review/outputs/baseline/latest_default_resume_processed.html` (secondary template)
-- `data/review/outputs/baseline/latest_resume_processed.md`
-- `data/review/outputs/baseline/latest_resume_processed_ir_snapshot.json`
-- `data/review/outputs/baseline/latest_resume_processed_ir_snapshot.txt`
+The application root is the value of `--output-dir`; resume artifacts
+are always written under `<output-dir>/resumes/` and cover-letter
+artifacts under `<output-dir>/cover_letters/`. To pin the destination,
+pass `--output-dir sandbox/outputs/resume_runs/local_review`
+(`sandbox/` is git-ignored, useful for day-to-day local iteration).
 
-Compatibility and local-output notes:
+Common vs Advanced flags:
 
-- Legacy `latest_*` artifact names remain the primary contract for tests/docs.
-- Company-scoped artifact aliases are no longer emitted; outputs remain company-agnostic under the `latest_*` contract.
-- For day-to-day local runs, prefer `--output-dir sandbox/outputs/...`; `sandbox/` is git-ignored.
+- **Common (typical run):** `--job-url`, `--job-text-file`,
+  `--target-role`, `--company`, `--output-dir`, `--outputs`,
+  `--processing-mode`, `--cover-letter`.
+- **Advanced (overrides & debug):** `--profile`, `--experience-db`,
+  `--skills-matrix`, `--pdf-filename`, `--docx-filename`,
+  `--allow-overflow-pdf`, `--post-layout-cleanup`,
+  `--include-private-projects`, `--template`.
+
+Run `python scripts/build_resume.py --help` for the authoritative list.
+
+Other artifacts (when `--outputs html,md` is set):
+
+- `<root>/resumes/latest_resume_<mode>.html` (primary template)
+- `<root>/resumes/latest_modern_resume_raw.html` /
+  `<root>/resumes/latest_default_resume_processed.html` (secondary
+  template)
+- `<root>/resumes/latest_resume_<mode>.md`
+
+Compatibility notes:
+
+- Legacy `latest_*` artifact names remain the primary contract for
+  tests/docs; only the directory layout changed.
+- Company-scoped artifact aliases are no longer emitted alongside
+  `latest_*`; canonical `<slug>_resume.{pdf,docx}` names cover the
+  per-company case.
 
 Export submission-ready DOCX and PDF in one run:
 
@@ -58,12 +89,12 @@ make active
 python scripts/export_resume_documents.py --processing-mode processed --output-dir sandbox/outputs/resume_runs/submission
 ```
 
-Default export artifacts:
+Default export artifacts (note: written under the `resumes/` subdir, same as the build_resume CLI):
 
-- `sandbox/outputs/resume_runs/submission/company_resume.docx` (or `<company>_resume.docx` when `--company` is set)
-- `sandbox/outputs/resume_runs/submission/company_resume.pdf` (or `<company>_resume.pdf` when `--company` is set)
-- `sandbox/outputs/resume_runs/submission/latest_resume_processed.md` (always generated)
-- `sandbox/outputs/resume_runs/submission/latest_default_resume_processed.html` (when present, preferred as the DOCX/PDF render source for better block extraction)
+- `sandbox/outputs/resume_runs/submission/resumes/company_resume.docx` (or `<company>_resume.docx` when `--company` is set)
+- `sandbox/outputs/resume_runs/submission/resumes/company_resume.pdf` (or `<company>_resume.pdf` when `--company` is set)
+- `sandbox/outputs/resume_runs/submission/resumes/latest_resume_processed.md` (always generated)
+- `sandbox/outputs/resume_runs/submission/resumes/latest_default_resume_processed.html` (when present, preferred as the DOCX/PDF render source for better block extraction)
 
 Export behavior notes:
 

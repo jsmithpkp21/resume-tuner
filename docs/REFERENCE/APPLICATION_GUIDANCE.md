@@ -72,18 +72,28 @@ Every item should be verifiable against the generated resume artifact.
 
 ## Quick Command Reference
 ```bash
-# Generate a tailored processed resume for a specific role
+# Typical one-liner: pass only the JD URL; outputs auto-route to
+# data/outputs/<company-slug>/resumes/.
+python scripts/build_resume.py --job-url "<url>"
+
+# With a placeholder cover letter alongside (real generator: issue #229).
+python scripts/build_resume.py --job-url "<url>" --cover-letter
+
+# Pin the output location for QA / explicit-target-role runs.
 python scripts/build_resume.py \
   --target-role "Senior SDET" \
-  --processing-mode processed \
-  --output-dir data/review/outputs/latest_application
+  --output-dir data/outputs/latest_application
 
-# Generate with a job description text file for keyword alignment
-# (place the JD text in a non-blocked path such as data/review/inputs/)
+# Use a JD text file when the URL is login-walled or offline.
+# (Place the JD text in a non-blocked path such as data/review/inputs/.)
 python scripts/build_resume.py \
   --job-text-file data/review/inputs/job_description.txt \
-  --processing-mode processed \
-  --output-dir data/review/outputs/latest_application
+  --output-dir data/outputs/latest_application
 ```
+
+Resume artifacts land under `<output-dir>/resumes/`; cover letters
+under `<output-dir>/cover_letters/`. Default `--processing-mode` is
+`processed` (submission-ready); pass `--processing-mode raw` to keep
+content unfiltered for baseline/debug runs.
 
 See `docs/REFERENCE/DATA_LAYOUT.md` for data file locations.

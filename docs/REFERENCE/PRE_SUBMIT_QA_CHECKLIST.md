@@ -8,11 +8,16 @@ Target time: 5 minutes or less.
 ```bash
 python scripts/build_resume.py \
   --target-role "Senior SDET" \
-  --processing-mode processed \
-  --output-dir data/review/outputs/latest_application
+  --output-dir data/outputs/latest_application \
+  --outputs html,md,pdf
 ```
-Open `data/review/outputs/latest_application/latest_resume_processed.html` in a browser
-and `data/review/outputs/latest_application/latest_resume_processed.md` in a text editor. All checks below apply to that output.
+Open `data/outputs/latest_application/resumes/latest_resume_processed.html` in a browser
+and `data/outputs/latest_application/resumes/latest_resume_processed.md` in a text editor. All checks below apply to that output.
+
+> Note: with the auto-routing default, omitting `--output-dir` and
+> passing `--job-url <url>` writes to `data/outputs/<company-slug>/`
+> instead. The explicit `--output-dir` above keeps QA runs in a stable,
+> easy-to-find location.
 ---
 ## 2. Profile summary
 - [ ] Summary is present and not the raw profile default (check for a role-targeted opening

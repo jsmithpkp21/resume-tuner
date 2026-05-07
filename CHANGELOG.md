@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.34.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.33.2...v0.34.0) (2026-05-07)
+
+
+### Features
+
+* **build_resume:** fail loudly when JD-supplied company cannot be derived ([bc4e090](https://github.com/jsmithpkp21/resume-builder/commit/bc4e0903a47aae9099c1158d40d1c5a98d7add6d))
+
+
+### Bug Fixes
+
+* **build_resume:** address Copilot review on PR [#246](https://github.com/jsmithpkp21/resume-builder/issues/246) ([327ae20](https://github.com/jsmithpkp21/resume-builder/commit/327ae20ca0203f1ed1361ed0a6d4690088f8a27d))
+
 ## [0.33.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.33.1...v0.33.2) (2026-05-07)
 
 

@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from scripts.llm_client import LLMClient
+from scripts.llm_client import (
+    _DEFAULT_TIMEOUT_SECONDS,
+    LLMClient,
+    _parse_timeout_env,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -83,3 +87,41 @@ def test_complete_json_rejects_blocked_cache_dir_before_file_io(
             system_prompt="Return JSON.",
             user_payload={"value": 1},
         )
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        (None, _DEFAULT_TIMEOUT_SECONDS),
+        ("", _DEFAULT_TIMEOUT_SECONDS),
+        ("not-a-number", _DEFAULT_TIMEOUT_SECONDS),
+        ("0", _DEFAULT_TIMEOUT_SECONDS),
+        ("-5", _DEFAULT_TIMEOUT_SECONDS),
+        ("60", 60.0),
+        ("600", 600.0),
+        ("  120  ", 120.0),
+        ("90.5", 90.5),
+    ],
+)
+def test_parse_timeout_env_parses_or_falls_back_to_default(
+    raw: str | None, expected: float
+) -> None:
+    assert _parse_timeout_env(raw) == expected
+
+
+def test_from_env_uses_timeout_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_TIMEOUT_SECONDS", "180")
+    monkeypatch.setenv("RESUME_BUILDER_LLM_FIXTURE", "1")
+    client = LLMClient.from_env()
+    # Internal attribute, but it's the only way to verify the env wired through
+    # without making an actual network request.
+    assert client._timeout_seconds == 180.0  # noqa: SLF001 -- intentional
+
+
+def test_from_env_default_timeout_when_env_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RESUME_BUILDER_LLM_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.setenv("RESUME_BUILDER_LLM_FIXTURE", "1")
+    client = LLMClient.from_env()
+    assert client._timeout_seconds == _DEFAULT_TIMEOUT_SECONDS  # noqa: SLF001

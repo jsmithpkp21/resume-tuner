@@ -19,10 +19,30 @@ else:
 
 _DEFAULT_CHAT_ENDPOINT = "http://localhost:11434/v1/chat/completions"
 _DEFAULT_MODEL = "llama3.1:8b"
+_DEFAULT_TIMEOUT_SECONDS = 30.0
 _FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"
 _CACHE_DIR_ENV = "RESUME_BUILDER_LLM_CACHE_DIR"
 _ENDPOINT_ENV = "RESUME_BUILDER_LLM_API_URL"
 _MODEL_ENV = "RESUME_BUILDER_LLM_MODEL"
+_TIMEOUT_ENV = "RESUME_BUILDER_LLM_TIMEOUT_SECONDS"
+
+
+def _parse_timeout_env(raw: str | None) -> float:
+    """Parse RESUME_BUILDER_LLM_TIMEOUT_SECONDS, falling back to the default.
+
+    Empty / unset / non-numeric values fall back to the default; values
+    <= 0 also fall back since urlopen requires a positive timeout (or
+    None, but we don't expose 'no timeout' as a knob).
+    """
+    if raw is None:
+        return _DEFAULT_TIMEOUT_SECONDS
+    try:
+        value = float(raw.strip())
+    except ValueError:
+        return _DEFAULT_TIMEOUT_SECONDS
+    if value <= 0:
+        return _DEFAULT_TIMEOUT_SECONDS
+    return value
 
 
 @dataclass(frozen=True)
@@ -42,11 +62,13 @@ class LLMClient:
         model: str,
         cache_dir: Path,
         fixture_mode: bool,
+        timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
     ) -> None:
         self._endpoint = endpoint
         self._model = model
         self._cache_dir = cache_dir
         self._fixture_mode = fixture_mode
+        self._timeout_seconds = timeout_seconds
 
     @classmethod
     def from_env(cls) -> LLMClient:
@@ -57,11 +79,13 @@ class LLMClient:
         )
         endpoint = os.getenv(_ENDPOINT_ENV, _DEFAULT_CHAT_ENDPOINT).strip()
         model = os.getenv(_MODEL_ENV, _DEFAULT_MODEL).strip() or _DEFAULT_MODEL
+        timeout_seconds = _parse_timeout_env(os.getenv(_TIMEOUT_ENV))
         return cls(
             endpoint=endpoint,
             model=model,
             cache_dir=cache_dir,
             fixture_mode=fixture_mode,
+            timeout_seconds=timeout_seconds,
         )
 
     def complete_json(
@@ -132,7 +156,7 @@ class LLMClient:
             method="POST",
         )
         try:
-            with urlopen(request, timeout=30) as response:  # nosec B310
+            with urlopen(request, timeout=self._timeout_seconds) as response:  # nosec B310
                 body = response.read().decode("utf-8", errors="replace")
         except URLError as exc:
             raise RuntimeError(f"LLM request failed: {exc}") from exc

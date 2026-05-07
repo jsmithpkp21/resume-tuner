@@ -12,7 +12,7 @@ restores the original state on teardown so a contributor's real
 
 from __future__ import annotations
 
-import shutil
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -24,18 +24,28 @@ _FIXTURE_PROFILE = (
 )
 
 
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _ensure_default_profile_for_cli_tests() -> object:
     """Seed the default profile path with a tracked synthetic baseline.
 
     Only writes when the runtime profile is absent; existing real profiles
-    are preserved untouched. Removes the seeded copy on teardown.
+    are preserved untouched. On teardown, removes the seeded copy only if
+    its content still matches what we wrote — so if a contributor or test
+    replaced it with real content during the session, we leave that file
+    alone instead of deleting their work.
     """
-    seeded = False
+    seeded_sha: str | None = None
     if not _RUNTIME_PROFILE.exists():
         _RUNTIME_PROFILE.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(_FIXTURE_PROFILE, _RUNTIME_PROFILE)
-        seeded = True
+        seeded_bytes = _FIXTURE_PROFILE.read_bytes()
+        _RUNTIME_PROFILE.write_bytes(seeded_bytes)
+        seeded_sha = _sha256(seeded_bytes)
     yield
-    if seeded and _RUNTIME_PROFILE.exists():
+    if seeded_sha is None or not _RUNTIME_PROFILE.exists():
+        return
+    if _sha256(_RUNTIME_PROFILE.read_bytes()) == seeded_sha:
         _RUNTIME_PROFILE.unlink()

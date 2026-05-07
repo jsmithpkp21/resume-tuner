@@ -676,13 +676,14 @@ def prioritize_skills_by_importance(
         for skill in category_skills
     }
 
-    unknown_signal_skills = sorted(
+    signaled_but_dropped_skills = sorted(
         (set(bullet_counts) | set(related_counts)) - known_skills
     )
-    if unknown_signal_skills:
+    if signaled_but_dropped_skills:
         logger.warning(
-            "skills prioritization ignored unknown skills not present in skills matrix: %s",
-            ", ".join(unknown_signal_skills),
+            "skills referenced in bullets/related_skills but dropped from final selection (top-N cap = %d): %s",
+            TOP_N_SKILLS,
+            ", ".join(signaled_but_dropped_skills),
         )
 
     resolved_scores = scores if scores is not None else _compute_skill_scores(resume)

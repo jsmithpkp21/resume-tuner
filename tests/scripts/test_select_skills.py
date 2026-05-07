@@ -325,7 +325,7 @@ def test_prioritize_skills_by_importance_prefers_shorter_skill_when_scores_are_e
     ]
 
 
-def test_prioritize_skills_by_importance_warns_for_unknown_signal_skills(
+def test_prioritize_skills_by_importance_warns_for_signaled_but_dropped_skills(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     resume = _DummyResume(
@@ -342,7 +342,8 @@ def test_prioritize_skills_by_importance_warns_for_unknown_signal_skills(
     prioritize_skills_by_importance(resume)
 
     assert any(
-        "ignored unknown skills not present in skills matrix" in record.getMessage()
+        "dropped from final selection" in record.getMessage()
+        and "Cobol" in record.getMessage()
         for record in caplog.records
     )
 

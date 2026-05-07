@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.35.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.34.0...v0.35.0) (2026-05-07)
+
+
+### Features
+
+* **cover-letter:** honor --outputs filter and finalize docs ([#229](https://github.com/jsmithpkp21/resume-builder/issues/229)) ([ff8af30](https://github.com/jsmithpkp21/resume-builder/commit/ff8af30f9bfa66336ea5af92f4dfa79cea3b478a))
+
+
+### Bug Fixes
+
+* **cover-letter:** only default --outputs when attribute is missing ([fc9119f](https://github.com/jsmithpkp21/resume-builder/commit/fc9119ff2c49859f8fac787a21dfd10aca97cb1b))
+* **cover-letter:** reject str args.outputs and clarify enforce-page-limit doc ([0b7e03a](https://github.com/jsmithpkp21/resume-builder/commit/0b7e03a8c6f5485c92a71b433657fe2e8bae85af))
+
 ## [0.34.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.33.2...v0.34.0) (2026-05-07)
 
 

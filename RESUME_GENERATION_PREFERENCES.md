@@ -85,8 +85,11 @@ specific letter. The body requires `RESUME_BUILDER_LLM_ENABLED=1` (or
 ### Length
 - Soft target: ~350 words across all paragraphs combined (`--word-budget`,
   default `350`). The pipeline warns when the rendered body exceeds the
-  budget. Use `--enforce-page-limit` to hard-fail when the rendered PDF
-  spills past one page (otherwise a single-page overflow only warns).
+  budget. To hard-fail when the rendered PDF spills past one page, run
+  `scripts/build_cover_letter.py --enforce-page-limit` directly — the
+  flag lives only on the standalone CLI. The orchestrated
+  `scripts/build_resume.py --cover-letter` path always warns and never
+  hard-fails on a 1-page overflow.
 
 ### Structure
 - **Opening paragraph:** hook + role/company + (optional) one-sentence

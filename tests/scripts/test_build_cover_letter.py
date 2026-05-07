@@ -963,6 +963,36 @@ def test_outputs_empty_tuple_passes_through_not_defaulted(
     assert captured["ns"].outputs == ()
 
 
+def test_outputs_str_input_raises_typeerror(tmp_path: Path) -> None:
+    """A string `args.outputs` is rejected with a clear TypeError.
+
+    Without this guard, `tuple("pdf")` would silently become
+    ('p', 'd', 'f') and the downstream pipeline (which checks for
+    `"pdf" in outputs`) would emit zero artifacts. Callers must parse
+    comma-separated input upstream — same contract as the CLIs.
+    """
+    from scripts import cover_letter
+
+    resume_args = argparse.Namespace(
+        profile=tmp_path / "profile.toml",
+        experience_db=tmp_path / "experience_db.toml",
+        job_url="",
+        job_text_file=tmp_path / "jd.txt",
+        target_role="",
+        include_private_projects=False,
+        verbose=False,
+        outputs="pdf",
+    )
+
+    with pytest.raises(TypeError, match="must be an iterable of tokens"):
+        cover_letter.generate_cover_letter(
+            args=resume_args,
+            output_dir=tmp_path / "cover_letters",
+            company="Graphcore",
+            role="",
+        )
+
+
 def test_outputs_default_when_resume_omits_outputs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

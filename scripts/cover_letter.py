@@ -42,6 +42,15 @@ def generate_cover_letter(
     # explicit empty selection is forwarded as-is so the downstream
     # pipeline behaves the same as the standalone CLI.
     outputs_attr = getattr(args, "outputs", None)
+    if isinstance(outputs_attr, str):
+        # tuple("pdf") would silently become ("p", "d", "f") and produce
+        # zero artifacts downstream. Reject str loudly instead — callers
+        # should parse comma-separated input before calling.
+        raise TypeError(
+            "args.outputs must be an iterable of tokens (tuple/list), not str; "
+            "parse comma-separated input via build_resume._parse_outputs or "
+            "build_cover_letter._parse_outputs before calling."
+        )
     requested_outputs = _cl.DEFAULT_OUTPUTS if outputs_attr is None else outputs_attr
     cl_ns = argparse.Namespace(
         profile=args.profile,

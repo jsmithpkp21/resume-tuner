@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.32.0...v0.33.0) (2026-05-07)
+
+
+### Features
+
+* **llm-client:** make request timeout configurable via env var ([#237](https://github.com/jsmithpkp21/resume-builder/issues/237)) ([97e170a](https://github.com/jsmithpkp21/resume-builder/commit/97e170ae3b980e215d69af2267d155c5086d82f2))
+
 ## [0.32.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.31.0...v0.32.0) (2026-05-07)
 
 

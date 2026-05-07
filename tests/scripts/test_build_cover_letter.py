@@ -222,6 +222,58 @@ def test_round_trip_happy_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert "jane@example.com" in md_text
 
 
+def test_outputs_default_writes_pdf_and_docx(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default --outputs (pdf,docx) emits PDF + DOCX; not MD/HTML.
+
+    Symmetric to the resume-side test
+    ``test_outputs_default_writes_pdf_docx_and_ir`` and locks the canonical
+    default decided in issue #230.
+    """
+    profile_path, experience_path, jd_path = _write_inputs(tmp_path)
+    _enable_fixture_mode(monkeypatch)
+
+    def handler(namespace: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if namespace == build_cover_letter.ADDRESSEE_NAMESPACE:
+            return {"hiring_manager_name": "Alice Roberts", "confidence": 0.95}
+        if namespace == build_cover_letter.BODY_NAMESPACE:
+            return _good_body()
+        raise AssertionError(f"unexpected namespace {namespace}")
+
+    _patch_llm(monkeypatch, handler)
+
+    out_dir = tmp_path / "out"
+    rc, stdout = _run_cli(
+        monkeypatch,
+        [
+            "--profile",
+            str(profile_path),
+            "--experience-db",
+            str(experience_path),
+            "--job-text-file",
+            str(jd_path),
+            "--company",
+            "Graphcore",
+            "--target-role",
+            "Senior Principal Test Framework Software Engineer",
+            "--output-dir",
+            str(out_dir),
+        ],
+    )
+    assert rc == build_cover_letter.EXIT_SUCCESS, stdout
+
+    pdf_path = out_dir / "graphcore_cover_letter.pdf"
+    docx_path = out_dir / "graphcore_cover_letter.docx"
+    md_path = out_dir / "graphcore_cover_letter.md"
+    html_path = out_dir / "graphcore_cover_letter.html"
+
+    assert pdf_path.exists() and pdf_path.stat().st_size > 0, pdf_path
+    assert docx_path.exists() and docx_path.stat().st_size > 0, docx_path
+    assert not md_path.exists(), md_path
+    assert not html_path.exists(), html_path
+
+
 def test_job_text_file_short_circuits_addressee_llm(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

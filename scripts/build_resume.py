@@ -3248,9 +3248,10 @@ def write_text_snapshot(resume: ResumeIR, output_path: Path) -> None:
 
 
 # Below this many chars of JD description, the static-HTML fetch almost
-# certainly missed the JS-rendered body and the LLM tailoring stages will
-# run on essentially empty context. Loud-warn at that point. See issue
-# #247 for the underlying fetch-quality work.
+# certainly missed the JS-rendered body. Loud-warn at that point: when LLM
+# tailoring is enabled the LLM stages will run on near-empty context, and
+# when LLM tailoring is disabled the build is the un-tailored baseline
+# regardless. See issue #247 for the underlying fetch-quality work.
 _MIN_JD_DESCRIPTION_CHARS = 200
 
 
@@ -3261,7 +3262,9 @@ def _warn_if_jd_ingest_empty(*, job_context: JobContext, job_url: str) -> None:
     real JDs are typically multiple paragraphs (>>200 chars), and a
     hundred-char fetch is almost always navigation shell from a JS-
     rendered job board (Workday, Workable, Greenhouse iframe, etc.)
-    where the actual JD body never reached us.
+    where the actual JD body never reached us. The printed Effect line
+    branches on whether LLM tailoring is enabled so the message matches
+    actual runtime behavior in both modes.
     """
     excerpt_len = len(job_context.description_excerpt or "")
     if excerpt_len >= _MIN_JD_DESCRIPTION_CHARS:

@@ -493,10 +493,14 @@ def _extract_company_name(
         # Strip leading generic recruiting subdomains (www, careers, jobs,
         # apply, etc.) so e.g. careers.westernunion.com -> "westernunion"
         # rather than "Careers". Walks the chain in case of multiple
-        # stacked generics like apply.careers.example.com. Stop while
-        # the registrable domain (label + TLD) is still intact — without
-        # this guard, an apex hostname like jobs.com or careers.com would
-        # collapse to just "Com".
+        # stacked generics like apply.careers.example.com. The
+        # ``len(labels) > 2`` guard stops once only two labels remain so we
+        # don't collapse past the brand label on apex hostnames like
+        # jobs.com or careers.com (which would otherwise leave just the
+        # TLD and produce 'Com' as the company). Note: this is a label-
+        # count heuristic, not a public-suffix-list lookup — multi-part
+        # suffixes such as co.uk are not specifically handled, but the
+        # guard is sufficient for the apex-domain failure mode it targets.
         while len(labels) > 2 and labels[0] in _GENERIC_RECRUITING_SUBDOMAINS:
             labels = labels[1:]
         host_label = labels[0] if labels else ""

@@ -1,0 +1,29 @@
+[profile]
+name = "Candidate Name"
+headline = "Software Engineer | Test Automation and Framework Architecture"
+location = "City, ST, 00000"
+email = "candidate@example.com"
+phone = "(555) 555-0100"
+website = ""
+linkedin = "candidate-linkedin-profile"
+github = ""
+summary = "Baseline resume output generated from canonical data. Edit this summary manually for each target role while automation stages are added incrementally."
+
+[[education]]
+degree = "B.S. in Computer Science"
+institution = "Texas State University"
+location = "San Marcos, TX"
+date_range = "2004 - 2008"
+notes = "Coursework emphasis on software engineering and parallel programming."
+
+[[leadership_community]]
+title = "Technical Mentor (Informal)"
+organization = "HP / Poly"
+date_range = "2008 - Present"
+details = "Provided continuous mentoring across teams through the transition from manual QA to automation engineering, including framework thinking, debugging practices, and test design guidance."
+
+[[leadership_community]]
+title = "Community Contributor"
+organization = "QA and Test Automation Communities"
+date_range = "Ongoing"
+details = "Share practical framework design and debugging patterns with peer engineering groups."

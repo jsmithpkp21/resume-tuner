@@ -6,7 +6,8 @@ This directory contains the canonical starter inputs that the AI pipeline reads.
 
 - `skills/skills_matrix.csv`: canonical skills matrix (single source of truth)
 - `experience/experience_db.toml`: structured canonical experience database (role metadata, bullet bank, role-level related skills)
-- `profile/profile.toml`: baseline resume profile data (name/contact/summary plus education and leadership/community sections). Gitignored — copy `profile/profile.example.toml` and fill with real values; the loader reads this file directly with no override layer.
+- `profile/profile.example.toml`: tracked canonical template for the profile schema (name/contact/summary plus education and leadership/community sections).
+- `profile/profile.toml`: per-contributor runtime input derived from `profile/profile.example.toml`. Gitignored and not present in a fresh clone — copy the example template to this path and fill in real values before running the pipeline. The loader reads this file directly with no override layer; missing-file errors point back to the example template.
   - Social fields are handle-only (`linkedin` slug after `/in/`, `github` username); output rendering adds static URL prefixes.
 - `experience/experience_reconciliation_worksheet.csv`: pointer-based worksheet for one-by-one resume reconciliation (maps source rows to canonical role and bullet ids)
 - `manifests/starter_data_manifest.toml`: path contract for ingestion scripts

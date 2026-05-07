@@ -8,7 +8,9 @@ from scripts import build_resume
 from scripts.build_resume import assemble_baseline_resume, load_profile
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PROFILE = REPO_ROOT / "data" / "profile" / "profile.toml"
+# data/profile/profile.toml is per-contributor runtime input (gitignored).
+# Tests use a tracked synthetic baseline so behavior is reproducible across machines and CI.
+PROFILE = REPO_ROOT / "tests" / "fixtures" / "profile" / "profile_baseline.toml"
 
 
 def test_expand_profile_summary_to_min_words_uses_readable_title_segment_for_fallback(

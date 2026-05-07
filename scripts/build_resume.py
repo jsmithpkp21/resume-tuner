@@ -429,7 +429,14 @@ def _read_toml(path: Path) -> dict[str, Any]:
 
 
 def load_profile(path: Path) -> Profile:
-    payload = _read_toml(path)
+    try:
+        payload = _read_toml(path)
+    except FileNotFoundError as exc:
+        raise ValueError(
+            f"Profile file not found at '{path}'. "
+            f"Copy data/profile/profile.example.toml to {path} and fill in real values "
+            f"before running the pipeline (profile.toml is gitignored per-contributor input)."
+        ) from exc
     data = payload.get("profile", {})
     if not isinstance(data, dict):
         raise ValueError("profile.toml must contain a [profile] table")

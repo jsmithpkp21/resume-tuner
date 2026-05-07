@@ -54,7 +54,9 @@ from scripts.measure_skills_lines import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "build_resume.py"
-PROFILE = REPO_ROOT / "data" / "profile" / "profile.toml"
+# data/profile/profile.toml is per-contributor runtime input (gitignored).
+# Tests use a tracked synthetic baseline so behavior is reproducible across machines and CI.
+PROFILE = REPO_ROOT / "tests" / "fixtures" / "profile" / "profile_baseline.toml"
 SCHWAB_JOB_URL = (
     "https://www.schwabjobs.com/job/austin/"
     "sr-sdet-workplace-services-engineering/33727/92422911552"
@@ -116,6 +118,15 @@ def test_load_profile_reads_profile_table(tmp_path: Path) -> None:
     assert profile.education_entries
     assert profile.leadership_community_entries
     assert profile.github == ""
+
+
+def test_load_profile_missing_file_points_at_example_template(tmp_path: Path) -> None:
+    missing_path = tmp_path / "profile.toml"
+
+    with pytest.raises(ValueError, match="profile.example.toml") as excinfo:
+        load_profile(missing_path)
+
+    assert isinstance(excinfo.value.__cause__, FileNotFoundError)
 
 
 def test_load_profile_normalizes_url_like_social_inputs(tmp_path: Path) -> None:

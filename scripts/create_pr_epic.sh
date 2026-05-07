@@ -19,11 +19,17 @@ set -euo pipefail
 # Usage:
 #   scripts/create_pr_epic.sh ISSUE=<num> [EPIC=<branch>] [BASE=<branch>] [TITLE=<text>] [READY=1]
 #
-# Base resolution order (first match wins):
+# Base resolution order (the first non-empty input wins; auto-detect runs
+# only when neither BASE nor EPIC is supplied):
 #   1. BASE=<branch>      - explicit override; used as-is.
 #   2. EPIC=<branch>      - explicit epic branch; must exist on origin.
-#   3. Auto-detect        - GitHub sub-issue parent + epic/<parent>-* on origin.
-#   4. main (with WARN)   - no parent epic found.
+#   3. Auto-detect        - GitHub sub-issue parent + epic/<parent>-* on origin:
+#                            - exactly one match -> base on it.
+#                            - 2+ matches        -> hard fail and require an
+#                                                   explicit EPIC=/BASE= override
+#                                                   (no silent first-match pick).
+#                            - no match          -> WARN and fall back to main.
+#   4. main (with WARN)   - no parent epic detected for the issue.
 #
 # Preflight failures exit non-zero with an actionable message.
 
@@ -141,11 +147,27 @@ else
                 echo "      Falling back to main. Override with EPIC=<branch> or BASE=<branch>." >&2
                 PR_BASE="main"
             else
-                AUTO_EPIC=$(printf '%s\n' "$LSREMOTE_OUT" \
-                    | awk 'NR==1 { sub(/^refs\/heads\//, "", $2); print $2 }')
-                if [[ -n "$AUTO_EPIC" ]]; then
-                    PR_BASE="$AUTO_EPIC"
+                # Strip refs/heads/ from each match so we can count and report
+                # human-readable branch names. The wildcard matches *any* suffix
+                # after the parent number, so two unrelated epics that happen to
+                # share the parent prefix would both land here -- pick neither
+                # silently; fail with the list and require an explicit override.
+                AUTO_EPICS=$(printf '%s\n' "$LSREMOTE_OUT" \
+                    | awk 'NF==2 { sub(/^refs\/heads\//, "", $2); print $2 }')
+                MATCH_COUNT=0
+                if [[ -n "$AUTO_EPICS" ]]; then
+                    MATCH_COUNT=$(printf '%s\n' "$AUTO_EPICS" | wc -l)
+                fi
+                if [[ "$MATCH_COUNT" -eq 1 ]]; then
+                    PR_BASE="$AUTO_EPICS"
                     echo "INFO: auto-detected parent epic #$PARENT_NUM -> base=$PR_BASE" >&2
+                elif [[ "$MATCH_COUNT" -ge 2 ]]; then
+                    echo "ERROR: multiple epic branches match epic/${PARENT_NUM}-* on origin:" >&2
+                    printf '  - %s\n' $AUTO_EPICS >&2
+                    echo "Auto-detect cannot pick safely; rerun with an explicit override:" >&2
+                    echo "  EPIC=<branch>   # base on a specific epic branch" >&2
+                    echo "  BASE=<branch>   # base on any branch (e.g. BASE=main)" >&2
+                    exit 1
                 else
                     echo "WARN: parent issue #$PARENT_NUM has no epic/$PARENT_NUM-* branch on origin; falling back to main." >&2
                     PR_BASE="main"

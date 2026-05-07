@@ -280,17 +280,31 @@ BASE :=
 TITLE :=
 READY :=
 # User-supplied values are passed via target-scoped exports rather than
-# interpolated into the recipe. `export VAR := $(MAKE_VAR)` sets the env var
-# directly through make's variable system, so a TITLE containing shell
-# metacharacters such as `$(date)` cannot escape the quote context and execute
-# as a command substitution.
-pr-epic: export PR_EPIC_ISSUE := $(ISSUE)
-pr-epic: export PR_EPIC_EPIC  := $(EPIC)
-pr-epic: export PR_EPIC_BASE  := $(BASE)
-pr-epic: export PR_EPIC_TITLE := $(TITLE)
-pr-epic: export PR_EPIC_READY := $(READY)
+# interpolated into the recipe shell command line. Two layers of safety:
+#
+# 1. Make-level: `$(value VAR)` returns VAR's *unexpanded* definition, so a
+#    user-supplied TITLE containing `$(shell …)` (or any other make function)
+#    is NOT re-evaluated by make at recipe time. Plain `$(VAR)` would do a
+#    fresh recursive expansion of the value, which would execute `$(shell …)`
+#    as a make function call.
+# 2. Shell-level: the env var carries the literal value into bash; the script
+#    consumes it as inert string content (e.g. `gh pr create --title "$TITLE"`),
+#    so `$(date)` or `` `id` `` in the value never become command substitutions.
+#
+# To put a literal `$` in TITLE on the command line, write `$$` and quote so
+# the shell hands the two characters `$$` to make verbatim; make's own escape
+# rule (`$$` -> `$`) is what reduces them to a single literal `$` in the
+# variable value. With single quotes the shell does no `$` expansion, so:
+#   make pr-epic ISSUE=42 TITLE='price is $$5'
+# In a double-quoted argument the shell would consume one `$`, so you would
+# need `\$$` (or four `$`s) to deliver the same `$$` to make.
+pr-epic: export PR_EPIC_ISSUE := $(value ISSUE)
+pr-epic: export PR_EPIC_EPIC  := $(value EPIC)
+pr-epic: export PR_EPIC_BASE  := $(value BASE)
+pr-epic: export PR_EPIC_TITLE := $(value TITLE)
+pr-epic: export PR_EPIC_READY := $(value READY)
 pr-epic:
-	@if [ -z "$(ISSUE)" ]; then \
+	@if [ -z "$$PR_EPIC_ISSUE" ]; then \
 		echo "ERROR: ISSUE is required."; \
 		echo "Usage: make pr-epic ISSUE=<num> [EPIC=<branch>] [BASE=<branch>] [TITLE=<text>] [READY=1]"; \
 		exit 2; \

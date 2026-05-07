@@ -55,7 +55,7 @@
       "sha256": "a119ba8ab7e5440b248716040e80b22aa90e296a24b6bbbfc3a2ff24556cf51d"
     },
     "CONTRIBUTING.md": {
-      "sha256": "d591a6175638e91383452075e70eb82dc2eab419188c04f8aba3eb3e8486863b"
+      "sha256": "f9ddbbd374c2ed96a714f62a422d2945ca1c2d1ebcfe3ef0b5c185a29a821041"
     },
     "DOCKER.md": {
       "sha256": "406e98c9910e71636f807169e6092cf04c6a82f450d915430a718647ebb1f824"
@@ -70,7 +70,7 @@
       "sha256": "90441f19e84cb77a9f4302d50dd3e9178011f8d1e2e20df43775838711589783"
     },
     "Makefile": {
-      "sha256": "d2bbfda7dc723b40863cd0a09e5ac870839988f7da01b10f3de8663265f0c0ce"
+      "sha256": "b19655e3083658855f1925e78b4cb5c3a13aa68e1a1c37bf946b70a2c7e55deb"
     },
     "commitlint.config.mjs": {
       "sha256": "ae0ebfa1b37453c8e29eff7c5af0b8eec5dc73f373298288cf7d79692b76daea"
@@ -184,7 +184,7 @@
       "sha256": "a97b0baf52eac190335bcbe47edde1b9ee47d16cd34965455fc72754860e0947"
     },
     "scripts/create_pr_epic.sh": {
-      "sha256": "a42ac60644a805a79af30adba12fe1d9881a42f1c803b51611b79588f87135f4"
+      "sha256": "7fe88f8cdddf40bd1957c7735d16e71d364a27df9857f1a09fed4f12d19350ae"
     },
     "scripts/create_sync_hardening_issues.py": {
       "sha256": "a214a35207d46882354f5ee23cc5f6945ca78c64f4cd671e4958f080994a7d12"
@@ -256,9 +256,9 @@
       "sha256": "eac4b80328394dacc977662feaf2f59062fde36d33d5ab7976ffd9be407413f0"
     }
   },
-  "generated_at_utc": "2026-05-04T02:10:55Z",
-  "requested_ref": "v1.22.0",
-  "resolved_ref": "370d227410a88d8b6205d8c661eddf7a5cc58bac",
+  "generated_at_utc": "2026-05-07T15:22:23Z",
+  "requested_ref": "v1.22.2",
+  "resolved_ref": "8968a90e693c20fd2525fe78e6f7e8614ad432a8",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

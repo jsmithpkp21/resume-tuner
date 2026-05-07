@@ -137,14 +137,20 @@ without remembering the epic name:
 make pr-epic ISSUE=87
 ```
 
-Resolution order for the PR base (first match wins):
+Resolution order for the PR base (the first non-empty input wins;
+auto-detect runs only when neither `BASE` nor `EPIC` is supplied):
 
 1. `BASE=<branch>` — explicit override, used as-is.
 2. `EPIC=<branch>` — explicit epic branch (must already exist on `origin`).
 3. Auto-detect via the GitHub sub-issue parent of the issue, mapped to a
-   matching `epic/<parent>-*` branch on `origin`.
+   matching `epic/<parent>-*` branch on `origin`:
+   - **Exactly one match** → use it as the base.
+   - **Two or more matches** → hard-fail with an `ERROR:` listing the
+     matches and require an explicit `EPIC=`/`BASE=` override. Auto-detect
+     will not silently pick a first match when the wildcard is ambiguous.
+   - **No match** → emit `WARN:` and fall back to `main`.
 4. Fall back to `main`, with a `WARN:` line so the choice is visible in
-   the terminal.
+   the terminal, when the issue has no detectable parent epic.
 
 Common variants:
 
@@ -180,6 +186,10 @@ Troubleshooting:
 - **`explicit EPIC=... does not exist on origin`** — typo or the epic
   branch hasn't been pushed; verify with `git ls-remote --heads origin
   'epic/*'`.
+- **`multiple epic branches match epic/<parent>-* on origin`** — two or
+  more epic branches share the parent issue number, so auto-detect refuses
+  to pick. Pick the right one with `EPIC=<branch>` (or `BASE=main` to skip
+  epic basing entirely).
 
 ### 5. Code Review
 

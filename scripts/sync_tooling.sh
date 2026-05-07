@@ -49,6 +49,31 @@ POTENTIAL_TOOLING_DIR="$(dirname "$SCRIPT_DIR")"
 # Get absolute path of TARGET_DIR for comparison
 TARGET_DIR_ABS="$(cd "$TARGET_DIR" && pwd)"
 
+# Resolve a Python interpreter for sync-time invocations. Post-sync steps
+# (merge_pyproject.py, .release-please-config.json updater) depend on
+# third-party packages (tomli_w) and tomllib (3.11+), which the system python3
+# on PATH may lack. Mirror the venv layout used by scripts/create_env.sh so
+# `make sync-tooling` runs with the same interpreter as `make lint/test/check`.
+#
+# Resolution order:
+#   1. <TARGET>/.venv/bin/python      (in-tree venv, used by some repos)
+#   2. ~/envs/<basename>-env/bin/python (matches scripts/create_env.sh)
+#   3. python3 on PATH                 (fallback; warning emitted on failure)
+SYNC_PYTHON="python3"
+SYNC_PYTHON_FROM_VENV=false
+SYNC_PYTHON_VENV_PATH=""
+SYNC_PYTHON_ENVS_CANDIDATE="$HOME/envs/$(basename "$TARGET_DIR_ABS")-env/bin/python"
+
+if [ -x "$TARGET_DIR_ABS/.venv/bin/python" ]; then
+  SYNC_PYTHON="$TARGET_DIR_ABS/.venv/bin/python"
+  SYNC_PYTHON_FROM_VENV=true
+  SYNC_PYTHON_VENV_PATH="$TARGET_DIR_ABS/.venv"
+elif [ -x "$SYNC_PYTHON_ENVS_CANDIDATE" ]; then
+  SYNC_PYTHON="$SYNC_PYTHON_ENVS_CANDIDATE"
+  SYNC_PYTHON_FROM_VENV=true
+  SYNC_PYTHON_VENV_PATH="${SYNC_PYTHON_ENVS_CANDIDATE%/bin/python}"
+fi
+
 is_valid_tooling_dir() {
   local dir="$1"
   [ -d "$dir" ] && [ -f "$dir/scripts/sync_tooling.sh" ] && [ -f "$dir/Makefile" ]
@@ -59,8 +84,8 @@ is_valid_tooling_dir() {
 normalize_sync_path() {
   local file_path="$1"
 
-  if command -v python3 >/dev/null 2>&1; then
-    python3 - "$TARGET_DIR_ABS" "$file_path" 2>/dev/null <<'PY' || true
+  if [ -x "$SYNC_PYTHON" ] || command -v "$SYNC_PYTHON" >/dev/null 2>&1; then
+    "$SYNC_PYTHON" - "$TARGET_DIR_ABS" "$file_path" 2>/dev/null <<'PY' || true
 import os
 import sys
 
@@ -334,7 +359,7 @@ write_sync_lock() {
     return 1
   fi
 
-  python3 - "$lock_path" "$target_root" "$requested_ref" "$resolved_ref" "$source_mode" "$tooling_repo" "$@" <<'PY'
+  "$SYNC_PYTHON" - "$lock_path" "$target_root" "$requested_ref" "$resolved_ref" "$source_mode" "$tooling_repo" "$@" <<'PY'
 import datetime as dt
 import hashlib
 import json
@@ -474,7 +499,7 @@ if [ ! -f "$MANIFEST_FILE" ]; then
   exit 1
 fi
 _sync_files_tmp=$(mktemp)
-if ! python3 - "$MANIFEST_FILE" > "$_sync_files_tmp" <<'PY'
+if ! "$SYNC_PYTHON" - "$MANIFEST_FILE" > "$_sync_files_tmp" <<'PY'
 import sys
 manifest_path = sys.argv[1]
 try:
@@ -514,7 +539,7 @@ PRIOR_LOCK_FILE="$TARGET_DIR/.tooling-sync-manifest.lock"
 PREVIOUS_MANAGED_FILES=()
 if [ -f "$PRIOR_LOCK_FILE" ]; then
   _previous_files_tmp="$(mktemp)"
-  if python3 - "$PRIOR_LOCK_FILE" > "$_previous_files_tmp" <<'PY'
+  if "$SYNC_PYTHON" - "$PRIOR_LOCK_FILE" > "$_previous_files_tmp" <<'PY'
 import json
 import sys
 
@@ -760,10 +785,21 @@ if [ -f "$TARGET_DIR/.pyproject.meta.toml" ]; then
       merge_args+=(--tooling-dir "$TOOLING_DIR")
     fi
 
-    if python3 "${merge_args[@]}"; then
+    if "$SYNC_PYTHON" "${merge_args[@]}"; then
       echo "✓ Generated pyproject.toml from metadata"
     else
+      # When the consumer venv was successfully resolved the merge depends on
+      # tomli_w being installed there; a failure is a real bug rather than a
+      # missing dep, so refuse to mask it with a warning.
+      if [ "$SYNC_PYTHON_FROM_VENV" = true ]; then
+        echo "ERROR: Failed to generate pyproject.toml using consumer venv interpreter ($SYNC_PYTHON)."
+        echo "       Inspect .pyproject.meta.toml and tooling/pyproject.toml for the underlying error."
+        exit 1
+      fi
       echo "⚠ Warning: Failed to generate pyproject.toml. Check .pyproject.meta.toml and tooling/pyproject.toml"
+      echo "  No consumer venv was found at $TARGET_DIR_ABS/.venv or $SYNC_PYTHON_ENVS_CANDIDATE."
+      echo "  Falling back to system python3, which may lack tomli_w. Run 'make setup' to provision the venv,"
+      echo "  then re-run 'make sync-tooling' so the regeneration step runs under the consumer interpreter."
     fi
   fi
 fi
@@ -776,7 +812,7 @@ if [ -f "$TARGET_DIR/.release-please-config.json" ] && [ -f "$TARGET_DIR/.pyproj
 
   # Attempt update with Python (requires 3.11+ for tomllib)
   # If this fails, emit warning but don't abort entire sync
-  if python3 << PYTHON_END
+  if "$SYNC_PYTHON" << PYTHON_END
 import json
 import sys
 try:
@@ -819,6 +855,11 @@ PYTHON_END
   then
     : # Success - Python block updated config
   else
+    if [ "$SYNC_PYTHON_FROM_VENV" = true ]; then
+      echo "ERROR: Failed to update .release-please-config.json using consumer venv interpreter ($SYNC_PYTHON)."
+      echo "       Inspect .pyproject.meta.toml and .release-please-config.json for the underlying error."
+      exit 1
+    fi
     echo "⚠ Warning: Could not update .release-please-config.json (Python 3.11+ or valid TOML required)"
     echo "  You may need to manually set 'package-name' in .release-please-config.json"
   fi

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.36.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.35.0...v0.36.0) (2026-05-07)
+
+
+### Features
+
+* **profile:** collapse profile.local override into single gitignored profile.toml ([72072c1](https://github.com/jsmithpkp21/resume-builder/commit/72072c10a3de6531991de27d2bde48dc30bc1373))
+
+
+### Bug Fixes
+
+* **profile:** unbreak CI and address PR [#251](https://github.com/jsmithpkp21/resume-builder/issues/251) Copilot review ([af9d8b8](https://github.com/jsmithpkp21/resume-builder/commit/af9d8b85f4f78428b728f65ffa90cc2f05402afc))
+
 ## [0.35.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.34.0...v0.35.0) (2026-05-07)
 
 

@@ -312,8 +312,12 @@ def parse_args() -> argparse.Namespace:
             "auto-derives the slug in two tiers: first the deterministic "
             "regex/heuristic in scripts/jd_ingest.py; then an LLM "
             "extraction fallback (only when RESUME_BUILDER_LLM_ENABLED=1 "
-            "or fixture mode is active). Falls back to 'company' if both "
-            "tiers come up empty."
+            "or fixture mode is active). If a JD is supplied and both "
+            "tiers come up empty, build_resume errors out with an "
+            "actionable message rather than silently writing under "
+            "data/outputs/baseline/; pass --company <slug> to bypass for "
+            "one-off cases. When no JD is supplied, falls back to "
+            "'company' (the smoke-run / baseline path)."
         ),
     )
     common.add_argument(
@@ -3393,8 +3397,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
             # a real extraction miss.
             raise ValueError(
                 "Could not derive a company name from the supplied JD. "
-                "Pass --company <slug> to override, or inspect the JD page "
-                "contents."
+                "Pass --company <slug> to override, or inspect the supplied "
+                "JD (URL or file) contents."
             )
         else:
             args.company = COMPANY_PLACEHOLDER_SLUG

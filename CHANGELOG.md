@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.31.0...v0.32.0) (2026-05-07)
+
+
+### Features
+
+* **cover-letter:** add v1 generator with --with-cover-letter orchestration ([#223](https://github.com/jsmithpkp21/resume-builder/issues/223)) ([5fdc636](https://github.com/jsmithpkp21/resume-builder/commit/5fdc6363bcfd3b962e04220beab567270b76c965))
+
 ## [0.31.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.30.2...v0.31.0) (2026-05-07)
 
 

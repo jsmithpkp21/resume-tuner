@@ -52,8 +52,10 @@ confirm() {
 note "Phase 1/4: Preflight checks"
 
 # Required runtime tools, matching the pattern in scripts/create_env.sh:60-66.
-# nvidia-smi has its own check below with WSL-specific remediation.
-REQUIRED_TOOLS=(curl awk grep pgrep df)
+# Lists every external command this script invokes; coreutils + curl + procps
+# cover them all on standard Linux. nvidia-smi has its own check below with
+# WSL-specific remediation.
+REQUIRED_TOOLS=(curl awk grep pgrep df head tail tr mktemp nohup seq sleep)
 for tool in "${REQUIRED_TOOLS[@]}"; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     err "Required runtime tool not found: ${tool}"
@@ -144,7 +146,9 @@ if ! pgrep -x ollama >/dev/null 2>&1; then
     sudo systemctl start ollama || true
   fi
   if ! pgrep -x ollama >/dev/null 2>&1; then
-    note "Starting 'ollama serve' in background (no systemd detected)."
+    # Reached when systemctl is missing, systemd isn't running (typical on
+    # WSL), or 'systemctl start ollama' didn't bring the process up.
+    note "Starting 'ollama serve' in background (ollama service not running)."
     nohup ollama serve >"${OLLAMA_DIR}/serve.log" 2>&1 &
     disown || true
   fi

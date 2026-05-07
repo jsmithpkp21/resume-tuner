@@ -1,0 +1,27 @@
+# Profile template. Copy to `profile.toml` (gitignored) and fill with real
+# values. The build pipeline reads `profile.toml` directly; there is no
+# override/merge layer.
+
+[profile]
+name = ""
+headline = ""
+location = ""
+email = ""
+phone = ""
+website = ""
+linkedin = ""
+github = ""
+summary = ""
+
+[[education]]
+degree = "Bachelor of Science (B.S.) Computer Science"
+institution = "Rochester Institute of Technology"
+location = "Rochester, NY"
+date_range = ""
+notes = "Coursework emphasis on software engineering and systems programming."
+
+[[leadership_community]]
+title = "Technical Mentor (Informal)"
+organization = "HP / Poly"
+date_range = "2008 - Present"
+details = "Provided continuous mentoring across teams through the transition from manual QA to automation engineering, including framework thinking, debugging practices, and test design guidance."

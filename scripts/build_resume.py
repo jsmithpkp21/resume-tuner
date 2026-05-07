@@ -62,7 +62,6 @@ else:
 
 
 DEFAULT_PROFILE = Path("data/profile/profile.toml")
-LOCAL_PROFILE_SUFFIX = ".local.toml"
 DEFAULT_EXPERIENCE_DB = Path("data/experience/experience_db.toml")
 DEFAULT_SKILLS_MATRIX = Path("data/skills/skills_matrix.csv")
 DEFAULT_OUTPUT_BASE = Path("data/outputs")
@@ -126,23 +125,6 @@ PROFILE_SUMMARY_MAX_WORDS = 112
 PROFILE_SUMMARY_MIN_RATIO = 0.8
 LLM_ENABLED_ENV = "RESUME_BUILDER_LLM_ENABLED"
 LLM_FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"
-
-_LOCAL_PROFILE_OVERRIDE_FIELDS = {
-    "name",
-    "headline",
-    "location",
-    "email",
-    "phone",
-    "website",
-    "linkedin",
-    "github",
-}
-
-_LOCAL_PROFILE_SECTION_OVERRIDE_FIELDS = {
-    "education",
-    "leadership_community",
-}
-
 
 logger = logging.getLogger(__name__)
 
@@ -448,7 +430,6 @@ def _read_toml(path: Path) -> dict[str, Any]:
 
 def load_profile(path: Path) -> Profile:
     payload = _read_toml(path)
-    payload = _merge_profile_local_override(path, payload)
     data = payload.get("profile", {})
     if not isinstance(data, dict):
         raise ValueError("profile.toml must contain a [profile] table")
@@ -503,57 +484,6 @@ def load_profile(path: Path) -> Profile:
         education_entries=education_entries,
         leadership_community_entries=leadership_community_entries,
     )
-
-
-def _profile_local_override_path(path: Path) -> Path:
-    if path.name.endswith(".toml"):
-        return path.with_name(path.name[: -len(".toml")] + LOCAL_PROFILE_SUFFIX)
-    return path.with_name(path.name + LOCAL_PROFILE_SUFFIX)
-
-
-def _merge_profile_local_override(
-    path: Path, payload: dict[str, Any]
-) -> dict[str, Any]:
-    if path.name.endswith(LOCAL_PROFILE_SUFFIX):
-        raise ValueError(
-            f"{path.name} is already a local override file; pass the tracked base profile .toml path"
-        )
-
-    local_path = _profile_local_override_path(path)
-    if local_path.exists() and not local_path.is_file():
-        raise ValueError(f"{local_path.name} must be a regular file")
-    if not local_path.exists():
-        return payload
-
-    local_payload = _read_toml(local_path)
-    local_profile = local_payload.get("profile", {})
-    if not isinstance(local_profile, dict):
-        raise ValueError(f"{local_path.name} must contain a [profile] table")
-
-    base_profile = payload.get("profile", {})
-    if not isinstance(base_profile, dict):
-        raise ValueError(f"{path.name} must contain a [profile] table")
-
-    merged_payload = dict(payload)
-    merged_profile = dict(base_profile)
-    for field_name in _LOCAL_PROFILE_OVERRIDE_FIELDS:
-        if field_name in local_profile:
-            merged_profile[field_name] = local_profile[field_name]
-    merged_payload["profile"] = merged_profile
-
-    for section_name in _LOCAL_PROFILE_SECTION_OVERRIDE_FIELDS:
-        if section_name not in local_payload:
-            continue
-        section_data = local_payload[section_name]
-        if not isinstance(section_data, list):
-            raise ValueError(
-                f"{local_path.name} {section_name} must use [[{section_name}]] entries"
-            )
-        if any(not isinstance(item, dict) for item in section_data):
-            raise ValueError(f"{local_path.name} {section_name} entries must be tables")
-        merged_payload[section_name] = section_data
-
-    return merged_payload
 
 
 def _normalize_linkedin_slug(value: str) -> str:

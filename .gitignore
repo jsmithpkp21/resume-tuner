@@ -32,8 +32,8 @@ sandbox/
 
 # Generated review artifacts
 data/review/
-# Local-only personal profile overrides
-data/profile/profile.local.toml
+# Personal profile data (single-file model; copy data/profile/profile.example.toml to seed)
+data/profile/profile.toml
 # Legacy explicit entries kept for readability while migrating review outputs to sandbox
 data/review/packets/
 # Visual diff working files (regenerated each run)

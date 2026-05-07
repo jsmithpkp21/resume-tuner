@@ -142,178 +142,6 @@ summary = ""
     assert profile.github == "test-user"
 
 
-def test_load_profile_applies_local_override_for_personal_fields(
-    tmp_path: Path,
-) -> None:
-    profile_path = tmp_path / "profile.toml"
-    profile_path.write_text(
-        """
-[profile]
-name = "Baseline Name"
-headline = "Engineer"
-location = "Austin"
-email = "baseline@example.com"
-phone = "111"
-website = ""
-linkedin = "baseline-linkedin"
-github = "baseline-github"
-summary = "tracked summary"
-
-[[education]]
-degree = "Baseline Degree"
-
-[[leadership_community]]
-title = "Baseline Leadership"
-""".strip()
-        + "\n",
-        encoding="utf-8",
-    )
-
-    local_path = tmp_path / "profile.local.toml"
-    local_path.write_text(
-        """
-[profile]
-name = "Local Name"
-headline = "Senior Staff Software Engineer"
-email = "local@example.com"
-phone = "222"
-linkedin = "local-linkedin"
-github = "local-github"
-summary = "should not override"
-
-[[education]]
-degree = "Local Degree"
-
-[[leadership_community]]
-title = "Local Leadership"
-""".strip()
-        + "\n",
-        encoding="utf-8",
-    )
-
-    profile = load_profile(profile_path)
-    assert profile.name == "Local Name"
-    assert profile.headline == "Senior Staff Software Engineer"
-    assert profile.email == "local@example.com"
-    assert profile.phone == "222"
-    assert profile.linkedin == "local-linkedin"
-    assert profile.github == "local-github"
-    # Keep non-personal copy in tracked baseline profile.
-    assert profile.summary == "tracked summary"
-    # Optional local sections replace tracked sections when present.
-    assert profile.education_entries[0].degree == "Local Degree"
-    assert profile.leadership_community_entries[0].title == "Local Leadership"
-
-
-def test_load_profile_rejects_non_file_local_override(tmp_path: Path) -> None:
-    profile_path = tmp_path / "profile.toml"
-    profile_path.write_text(
-        """
-[profile]
-name = "Baseline Name"
-headline = "Engineer"
-location = ""
-email = ""
-phone = ""
-website = ""
-linkedin = ""
-github = ""
-summary = "tracked summary"
-""".strip()
-        + "\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "profile.local.toml").mkdir()
-
-    with pytest.raises(ValueError, match="regular file"):
-        load_profile(profile_path)
-
-
-def test_load_profile_local_override_error_mentions_derived_filename(
-    tmp_path: Path,
-) -> None:
-    profile_path = tmp_path / "candidate-profile.toml"
-    profile_path.write_text(
-        """
-[profile]
-name = "Baseline Name"
-headline = "Engineer"
-location = ""
-email = ""
-phone = ""
-website = ""
-linkedin = ""
-github = ""
-summary = "tracked summary"
-""".strip()
-        + "\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "candidate-profile.local.toml").mkdir()
-
-    with pytest.raises(ValueError, match="candidate-profile.local.toml"):
-        load_profile(profile_path)
-
-
-def test_load_profile_rejects_local_override_as_base_path(tmp_path: Path) -> None:
-    local_profile_path = tmp_path / "profile.local.toml"
-    local_profile_path.write_text(
-        """
-[profile]
-name = "Local Name"
-headline = "Engineer"
-location = ""
-email = ""
-phone = ""
-website = ""
-linkedin = ""
-github = ""
-summary = ""
-""".strip()
-        + "\n",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="already a local override file"):
-        load_profile(local_profile_path)
-
-
-def test_load_profile_rejects_non_table_local_section_entry(tmp_path: Path) -> None:
-    profile_path = tmp_path / "profile.toml"
-    profile_path.write_text(
-        """
-[profile]
-name = "Baseline Name"
-headline = "Engineer"
-location = ""
-email = ""
-phone = ""
-website = ""
-linkedin = ""
-github = ""
-summary = "tracked summary"
-""".strip()
-        + "\n",
-        encoding="utf-8",
-    )
-    local_path = tmp_path / "profile.local.toml"
-    local_path.write_text(
-        """
-education = ["invalid-entry"]
-
-[profile]
-name = "Local Name"
-""".strip()
-        + "\n",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(
-        ValueError, match="profile.local.toml education entries must be tables"
-    ):
-        load_profile(profile_path)
-
-
 def test_load_profile_rejects_blocked_path() -> None:
     blocked = REPO_ROOT / "data" / "samples" / "profile.toml"
     with pytest.raises(ValueError, match="blocked runtime directory"):
@@ -2889,7 +2717,7 @@ def test_trim_by_rules_line_budget_removes_low_confidence_bullets_over_budget(
 def _make_minimal_budget_profile() -> build_resume.Profile:
     """Return a deterministic Profile for bullet-line budget tests.
     Using a fixed inline Profile instead of load_profile(PROFILE) avoids
-    non-determinism from profile.local overrides on contributor machines.
+    non-determinism from per-contributor profile.toml content.
     """
     return build_resume.Profile(
         name="Budget Test Person",
@@ -3613,7 +3441,7 @@ def test_generate_profile_summary_avoids_double_punctuation(
     result = summarize_profile_for_role(resume)
 
     # Word count must not exceed the cap; the exact count depends on profile content
-    # (e.g. a profile.local.toml override can vary the opening fragment length).
+    # (per-contributor profile.toml can vary the opening fragment length).
     assert len(result.profile.summary.split()) <= max_words, (
         f"Summary exceeds max_words={max_words}: {result.profile.summary!r}"
     )

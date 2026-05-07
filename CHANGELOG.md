@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.36.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.36.0...v0.36.1) (2026-05-07)
+
+
+### Bug Fixes
+
+* **jd-ingest:** address Copilot round 2 on PR [#249](https://github.com/jsmithpkp21/resume-builder/issues/249) ([4487425](https://github.com/jsmithpkp21/resume-builder/commit/44874251f95fa681767f2e47680f33bd9b0b44ea))
+* **jd-ingest:** guard generic-subdomain strip against apex domains ([572631f](https://github.com/jsmithpkp21/resume-builder/commit/572631f6c68753137043a43761b6fc6926bf985d))
+* **jd-ingest:** warn on empty fetch + smarter URL fallback ([#247](https://github.com/jsmithpkp21/resume-builder/issues/247)) ([2d8457b](https://github.com/jsmithpkp21/resume-builder/commit/2d8457b727dcf61ffce1ebdbae34138b89d754b8))
+
+
+### Documentation
+
+* **jd-ingest:** align comments with actual runtime behavior ([2240a1b](https://github.com/jsmithpkp21/resume-builder/commit/2240a1ba7d50c0bf063b2bfb6d6ab12ba26581e5))
+
 ## [0.36.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.35.0...v0.36.0) (2026-05-07)
 
 

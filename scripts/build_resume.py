@@ -44,6 +44,7 @@ else:
 if __package__ in {None, ""}:
     import document_export
     from _runtime_guard import assert_not_blocked_runtime_input
+    from cover_letter import generate_cover_letter
     from jd_ingest import JobContext, ingest_job_context, ingest_job_text
     from llm_client import LLMClient
     from measurable_outcomes import (
@@ -52,6 +53,7 @@ if __package__ in {None, ""}:
 else:
     from scripts import document_export
     from scripts._runtime_guard import assert_not_blocked_runtime_input
+    from scripts.cover_letter import generate_cover_letter
     from scripts.jd_ingest import JobContext, ingest_job_context, ingest_job_text
     from scripts.llm_client import LLMClient
     from scripts.measurable_outcomes import (
@@ -272,7 +274,8 @@ def parse_args() -> argparse.Namespace:
             "Build tailored resume outputs from profile, experience, "
             "and skills inputs.\n\n"
             "Typical usage:\n"
-            "  python scripts/build_resume.py --job-url <url>\n\n"
+            "  python scripts/build_resume.py --job-url <url>\n"
+            "  python scripts/build_resume.py --job-url <url> --cover-letter\n\n"
             "Override flags are listed under 'Advanced' for power users / debug."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -343,6 +346,18 @@ def parse_args() -> argparse.Namespace:
             "processed runs transform/trim/enrich/rule/select stages "
             "(submission-ready default); raw keeps canonical content "
             "unfiltered (baseline contract / debug)."
+        ),
+    )
+    common.add_argument(
+        "--cover-letter",
+        dest="cover_letter",
+        action="store_true",
+        default=False,
+        help=(
+            "Also generate a tailored cover letter alongside the resume, "
+            "written under <output-dir>/cover_letters/. Currently emits a "
+            "clearly-marked placeholder; full generator is tracked in "
+            "issue #229."
         ),
     )
 
@@ -3507,6 +3522,20 @@ def run_pipeline(args: argparse.Namespace) -> int:
         secondary_html_output.unlink(missing_ok=True)
     if needs_md_render_source and not needs_md:
         md_output.unlink(missing_ok=True)
+
+    if getattr(args, "cover_letter", False):
+        cover_letter_dir = args.output_dir / COVER_LETTER_OUTPUT_SUBDIR
+        cover_letter_paths = generate_cover_letter(
+            args=args,
+            output_dir=cover_letter_dir,
+            company=args.company,
+            role=resolved_target_role,
+        )
+        written_paths.extend(cover_letter_paths)
+        print(
+            "Cover letter (placeholder — see issue #229) written to: "
+            f"{cover_letter_dir}"
+        )
 
     print(f"Resume output written to ({args.processing_mode} mode): {resume_dir}")
     for path in written_paths:

@@ -4746,6 +4746,78 @@ def test_apply_display_experience_selection_filters_enrichment_for_removed_roles
 
 
 # ---------------------------------------------------------------------------
+# --cover-letter flag stub (issue #227; real generator: #229)
+# ---------------------------------------------------------------------------
+
+
+def test_build_resume_cli_cover_letter_flag_emits_stub(tmp_path: Path) -> None:
+    """--cover-letter writes a placeholder markdown file under cover_letters/."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _run_build_resume_cli(
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        profile_path=profile_path,
+        output_dir=output_dir,
+        extra_args=("--cover-letter",),
+    )
+    assert result.returncode == 0, result.stderr
+
+    cover_letter_dir = output_dir / "cover_letters"
+    expected_path = cover_letter_dir / "company_cover_letter.md"
+    assert expected_path.exists()
+    body = expected_path.read_text(encoding="utf-8")
+    assert "placeholder" in body.lower()
+    assert "issue #229" in body
+    assert "placeholder" in result.stdout.lower()
+
+
+def test_build_resume_cli_no_cover_letter_flag_skips_cover_letter_dir(
+    tmp_path: Path,
+) -> None:
+    """Without --cover-letter, no cover_letters/ subdir is created."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = _run_build_resume_cli(
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        profile_path=profile_path,
+        output_dir=output_dir,
+    )
+    assert result.returncode == 0, result.stderr
+    assert not (output_dir / "cover_letters").exists()
+
+
+def test_run_pipeline_tolerates_namespace_without_cover_letter_attr(
+    tmp_path: Path,
+) -> None:
+    """run_pipeline must default to no cover letter when the field is absent."""
+    import argparse
+
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+    output_dir = tmp_path / "out"
+
+    pipeline_args = argparse.Namespace(
+        profile=profile_path,
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        skills_matrix=REPO_ROOT / "data" / "skills" / "skills_matrix.csv",
+        job_url="",
+        job_text_file=None,
+        target_role="Staff Software Engineer",
+        output_dir=output_dir,
+        processing_mode="raw",
+        outputs=("html", "md"),
+        template="modern",
+    )
+    rc = build_resume.run_pipeline(pipeline_args)
+    assert rc == 0
+    assert not (output_dir / "cover_letters").exists()
+
+
+# ---------------------------------------------------------------------------
 # --outputs flag (issue #206)
 # ---------------------------------------------------------------------------
 

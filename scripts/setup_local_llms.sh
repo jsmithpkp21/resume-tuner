@@ -28,9 +28,10 @@ MODELS=(
   "gemma2:9b"
   "qwen2.5:14b-instruct-q3_K_M"
 )
-MIN_FREE_GB=25         # ~18 GB weights + headroom for partial pulls
-MIN_FREE_VRAM_GB=8     # largest loaded model (~7.5 GB) plus KV cache headroom
-GPU_PASS_THRESHOLD=95  # smoke test: model must run at >=N% on GPU to pass
+MIN_FREE_GB=25            # ~18 GB weights + headroom for partial pulls
+MIN_FREE_VRAM_MIB=8192    # largest loaded model (~7.5 GB) plus KV cache headroom
+GPU_PASS_THRESHOLD=95     # smoke test: model must run at >=N% on GPU to pass
+SMOKE_PS_POLL_SECONDS=3   # max wait for 'ollama ps' to reflect a freshly-run model
 
 # --- Helpers -------------------------------------------------------------
 note() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
@@ -81,16 +82,23 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
 # VRAM headroom check. On WSL2 the Windows host already consumes 1-3 GB of
 # VRAM for the desktop / browsers / etc., so total memory.total overstates
 # what's actually available to Ollama. memory.free reflects reality.
+#
+# Compare in MiB rather than GiB to avoid integer-division flooring near the
+# boundary (e.g. 8191 MiB would round down to 7 GiB and falsely fail an
+# 8 GiB requirement).
 total_vram_mib="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1 | tr -d ' ')"
 free_vram_mib="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits | head -1 | tr -d ' ')"
-free_vram_gb=$((free_vram_mib / 1024))
-total_vram_gb=$((total_vram_mib / 1024))
-if [ "$free_vram_gb" -lt "$MIN_FREE_VRAM_GB" ]; then
-  err "Need at least ${MIN_FREE_VRAM_GB} GB free VRAM (have ~${free_vram_gb} GB free of ${total_vram_gb} GB)."
+if [ "$free_vram_mib" -lt "$MIN_FREE_VRAM_MIB" ]; then
+  min_gib_display=$(awk -v m="$MIN_FREE_VRAM_MIB" 'BEGIN{printf "%.1f", m/1024}')
+  free_gib_display=$(awk -v m="$free_vram_mib" 'BEGIN{printf "%.1f", m/1024}')
+  total_gib_display=$(awk -v m="$total_vram_mib" 'BEGIN{printf "%.1f", m/1024}')
+  err "Need at least ${min_gib_display} GiB free VRAM (have ${free_gib_display} GiB free of ${total_gib_display} GiB)."
   err "Close GPU-using apps on the Windows host (browsers, video calls, games) and retry."
   exit 1
 fi
-note "VRAM: ~${free_vram_gb} GB free of ${total_vram_gb} GB total."
+free_gib_display=$(awk -v m="$free_vram_mib" 'BEGIN{printf "%.1f", m/1024}')
+total_gib_display=$(awk -v m="$total_vram_mib" 'BEGIN{printf "%.1f", m/1024}')
+note "VRAM: ${free_gib_display} GiB free of ${total_gib_display} GiB total."
 
 OLLAMA_DIR="${HOME}/.ollama"
 mkdir -p "$OLLAMA_DIR"
@@ -113,7 +121,19 @@ if command -v ollama >/dev/null 2>&1; then
   note "Ollama already installed: $(ollama --version 2>/dev/null | head -1 || echo 'unknown')"
 else
   note "Installing Ollama via official installer (TOFU; see TODO at top of script)."
-  curl -fsSL https://ollama.com/install.sh | sh
+  # Download to a temp file before executing rather than piping curl into sh.
+  # Still trust-on-first-use, but auditable on failure (the installer is on
+  # disk for inspection) and the structure is what #224 will graft a
+  # sha256 verification step onto.
+  installer="$(mktemp -t ollama-install.XXXXXX.sh)"
+  trap 'rm -f "$installer"' EXIT
+  if ! curl -fsSL https://ollama.com/install.sh -o "$installer"; then
+    err "Failed to download Ollama installer from https://ollama.com/install.sh"
+    exit 1
+  fi
+  sh "$installer"
+  rm -f "$installer"
+  trap - EXIT
 fi
 
 # Make sure the daemon is up. The installer registers a systemd unit on
@@ -165,9 +185,20 @@ for m in "${MODELS[@]}"; do
   note "  Smoke test: $m"
   # </dev/null prevents 'ollama run' from hanging on stdin in non-tty contexts.
   ollama run "$m" "Reply with exactly: OK" </dev/null >/dev/null 2>&1
-  ps_out="$(ollama ps 2>/dev/null)"
-  # awk first-column match: avoids regex-metachar issues with '.' in tags.
-  line="$(awk -v m="$m" '$1 == m' <<<"$ps_out" || true)"
+
+  # Poll 'ollama ps' briefly: the daemon may not reflect a freshly-run model
+  # synchronously, especially on cold starts. awk first-column match avoids
+  # regex-metachar issues with '.' in tags.
+  line=""
+  attempts=$(( SMOKE_PS_POLL_SECONDS * 5 ))   # 0.2s per attempt
+  for (( i = 0; i < attempts; i++ )); do
+    ps_out="$(ollama ps 2>/dev/null)"
+    line="$(awk -v m="$m" '$1 == m' <<<"$ps_out" || true)"
+    if [ -n "$line" ]; then
+      break
+    fi
+    sleep 0.2
+  done
 
   # Parse the PROCESSOR column. Two shapes seen in 'ollama ps':
   #   "100% GPU"            -> fully on GPU

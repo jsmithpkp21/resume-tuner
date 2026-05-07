@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.33.1...v0.33.2) (2026-05-07)
+
+
+### Bug Fixes
+
+* **cli:** validate cover-letter argparse numeric flag ranges ([1db676b](https://github.com/jsmithpkp21/resume-builder/commit/1db676b0a877f9edb59aae3c669d01d43f30f542))
+
 ## [0.33.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.33.0...v0.33.1) (2026-05-07)
 
 

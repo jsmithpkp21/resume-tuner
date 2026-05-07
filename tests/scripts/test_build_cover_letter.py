@@ -921,6 +921,54 @@ def test_outputs_filter_propagates_to_cover_letter(
     assert captured["ns"].outputs == ("pdf",)
 
 
+def test_outputs_empty_tuple_passes_through_not_defaulted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An explicitly empty `outputs` is forwarded as-is.
+
+    The orchestrated path defaults only when the attribute is missing
+    (`getattr` returns None), so programmatic callers that opt out of
+    artifacts get the same behavior as the standalone CLI rather than
+    silently rehydrating defaults.
+    """
+    if __package__ in {None, ""}:
+        from scripts import cover_letter
+    else:
+        from scripts import cover_letter
+
+    captured: dict[str, argparse.Namespace] = {}
+
+    def fake_run(ns: argparse.Namespace) -> tuple[list[Path], list[str]]:
+        captured["ns"] = ns
+        return ([], [])
+
+    monkeypatch.setattr(
+        "scripts.build_cover_letter.run_pipeline_collecting_paths",
+        fake_run,
+        raising=True,
+    )
+
+    resume_args = argparse.Namespace(
+        profile=tmp_path / "profile.toml",
+        experience_db=tmp_path / "experience_db.toml",
+        job_url="",
+        job_text_file=tmp_path / "jd.txt",
+        target_role="",
+        include_private_projects=False,
+        verbose=False,
+        outputs=(),
+    )
+
+    cover_letter.generate_cover_letter(
+        args=resume_args,
+        output_dir=tmp_path / "cover_letters",
+        company="Graphcore",
+        role="",
+    )
+
+    assert captured["ns"].outputs == ()
+
+
 def test_outputs_default_when_resume_omits_outputs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

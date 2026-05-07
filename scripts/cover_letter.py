@@ -38,7 +38,11 @@ def generate_cover_letter(
     # Honor build_resume's --outputs filter so the cover letter and resume
     # share the same artifact set. Both surfaces define the same valid
     # tokens (pdf, docx, md, html), so a direct pass-through is safe.
-    requested_outputs = getattr(args, "outputs", None) or _cl.DEFAULT_OUTPUTS
+    # Default only when the attribute is missing (older callers) — an
+    # explicit empty selection is forwarded as-is so the downstream
+    # pipeline behaves the same as the standalone CLI.
+    outputs_attr = getattr(args, "outputs", None)
+    requested_outputs = _cl.DEFAULT_OUTPUTS if outputs_attr is None else outputs_attr
     cl_ns = argparse.Namespace(
         profile=args.profile,
         experience_db=args.experience_db,

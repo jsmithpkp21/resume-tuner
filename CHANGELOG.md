@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.31.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.30.2...v0.31.0) (2026-05-07)
+
+
+### Features
+
+* **build_resume:** add --cover-letter flag with placeholder generator ([7c9cbbb](https://github.com/jsmithpkp21/resume-builder/commit/7c9cbbb607d93634f0fd724780b69e38c066be0b))
+* **build_resume:** tune defaults and split outputs into per-slug subdirs ([2417797](https://github.com/jsmithpkp21/resume-builder/commit/2417797b0e12f607d5ddf9935c4f0a12ba55648d)), closes [#227](https://github.com/jsmithpkp21/resume-builder/issues/227)
+
+
+### Bug Fixes
+
+* **build_resume:** address Copilot review feedback on PR [#231](https://github.com/jsmithpkp21/resume-builder/issues/231) ([112dd4a](https://github.com/jsmithpkp21/resume-builder/commit/112dd4a585e97c793d1353457de67f543a78c1f8))
+* **build_resume:** satisfy strict mypy and patch overrides-test path ([f0150c5](https://github.com/jsmithpkp21/resume-builder/commit/f0150c55ae7b09e5e6538ea2629f68a3e0187d99)), closes [#227](https://github.com/jsmithpkp21/resume-builder/issues/227)
+
+
+### Documentation
+
+* lead build_resume usage with one-liner; document split output layout ([7e828b1](https://github.com/jsmithpkp21/resume-builder/commit/7e828b10954d99f5064ab36ea1dbebf489c143ae)), closes [#227](https://github.com/jsmithpkp21/resume-builder/issues/227)
+
 ## [0.30.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.30.1...v0.30.2) (2026-05-06)
 
 

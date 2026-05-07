@@ -3266,14 +3266,25 @@ def _warn_if_jd_ingest_empty(*, job_context: JobContext, job_url: str) -> None:
     excerpt_len = len(job_context.description_excerpt or "")
     if excerpt_len >= _MIN_JD_DESCRIPTION_CHARS:
         return
+    if _llm_stage_enabled():
+        effect_line = (
+            "  Effect: LLM tailoring stages will run on near-empty context, "
+            "producing a resume close to the un-tailored baseline."
+        )
+    else:
+        effect_line = (
+            "  Effect: LLM tailoring is disabled, so this build is the "
+            "un-tailored baseline regardless. Set RESUME_BUILDER_LLM_ENABLED=1 "
+            "(or fixture mode) to enable JD-conditioned stages — though they "
+            "will also run on near-empty context until the JD body is recovered."
+        )
     print(
         "WARNING: JD ingest produced little or no usable content for the "
         f"supplied --job-url ({excerpt_len} chars).\n"
         f"  URL: {job_url}\n"
         "  Likely cause: the JD body is rendered by client-side JavaScript "
         "and the static HTML fetcher only saw the navigation shell.\n"
-        "  Effect: LLM tailoring stages will run on near-empty context, "
-        "producing a resume close to the un-tailored baseline.\n"
+        f"{effect_line}\n"
         "  Workaround: copy the JD text into a file and rerun with "
         "--job-text-file <path> instead of --job-url.\n"
         "  Tracking: https://github.com/jsmithpkp21/resume-builder/issues/247",

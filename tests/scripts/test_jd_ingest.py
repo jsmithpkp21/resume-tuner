@@ -20,6 +20,7 @@ import pytest
 from scripts.jd_ingest import (
     _extract_company_name,
     _extract_role_from_title,
+    _infer_source,
 )
 
 # --- _extract_company_name: ATS path-slug for Workable -------------------
@@ -38,6 +39,30 @@ def test_workable_apply_subdomain_uses_path_slug_for_company() -> None:
         description="",
     )
     assert name == "murmuration"
+
+
+def test_workable_apply_subdomain_classifies_as_ats() -> None:
+    """apply.workable.com is an ATS host (path-slug pattern)."""
+    assert _infer_source("apply.workable.com") == "ats"
+
+
+@pytest.mark.parametrize(
+    "netloc",
+    [
+        # Round-2 review on PR #249: only apply.workable.com is the JD-board
+        # surface; the apex / marketing / docs / help domains must not be
+        # classified as ATS, otherwise _extract_ats_company_slug would take
+        # the first path segment as the "company" on a non-job page.
+        "workable.com",
+        "www.workable.com",
+        "help.workable.com",
+        "support.workable.com",
+        "docs.workable.com",
+    ],
+)
+def test_non_apply_workable_hostnames_are_not_ats(netloc: str) -> None:
+    """Marketing / docs / help workable.com hosts are not ATS job boards."""
+    assert _infer_source(netloc) != "ats"
 
 
 # --- _extract_company_name: generic-subdomain skipping -------------------
@@ -161,3 +186,23 @@ def test_extract_role_from_title_keeps_real_role_with_separator() -> None:
         )
         == "Staff Software Engineer"
     )
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Careers - Acme Corp",
+        "Jobs - Acme Corp",
+        "Open Positions - Acme Corp",
+        "  careers  -  Acme Corp",
+    ],
+)
+def test_extract_role_from_title_rejects_generic_lhs_after_split(
+    title: str,
+) -> None:
+    """Round-2 review on PR #249: generic LHS of the ' - ' split is rejected.
+
+    Before this fix, 'Careers - Acme Corp' returned 'Careers' as the role
+    because the generic-title check only ran on the un-split string.
+    """
+    assert _extract_role_from_title(source="company-site", title=title) == ""

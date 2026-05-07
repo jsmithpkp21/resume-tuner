@@ -5409,3 +5409,37 @@ def test_warn_if_jd_ingest_empty_silent_when_excerpt_is_substantive(
     )
     err = capsys.readouterr().err
     assert err == ""
+
+
+def test_warn_if_jd_ingest_empty_text_with_llm_enabled(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With LLM stages on, the effect line names the LLM-tailoring impact."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    monkeypatch.delenv("RESUME_BUILDER_LLM_FIXTURE", raising=False)
+    build_resume._warn_if_jd_ingest_empty(
+        job_context=_make_job_context(""),
+        job_url="https://example.com/job",
+    )
+    err = capsys.readouterr().err
+    assert "LLM tailoring stages will run on near-empty context" in err
+
+
+def test_warn_if_jd_ingest_empty_text_with_llm_disabled(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With LLM off, the effect line says so explicitly so users aren't misled.
+
+    Round-2 review on PR #249: previous wording presumed LLM stages would
+    run, but they're gated by _llm_stage_enabled().
+    """
+    monkeypatch.delenv("RESUME_BUILDER_LLM_ENABLED", raising=False)
+    monkeypatch.delenv("RESUME_BUILDER_LLM_FIXTURE", raising=False)
+    build_resume._warn_if_jd_ingest_empty(
+        job_context=_make_job_context(""),
+        job_url="https://example.com/job",
+    )
+    err = capsys.readouterr().err
+    assert "LLM tailoring is disabled" in err
+    assert "RESUME_BUILDER_LLM_ENABLED=1" in err
+    assert "LLM tailoring stages will run on near-empty context" not in err

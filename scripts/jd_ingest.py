@@ -299,17 +299,21 @@ def _truncate_excerpt(text: str, *, limit: int = _MAX_DESCRIPTION_EXCERPT) -> st
 
 # ATS (applicant tracking system) hosts where the URL path's first segment is
 # the hiring company's slug. Example: https://job-boards.greenhouse.io/<slug>/jobs/123.
+# Matched as suffix: domain or *.domain (so any subdomain counts).
 _ATS_PATH_SLUG_DOMAINS: tuple[str, ...] = (
     "greenhouse.io",
     "lever.co",
     "ashbyhq.com",
     "smartrecruiters.com",
     "jobvite.com",
-    # Workable: apply.workable.com/<company>/j/<id>/ — first path segment is
-    # the company slug. The 'apply.' subdomain is treated like a path-slug
-    # ATS for company extraction.
-    "workable.com",
 )
+
+# Path-slug ATS hosts that must be matched *exactly* (not by domain suffix).
+# Workable's marketing / docs / help live at workable.com / www.workable.com /
+# help.workable.com — we don't want to treat those as job-board URLs and
+# pull the first path segment as a company slug. Only apply.workable.com
+# follows the apply.workable.com/<company>/j/<id>/ pattern.
+_ATS_PATH_SLUG_HOSTS: tuple[str, ...] = ("apply.workable.com",)
 # ATS hosts where the netloc subdomain is the hiring company's slug.
 # Example: https://<slug>.bamboohr.com/jobs/view.php?id=...
 _ATS_SUBDOMAIN_DOMAINS: tuple[str, ...] = (
@@ -368,6 +372,8 @@ def _infer_source(netloc: str) -> str:
         return "linkedin"
     if host == "indeed.com" or host.endswith(".indeed.com"):
         return "indeed"
+    if host in _ATS_PATH_SLUG_HOSTS:
+        return "ats"
     for domain in _ATS_PATH_SLUG_DOMAINS + _ATS_SUBDOMAIN_DOMAINS:
         if host == domain or host.endswith("." + domain):
             return "ats"
@@ -387,6 +393,10 @@ def _extract_ats_company_slug(host: str, path: str) -> str:
     host = host.lower().split(":", maxsplit=1)[0]
     if not host:
         return ""
+
+    if host in _ATS_PATH_SLUG_HOSTS:
+        segments = [seg for seg in path.split("/") if seg.strip()]
+        return segments[0] if segments else ""
 
     for domain in _ATS_PATH_SLUG_DOMAINS:
         if host == domain or host.endswith("." + domain):
@@ -512,7 +522,12 @@ def _extract_role_from_title(*, source: str, title: str) -> str:
     if cleaned.lower() in _GENERIC_PAGE_TITLES:
         return ""
     if source in {"linkedin", "indeed", "company-site"} and " - " in cleaned:
-        return cleaned.split(" - ")[0].strip()
+        lhs = cleaned.split(" - ")[0].strip()
+        # Same generic-title guard after splitting: 'Careers - Acme Corp'
+        # should fall through, not return 'Careers' as the role.
+        if lhs.lower() in _GENERIC_PAGE_TITLES:
+            return ""
+        return lhs
     return ""
 
 

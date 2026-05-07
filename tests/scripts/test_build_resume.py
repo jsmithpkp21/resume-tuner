@@ -656,10 +656,16 @@ def test_independent_projects_private_skipped_by_default(tmp_path: Path) -> None
     )
     assert result.returncode == 0, result.stderr
 
-    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
-    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(
+        encoding="utf-8"
+    )
+    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(
+        encoding="utf-8"
+    )
     snapshot = json.loads(
-        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
     )
 
     assert "<h2>Independent Projects</h2>" not in html_text
@@ -682,10 +688,16 @@ def test_independent_projects_included_with_flag(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
 
-    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
-    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(
+        encoding="utf-8"
+    )
+    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(
+        encoding="utf-8"
+    )
     snapshot = json.loads(
-        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
     )
 
     assert "<h2>Independent Projects</h2>" in html_text
@@ -735,8 +747,12 @@ url = "https://example.com/repo"
     )
     assert result.returncode == 0, result.stderr
 
-    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
-    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(
+        encoding="utf-8"
+    )
+    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "<h2>Independent Projects</h2>" in html_text
     assert 'href="https://example.com/repo"' in html_text
@@ -773,7 +789,9 @@ def test_run_pipeline_tolerates_namespace_without_include_private_projects(
     )
     rc = build_resume.run_pipeline(pipeline_args)
     assert rc == 0
-    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(
+        encoding="utf-8"
+    )
     # Default behavior: canonical visibility is private, so section is suppressed.
     assert "<h2>Independent Projects</h2>" not in html_text
 
@@ -793,16 +811,16 @@ def test_independent_projects_processed_mode_respects_visibility_flag(
         extra_args=("--processing-mode", "processed"),
     )
     assert suppressed_result.returncode == 0, suppressed_result.stderr
-    suppressed_html = (suppressed_dir / "resumes" / "latest_resume_processed.html").read_text(
-        encoding="utf-8"
-    )
-    suppressed_md = (suppressed_dir / "resumes" / "latest_resume_processed.md").read_text(
-        encoding="utf-8"
-    )
+    suppressed_html = (
+        suppressed_dir / "resumes" / "latest_resume_processed.html"
+    ).read_text(encoding="utf-8")
+    suppressed_md = (
+        suppressed_dir / "resumes" / "latest_resume_processed.md"
+    ).read_text(encoding="utf-8")
     suppressed_snapshot = json.loads(
-        (suppressed_dir / "resumes" / "latest_resume_processed_ir_snapshot.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            suppressed_dir / "resumes" / "latest_resume_processed_ir_snapshot.json"
+        ).read_text(encoding="utf-8")
     )
     assert "<h2>Independent Projects</h2>" not in suppressed_html
     assert "## Independent Projects" not in suppressed_md
@@ -816,16 +834,16 @@ def test_independent_projects_processed_mode_respects_visibility_flag(
         extra_args=("--processing-mode", "processed", "--include-private-projects"),
     )
     assert included_result.returncode == 0, included_result.stderr
-    included_html = (included_dir / "resumes" / "latest_resume_processed.html").read_text(
-        encoding="utf-8"
-    )
+    included_html = (
+        included_dir / "resumes" / "latest_resume_processed.html"
+    ).read_text(encoding="utf-8")
     included_md = (included_dir / "resumes" / "latest_resume_processed.md").read_text(
         encoding="utf-8"
     )
     included_snapshot = json.loads(
-        (included_dir / "resumes" / "latest_resume_processed_ir_snapshot.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            included_dir / "resumes" / "latest_resume_processed_ir_snapshot.json"
+        ).read_text(encoding="utf-8")
     )
     assert "<h2>Independent Projects</h2>" in included_html
     assert "## Independent Projects" in included_md
@@ -879,8 +897,12 @@ url = "https://example.com/full"
     )
     assert result.returncode == 0, result.stderr
 
-    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
-    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(
+        encoding="utf-8"
+    )
+    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(
+        encoding="utf-8"
+    )
 
     # Bare domain becomes https://
     assert 'href="https://github.com/example/repo"' in html_text
@@ -916,10 +938,16 @@ def test_independent_projects_public_empty_section_omitted(tmp_path: Path) -> No
     )
     assert result.returncode == 0, result.stderr
 
-    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
-    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(
+        encoding="utf-8"
+    )
+    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(
+        encoding="utf-8"
+    )
     snapshot = json.loads(
-        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
     )
 
     assert "<h2>Independent Projects</h2>" not in html_text
@@ -1120,12 +1148,14 @@ def test_build_resume_cli_processed_mode_applies_filtering(
     assert processed_result.returncode == 0, processed_result.stderr
 
     raw_snapshot = json.loads(
-        (raw_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
-    )
-    processed_snapshot = json.loads(
-        (processed_dir / "resumes" / "latest_resume_processed_ir_snapshot.json").read_text(
+        (raw_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(
             encoding="utf-8"
         )
+    )
+    processed_snapshot = json.loads(
+        (
+            processed_dir / "resumes" / "latest_resume_processed_ir_snapshot.json"
+        ).read_text(encoding="utf-8")
     )
 
     raw_count = int(raw_snapshot["skills_category_count"])
@@ -1136,9 +1166,9 @@ def test_build_resume_cli_processed_mode_applies_filtering(
     assert "Programming Debugging & Engineering Fundamentals" in raw_md
 
     # Issue #42 e2e assertion: processed rendered skills stay in 11-13 lines.
-    processed_html = (processed_dir / "resumes" / "latest_resume_processed.html").read_text(
-        encoding="utf-8"
-    )
+    processed_html = (
+        processed_dir / "resumes" / "latest_resume_processed.html"
+    ).read_text(encoding="utf-8")
     processed_skills = _extract_skills_by_category_from_html(processed_html)
     assert processed_skills, (
         "Expected parsed skills categories in processed HTML output"
@@ -1294,7 +1324,9 @@ def test_build_resume_cli_processed_mode_emits_gap_summary_for_job_text(
     )
 
     assert result.returncode == 0, result.stderr
-    gap_summary_path = output_dir / "resumes" / "latest_resume_processed_gap_summary.json"
+    gap_summary_path = (
+        output_dir / "resumes" / "latest_resume_processed_gap_summary.json"
+    )
     assert gap_summary_path.exists()
     payload = json.loads(gap_summary_path.read_text(encoding="utf-8"))
     assert "missing_terms" in payload
@@ -1460,9 +1492,13 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
 
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
 
-    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(
+        encoding="utf-8"
+    )
     snapshot = json.loads(
-        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
     )
 
     assert '<p class="headline">Sr. SDET</p>' not in html_text
@@ -1509,7 +1545,9 @@ def test_build_resume_cli_job_url_snapshot_contract_is_complete_and_deterministi
 
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
     snapshot = json.loads(
-        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
     )
     job_context = snapshot["job_context"]
 
@@ -1559,7 +1597,9 @@ def test_build_resume_cli_explicit_target_role_overrides_job_context_hint(
 
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
     snapshot = json.loads(
-        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
     )
 
     assert snapshot["target_role"] == explicit_target_role
@@ -1637,7 +1677,9 @@ def test_build_resume_cli_accepts_job_text_file(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     snapshot = json.loads(
-        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
     )
 
     assert snapshot["target_role"] == "Senior SDET"
@@ -1681,7 +1723,9 @@ def test_build_resume_cli_job_text_without_company_omits_company_research(
 
     assert result.returncode == 0, result.stderr
     snapshot = json.loads(
-        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
     )
 
     assert snapshot["target_role"] == "Senior SDET"
@@ -1750,9 +1794,9 @@ def test_build_resume_cli_deduplicates_equivalent_headline_and_resume_title(
     modern_html = (output_dir / "resumes" / "latest_resume_processed.html").read_text(
         encoding="utf-8"
     )
-    default_html = (output_dir / "resumes" / "latest_default_resume_processed.html").read_text(
-        encoding="utf-8"
-    )
+    default_html = (
+        output_dir / "resumes" / "latest_default_resume_processed.html"
+    ).read_text(encoding="utf-8")
 
     assert f'<p class="headline">{PROFILE_HEADLINE}</p>' not in modern_html
     assert f'<p class="headline">{PROFILE_HEADLINE}</p>' not in default_html
@@ -4863,12 +4907,16 @@ def test_outputs_default_writes_only_pdf_and_ir(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
 
     assert (output_dir / "resumes" / "company_resume.pdf").exists()
-    assert (output_dir / "resumes" / "latest_resume_processed_ir_snapshot.json").exists()
+    assert (
+        output_dir / "resumes" / "latest_resume_processed_ir_snapshot.json"
+    ).exists()
     assert (output_dir / "resumes" / "latest_resume_processed_ir_snapshot.txt").exists()
 
     # HTML, MD, DOCX absent under default --outputs=pdf.
     assert not (output_dir / "resumes" / "latest_resume_processed.html").exists()
-    assert not (output_dir / "resumes" / "latest_default_resume_processed.html").exists()
+    assert not (
+        output_dir / "resumes" / "latest_default_resume_processed.html"
+    ).exists()
     assert not (output_dir / "resumes" / "latest_resume_processed.md").exists()
     assert not (output_dir / "resumes" / "company_resume.docx").exists()
 
@@ -4948,8 +4996,8 @@ def test_outputs_filename_overrides_land_under_output_dir(tmp_path: Path) -> Non
     )
     assert result.returncode == 0, result.stderr
 
-    assert (output_dir / "custom.pdf").exists()
-    assert (output_dir / "nested" / "custom.docx").exists()
+    assert (output_dir / "resumes" / "custom.pdf").exists()
+    assert (output_dir / "resumes" / "nested" / "custom.docx").exists()
     # Canonical names not produced when overrides are supplied.
     assert not (output_dir / "resumes" / "company_resume.pdf").exists()
     assert not (output_dir / "resumes" / "company_resume.docx").exists()

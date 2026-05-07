@@ -147,7 +147,8 @@ def parse_args() -> argparse.Namespace:
 
 def _resume_artifacts_dir(output_dir: Path) -> Path:
     """Resolve the resume-artifacts subdirectory under the application root."""
-    return Path(output_dir) / build_resume.RESUME_OUTPUT_SUBDIR
+    subdir: str = build_resume.RESUME_OUTPUT_SUBDIR
+    return Path(output_dir) / subdir
 
 
 def _pipeline_markdown_path(output_dir: Path, processing_mode: str) -> Path:

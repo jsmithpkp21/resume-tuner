@@ -3308,12 +3308,12 @@ def _resolve_output_dir(args: argparse.Namespace) -> Path:
     company slug was derived, route to data/outputs/<slug>/. Otherwise return
     the user-supplied value or the baseline default.
     """
-    user_value = getattr(args, "output_dir", None)
+    user_value: Path | None = getattr(args, "output_dir", None)
     if user_value is not None:
         return user_value
     company = getattr(args, "company", "") or ""
     if company and company != COMPANY_PLACEHOLDER_SLUG:
-        slug = document_export.snake_case(company)
+        slug: str = document_export.snake_case(company)
         routed = DEFAULT_OUTPUT_BASE / slug
         print(f"--output-dir auto-routed to: {routed}")
         return routed

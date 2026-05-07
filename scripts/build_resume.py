@@ -3386,6 +3386,16 @@ def run_pipeline(args: argparse.Namespace) -> int:
                 f"--company auto-derived from job description: "
                 f"'{document_export.snake_case(args.company)}'"
             )
+        elif job_context is not None:
+            # JD was supplied but neither the deterministic regex nor the LLM
+            # tier produced a company name. Fail loudly rather than silently
+            # routing artifacts under data/outputs/baseline/, which would mask
+            # a real extraction miss.
+            raise ValueError(
+                "Could not derive a company name from the supplied JD. "
+                "Pass --company <slug> to override, or inspect the JD page "
+                "contents."
+            )
         else:
             args.company = COMPANY_PLACEHOLDER_SLUG
     else:

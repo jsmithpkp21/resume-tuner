@@ -1316,6 +1316,8 @@ def test_build_resume_cli_processed_mode_emits_gap_summary_for_job_text(
             "processed",
             "--job-text-file",
             str(job_text_file),
+            "--company",
+            "smoke",
         ],
         cwd=REPO_ROOT,
         capture_output=True,
@@ -1714,6 +1716,8 @@ def test_build_resume_cli_job_text_without_company_omits_company_research(
             str(output_dir),
             "--job-text-file",
             str(job_text_file),
+            "--company",
+            "smoke",
         ],
         cwd=REPO_ROOT,
         capture_output=True,
@@ -2334,6 +2338,8 @@ def test_ingest_job_context_linkedin_login_wall_falls_back_to_keywords(
             str(tmp_path),
             "--job-url",
             url,
+            "--company",
+            "smoke",
         ],
         cwd=REPO_ROOT,
         capture_output=True,
@@ -5180,6 +5186,57 @@ def test_company_explicit_overrides_jd_derived(tmp_path: Path) -> None:
     assert "auto-derived from job description" not in result.stdout
     assert (output_dir / "resumes" / "acme_corp_resume.pdf").exists()
     assert not (output_dir / "resumes" / "elite_technology_resume.pdf").exists()
+
+
+def test_build_resume_cli_fails_when_jd_supplied_but_company_not_derivable(
+    tmp_path: Path,
+) -> None:
+    """JD supplied but neither deterministic nor LLM tier finds a company,
+    and no explicit --company → exit non-zero with an actionable message and
+    no artifacts written. Prevents silent routing under data/outputs/baseline/
+    when extraction simply missed."""
+    output_dir = tmp_path / "out"
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+    jd_path = tmp_path / "jd.txt"
+    # Free-form JD without a `Company:` header or other deterministic signal.
+    # LLM tier is gated off by default in tests (RESUME_BUILDER_LLM_ENABLED unset).
+    jd_path.write_text(
+        "Senior Staff Software Engineer focused on payments and risk.\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--profile",
+            str(profile_path),
+            "--experience-db",
+            str(REPO_ROOT / "data" / "experience" / "experience_db.toml"),
+            "--output-dir",
+            str(output_dir),
+            "--processing-mode",
+            "processed",
+            "--allow-overflow-pdf",
+            "--outputs",
+            "pdf",
+            "--job-text-file",
+            str(jd_path),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0, result.stdout
+    assert "Could not derive a company name" in result.stderr
+    assert "--company" in result.stderr
+    # No artifacts written on the failed run.
+    resumes_dir = output_dir / "resumes"
+    if resumes_dir.exists():
+        assert not any(resumes_dir.glob("*_resume.pdf")), list(resumes_dir.iterdir())
+        assert not any(resumes_dir.glob("*_resume.docx")), list(resumes_dir.iterdir())
 
 
 def test_company_falls_back_to_default_when_no_jd(tmp_path: Path) -> None:

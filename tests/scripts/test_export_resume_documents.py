@@ -68,8 +68,8 @@ def test_run_generates_docx_and_pdf_from_same_markdown(
     monkeypatch.setattr(export_resume_documents, "_render_pdf", fake_render_pdf)
 
     assert export_resume_documents.run() == 0
-    assert (output_dir / "resume.docx").exists()
-    assert (output_dir / "resume.pdf").exists()
+    assert (output_dir / "resumes" / "resume.docx").exists()
+    assert (output_dir / "resumes" / "resume.pdf").exists()
 
 
 def test_run_passes_allow_overflow_pdf_to_render_pdf(
@@ -130,8 +130,8 @@ def test_run_passes_allow_overflow_pdf_to_render_pdf(
 
     assert export_resume_documents.run() == 0
     assert seen["enforce_page_limit"] is False
-    assert (output_dir / "resume.docx").exists()
-    assert (output_dir / "resume.pdf").exists()
+    assert (output_dir / "resumes" / "resume.docx").exists()
+    assert (output_dir / "resumes" / "resume.pdf").exists()
 
 
 def test_run_warns_when_trailing_fragment_guard_trips_but_still_exports(
@@ -194,8 +194,8 @@ def test_run_warns_when_trailing_fragment_guard_trips_but_still_exports(
     assert (
         "WARNING: render source contains trailing connector fragments" in captured.err
     )
-    assert (output_dir / "resume.docx").exists()
-    assert (output_dir / "resume.pdf").exists()
+    assert (output_dir / "resumes" / "resume.docx").exists()
+    assert (output_dir / "resumes" / "resume.pdf").exists()
 
 
 def test_run_prefers_default_html_source_when_available(
@@ -208,7 +208,9 @@ def test_run_prefers_default_html_source_when_available(
         "# Test\n\n## Summary\n\nmarkdown summary only\n",
         encoding="utf-8",
     )
-    default_html_path = output_dir / "latest_default_resume_processed.html"
+    resume_dir = output_dir / "resumes"
+    resume_dir.mkdir(parents=True, exist_ok=True)
+    default_html_path = resume_dir / "latest_default_resume_processed.html"
     default_html_path.write_text(
         """<!doctype html>
 <html>
@@ -280,8 +282,8 @@ def test_run_prefers_default_html_source_when_available(
     )
     assert "HTML summary source." in captured_sources[0]
     assert "markdown summary only" not in captured_sources[0]
-    assert (output_dir / "resume.docx").exists()
-    assert (output_dir / "resume.pdf").exists()
+    assert (output_dir / "resumes" / "resume.docx").exists()
+    assert (output_dir / "resumes" / "resume.pdf").exists()
 
 
 def test_run_can_disable_post_layout_cleanup(
@@ -1078,7 +1080,7 @@ def test_pipeline_default_html_path_prefers_default_secondary_for_processed() ->
         "Args",
         (),
         {
-            "output_dir": Path("data/review/outputs/baseline"),
+            "output_dir": Path("data/outputs/baseline"),
             "processing_mode": "processed",
             "template": "modern",
         },
@@ -1086,6 +1088,7 @@ def test_pipeline_default_html_path_prefers_default_secondary_for_processed() ->
 
     path = export_resume_documents._pipeline_default_html_path(args)
     assert path.name == "latest_default_resume_processed.html"
+    assert path.parent.name == "resumes"
 
 
 def test_run_uses_company_snake_case_default_filenames(
@@ -1150,8 +1153,8 @@ def test_run_uses_company_snake_case_default_filenames(
     assert len(captured) == 2
     staged_names = sorted(path.name for path in captured)
     assert all("tmp-export-" in name for name in staged_names)
-    assert (output_dir / "graph_core_inc_resume.docx").exists()
-    assert (output_dir / "graph_core_inc_resume.pdf").exists()
+    assert (output_dir / "resumes" / "graph_core_inc_resume.docx").exists()
+    assert (output_dir / "resumes" / "graph_core_inc_resume.pdf").exists()
 
 
 def test_run_removes_stale_legacy_latest_resume_export_aliases(
@@ -1161,8 +1164,10 @@ def test_run_removes_stale_legacy_latest_resume_export_aliases(
     output_dir.mkdir(parents=True, exist_ok=True)
     markdown_path = output_dir / "latest_resume_processed.md"
     markdown_path.write_text("# Test\n", encoding="utf-8")
-    stale_docx = output_dir / "latest_resume_export.docx"
-    stale_pdf = output_dir / "latest_resume_export.pdf"
+    resume_dir = output_dir / "resumes"
+    resume_dir.mkdir(parents=True, exist_ok=True)
+    stale_docx = resume_dir / "latest_resume_export.docx"
+    stale_pdf = resume_dir / "latest_resume_export.pdf"
     stale_docx.write_text("stale docx", encoding="utf-8")
     stale_pdf.write_bytes(b"stale pdf")
 
@@ -1213,8 +1218,8 @@ def test_run_removes_stale_legacy_latest_resume_export_aliases(
     monkeypatch.setattr(export_resume_documents, "_render_pdf", fake_render_pdf)
 
     assert export_resume_documents.run() == 0
-    assert (output_dir / "graphcore_resume.docx").exists()
-    assert (output_dir / "graphcore_resume.pdf").exists()
+    assert (output_dir / "resumes" / "graphcore_resume.docx").exists()
+    assert (output_dir / "resumes" / "graphcore_resume.pdf").exists()
     assert not stale_docx.exists()
     assert not stale_pdf.exists()
 
@@ -1228,8 +1233,9 @@ def test_run_transactional_pdf_phase_failure_preserves_existing_artifacts(
     markdown_path = output_dir / "latest_resume_processed.md"
     markdown_path.write_text("# Test\n", encoding="utf-8")
     # Pre-populate existing final artifacts that must survive a failed run.
-    existing_docx = output_dir / "graphcore_resume.docx"
-    existing_pdf = output_dir / "graphcore_resume.pdf"
+    (output_dir / "resumes").mkdir(parents=True, exist_ok=True)
+    existing_docx = output_dir / "resumes" / "graphcore_resume.docx"
+    existing_pdf = output_dir / "resumes" / "graphcore_resume.pdf"
     existing_docx.write_text("original docx content", encoding="utf-8")
     existing_pdf.write_bytes(b"original pdf content")
     monkeypatch.setattr(
@@ -1285,7 +1291,9 @@ def test_run_transactional_pdf_phase_failure_preserves_existing_artifacts(
     assert existing_docx.read_text(encoding="utf-8") == "original docx content"
     assert existing_pdf.read_bytes() == b"original pdf content"
     # No staging/temp files should be left on disk.
-    leftovers = [p for p in output_dir.iterdir() if "tmp-export-" in p.name]
+    leftovers = [
+        p for p in (output_dir / "resumes").iterdir() if "tmp-export-" in p.name
+    ]
     assert leftovers == [], f"Unexpected staging files left behind: {leftovers}"
 
 
@@ -1355,9 +1363,11 @@ def test_run_transactional_mid_finalize_failure_removes_new_outputs_without_back
 
     result = export_resume_documents.run()
     assert result != 0
-    assert not (output_dir / "graphcore_resume.docx").exists()
-    assert not (output_dir / "graphcore_resume.pdf").exists()
-    leftovers = [p for p in output_dir.iterdir() if "tmp-export-" in p.name]
+    assert not (output_dir / "resumes" / "graphcore_resume.docx").exists()
+    assert not (output_dir / "resumes" / "graphcore_resume.pdf").exists()
+    leftovers = [
+        p for p in (output_dir / "resumes").iterdir() if "tmp-export-" in p.name
+    ]
     assert leftovers == [], f"Unexpected staging files left behind: {leftovers}"
 
 

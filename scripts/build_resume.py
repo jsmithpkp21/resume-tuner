@@ -63,7 +63,11 @@ DEFAULT_PROFILE = Path("data/profile/profile.toml")
 LOCAL_PROFILE_SUFFIX = ".local.toml"
 DEFAULT_EXPERIENCE_DB = Path("data/experience/experience_db.toml")
 DEFAULT_SKILLS_MATRIX = Path("data/skills/skills_matrix.csv")
-DEFAULT_OUTPUT_DIR = Path("data/review/outputs/baseline")
+DEFAULT_OUTPUT_BASE = Path("data/outputs")
+DEFAULT_OUTPUT_DIR = DEFAULT_OUTPUT_BASE / "baseline"
+RESUME_OUTPUT_SUBDIR = "resumes"
+COVER_LETTER_OUTPUT_SUBDIR = "cover_letters"
+COMPANY_PLACEHOLDER_SLUG = "company"
 # Role-level selection should not hard-cap bullets; keep all and rank by relevance.
 # Final output fitting is enforced by a line-budget pass.
 DEFAULT_BULLET_LINE_WIDTH = 108
@@ -312,11 +316,14 @@ def parse_args() -> argparse.Namespace:
     common.add_argument(
         "--output-dir",
         type=Path,
-        default=DEFAULT_OUTPUT_DIR,
+        default=None,
         help=(
             "Application root directory. Resume artifacts are written under "
             "<output-dir>/resumes/; cover letter artifacts (when "
-            "--cover-letter is set) are written under <output-dir>/cover_letters/."
+            "--cover-letter is set) are written under <output-dir>/cover_letters/. "
+            f"When omitted and a JD is supplied, defaults to "
+            f"{DEFAULT_OUTPUT_BASE}/<company-slug>/; otherwise "
+            f"{DEFAULT_OUTPUT_DIR}/."
         ),
     )
     common.add_argument(
@@ -331,10 +338,11 @@ def parse_args() -> argparse.Namespace:
     common.add_argument(
         "--processing-mode",
         choices=("raw", "processed"),
-        default="raw",
+        default="processed",
         help=(
-            "raw keeps canonical content unfiltered (baseline contract); "
-            "processed runs transform/trim/enrich/rule/select stages."
+            "processed runs transform/trim/enrich/rule/select stages "
+            "(submission-ready default); raw keeps canonical content "
+            "unfiltered (baseline contract / debug)."
         ),
     )
 
@@ -3278,6 +3286,25 @@ def write_text_snapshot(resume: ResumeIR, output_path: Path) -> None:
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _resolve_output_dir(args: argparse.Namespace) -> Path:
+    """Return the application-root directory for outputs.
+
+    When the user did not pass --output-dir AND a real (non-placeholder)
+    company slug was derived, route to data/outputs/<slug>/. Otherwise return
+    the user-supplied value or the baseline default.
+    """
+    user_value = getattr(args, "output_dir", None)
+    if user_value is not None:
+        return user_value
+    company = getattr(args, "company", "") or ""
+    if company and company != COMPANY_PLACEHOLDER_SLUG:
+        slug = document_export.snake_case(company)
+        routed = DEFAULT_OUTPUT_BASE / slug
+        print(f"--output-dir auto-routed to: {routed}")
+        return routed
+    return DEFAULT_OUTPUT_DIR
+
+
 def run_pipeline(args: argparse.Namespace) -> int:
     profile = load_profile(args.profile)
     experiences = load_experiences(args.experience_db)
@@ -3339,9 +3366,14 @@ def run_pipeline(args: argparse.Namespace) -> int:
                 f"'{document_export.snake_case(args.company)}'"
             )
         else:
-            args.company = "company"
+            args.company = COMPANY_PLACEHOLDER_SLUG
     else:
         args.company = explicit_company.strip()
+
+    # Auto-route --output-dir to data/outputs/<slug>/ when default and a real
+    # company slug is available. The "baseline" fallback (no JD or no
+    # derivable company) is kept intentionally as the smoke-run path.
+    args.output_dir = _resolve_output_dir(args)
 
     resume = assemble_baseline_resume(
         profile=profile,
@@ -3378,7 +3410,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
         resume = select_skills(resume)
         resume = summarize_profile_for_role(resume)
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    resume_dir = args.output_dir / RESUME_OUTPUT_SUBDIR
+    resume_dir.mkdir(parents=True, exist_ok=True)
 
     output_prefix = _build_artifact_prefix(processing_mode=args.processing_mode)
     # For processed mode, use modern template as primary; for raw, use default.
@@ -3387,15 +3420,15 @@ def run_pipeline(args: argparse.Namespace) -> int:
     if secondary_template == primary_template:
         secondary_template = "default" if primary_template == "modern" else "modern"
 
-    html_output = args.output_dir / f"{output_prefix}.html"
+    html_output = resume_dir / f"{output_prefix}.html"
     secondary_html_output = (
-        args.output_dir
+        resume_dir
         / f"{_secondary_template_prefix(output_prefix, secondary_template)}.html"
     )
-    md_output = args.output_dir / f"{output_prefix}.md"
-    ir_output = args.output_dir / f"{output_prefix}_ir_snapshot.json"
-    text_snapshot_output = args.output_dir / f"{output_prefix}_ir_snapshot.txt"
-    gap_output = args.output_dir / f"{output_prefix}_gap_summary.json"
+    md_output = resume_dir / f"{output_prefix}.md"
+    ir_output = resume_dir / f"{output_prefix}_ir_snapshot.json"
+    text_snapshot_output = resume_dir / f"{output_prefix}_ir_snapshot.txt"
+    gap_output = resume_dir / f"{output_prefix}_gap_summary.json"
 
     outputs = _resolve_outputs(args)
     needs_html = "html" in outputs
@@ -3453,7 +3486,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
     if needs_docx or needs_pdf:
         docx_output, pdf_output, removed_legacy_outputs = _render_docx_pdf_outputs(
             args=args,
-            output_dir=args.output_dir,
+            output_dir=resume_dir,
             html_render_source=default_template_html,
             md_render_source=md_output
             if (needs_md or needs_md_render_source)
@@ -3475,7 +3508,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
     if needs_md_render_source and not needs_md:
         md_output.unlink(missing_ok=True)
 
-    print(f"Resume output written to ({args.processing_mode} mode): {args.output_dir}")
+    print(f"Resume output written to ({args.processing_mode} mode): {resume_dir}")
     for path in written_paths:
         print(f"- {path}")
     if removed_legacy_outputs:

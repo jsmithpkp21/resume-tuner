@@ -145,26 +145,32 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _resume_artifacts_dir(output_dir: Path) -> Path:
+    """Resolve the resume-artifacts subdirectory under the application root."""
+    return Path(output_dir) / build_resume.RESUME_OUTPUT_SUBDIR
+
+
 def _pipeline_markdown_path(output_dir: Path, processing_mode: str) -> Path:
     suffix = "processed" if processing_mode == "processed" else "raw"
-    return output_dir / f"latest_resume_{suffix}.md"
+    return _resume_artifacts_dir(output_dir) / f"latest_resume_{suffix}.md"
 
 
 def _pipeline_default_html_path(args: argparse.Namespace) -> Path:
     """Return the left-justified default-template HTML path from build output."""
     output_prefix = f"latest_resume_{args.processing_mode}"
     primary_template = "modern" if args.processing_mode == "processed" else "default"
+    resume_dir = _resume_artifacts_dir(Path(args.output_dir))
     if primary_template == "default":
-        return Path(args.output_dir) / f"{output_prefix}.html"
+        return resume_dir / f"{output_prefix}.html"
 
     secondary_template = args.template
     if secondary_template == primary_template:
         secondary_template = "default"
     if secondary_template == "default":
         secondary_prefix = f"latest_default_resume_{args.processing_mode}"
-        return Path(args.output_dir) / f"{secondary_prefix}.html"
+        return resume_dir / f"{secondary_prefix}.html"
 
-    return Path(args.output_dir) / f"{output_prefix}.html"
+    return resume_dir / f"{output_prefix}.html"
 
 
 def _run_build_pipeline(args: argparse.Namespace) -> Path:
@@ -224,14 +230,15 @@ def run() -> int:
                 file=sys.stderr,
             )
         output_dir = Path(args.output_dir)
+        resume_dir = _resume_artifacts_dir(output_dir)
         docx_output = _resolve_export_output_path(
-            output_dir,
+            resume_dir,
             filename_override=args.docx_filename,
             default_name=_canonical_export_filename(args.company, "docx"),
             flag_name="--docx-filename",
         )
         pdf_output = _resolve_export_output_path(
-            output_dir,
+            resume_dir,
             filename_override=args.pdf_filename,
             default_name=_canonical_export_filename(args.company, "pdf"),
             flag_name="--pdf-filename",
@@ -288,7 +295,7 @@ def run() -> int:
                     file=sys.stderr,
                 )
         removed_legacy_outputs = _remove_stale_legacy_exports(
-            output_dir.resolve(strict=False), {docx_output, pdf_output}
+            resume_dir.resolve(strict=False), {docx_output, pdf_output}
         )
         print("Resume exports written:")
         print(f"  {docx_output}")

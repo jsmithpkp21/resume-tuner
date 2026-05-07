@@ -630,6 +630,10 @@ def _run_build_resume_cli(
     ]
     if not any(arg.startswith("--outputs") for arg in extra_args):
         args += ["--outputs", "html,md"]
+    if not any(arg.startswith("--processing-mode") for arg in extra_args):
+        # Existing tests assert on `latest_resume_raw.*` artifacts; preserve
+        # that intent now that the build_resume CLI default is `processed`.
+        args += ["--processing-mode", "raw"]
     args += list(extra_args)
     return subprocess.run(
         args,
@@ -652,10 +656,10 @@ def test_independent_projects_private_skipped_by_default(tmp_path: Path) -> None
     )
     assert result.returncode == 0, result.stderr
 
-    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
-    md_text = (output_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
+    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(encoding="utf-8")
     snapshot = json.loads(
-        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
 
     assert "<h2>Independent Projects</h2>" not in html_text
@@ -678,10 +682,10 @@ def test_independent_projects_included_with_flag(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
 
-    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
-    md_text = (output_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
+    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(encoding="utf-8")
     snapshot = json.loads(
-        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
 
     assert "<h2>Independent Projects</h2>" in html_text
@@ -731,8 +735,8 @@ url = "https://example.com/repo"
     )
     assert result.returncode == 0, result.stderr
 
-    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
-    md_text = (output_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
+    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(encoding="utf-8")
 
     assert "<h2>Independent Projects</h2>" in html_text
     assert 'href="https://example.com/repo"' in html_text
@@ -769,7 +773,7 @@ def test_run_pipeline_tolerates_namespace_without_include_private_projects(
     )
     rc = build_resume.run_pipeline(pipeline_args)
     assert rc == 0
-    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
     # Default behavior: canonical visibility is private, so section is suppressed.
     assert "<h2>Independent Projects</h2>" not in html_text
 
@@ -789,14 +793,14 @@ def test_independent_projects_processed_mode_respects_visibility_flag(
         extra_args=("--processing-mode", "processed"),
     )
     assert suppressed_result.returncode == 0, suppressed_result.stderr
-    suppressed_html = (suppressed_dir / "latest_resume_processed.html").read_text(
+    suppressed_html = (suppressed_dir / "resumes" / "latest_resume_processed.html").read_text(
         encoding="utf-8"
     )
-    suppressed_md = (suppressed_dir / "latest_resume_processed.md").read_text(
+    suppressed_md = (suppressed_dir / "resumes" / "latest_resume_processed.md").read_text(
         encoding="utf-8"
     )
     suppressed_snapshot = json.loads(
-        (suppressed_dir / "latest_resume_processed_ir_snapshot.json").read_text(
+        (suppressed_dir / "resumes" / "latest_resume_processed_ir_snapshot.json").read_text(
             encoding="utf-8"
         )
     )
@@ -812,14 +816,14 @@ def test_independent_projects_processed_mode_respects_visibility_flag(
         extra_args=("--processing-mode", "processed", "--include-private-projects"),
     )
     assert included_result.returncode == 0, included_result.stderr
-    included_html = (included_dir / "latest_resume_processed.html").read_text(
+    included_html = (included_dir / "resumes" / "latest_resume_processed.html").read_text(
         encoding="utf-8"
     )
-    included_md = (included_dir / "latest_resume_processed.md").read_text(
+    included_md = (included_dir / "resumes" / "latest_resume_processed.md").read_text(
         encoding="utf-8"
     )
     included_snapshot = json.loads(
-        (included_dir / "latest_resume_processed_ir_snapshot.json").read_text(
+        (included_dir / "resumes" / "latest_resume_processed_ir_snapshot.json").read_text(
             encoding="utf-8"
         )
     )
@@ -875,8 +879,8 @@ url = "https://example.com/full"
     )
     assert result.returncode == 0, result.stderr
 
-    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
-    md_text = (output_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
+    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(encoding="utf-8")
 
     # Bare domain becomes https://
     assert 'href="https://github.com/example/repo"' in html_text
@@ -912,10 +916,10 @@ def test_independent_projects_public_empty_section_omitted(tmp_path: Path) -> No
     )
     assert result.returncode == 0, result.stderr
 
-    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
-    md_text = (output_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
+    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(encoding="utf-8")
     snapshot = json.loads(
-        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
 
     assert "<h2>Independent Projects</h2>" not in html_text
@@ -934,6 +938,8 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
             str(SCRIPT),
             "--outputs",
             "html,md",
+            "--processing-mode",
+            "raw",
             "--profile",
             str(profile_path),
             "--output-dir",
@@ -949,11 +955,11 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
 
-    html_path = output_dir / "latest_resume_raw.html"
-    modern_html_path = output_dir / "latest_modern_resume_raw.html"
-    md_path = output_dir / "latest_resume_raw.md"
-    snapshot_path = output_dir / "latest_resume_raw_ir_snapshot.json"
-    text_snapshot_path = output_dir / "latest_resume_raw_ir_snapshot.txt"
+    html_path = output_dir / "resumes" / "latest_resume_raw.html"
+    modern_html_path = output_dir / "resumes" / "latest_modern_resume_raw.html"
+    md_path = output_dir / "resumes" / "latest_resume_raw.md"
+    snapshot_path = output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json"
+    text_snapshot_path = output_dir / "resumes" / "latest_resume_raw_ir_snapshot.txt"
 
     assert html_path.exists()
     assert modern_html_path.exists()
@@ -1114,10 +1120,10 @@ def test_build_resume_cli_processed_mode_applies_filtering(
     assert processed_result.returncode == 0, processed_result.stderr
 
     raw_snapshot = json.loads(
-        (raw_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (raw_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
     processed_snapshot = json.loads(
-        (processed_dir / "latest_resume_processed_ir_snapshot.json").read_text(
+        (processed_dir / "resumes" / "latest_resume_processed_ir_snapshot.json").read_text(
             encoding="utf-8"
         )
     )
@@ -1126,11 +1132,11 @@ def test_build_resume_cli_processed_mode_applies_filtering(
     processed_count = int(processed_snapshot["skills_category_count"])
 
     assert raw_count >= processed_count
-    raw_md = (raw_dir / "latest_resume_raw.md").read_text(encoding="utf-8")
+    raw_md = (raw_dir / "resumes" / "latest_resume_raw.md").read_text(encoding="utf-8")
     assert "Programming Debugging & Engineering Fundamentals" in raw_md
 
     # Issue #42 e2e assertion: processed rendered skills stay in 11-13 lines.
-    processed_html = (processed_dir / "latest_resume_processed.html").read_text(
+    processed_html = (processed_dir / "resumes" / "latest_resume_processed.html").read_text(
         encoding="utf-8"
     )
     processed_skills = _extract_skills_by_category_from_html(processed_html)
@@ -1166,6 +1172,8 @@ def test_build_resume_cli_modern_template_renders_centered_header(
             str(SCRIPT),
             "--outputs",
             "html,md",
+            "--processing-mode",
+            "raw",
             "--output-dir",
             str(output_dir),
             "--template",
@@ -1178,7 +1186,7 @@ def test_build_resume_cli_modern_template_renders_centered_header(
     )
 
     assert result.returncode == 0, result.stderr
-    html_text = (output_dir / "latest_modern_resume_raw.html").read_text(
+    html_text = (output_dir / "resumes" / "latest_modern_resume_raw.html").read_text(
         encoding="utf-8"
     )
     assert '<div class="header">' in html_text
@@ -1286,7 +1294,7 @@ def test_build_resume_cli_processed_mode_emits_gap_summary_for_job_text(
     )
 
     assert result.returncode == 0, result.stderr
-    gap_summary_path = output_dir / "latest_resume_processed_gap_summary.json"
+    gap_summary_path = output_dir / "resumes" / "latest_resume_processed_gap_summary.json"
     assert gap_summary_path.exists()
     payload = json.loads(gap_summary_path.read_text(encoding="utf-8"))
     assert "missing_terms" in payload
@@ -1435,6 +1443,8 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
             str(SCRIPT),
             "--outputs",
             "html,md",
+            "--processing-mode",
+            "raw",
             "--output-dir",
             str(output_dir),
             "--job-url",
@@ -1450,9 +1460,9 @@ def test_build_resume_cli_accepts_job_url_and_generates_job_context(
 
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
 
-    html_text = (output_dir / "latest_resume_raw.html").read_text(encoding="utf-8")
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(encoding="utf-8")
     snapshot = json.loads(
-        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
 
     assert '<p class="headline">Sr. SDET</p>' not in html_text
@@ -1482,6 +1492,8 @@ def test_build_resume_cli_job_url_snapshot_contract_is_complete_and_deterministi
             str(SCRIPT),
             "--outputs",
             "html,md",
+            "--processing-mode",
+            "raw",
             "--output-dir",
             str(output_dir),
             "--job-url",
@@ -1497,7 +1509,7 @@ def test_build_resume_cli_job_url_snapshot_contract_is_complete_and_deterministi
 
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
     snapshot = json.loads(
-        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
     job_context = snapshot["job_context"]
 
@@ -1528,6 +1540,8 @@ def test_build_resume_cli_explicit_target_role_overrides_job_context_hint(
             str(SCRIPT),
             "--outputs",
             "html,md",
+            "--processing-mode",
+            "raw",
             "--output-dir",
             str(output_dir),
             "--job-url",
@@ -1545,7 +1559,7 @@ def test_build_resume_cli_explicit_target_role_overrides_job_context_hint(
 
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
     snapshot = json.loads(
-        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
 
     assert snapshot["target_role"] == explicit_target_role
@@ -1588,6 +1602,7 @@ def test_build_resume_cli_rejects_job_url_and_job_text_file_together(
 
 def test_build_resume_cli_accepts_job_text_file(tmp_path: Path) -> None:
     output_dir = tmp_path / "from_job_text"
+
     job_text_file = tmp_path / "job_description.txt"
     job_text_file.write_text(
         "\n".join(
@@ -1607,6 +1622,8 @@ def test_build_resume_cli_accepts_job_text_file(tmp_path: Path) -> None:
             str(SCRIPT),
             "--outputs",
             "html,md",
+            "--processing-mode",
+            "raw",
             "--output-dir",
             str(output_dir),
             "--job-text-file",
@@ -1620,7 +1637,7 @@ def test_build_resume_cli_accepts_job_text_file(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     snapshot = json.loads(
-        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
 
     assert snapshot["target_role"] == "Senior SDET"
@@ -1649,6 +1666,8 @@ def test_build_resume_cli_job_text_without_company_omits_company_research(
             str(SCRIPT),
             "--outputs",
             "html,md",
+            "--processing-mode",
+            "raw",
             "--output-dir",
             str(output_dir),
             "--job-text-file",
@@ -1662,7 +1681,7 @@ def test_build_resume_cli_job_text_without_company_omits_company_research(
 
     assert result.returncode == 0, result.stderr
     snapshot = json.loads(
-        (output_dir / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
     )
 
     assert snapshot["target_role"] == "Senior SDET"
@@ -1728,10 +1747,10 @@ def test_build_resume_cli_deduplicates_equivalent_headline_and_resume_title(
     )
 
     assert result.returncode == 0, result.stderr
-    modern_html = (output_dir / "latest_resume_processed.html").read_text(
+    modern_html = (output_dir / "resumes" / "latest_resume_processed.html").read_text(
         encoding="utf-8"
     )
-    default_html = (output_dir / "latest_default_resume_processed.html").read_text(
+    default_html = (output_dir / "resumes" / "latest_default_resume_processed.html").read_text(
         encoding="utf-8"
     )
 
@@ -2265,6 +2284,8 @@ def test_ingest_job_context_linkedin_login_wall_falls_back_to_keywords(
             str(SCRIPT),
             "--outputs",
             "html,md",
+            "--processing-mode",
+            "raw",
             "--output-dir",
             str(tmp_path),
             "--job-url",
@@ -2280,7 +2301,9 @@ def test_ingest_job_context_linkedin_login_wall_falls_back_to_keywords(
     import json as _json
 
     snapshot = _json.loads(
-        (tmp_path / "latest_resume_raw_ir_snapshot.json").read_text(encoding="utf-8")
+        (tmp_path / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert snapshot["job_context"]["source"] == "linkedin"
     assert snapshot["job_context"]["role_hint"] == "SDET"
@@ -4767,15 +4790,15 @@ def test_outputs_default_writes_only_pdf_and_ir(tmp_path: Path) -> None:
     result = _outputs_cli(output_dir=output_dir, profile_path=profile_path)
     assert result.returncode == 0, result.stderr
 
-    assert (output_dir / "company_resume.pdf").exists()
-    assert (output_dir / "latest_resume_processed_ir_snapshot.json").exists()
-    assert (output_dir / "latest_resume_processed_ir_snapshot.txt").exists()
+    assert (output_dir / "resumes" / "company_resume.pdf").exists()
+    assert (output_dir / "resumes" / "latest_resume_processed_ir_snapshot.json").exists()
+    assert (output_dir / "resumes" / "latest_resume_processed_ir_snapshot.txt").exists()
 
     # HTML, MD, DOCX absent under default --outputs=pdf.
-    assert not (output_dir / "latest_resume_processed.html").exists()
-    assert not (output_dir / "latest_default_resume_processed.html").exists()
-    assert not (output_dir / "latest_resume_processed.md").exists()
-    assert not (output_dir / "company_resume.docx").exists()
+    assert not (output_dir / "resumes" / "latest_resume_processed.html").exists()
+    assert not (output_dir / "resumes" / "latest_default_resume_processed.html").exists()
+    assert not (output_dir / "resumes" / "latest_resume_processed.md").exists()
+    assert not (output_dir / "resumes" / "company_resume.docx").exists()
 
 
 def test_outputs_all_four_formats(tmp_path: Path) -> None:
@@ -4791,11 +4814,11 @@ def test_outputs_all_four_formats(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
 
-    assert (output_dir / "company_resume.pdf").exists()
-    assert (output_dir / "company_resume.docx").exists()
-    assert (output_dir / "latest_resume_processed.md").exists()
-    assert (output_dir / "latest_resume_processed.html").exists()
-    assert (output_dir / "latest_default_resume_processed.html").exists()
+    assert (output_dir / "resumes" / "company_resume.pdf").exists()
+    assert (output_dir / "resumes" / "company_resume.docx").exists()
+    assert (output_dir / "resumes" / "latest_resume_processed.md").exists()
+    assert (output_dir / "resumes" / "latest_resume_processed.html").exists()
+    assert (output_dir / "resumes" / "latest_default_resume_processed.html").exists()
 
 
 def test_outputs_html_and_md_only_skips_pdf_and_docx(tmp_path: Path) -> None:
@@ -4811,10 +4834,10 @@ def test_outputs_html_and_md_only_skips_pdf_and_docx(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
 
-    assert (output_dir / "latest_resume_processed.html").exists()
-    assert (output_dir / "latest_resume_processed.md").exists()
-    assert not (output_dir / "company_resume.pdf").exists()
-    assert not (output_dir / "company_resume.docx").exists()
+    assert (output_dir / "resumes" / "latest_resume_processed.html").exists()
+    assert (output_dir / "resumes" / "latest_resume_processed.md").exists()
+    assert not (output_dir / "resumes" / "company_resume.pdf").exists()
+    assert not (output_dir / "resumes" / "company_resume.docx").exists()
 
 
 def test_outputs_unknown_token_rejected(tmp_path: Path) -> None:
@@ -4856,8 +4879,8 @@ def test_outputs_filename_overrides_land_under_output_dir(tmp_path: Path) -> Non
     assert (output_dir / "custom.pdf").exists()
     assert (output_dir / "nested" / "custom.docx").exists()
     # Canonical names not produced when overrides are supplied.
-    assert not (output_dir / "company_resume.pdf").exists()
-    assert not (output_dir / "company_resume.docx").exists()
+    assert not (output_dir / "resumes" / "company_resume.pdf").exists()
+    assert not (output_dir / "resumes" / "company_resume.docx").exists()
 
 
 def test_outputs_filename_override_rejects_absolute_path(tmp_path: Path) -> None:
@@ -4906,7 +4929,7 @@ def test_outputs_pdf_with_include_private_projects_renders_section(
     )
     assert result.returncode == 0, result.stderr
 
-    pdf_path = output_dir / "company_resume.pdf"
+    pdf_path = output_dir / "resumes" / "company_resume.pdf"
     assert pdf_path.exists()
     reader = pypdf.PdfReader(str(pdf_path))
     text = "\n".join(page.extract_text() or "" for page in reader.pages)
@@ -4926,9 +4949,9 @@ def test_outputs_company_slug_drives_canonical_filename(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
 
-    assert (output_dir / "acme_corp_resume.pdf").exists()
-    assert (output_dir / "acme_corp_resume.docx").exists()
-    assert not (output_dir / "company_resume.pdf").exists()
+    assert (output_dir / "resumes" / "acme_corp_resume.pdf").exists()
+    assert (output_dir / "resumes" / "acme_corp_resume.docx").exists()
+    assert not (output_dir / "resumes" / "company_resume.pdf").exists()
 
 
 def test_export_resume_documents_shim_produces_canonical_outputs(
@@ -4961,8 +4984,8 @@ def test_export_resume_documents_shim_produces_canonical_outputs(
         check=False,
     )
     assert result.returncode == 0, result.stderr
-    assert (output_dir / "company_resume.pdf").exists()
-    assert (output_dir / "company_resume.docx").exists()
+    assert (output_dir / "resumes" / "company_resume.pdf").exists()
+    assert (output_dir / "resumes" / "company_resume.docx").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -5006,8 +5029,8 @@ def test_company_auto_derived_from_job_text_file(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
     assert "auto-derived from job description" in result.stdout
-    assert (output_dir / "elite_technology_resume.pdf").exists()
-    assert not (output_dir / "company_resume.pdf").exists()
+    assert (output_dir / "resumes" / "elite_technology_resume.pdf").exists()
+    assert not (output_dir / "resumes" / "company_resume.pdf").exists()
 
 
 def test_company_explicit_overrides_jd_derived(tmp_path: Path) -> None:
@@ -5045,8 +5068,8 @@ def test_company_explicit_overrides_jd_derived(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
     assert "auto-derived from job description" not in result.stdout
-    assert (output_dir / "acme_corp_resume.pdf").exists()
-    assert not (output_dir / "elite_technology_resume.pdf").exists()
+    assert (output_dir / "resumes" / "acme_corp_resume.pdf").exists()
+    assert not (output_dir / "resumes" / "elite_technology_resume.pdf").exists()
 
 
 def test_company_falls_back_to_default_when_no_jd(tmp_path: Path) -> None:
@@ -5078,7 +5101,7 @@ def test_company_falls_back_to_default_when_no_jd(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
     assert "auto-derived from job description" not in result.stdout
-    assert (output_dir / "company_resume.pdf").exists()
+    assert (output_dir / "resumes" / "company_resume.pdf").exists()
 
 
 def test_extract_company_via_llm_returns_llm_payload(
@@ -5171,8 +5194,8 @@ def test_run_pipeline_uses_llm_company_in_output_filename(
     rc = build_resume.run_pipeline(pipeline_args)
     assert rc == 0
     # LLM-derived company drove the canonical slug.
-    assert (output_dir / "elite_technology_resume.pdf").exists()
-    assert not (output_dir / "company_resume.pdf").exists()
+    assert (output_dir / "resumes" / "elite_technology_resume.pdf").exists()
+    assert not (output_dir / "resumes" / "company_resume.pdf").exists()
     # The pipeline mutates args.company in place to the resolved name.
     assert pipeline_args.company == "Elite Technology"
 
@@ -5311,7 +5334,7 @@ def test_processed_build_renders_two_page_pdf_at_full_content_shape(
         f"stdout={result.stdout!r}"
     )
 
-    pdf_path = output_dir / "elite_technology_resume.pdf"
+    pdf_path = output_dir / "resumes" / "elite_technology_resume.pdf"
     assert pdf_path.exists(), f"expected pdf at {pdf_path}"
     reader = pypdf.PdfReader(str(pdf_path))
     assert len(reader.pages) == 2, (

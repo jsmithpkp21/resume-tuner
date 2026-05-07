@@ -2359,6 +2359,56 @@ def test_trim_for_role_keeps_experience_when_scores_are_empty(
     assert trimmed.experiences[0] == resume.experiences[0]
 
 
+def test_trim_for_role_is_reproducible_across_runs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #22 acceptance: same input produces same selected bullet ids."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    profile = load_profile(PROFILE)
+    experiences = load_experiences(
+        REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    )
+
+    def build() -> Any:
+        return assemble_baseline_resume(
+            profile=profile,
+            target_role="Senior SDET",
+            target_company="Charles Schwab",
+            job_context=jd_ingest.ingest_job_text(
+                "Job Title: Senior SDET\nCompany: Charles Schwab\n"
+                "Looking for a Senior SDET focused on debugging and CI reliability."
+            ),
+            experiences=experiences,
+            skills_by_category={},
+        )
+
+    def deterministic_scores(
+        *, client: Any, resume: Any, experience: Any
+    ) -> dict[str, float]:
+        del client, resume
+        # Score from bullet id so ranking actually reorders bullets rather
+        # than coincidentally returning them in their original input order.
+        return {
+            bullet.id: float(sum(ord(c) for c in bullet.id) % 100) / 100.0
+            for bullet in experience.bullets
+        }
+
+    monkeypatch.setattr(
+        "scripts.build_resume._score_bullet_relevance", deterministic_scores
+    )
+
+    first_ids = [
+        [bullet.id for bullet in experience.bullets]
+        for experience in trim_for_role(build()).experiences
+    ]
+    second_ids = [
+        [bullet.id for bullet in experience.bullets]
+        for experience in trim_for_role(build()).experiences
+    ]
+    assert sum(len(ids) for ids in first_ids) >= 5
+    assert first_ids == second_ids
+
+
 def test_enrich_data_adds_metadata_without_changing_bullets(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

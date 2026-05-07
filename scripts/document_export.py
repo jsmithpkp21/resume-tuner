@@ -55,9 +55,11 @@ def snake_case(value: str) -> str:
     return token or "company"
 
 
-def canonical_export_filename(company: str, extension: str) -> str:
+def canonical_export_filename(
+    company: str, extension: str, *, kind: str = "resume"
+) -> str:
     ext = extension.lower().lstrip(".")
-    return f"{snake_case(company)}_resume.{ext}"
+    return f"{snake_case(company)}_{kind}.{ext}"
 
 
 def staging_path(output_path: Path, *, label: str) -> Path:

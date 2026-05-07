@@ -246,7 +246,7 @@ class ResumeIR:
 
 
 VALID_OUTPUT_TOKENS = ("pdf", "docx", "md", "html")
-DEFAULT_OUTPUTS = ("pdf",)
+DEFAULT_OUTPUTS = ("pdf", "docx")
 
 
 def _parse_outputs(value: str) -> tuple[str, ...]:
@@ -336,7 +336,8 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_OUTPUTS,
         help=(
             "Comma-separated artifacts to emit. Valid tokens: "
-            f"{', '.join(VALID_OUTPUT_TOKENS)}. Default: pdf (submission-ready)."
+            f"{', '.join(VALID_OUTPUT_TOKENS)}. Default: pdf,docx "
+            "(submission-ready + editable)."
         ),
     )
     common.add_argument(
@@ -356,9 +357,12 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help=(
             "Also generate a tailored cover letter alongside the resume, "
-            "written under <output-dir>/cover_letters/. Currently emits a "
-            "clearly-marked placeholder; full generator is tracked in "
-            "issue #229."
+            "written under <output-dir>/cover_letters/. Body is LLM-drafted "
+            "(requires RESUME_BUILDER_LLM_ENABLED=1 or fixture mode); "
+            "rendered as PDF + DOCX (and Markdown / HTML for review). "
+            "For finer control (word budget, hiring manager override, "
+            "addressee confidence threshold) use scripts/build_cover_letter.py "
+            "directly."
         ),
     )
 
@@ -3534,10 +3538,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
             role=resolved_target_role,
         )
         written_paths.extend(cover_letter_paths)
-        print(
-            "Cover letter (placeholder — see issue #229) written to: "
-            f"{cover_letter_dir}"
-        )
+        print(f"Cover letter written to: {cover_letter_dir}")
 
     print(f"Resume output written to ({args.processing_mode} mode): {resume_dir}")
     for path in written_paths:
@@ -3546,6 +3547,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
         print("- removed stale legacy exports:")
         for removed_path in removed_legacy_outputs:
             print(f"    {removed_path}")
+
     return 0
 
 

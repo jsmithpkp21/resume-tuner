@@ -4794,27 +4794,15 @@ def test_apply_display_experience_selection_filters_enrichment_for_removed_roles
 # ---------------------------------------------------------------------------
 
 
-def test_build_resume_cli_cover_letter_flag_emits_stub(tmp_path: Path) -> None:
-    """--cover-letter writes a placeholder markdown file under cover_letters/."""
-    output_dir = tmp_path / "out"
-    profile_path = tmp_path / "profile.toml"
-    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
-
-    result = _run_build_resume_cli(
-        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
-        profile_path=profile_path,
-        output_dir=output_dir,
-        extra_args=("--cover-letter",),
-    )
-    assert result.returncode == 0, result.stderr
-
-    cover_letter_dir = output_dir / "cover_letters"
-    expected_path = cover_letter_dir / "company_cover_letter.md"
-    assert expected_path.exists()
-    body = expected_path.read_text(encoding="utf-8")
-    assert "placeholder" in body.lower()
-    assert "issue #229" in body
-    assert "placeholder" in result.stdout.lower()
+# Note: the prior `test_build_resume_cli_cover_letter_flag_emits_stub`
+# tested PR #231's stub generator (a placeholder markdown file). After
+# PR #223 replaced the stub with the v1 LLM-driven generator (see issue
+# #229), an end-to-end CLI test of `--cover-letter` requires fixture-
+# mode setup (RESUME_BUILDER_LLM_FIXTURE=1 + an experience_db whose
+# inputs hash into the fixture cache). The unit-level coverage of the
+# new wiring lives in tests/scripts/test_build_cover_letter.py
+# (test_cover_letter_module_invokes_run_pipeline_collecting_paths);
+# the missing CLI-level end-to-end is tracked outside this PR.
 
 
 def test_build_resume_cli_no_cover_letter_flag_skips_cover_letter_dir(
@@ -4897,8 +4885,8 @@ def _outputs_cli(
     )
 
 
-def test_outputs_default_writes_only_pdf_and_ir(tmp_path: Path) -> None:
-    """Default --outputs=pdf produces PDF + IR snapshots; no HTML/MD/DOCX."""
+def test_outputs_default_writes_pdf_docx_and_ir(tmp_path: Path) -> None:
+    """Default --outputs=pdf,docx produces PDF + DOCX + IR snapshots; no HTML/MD."""
     output_dir = tmp_path / "out"
     profile_path = tmp_path / "profile.toml"
     profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
@@ -4907,18 +4895,18 @@ def test_outputs_default_writes_only_pdf_and_ir(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
 
     assert (output_dir / "resumes" / "company_resume.pdf").exists()
+    assert (output_dir / "resumes" / "company_resume.docx").exists()
     assert (
         output_dir / "resumes" / "latest_resume_processed_ir_snapshot.json"
     ).exists()
     assert (output_dir / "resumes" / "latest_resume_processed_ir_snapshot.txt").exists()
 
-    # HTML, MD, DOCX absent under default --outputs=pdf.
+    # HTML and MD absent under default --outputs=pdf,docx.
     assert not (output_dir / "resumes" / "latest_resume_processed.html").exists()
     assert not (
         output_dir / "resumes" / "latest_default_resume_processed.html"
     ).exists()
     assert not (output_dir / "resumes" / "latest_resume_processed.md").exists()
-    assert not (output_dir / "resumes" / "company_resume.docx").exists()
 
 
 def test_outputs_all_four_formats(tmp_path: Path) -> None:

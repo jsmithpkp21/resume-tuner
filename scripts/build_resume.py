@@ -26,6 +26,8 @@ if __package__ in {None, ""}:
         TARGET_LINES_MAX as _SKILLS_TARGET_LINES_MAX,
     )
     from select_skills import (
+        TOP_N_SKILLS,
+        TOP_N_SKILLS_LLM_ENABLED,
         join_skills,
         select_skills,
     )
@@ -35,6 +37,8 @@ else:
         TARGET_LINES_MAX as _SKILLS_TARGET_LINES_MAX,
     )
     from scripts.select_skills import (
+        TOP_N_SKILLS,
+        TOP_N_SKILLS_LLM_ENABLED,
         join_skills,
         select_skills,
     )
@@ -252,6 +256,35 @@ VALID_OUTPUT_TOKENS = ("pdf", "docx", "md", "html")
 DEFAULT_OUTPUTS = ("pdf", "docx")
 
 
+_TOP_SKILLS_CAP_HARD_MAX = 60
+
+
+def _parse_top_skills_cap(value: str) -> int:
+    """argparse type for --top-skills-cap.
+
+    Enforces ``1 <= N < 60``: a non-positive cap silently drops every skill,
+    and values at or above 60 risk page overflow on the modern template
+    (issue #256 documents the upper-bound rationale).
+    """
+    try:
+        cap = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"--top-skills-cap must be an integer, got {value!r}"
+        ) from exc
+    if cap < 1:
+        raise argparse.ArgumentTypeError(
+            f"--top-skills-cap must be >= 1 (got {cap}); a non-positive cap "
+            "would silently drop all skills."
+        )
+    if cap >= _TOP_SKILLS_CAP_HARD_MAX:
+        raise argparse.ArgumentTypeError(
+            f"--top-skills-cap must be < {_TOP_SKILLS_CAP_HARD_MAX} (got {cap}); "
+            "larger values risk page overflow on the modern template."
+        )
+    return cap
+
+
 def _parse_outputs(value: str) -> tuple[str, ...]:
     tokens = [token.strip().lower() for token in value.split(",") if token.strip()]
     if not tokens:
@@ -459,6 +492,18 @@ def parse_args() -> argparse.Namespace:
             "in raw mode and modern in processed mode. If the requested secondary "
             "template matches the primary template, build_resume automatically "
             "uses the other built-in template for the secondary artifact."
+        ),
+    )
+    advanced.add_argument(
+        "--top-skills-cap",
+        type=_parse_top_skills_cap,
+        default=None,
+        metavar="N",
+        help=(
+            f"Override the maximum number of skills retained across all "
+            f"categories. Default: {TOP_N_SKILLS} (LLM stages disabled) or "
+            f"{TOP_N_SKILLS_LLM_ENABLED} (LLM stages enabled). Accepts "
+            f"1 <= N < {_TOP_SKILLS_CAP_HARD_MAX}; tunable for visual fit."
         ),
     )
     return parser.parse_args()
@@ -1746,6 +1791,21 @@ def _llm_stage_enabled() -> bool:
     llm_enabled = os.getenv(LLM_ENABLED_ENV, "0").strip() == "1"
     fixture_enabled = os.getenv(LLM_FIXTURE_ENV, "0").strip() == "1"
     return llm_enabled or fixture_enabled
+
+
+def _resolve_top_skills_cap(args: argparse.Namespace) -> int:
+    """Pick the top-N skills cap for the current run.
+
+    Priority: explicit CLI override (``--top-skills-cap``) > LLM-enabled
+    default > deterministic default. Tunable so the cap can be re-evaluated
+    against real JD content; see DESIGN.md "Top-N skill cap".
+    """
+    override = getattr(args, "top_skills_cap", None)
+    if override is not None:
+        return int(override)
+    if _llm_stage_enabled():
+        return int(TOP_N_SKILLS_LLM_ENABLED)
+    return int(TOP_N_SKILLS)
 
 
 def _jd_context_required(args: argparse.Namespace) -> bool:
@@ -3903,7 +3963,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
         resume = trim_by_rules(resume, removal_reasons=bullet_removal_reasons)
         resume = _apply_display_experience_selection(resume)
         resume = summarize_for_role(resume)
-        resume = select_skills(resume)
+        resume = select_skills(resume, top_n=_resolve_top_skills_cap(args))
         resume = summarize_profile_for_role(resume)
 
     resume_dir = args.output_dir / RESUME_OUTPUT_SUBDIR

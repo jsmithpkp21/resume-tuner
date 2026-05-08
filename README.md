@@ -67,7 +67,10 @@ Common vs Advanced flags:
 - **Advanced (overrides & debug):** `--profile`, `--experience-db`,
   `--skills-matrix`, `--pdf-filename`, `--docx-filename`,
   `--allow-overflow-pdf`, `--post-layout-cleanup`,
-  `--include-private-projects`, `--template`.
+  `--include-private-projects`, `--template`,
+  `--top-skills-cap` (overrides the default top-N skill cap;
+  default is 40 with LLM disabled, 46 with LLM enabled — tunable
+  for visual fit, see DESIGN.md "Top-N skill cap").
 
 Run `python scripts/build_resume.py --help` for the authoritative list.
 

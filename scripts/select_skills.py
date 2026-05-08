@@ -22,8 +22,18 @@ TARGET_LINES_MIN: int = 11
 TARGET_LINES_MAX: int = 13
 TARGET_CATEGORY_MAX: int = 9
 TOP_N_SKILLS: int = 40
-# Minimum skill count to preserve per category (to avoid empty categories)
+# Higher cap applied when LLM stages are enabled. Tunable via
+# build_resume.py --top-skills-cap; see DESIGN.md "Top-N skill cap" for the
+# rationale (LLM stages can justify a wider skill list when JD signals are
+# present).
+TOP_N_SKILLS_LLM_ENABLED: int = 46
+# Minimum skill count to preserve per category (used by the packer's tail-trim
+# floor; do not raise without re-evaluating pack_skills_to_budget behavior).
 MIN_SKILLS_PER_CATEGORY: int = 1
+# Minimum skill count for a category to remain visible after capping/packing.
+# Categories with fewer than this many surviving skills are dropped from the
+# rendered resume to avoid orphan-looking 1-2 skill rows. See issue #256.
+MIN_CATEGORY_VISIBLE_SKILLS: int = 3
 _CHAR_WIDTH_LIMIT: int = 92
 _ROLE_TOKEN_PATTERN = re.compile(r"[a-z0-9+#/.-]+")
 _ROLE_STOPWORDS = {
@@ -472,6 +482,52 @@ def cap_skills_by_score(
     return capped_skills
 
 
+def _compute_protected_skills(
+    skills_by_category: dict[str, list[str]],
+    skill_scores: dict[str, float],
+    *,
+    protected_skill_floor: float = _PROTECTED_SKILL_SCORE_FLOOR,
+) -> set[str]:
+    """Skills considered high-relevance / required and shielded from aggressive trimming.
+
+    A skill is protected when its computed score meets ``protected_skill_floor``
+    or it is one of the default anchor skills present in the resume. Used by
+    both ``pack_skills_to_budget`` and ``drop_skinny_categories`` so the
+    "required" definition stays consistent across the pipeline.
+    """
+    known_skills = {skill for skills in skills_by_category.values() for skill in skills}
+    protected = {
+        skill
+        for skill, score in skill_scores.items()
+        if score >= protected_skill_floor and skill in known_skills
+    }
+    protected |= _DEFAULT_ANCHOR_SKILLS & known_skills
+    return protected
+
+
+def drop_skinny_categories(
+    skills_by_category: dict[str, list[str]],
+    *,
+    min_skills: int = MIN_CATEGORY_VISIBLE_SKILLS,
+    protected_skills: set[str] | None = None,
+) -> dict[str, list[str]]:
+    """Drop categories whose surviving skill count is below ``min_skills``,
+    unless any skill in the category is protected (high-relevance / required).
+
+    Applied as a final visibility gate after capping and packing. A category
+    that ends up with only 1-2 low-relevance skills looks orphaned in the
+    rendered resume, so we drop it. But losing a required skill from the
+    rendered output is worse than showing a skinny row — so a category that
+    contains any protected skill is kept regardless of size. See issue #256.
+    """
+    protected = protected_skills or set()
+    return {
+        category: list(skills)
+        for category, skills in skills_by_category.items()
+        if len(skills) >= min_skills or any(skill in protected for skill in skills)
+    }
+
+
 def _normalize_skill_near_dupe_key(skill: str) -> str:
     """Build a deterministic key for collapsing near-duplicate skill labels."""
     normalized = skill.strip().lower()
@@ -666,7 +722,10 @@ def _compute_category_industry_weights(
 
 
 def prioritize_skills_by_importance(
-    resume: Any, *, scores: dict[str, float] | None = None
+    resume: Any,
+    *,
+    scores: dict[str, float] | None = None,
+    top_n: int | None = None,
 ) -> dict[str, list[str]]:
     """Order skills so higher-value entries stay earlier during tail trimming."""
     bullet_counts, related_counts = _collect_skill_usage_signals(resume)
@@ -680,9 +739,10 @@ def prioritize_skills_by_importance(
         (set(bullet_counts) | set(related_counts)) - known_skills
     )
     if signaled_but_dropped_skills:
+        resolved_top_n = TOP_N_SKILLS if top_n is None else top_n
         logger.warning(
             "skills referenced in bullets/related_skills but dropped from final selection (top-N cap = %d): %s",
-            TOP_N_SKILLS,
+            resolved_top_n,
             ", ".join(signaled_but_dropped_skills),
         )
 
@@ -824,14 +884,12 @@ def pack_skills_to_budget(
 ) -> dict[str, list[str]]:
     """Trim skills to fit target line budget while reducing singleton/category fragmentation."""
     result = {cat: list(skills) for cat, skills in skills_by_category.items()}
-    known_skills = {skill for skills in result.values() for skill in skills}
     resolved_skill_scores = skill_scores if skill_scores is not None else {}
-    protected_skills = {
-        skill
-        for skill, score in resolved_skill_scores.items()
-        if score >= protected_skill_floor and skill in known_skills
-    }
-    protected_skills |= _DEFAULT_ANCHOR_SKILLS & known_skills
+    protected_skills = _compute_protected_skills(
+        result,
+        resolved_skill_scores,
+        protected_skill_floor=protected_skill_floor,
+    )
     layout_cache: dict[tuple[str, tuple[str, ...], bool], tuple[int, float]] = {}
     iteration = 0
     max_iterations = 200
@@ -985,9 +1043,18 @@ def pack_skills_to_budget(
     return result
 
 
-def select_skills(resume: Any) -> Any:
-    """Pipeline stage: normalize near-duplicates, apply Option A global top-N cap (issue #97), then trim skills to fit the issue #42 target range."""
+def select_skills(resume: Any, *, top_n: int | None = None) -> Any:
+    """Pipeline stage: normalize near-duplicates, apply Option A global top-N cap (issue #97), then trim skills to fit the issue #42 target range.
+
+    ``top_n`` overrides the global cap. When ``None`` (the default), falls back
+    to ``TOP_N_SKILLS``; callers that know LLM stages are enabled may pass
+    ``TOP_N_SKILLS_LLM_ENABLED`` (or a user-supplied override) to widen the cap.
+    A final ``drop_skinny_categories`` pass enforces the per-category visibility
+    floor regardless of cap value.
+    """
     from dataclasses import replace as dataclass_replace
+
+    resolved_top_n = TOP_N_SKILLS if top_n is None else top_n
 
     font_regular: Any | None = None
     font_bold: Any | None = None
@@ -1013,11 +1080,11 @@ def select_skills(resume: Any) -> Any:
         skills_by_category=cap_skills_by_score(
             normalized_resume.skills_by_category,
             skill_scores,
-            top_n=TOP_N_SKILLS,
+            top_n=resolved_top_n,
         ),
     )
     prioritized_skills = prioritize_skills_by_importance(
-        capped_resume, scores=skill_scores
+        capped_resume, scores=skill_scores, top_n=resolved_top_n
     )
     category_industry_weights = _compute_category_industry_weights(
         capped_resume,
@@ -1037,6 +1104,10 @@ def select_skills(resume: Any) -> Any:
         target_max=TARGET_LINES_MAX,
         target_category_max=TARGET_CATEGORY_MAX,
         skill_scores=skill_scores,
+    )
+    protected_skills = _compute_protected_skills(trimmed_skills, skill_scores)
+    trimmed_skills = drop_skinny_categories(
+        trimmed_skills, protected_skills=protected_skills
     )
     trimmed_skills = _order_categories_by_relevance(
         trimmed_skills,

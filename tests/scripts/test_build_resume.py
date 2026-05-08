@@ -5803,6 +5803,42 @@ def test_warn_if_jd_ingest_empty_text_with_llm_disabled(
     assert "LLM tailoring stages will run on near-empty context" not in err
 
 
+# ---------------------------------------------------------------------------
+# --top-skills-cap CLI validation (issue #256, PR #273 review)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_top_skills_cap_accepts_in_range_values() -> None:
+    assert build_resume._parse_top_skills_cap("1") == 1
+    assert build_resume._parse_top_skills_cap("46") == 46
+    assert build_resume._parse_top_skills_cap("59") == 59
+
+
+def test_parse_top_skills_cap_rejects_zero_and_negative() -> None:
+    import argparse as _argparse
+
+    with pytest.raises(_argparse.ArgumentTypeError, match=">= 1"):
+        build_resume._parse_top_skills_cap("0")
+    with pytest.raises(_argparse.ArgumentTypeError, match=">= 1"):
+        build_resume._parse_top_skills_cap("-5")
+
+
+def test_parse_top_skills_cap_rejects_oversized_values() -> None:
+    import argparse as _argparse
+
+    with pytest.raises(_argparse.ArgumentTypeError, match="< 60"):
+        build_resume._parse_top_skills_cap("60")
+    with pytest.raises(_argparse.ArgumentTypeError, match="< 60"):
+        build_resume._parse_top_skills_cap("9999")
+
+
+def test_parse_top_skills_cap_rejects_non_integer() -> None:
+    import argparse as _argparse
+
+    with pytest.raises(_argparse.ArgumentTypeError, match="must be an integer"):
+        build_resume._parse_top_skills_cap("forty-six")
+
+
 # ----- issue #247 fix-4: --require-jd-context hard gate -----------------
 
 

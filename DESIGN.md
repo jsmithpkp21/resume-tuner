@@ -110,6 +110,14 @@ AI must follow these rules when selecting skills, categories, bullets, and exper
 - Category tail-trimming remains in place; low-score skills are intentionally pushed to the tail so removal is low-risk.
 - For similar-value ties, shorter skills sort earlier and longer skills sort later, so trimming can remove long/low-delta items first when that better reduces wrapped lines.
 
+### Top-N skill cap (tunable)
+- A global top-N cap is applied across all categories before layout packing (`scripts/select_skills.py:cap_skills_by_score`). It bounds how many skills can compete for the line budget, regardless of how many appear in upstream data.
+- The cap is **tunable** so it can be re-evaluated against real JD content as the LLM stages mature (issue #256):
+  - **Default (LLM stages disabled):** `TOP_N_SKILLS = 40`.
+  - **Default (LLM stages enabled):** `TOP_N_SKILLS_LLM_ENABLED = 46`. The wider cap exists because LLM-tailored runs surface JD-relevant skills that a fixed 40 would otherwise drop; bumping above ~50 risks page overflow on the modern template.
+  - **Per-run override:** `python scripts/build_resume.py --top-skills-cap N` overrides both defaults. Use to A/B different cap values without editing source.
+- A post-pack visibility floor (`drop_skinny_categories`, `MIN_CATEGORY_VISIBLE_SKILLS = 3`) drops any category that ends up with fewer than 3 surviving skills, **unless any skill in the category is protected** (high-relevance / required, per `_compute_protected_skills`). Losing a required skill from the rendered output is worse than showing a skinny category, so a single protected skill keeps its category visible regardless of size. The guard runs independently of the cap value and uses the same protected-skill definition as the packer.
+
 ### Experience Selection
 9. Include only experiences with an end date within **15 years**.
 10. Order experiences by **relevance + recency**.

@@ -10,11 +10,13 @@ import pytest
 
 from scripts import select_skills as select_skills_module
 from scripts.select_skills import (
+    MIN_CATEGORY_VISIBLE_SKILLS,
     MIN_SKILLS_PER_CATEGORY,
     TARGET_CATEGORY_MAX,
     TARGET_LINES_MAX,
     TARGET_LINES_MIN,
     TOP_N_SKILLS,
+    TOP_N_SKILLS_LLM_ENABLED,
     _compute_category_industry_weights,
     _compute_skill_scores,
     _expand_jd_forms,
@@ -24,6 +26,7 @@ from scripts.select_skills import (
     _tokenize_role_text,
     _wrap_widths,
     cap_skills_by_score,
+    drop_skinny_categories,
     estimate_line_count,
     join_skills,
     normalize_skill_near_dupes,
@@ -388,6 +391,76 @@ def test_cap_skills_by_score_drops_empty_categories() -> None:
     }
 
 
+def test_drop_skinny_categories_removes_categories_below_min() -> None:
+    skills_by_category = {
+        "Languages": ["Python", "Java", "Kotlin"],
+        "Testing": ["Pytest", "Selenium"],
+        "Platforms": ["AWS"],
+        "Tooling": ["Docker", "Git", "Jenkins", "Make"],
+    }
+
+    pruned = drop_skinny_categories(skills_by_category)
+
+    assert pruned == {
+        "Languages": ["Python", "Java", "Kotlin"],
+        "Tooling": ["Docker", "Git", "Jenkins", "Make"],
+    }
+
+
+def test_drop_skinny_categories_default_threshold_matches_constant() -> None:
+    just_below = {"Sparse": ["a", "b"]}
+    at_threshold = {"Full": ["a", "b", "c"]}
+
+    assert MIN_CATEGORY_VISIBLE_SKILLS == 3
+    assert drop_skinny_categories(just_below) == {}
+    assert drop_skinny_categories(at_threshold) == {"Full": ["a", "b", "c"]}
+
+
+def test_drop_skinny_categories_respects_explicit_threshold() -> None:
+    skills_by_category = {
+        "One": ["a"],
+        "Two": ["a", "b"],
+        "Three": ["a", "b", "c"],
+    }
+
+    assert drop_skinny_categories(skills_by_category, min_skills=2) == {
+        "Two": ["a", "b"],
+        "Three": ["a", "b", "c"],
+    }
+    assert drop_skinny_categories(skills_by_category, min_skills=1) == {
+        "One": ["a"],
+        "Two": ["a", "b"],
+        "Three": ["a", "b", "c"],
+    }
+
+
+def test_drop_skinny_categories_keeps_categories_with_protected_skill() -> None:
+    skills_by_category = {
+        "ProtectedSmall": ["RequiredSkill", "Filler"],
+        "UnprotectedSmall": ["Filler1", "Filler2"],
+        "Healthy": ["a", "b", "c"],
+    }
+    protected = {"RequiredSkill"}
+
+    pruned = drop_skinny_categories(skills_by_category, protected_skills=protected)
+
+    # ProtectedSmall is below the 3-skill floor but contains a protected skill,
+    # so losing the category would lose the required skill — keep it.
+    assert pruned == {
+        "ProtectedSmall": ["RequiredSkill", "Filler"],
+        "Healthy": ["a", "b", "c"],
+    }
+
+
+def test_drop_skinny_categories_drops_when_no_protected_skill_present() -> None:
+    skills_by_category = {
+        "AllLowRelevance": ["A", "B"],
+    }
+    protected = {"SomethingElse"}
+
+    assert drop_skinny_categories(skills_by_category, protected_skills=protected) == {}
+
+
 def test_compute_skill_scores_includes_matrix_skills_without_usage_signals() -> None:
     """Skills absent from all bullets/related_skills still get a role-relevance score.
 
@@ -590,11 +663,130 @@ def test_select_skills_applies_top_n_cap_before_trimming() -> None:
     )
 
 
-def test_select_skills_normalizes_ci_cd_near_duplicates() -> None:
+def test_select_skills_honors_explicit_top_n_override() -> None:
+    captured: dict[str, list[str]] = {}
+    all_skills = [f"skill_{idx:02d}" for idx in range(TOP_N_SKILLS_LLM_ENABLED + 5)]
     resume = _DummyResume(
         skills_by_category={
-            "Automation": ["CI/CD", "Playwright"],
-            "Tooling": ["CI / CD", "GitHub Actions"],
+            "Everything": all_skills,
+        },
+        experiences=(
+            _DummyExperience(
+                related_skills=tuple(all_skills[:TOP_N_SKILLS_LLM_ENABLED]),
+                bullets=tuple(
+                    _DummyBullet(skills=(skill,))
+                    for skill in all_skills[:TOP_N_SKILLS_LLM_ENABLED]
+                ),
+            ),
+        ),
+    )
+
+    def fake_pack_skills_to_budget(
+        skills_by_category: dict[str, list[str]], **_kwargs: object
+    ) -> dict[str, list[str]]:
+        captured.update(
+            {category: list(skills) for category, skills in skills_by_category.items()}
+        )
+        return {
+            category: list(skills) for category, skills in skills_by_category.items()
+        }
+
+    original_pack = select_skills_module.pack_skills_to_budget
+    select_skills_module.pack_skills_to_budget = fake_pack_skills_to_budget
+    try:
+        packed_resume = select_skills(resume, top_n=TOP_N_SKILLS_LLM_ENABLED)
+    finally:
+        select_skills_module.pack_skills_to_budget = original_pack
+
+    assert captured
+    captured_total = sum(len(skills) for skills in captured.values())
+    assert captured_total <= TOP_N_SKILLS_LLM_ENABLED
+    assert captured_total > TOP_N_SKILLS  # confirms the cap actually widened
+    assert set(all_skills[TOP_N_SKILLS_LLM_ENABLED:]).isdisjoint(
+        skill for skills in captured.values() for skill in skills
+    )
+    assert (
+        len(packed_resume.skills_by_category["Everything"]) <= TOP_N_SKILLS_LLM_ENABLED
+    )
+
+
+def test_select_skills_drops_skinny_categories_after_packing() -> None:
+    resume = _DummyResume(
+        skills_by_category={
+            "Languages": ["Python", "Java", "Kotlin"],
+            "Sparse": ["NicheSkill"],
+        },
+        experiences=(
+            _DummyExperience(
+                related_skills=("Python", "Java", "Kotlin", "NicheSkill"),
+                bullets=(
+                    _DummyBullet(skills=("Python",)),
+                    _DummyBullet(skills=("Java",)),
+                    _DummyBullet(skills=("Kotlin",)),
+                    _DummyBullet(skills=("NicheSkill",)),
+                ),
+            ),
+        ),
+    )
+
+    original_pack = select_skills_module.pack_skills_to_budget
+    select_skills_module.pack_skills_to_budget = lambda skills_by_category, **_kwargs: {
+        category: list(skills) for category, skills in skills_by_category.items()
+    }
+    try:
+        packed_resume = select_skills(resume)
+    finally:
+        select_skills_module.pack_skills_to_budget = original_pack
+
+    assert "Languages" in packed_resume.skills_by_category
+    assert "Sparse" not in packed_resume.skills_by_category
+
+
+def test_select_skills_keeps_small_category_when_skill_is_protected() -> None:
+    # 'Python' is a default anchor skill, so the protected-skill carve-out in
+    # drop_skinny_categories should keep its category even when it falls below
+    # the 3-skill visibility floor. Issue #256 PR #273 review.
+    resume = _DummyResume(
+        skills_by_category={
+            "Languages": ["Kotlin", "Scala", "Rust"],
+            "AnchorOnly": ["Python", "Filler"],
+        },
+        experiences=(
+            _DummyExperience(
+                related_skills=("Python", "Kotlin"),
+                bullets=(
+                    _DummyBullet(skills=("Python",)),
+                    _DummyBullet(skills=("Kotlin",)),
+                ),
+            ),
+        ),
+    )
+
+    original_pack = select_skills_module.pack_skills_to_budget
+    select_skills_module.pack_skills_to_budget = lambda skills_by_category, **_kwargs: {
+        category: list(skills) for category, skills in skills_by_category.items()
+    }
+    try:
+        packed_resume = select_skills(resume)
+    finally:
+        select_skills_module.pack_skills_to_budget = original_pack
+
+    # Both categories survive: Languages because it has 3 skills, AnchorOnly
+    # because Python is a protected (anchor) skill — losing the category would
+    # lose the required skill from the rendered resume.
+    assert "Languages" in packed_resume.skills_by_category
+    assert "AnchorOnly" in packed_resume.skills_by_category
+    assert "Python" in packed_resume.skills_by_category["AnchorOnly"]
+
+
+def test_select_skills_normalizes_ci_cd_near_duplicates() -> None:
+    # Categories padded to >=3 skills each so the post-pack
+    # drop_skinny_categories guard (issue #256) does not remove them; this
+    # test exercises near-dupe normalization, not category sizing.
+    resume = _DummyResume(
+        skills_by_category={
+            "Automation": ["CI/CD", "Playwright", "Selenium", "Pytest"],
+            "Tooling": ["CI / CD", "GitHub Actions", "Docker", "Make"],
         },
         experiences=(
             _DummyExperience(
@@ -715,11 +907,14 @@ def test_select_skills_orders_categories_by_aggregate_role_relevance() -> None:
 
 
 def test_select_skills_applies_hybrid_industry_weighting_for_categories() -> None:
+    # Categories padded to >=3 skills each so the post-pack
+    # drop_skinny_categories guard (issue #256) does not remove them; this
+    # test exercises industry-weighted category ordering, not category sizing.
     resume = _DummyResume(
         skills_by_category={
-            "Programming & Scripting": ["Python", "Java"],
-            "Security & Compliance": ["Threat Modeling", "SOC2"],
-            "CI/CD & Tooling": ["GitHub Actions", "Jenkins"],
+            "Programming & Scripting": ["Python", "Java", "Kotlin"],
+            "Security & Compliance": ["Threat Modeling", "SOC2", "Compliance"],
+            "CI/CD & Tooling": ["GitHub Actions", "Jenkins", "Docker"],
         },
         experiences=(
             _DummyExperience(

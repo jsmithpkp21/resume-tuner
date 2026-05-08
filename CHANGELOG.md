@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.39.0...v0.40.0) (2026-05-08)
+
+
+### Features
+
+* **build_resume:** --require-jd-context hard gate ([#247](https://github.com/jsmithpkp21/resume-builder/issues/247) fix-4) ([#261](https://github.com/jsmithpkp21/resume-builder/issues/261)) ([6a0ccc8](https://github.com/jsmithpkp21/resume-builder/commit/6a0ccc856cfad70159ca3275e6041ded0990dfcf))
+
 ## [0.39.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.38.0...v0.39.0) (2026-05-08)
 
 

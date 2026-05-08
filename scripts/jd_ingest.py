@@ -693,8 +693,11 @@ def _html_to_text(raw: str) -> str:
     parser.feed(raw)
     parser.close()
     # Collapse runs of whitespace (excluding newlines we inserted) so the
-    # downstream description-excerpt truncation gets useful content.
-    text = re.sub(r"[ \t]+", " ", parser.text)
+    # downstream description-excerpt truncation gets useful content. NBSP
+    # (\xa0) is included because HTMLParser preserves the NBSP character
+    # when &nbsp; is decoded; runs of NBSP would otherwise leave odd
+    # spacing in the extracted JD body.
+    text = re.sub(r"[ \t\xa0]+", " ", parser.text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text
 
@@ -754,7 +757,12 @@ def _fetch_greenhouse_via_api(*, board: str, job_id: str) -> FetchedPage | None:
         return None
     title = (payload.get("title") or "").strip()
     description = _html_to_text(payload.get("content") or "")
-    if not (title or description):
+    # Require a non-empty description specifically (not just title-or-description):
+    # downstream JD-term extraction and the LLM-tailoring stages all depend on
+    # the description body. A title-only payload would short-circuit the
+    # static-HTML fallback while still leaving description_excerpt empty,
+    # defeating the whole point of the API path.
+    if not description:
         return None
     return FetchedPage(
         status="fetched",
@@ -776,7 +784,9 @@ def _fetch_workable_via_api(*, account: str, shortcode: str) -> FetchedPage | No
         return None
     title = (payload.get("title") or "").strip()
     description = _html_to_text(payload.get("description") or "")
-    if not (title or description):
+    # Same rationale as the Greenhouse path: require a non-empty description
+    # so a title-only payload doesn't suppress the static-HTML fallback.
+    if not description:
         return None
     return FetchedPage(
         status="fetched",

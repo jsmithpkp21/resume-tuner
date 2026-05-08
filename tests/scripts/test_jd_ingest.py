@@ -359,6 +359,12 @@ def test_extract_role_hint_falls_through_to_path_when_query_is_filter() -> None:
         ("<p>Smith &amp; Sons</p>", "Smith & Sons"),
         # NBSP is whitespace per str.isspace, so leading NBSP gets stripped.
         ("&nbsp; spaces", "spaces"),
+        # NBSP runs (HTMLParser preserves the U+00A0 character when &nbsp;
+        # decodes) are collapsed alongside ASCII spaces and tabs. Without
+        # this, JD bodies that use &nbsp; for indentation produce
+        # awkward-looking extracted text.
+        ("<p>word&nbsp;&nbsp;&nbsp;word</p>", "word word"),
+        ("<p>foo&nbsp; \tbar</p>", "foo bar"),
         # Adjacent block-open tags (div+p, div+p) leave a blank line between
         # paragraphs — fine for JD downstream truncation.
         ("<div><p>A</p></div><div><p>B</p></div>", "A\n\nB"),
@@ -502,3 +508,31 @@ def test_fetch_greenhouse_via_api_skips_when_required_url_parts_missing() -> Non
 def test_fetch_workable_via_api_skips_when_required_url_parts_missing() -> None:
     assert _fetch_workable_via_api(account="", shortcode="abc") is None
     assert _fetch_workable_via_api(account="acme", shortcode="") is None
+
+
+def test_fetch_greenhouse_via_api_returns_none_on_title_only_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Round-1 review on PR #263: title alone is not enough.
+
+    Downstream JD-term extraction and LLM tailoring stages depend on
+    description text. A title-only API payload would short-circuit
+    the static-HTML fallback while leaving description_excerpt empty,
+    defeating the whole point of the API path.
+    """
+    monkeypatch.setattr(
+        "scripts.jd_ingest._fetch_json_api",
+        lambda _u: {"title": "Senior SWE", "content": ""},
+    )
+    assert _fetch_greenhouse_via_api(board="acme", job_id="123") is None
+
+
+def test_fetch_workable_via_api_returns_none_on_title_only_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Same rationale as the Greenhouse equivalent — require a description."""
+    monkeypatch.setattr(
+        "scripts.jd_ingest._fetch_json_api",
+        lambda _u: {"title": "Staff SDET", "description": ""},
+    )
+    assert _fetch_workable_via_api(account="acme", shortcode="abc") is None

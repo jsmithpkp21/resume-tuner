@@ -124,6 +124,18 @@ _TRAILING_FRAGMENT_WORDS = {
 PROFILE_SUMMARY_MAX_WORDS = 112
 PROFILE_SUMMARY_MIN_RATIO = 0.8
 
+# Lower-bound floor for the LLM-tailored summary path. The deterministic
+# generator's PROFILE_SUMMARY_MIN_RATIO * PROFILE_SUMMARY_MAX_WORDS bound
+# (~90) is a *pre-fitting* candidate floor; after _fit_profile_summary_layout
+# trims to PROFILE_SUMMARY_MAX_LINES the actual output is typically ~25-50
+# words. Real-world LLMs (llama3.1:8b, gemma2:9b, qwen2.5:14b) produce
+# 50-90-word summaries when asked for "concise paragraph" output. Holding
+# them to a 90-word minimum rejects almost every LLM response and leaves
+# the deterministic fallback as the dominant path. Using a sanity floor
+# of 30 lets reasonable LLM output through; the real layout guardrail is
+# the wrap-line check at PROFILE_SUMMARY_LINE_WIDTH later in the helper.
+_LLM_SUMMARY_MIN_WORDS = 30
+
 LLM_ENABLED_ENV = "RESUME_BUILDER_LLM_ENABLED"
 LLM_FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"
 
@@ -1937,9 +1949,12 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
     - Raised exception during the LLM call (network, JSON-decode, etc.).
     - Malformed response (missing key, non-string value, empty/whitespace
       string).
-    - Word count outside [PROFILE_SUMMARY_MIN_RATIO * PROFILE_SUMMARY_MAX_WORDS,
-      PROFILE_SUMMARY_MAX_WORDS] — same word-budget contract as the
-      deterministic generator (90-112 words at the current calibration).
+    - Word count outside [_LLM_SUMMARY_MIN_WORDS, PROFILE_SUMMARY_MAX_WORDS]
+      (currently [30, 112]). The lower bound is a sanity floor — much
+      shorter than that suggests a fragmented or otherwise broken LLM
+      response. The upper bound matches the deterministic generator's
+      pre-fitting cap. The real layout guardrail is the wrap-line check
+      below.
     - Wrap-line count above PROFILE_SUMMARY_MAX_LINES (6) when wrapped
       at PROFILE_SUMMARY_LINE_WIDTH (115) — the same 6-line PDF layout
       cap that _fit_profile_summary_layout enforces on the deterministic
@@ -1952,7 +1967,7 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
         return ""
 
     max_words = max(1, int(PROFILE_SUMMARY_MAX_WORDS))
-    min_words = min(max_words, max(1, math.ceil(max_words * PROFILE_SUMMARY_MIN_RATIO)))
+    min_words = min(max_words, max(1, _LLM_SUMMARY_MIN_WORDS))
 
     top_skills = _collect_resume_skill_signals(resume)[:6]
     experience_signals: list[dict[str, str]] = []

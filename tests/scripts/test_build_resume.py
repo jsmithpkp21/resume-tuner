@@ -5943,11 +5943,11 @@ def test_generate_jd_tailored_summary_returns_in_bounds_llm_output(
     assert "Real JD body" in jd_excerpt
     assert fake.captured_payload["target_role"] == "Staff Software Engineer"
     assert fake.captured_payload["target_company"] == "Acme"
-    # Bounds match the deterministic generator's contract (PROFILE_SUMMARY_*).
-    expected_max = build_resume.PROFILE_SUMMARY_MAX_WORDS
-    expected_min = math.ceil(expected_max * build_resume.PROFILE_SUMMARY_MIN_RATIO)
-    assert fake.captured_payload["max_words"] == expected_max
-    assert fake.captured_payload["min_words"] == expected_min
+    # Upper bound is the deterministic generator's PROFILE_SUMMARY_MAX_WORDS;
+    # lower bound is the LLM-specific sanity floor _LLM_SUMMARY_MIN_WORDS so
+    # real-world LLM output (~50-90 words) doesn't get rejected.
+    assert fake.captured_payload["max_words"] == build_resume.PROFILE_SUMMARY_MAX_WORDS
+    assert fake.captured_payload["min_words"] == build_resume._LLM_SUMMARY_MIN_WORDS
 
 
 def test_generate_jd_tailored_summary_keeps_existing_terminal_punctuation(
@@ -6019,11 +6019,11 @@ def test_generate_jd_tailored_summary_rejects_malformed_responses(
     assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
 
 
-@pytest.mark.parametrize("word_count", [0, 50, 89, 113, 200])
+@pytest.mark.parametrize("word_count", [0, 10, 29, 113, 200])
 def test_generate_jd_tailored_summary_rejects_out_of_bounds_word_count(
     monkeypatch: pytest.MonkeyPatch, word_count: int
 ) -> None:
-    """Below MIN_RATIO * MAX_WORDS or above MAX => empty => caller falls back."""
+    """Below _LLM_SUMMARY_MIN_WORDS or above MAX => empty => caller falls back."""
     monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
     summary = _build_in_bounds_summary(word_count) if word_count else ""
     _install_fake_llm(monkeypatch, payload={"summary": summary})
@@ -6052,10 +6052,11 @@ def test_generate_jd_tailored_summary_rejects_layout_overflow(
 
     # Sanity: word count is in bounds but line count is over at the
     # profile-summary width (NOT the default SUMMARY_LINE_WIDTH).
-    expected_min = math.ceil(
-        build_resume.PROFILE_SUMMARY_MAX_WORDS * build_resume.PROFILE_SUMMARY_MIN_RATIO
+    assert (
+        build_resume._LLM_SUMMARY_MIN_WORDS
+        <= 100
+        <= build_resume.PROFILE_SUMMARY_MAX_WORDS
     )
-    assert expected_min <= 100 <= build_resume.PROFILE_SUMMARY_MAX_WORDS
     assert (
         len(
             build_resume._summary_wrap_lines(

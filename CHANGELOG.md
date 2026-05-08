@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.38.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.37.0...v0.38.0) (2026-05-08)
+
+
+### Features
+
+* **experience:** add worksheet lifecycle policy and canonical coverage check ([ebb6b24](https://github.com/jsmithpkp21/resume-builder/commit/ebb6b2405475b2f052d703a957cf720cd1656925)), closes [#21](https://github.com/jsmithpkp21/resume-builder/issues/21)
+
+
+### Bug Fixes
+
+* **experience:** address PR [#257](https://github.com/jsmithpkp21/resume-builder/issues/257) reviews and unbreak drift-check ([9d8972f](https://github.com/jsmithpkp21/resume-builder/commit/9d8972fa736622d2c359dcad6e9bf8cce9a234a5))
+* **experience:** address PR [#257](https://github.com/jsmithpkp21/resume-builder/issues/257) round-2 review (output guard + missed doc) ([15749bd](https://github.com/jsmithpkp21/resume-builder/commit/15749bd20830e7b2042022ef65c7b66a99e2b22f))
+
+
+### Documentation
+
+* **experience:** correct DESIGN.md / validator citations in coverage docs ([026ca25](https://github.com/jsmithpkp21/resume-builder/commit/026ca25fbbafed5d753d2f032cee8c419cdd5848))
+* **experience:** tighten general_role_description citation precision ([46849fd](https://github.com/jsmithpkp21/resume-builder/commit/46849fdaccabe23a3c155c3bb3cc03f6661b123d))
+
 ## [0.37.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.36.2...v0.37.0) (2026-05-08)
 
 

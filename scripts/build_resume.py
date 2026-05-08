@@ -140,6 +140,12 @@ PROFILE_SUMMARY_MIN_RATIO = 0.8
 # the wrap-line check at PROFILE_SUMMARY_LINE_WIDTH later in the helper.
 _LLM_SUMMARY_MIN_WORDS = 30
 
+# fit_assessment thresholds (#272). Score is on a 0-100 scale where higher
+# means stronger fit. Below the gate, --fit-narrative auto-mode fires the
+# fit-narrative augmentation; tunable later if real-JD calibration shows the
+# 60 cut is too tight or too loose.
+_FIT_NARRATIVE_GATE_SCORE = 60
+
 LLM_ENABLED_ENV = "RESUME_BUILDER_LLM_ENABLED"
 LLM_FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"
 REQUIRE_JD_CONTEXT_ENV = "RESUME_BUILDER_REQUIRE_JD_CONTEXT"
@@ -167,6 +173,10 @@ class Profile:
     summary: str
     education_entries: tuple[EducationEntry, ...]
     leadership_community_entries: tuple[LeadershipCommunityEntry, ...]
+    # Optional free-form seniority hint surfaced to the fit_assessment LLM
+    # call (#272). Empty string when the user does not provide one — the LLM
+    # then judges fit purely from experience content.
+    current_level: str = ""
 
 
 @dataclass(frozen=True)
@@ -257,6 +267,24 @@ DEFAULT_OUTPUTS = ("pdf", "docx")
 
 
 _TOP_SKILLS_CAP_HARD_MAX = 60
+
+_FIT_NARRATIVE_MODES = ("auto", "on", "off")
+
+
+def _parse_fit_narrative_mode(value: str) -> str:
+    """argparse type for --fit-narrative.
+
+    Accepts only ``auto``, ``on``, or ``off`` (case-insensitive). The mode
+    governs whether the resume's profile-summary block is augmented with a
+    fit-narrative clause keyed off the shared fit_assessment LLM call (#272).
+    """
+    normalized = value.strip().lower()
+    if normalized not in _FIT_NARRATIVE_MODES:
+        raise argparse.ArgumentTypeError(
+            f"--fit-narrative must be one of {{{', '.join(_FIT_NARRATIVE_MODES)}}}; "
+            f"got {value!r}"
+        )
+    return normalized
 
 
 def _parse_top_skills_cap(value: str) -> int:
@@ -506,6 +534,21 @@ def parse_args() -> argparse.Namespace:
             f"1 <= N < {_TOP_SKILLS_CAP_HARD_MAX}; tunable for visual fit."
         ),
     )
+    advanced.add_argument(
+        "--fit-narrative",
+        type=_parse_fit_narrative_mode,
+        default="auto",
+        metavar="auto|on|off",
+        help=(
+            "Whether the profile-summary block should be augmented with a "
+            "fit-narrative clause when the candidate is a stretch for the "
+            "JD. 'auto' (default) lets the LLM-judged fit_assessment score "
+            "decide; auto-mode also defers to 'off' when --cover-letter "
+            "is enabled or LLM stages are disabled. 'on' forces fire; "
+            "'off' suppresses entirely. See DESIGN.md \"Fit narrative\" "
+            "for the gate semantics."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -577,6 +620,7 @@ def load_profile(path: Path) -> Profile:
         summary=str(data.get("summary", "")),
         education_entries=education_entries,
         leadership_community_entries=leadership_community_entries,
+        current_level=str(data.get("current_level", "")).strip(),
     )
 
 
@@ -2009,7 +2053,11 @@ def summarize_for_role(resume: ResumeIR) -> ResumeIR:
     return dc_replace(resume, experiences=tuple(updated_experiences))
 
 
-def summarize_profile_for_role(resume: ResumeIR) -> ResumeIR:
+def summarize_profile_for_role(
+    resume: ResumeIR,
+    *,
+    fit_assessment: FitAssessment | None = None,
+) -> ResumeIR:
     """Generate a concise top-of-page summary from processed resume content.
 
     When LLM tailoring is enabled and the JD context has substantive
@@ -2017,10 +2065,17 @@ def summarize_profile_for_role(resume: ResumeIR) -> ResumeIR:
     target role, and company. On any LLM failure (disabled, fixture
     miss, malformed response, output outside word-budget bounds) fall
     back to the deterministic generator so behavior degrades gracefully.
+
+    When ``fit_assessment`` is supplied, the LLM-tailored prompt is
+    augmented to weave a fit-narrative clause into the summary within the
+    same word/line budget (#272). The fit-narrative augmentation only
+    applies to the LLM path; the deterministic fallback ignores it.
     """
     generated_summary = ""
     if _llm_stage_enabled() and _has_substantive_jd_context(resume):
-        generated_summary = _generate_jd_tailored_summary_via_llm(resume)
+        generated_summary = _generate_jd_tailored_summary_via_llm(
+            resume, fit_assessment=fit_assessment
+        )
     if not generated_summary:
         generated_summary = _generate_profile_summary(resume)
     if not generated_summary or generated_summary == resume.profile.summary:
@@ -2028,6 +2083,52 @@ def summarize_profile_for_role(resume: ResumeIR) -> ResumeIR:
 
     updated_profile = dc_replace(resume.profile, summary=generated_summary)
     return dc_replace(resume, profile=updated_profile)
+
+
+def _resolve_fit_narrative(
+    args: argparse.Namespace, resume: ResumeIR
+) -> FitAssessment | None:
+    """Decide whether the fit-narrative summary augmentation should fire (#272).
+
+    Returns the cached :class:`FitAssessment` payload when firing (so the
+    caller can pass the rationale into the prompt and log it). Returns
+    ``None`` when skipping for any reason: explicit ``--fit-narrative off``,
+    auto-mode deferral (``--cover-letter`` on, LLM stages disabled, no
+    substantive JD context), assessment failure, or auto-mode score above
+    the ``_FIT_NARRATIVE_GATE_SCORE`` gate.
+    """
+    mode = getattr(args, "fit_narrative", "auto")
+    if mode == "off":
+        return None
+    cover_letter_enabled = bool(getattr(args, "cover_letter", False))
+    if mode == "auto" and cover_letter_enabled:
+        logger.info("fit_narrative skipped: --cover-letter enabled (auto-mode)")
+        return None
+    if not _llm_stage_enabled():
+        logger.info("fit_narrative skipped: LLM stages disabled")
+        return None
+    if not _has_substantive_jd_context(resume):
+        logger.info("fit_narrative skipped: JD context below threshold")
+        return None
+    assessment = compute_fit_assessment(resume)
+    if assessment is None:
+        logger.info("fit_narrative skipped: fit_assessment returned None")
+        return None
+    if mode == "auto" and assessment.overall_fit_score >= _FIT_NARRATIVE_GATE_SCORE:
+        logger.info(
+            "fit_narrative skipped: overall_fit_score=%.1f >= gate %d (rationale: %s)",
+            assessment.overall_fit_score,
+            _FIT_NARRATIVE_GATE_SCORE,
+            assessment.overall_rationale or "<empty>",
+        )
+        return None
+    logger.info(
+        "fit_narrative firing (mode=%s, overall_fit_score=%.1f): %s",
+        mode,
+        assessment.overall_fit_score,
+        assessment.overall_rationale or "<empty>",
+    )
+    return assessment
 
 
 def _has_substantive_jd_context(resume: ResumeIR) -> bool:
@@ -2044,7 +2145,176 @@ def _has_substantive_jd_context(resume: ResumeIR) -> bool:
     )
 
 
-def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
+@dataclass(frozen=True)
+class FitExperienceScore:
+    experience_id: str
+    fit_score: float
+    rationale: str
+
+
+@dataclass(frozen=True)
+class FitAssessment:
+    """Shared LLM-judged fit assessment, consumed by #272 and #271.
+
+    Fields use a 0-100 scale where higher means stronger fit. Emitted as a
+    single LLM round-trip so #272's narrative gate and #271's per-experience
+    compression decision read from one cached payload.
+    """
+
+    overall_fit_score: float
+    overall_rationale: str
+    per_experience_scores: tuple[FitExperienceScore, ...]
+
+
+def _coerce_fit_score(raw: object) -> float | None:
+    """Validate a 0-100 fit score; return None for unusable inputs."""
+    try:
+        value = float(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if value != value:  # NaN
+        return None
+    if value < 0.0 or value > 100.0:
+        return None
+    return value
+
+
+def compute_fit_assessment(resume: ResumeIR) -> FitAssessment | None:
+    """Run the shared fit_assessment LLM call (#272).
+
+    Returns ``None`` on any failure so callers fall back gracefully:
+
+    - LLM stages disabled (`RESUME_BUILDER_LLM_ENABLED` unset and not in
+      fixture mode).
+    - JD context missing or below the substantive-content threshold.
+    - LLM call raises (network, JSON-decode, etc.).
+    - Response missing required fields, has wrong shape, or carries a
+      score outside the 0-100 range.
+
+    The response is cached by ``LLMClient`` under ``namespace=fit_assessment``
+    so a successful call costs one round-trip per (JD × resume) regardless
+    of how many consumers (#272 narrative gate, #271 compression) read it.
+    """
+    if not _llm_stage_enabled():
+        return None
+    if not _has_substantive_jd_context(resume):
+        return None
+    job_context = resume.job_context
+    if job_context is None:
+        return None
+
+    experience_signals: list[dict[str, object]] = []
+    known_experience_ids: set[str] = set()
+    for experience in resume.experiences:
+        experience_id = (experience.id or "").strip()
+        if not experience_id:
+            continue
+        known_experience_ids.add(experience_id)
+        experience_signals.append(
+            {
+                "experience_id": experience_id,
+                "job_title": (experience.job_title or "").strip(),
+                "company": (experience.company or "").strip(),
+                "general_role_description": (
+                    experience.general_role_description or ""
+                ).strip(),
+                "bullets": [
+                    (bullet.text or "").strip() for bullet in experience.bullets
+                ],
+            }
+        )
+
+    user_payload: dict[str, object] = {
+        "candidate_summary": (resume.profile.summary or "").strip(),
+        "candidate_current_level": (resume.profile.current_level or "").strip(),
+        "target_role": (resume.target_role or "").strip(),
+        "target_company": (resume.target_company or "").strip(),
+        "jd_excerpt": (job_context.description_excerpt or "").strip(),
+        "experiences": experience_signals,
+    }
+
+    try:
+        client = LLMClient.from_env()
+        response = client.complete_json(
+            namespace="fit_assessment",
+            system_prompt=(
+                "You assess how well a candidate's experience fits a job "
+                "description. Score fit on a 0-100 scale where 100 means "
+                "strongest possible fit and 0 means no relevant signal. "
+                "Consider experience depth, domain match, and seniority "
+                "signals together; do NOT weight job titles alone. Use "
+                "the candidate's current_level as additional context only "
+                "when provided. Reply with JSON only matching this schema: "
+                '{"overall_fit_score": <0-100 number>, '
+                '"overall_rationale": "<short string>", '
+                '"per_experience_scores": [{"experience_id": "<id from input>", '
+                '"fit_score": <0-100 number>, "rationale": "<short string>"}]}. '
+                "Include one entry per input experience using the exact "
+                "experience_id values from the input."
+            ),
+            user_payload=user_payload,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.info("fit_assessment skipped: %s", exc)
+        return None
+
+    overall_score = _coerce_fit_score(response.get("overall_fit_score"))
+    if overall_score is None:
+        logger.info("fit_assessment rejected: invalid overall_fit_score")
+        return None
+
+    overall_rationale = response.get("overall_rationale", "")
+    if not isinstance(overall_rationale, str):
+        overall_rationale = ""
+
+    raw_per_experience = response.get("per_experience_scores", [])
+    if not isinstance(raw_per_experience, list):
+        logger.info("fit_assessment rejected: per_experience_scores not a list")
+        return None
+
+    per_experience: list[FitExperienceScore] = []
+    seen_ids: set[str] = set()
+    for item in raw_per_experience:
+        if not isinstance(item, dict):
+            continue
+        experience_id = item.get("experience_id", "")
+        if not isinstance(experience_id, str):
+            continue
+        experience_id = experience_id.strip()
+        if not experience_id or experience_id in seen_ids:
+            continue
+        if experience_id not in known_experience_ids:
+            logger.info(
+                "fit_assessment dropping unknown experience_id=%s", experience_id
+            )
+            continue
+        score = _coerce_fit_score(item.get("fit_score"))
+        if score is None:
+            continue
+        rationale = item.get("rationale", "")
+        if not isinstance(rationale, str):
+            rationale = ""
+        per_experience.append(
+            FitExperienceScore(
+                experience_id=experience_id,
+                fit_score=score,
+                rationale=rationale.strip(),
+            )
+        )
+        seen_ids.add(experience_id)
+
+    return FitAssessment(
+        overall_fit_score=overall_score,
+        overall_rationale=overall_rationale.strip(),
+        per_experience_scores=tuple(per_experience),
+    )
+
+
+def _generate_jd_tailored_summary_via_llm(
+    resume: ResumeIR,
+    *,
+    fit_assessment: FitAssessment | None = None,
+) -> str:
     """Ask the LLM for a JD-conditioned summary; validate bounds + layout.
 
     Returns an empty string on any failure so the caller falls back to
@@ -2067,6 +2337,11 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
       at PROFILE_SUMMARY_LINE_WIDTH (115) — the same 6-line PDF layout
       cap that _fit_profile_summary_layout enforces on the deterministic
       path.
+
+    When ``fit_assessment`` is provided, the system prompt is augmented to
+    weave a fit-narrative clause into the summary within the same word and
+    line budget (#272). The wrap-line and word-count guardrails still apply
+    — the augmentation does not bump the budget.
     """
     if not _llm_stage_enabled():
         return ""
@@ -2091,6 +2366,7 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
     user_payload: dict[str, object] = {
         "candidate_name": resume.profile.name,
         "candidate_baseline_summary": (resume.profile.summary or "").strip(),
+        "candidate_current_level": (resume.profile.current_level or "").strip(),
         "target_company": resume.target_company or "",
         "target_role": resume.target_role or "",
         "top_skills": top_skills,
@@ -2100,23 +2376,37 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
         "max_words": max_words,
     }
 
+    base_prompt = (
+        "You write the opening summary paragraph of a resume "
+        "tailored to a specific job description. Output exactly "
+        "one paragraph between min_words and max_words words "
+        "summarising how the candidate's actual experience and "
+        "skills fit the target role at the target company. Use "
+        "concrete details from recent_experiences and top_skills "
+        "when relevant; do NOT invent achievements. Preserve "
+        "acronym casing (SDET, QA, CI/CD, REST, SQL). Do NOT "
+        "include the candidate's name, the company name, or the "
+        "literal target role in the output. Reply with JSON "
+        'only: {"summary": "<paragraph>"}.'
+    )
+    if fit_assessment is not None:
+        user_payload["fit_narrative_rationale"] = fit_assessment.overall_rationale or ""
+        system_prompt = base_prompt + (
+            " Additionally, the candidate is a stretch for this role; weave "
+            "a single short clause into the same paragraph that addresses "
+            "how the candidate's experience translates to the JD's domain "
+            "and seniority — without inventing achievements and without "
+            "repeating the JD verbatim. Stay within the same word budget; "
+            "the paragraph must still be one paragraph."
+        )
+    else:
+        system_prompt = base_prompt
+
     try:
         client = LLMClient.from_env()
         response = client.complete_json(
             namespace="jd_tailored_summary",
-            system_prompt=(
-                "You write the opening summary paragraph of a resume "
-                "tailored to a specific job description. Output exactly "
-                "one paragraph between min_words and max_words words "
-                "summarising how the candidate's actual experience and "
-                "skills fit the target role at the target company. Use "
-                "concrete details from recent_experiences and top_skills "
-                "when relevant; do NOT invent achievements. Preserve "
-                "acronym casing (SDET, QA, CI/CD, REST, SQL). Do NOT "
-                "include the candidate's name, the company name, or the "
-                "literal target role in the output. Reply with JSON "
-                'only: {"summary": "<paragraph>"}.'
-            ),
+            system_prompt=system_prompt,
             user_payload=user_payload,
         )
     except Exception as exc:  # noqa: BLE001
@@ -4004,7 +4294,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
         resume = _apply_display_experience_selection(resume)
         resume = summarize_for_role(resume)
         resume = select_skills(resume, top_n=_resolve_top_skills_cap(args))
-        resume = summarize_profile_for_role(resume)
+        fit_assessment = _resolve_fit_narrative(args, resume)
+        resume = summarize_profile_for_role(resume, fit_assessment=fit_assessment)
 
     resume_dir = args.output_dir / RESUME_OUTPUT_SUBDIR
     resume_dir.mkdir(parents=True, exist_ok=True)

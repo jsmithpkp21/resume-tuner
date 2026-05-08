@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import html as html_lib
 import io
 import ipaddress
@@ -6500,3 +6501,428 @@ def test_summarize_profile_for_role_skips_llm_when_jd_context_thin(
         job_context=_make_job_context("A" * 100)  # under 200-char threshold
     )
     build_resume.summarize_profile_for_role(resume)
+
+
+# ---------------------------------------------------------------------------
+# --fit-narrative CLI validation + fit_assessment plumbing (issue #272)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_fit_narrative_mode_accepts_valid_values() -> None:
+    assert build_resume._parse_fit_narrative_mode("auto") == "auto"
+    assert build_resume._parse_fit_narrative_mode("on") == "on"
+    assert build_resume._parse_fit_narrative_mode("off") == "off"
+
+
+def test_parse_fit_narrative_mode_is_case_insensitive() -> None:
+    assert build_resume._parse_fit_narrative_mode("Auto") == "auto"
+    assert build_resume._parse_fit_narrative_mode("OFF") == "off"
+
+
+def test_parse_fit_narrative_mode_rejects_unknown_values() -> None:
+    import argparse as _argparse
+
+    with pytest.raises(_argparse.ArgumentTypeError, match="must be one of"):
+        build_resume._parse_fit_narrative_mode("yes")
+    with pytest.raises(_argparse.ArgumentTypeError, match="must be one of"):
+        build_resume._parse_fit_narrative_mode("")
+
+
+# Helpers ---------------------------------------------------------------------
+
+
+def _substantive_jd_excerpt() -> str:
+    """JD excerpt comfortably above _MIN_JD_DESCRIPTION_CHARS (200)."""
+    return (
+        "Lead testing strategy for distributed payments systems. "
+        "Drive automation across services. Partner with developers on "
+        "reliability, observability, and CI/CD. Review and mentor engineers "
+        "on test design and framework architecture decisions."
+    ) * 2
+
+
+def _resume_with_one_experience() -> build_resume.ResumeIR:
+    """ResumeIR with one experience (id=exp-1) and a substantive JD context."""
+    base = _minimal_resume_ir(job_context=_make_job_context(_substantive_jd_excerpt()))
+    experience = build_resume.Experience(
+        id="exp-1",
+        job_title="Senior SDET",
+        company="ExampleCo",
+        start_date="2020-01",
+        end_date="present",
+        general_role_description="Test platform engineering.",
+        related_skills=("Python", "Pytest"),
+        bullets=(
+            build_resume.Bullet(
+                id="b-1",
+                text="Built CI pipelines.",
+                skills=("Python",),
+                impact_type="",
+                domain="",
+            ),
+        ),
+    )
+    return dataclasses.replace(base, experiences=(experience,))
+
+
+class _FakeLLMClient:
+    """Minimal stand-in for LLMClient in tests."""
+
+    def __init__(self, response: dict[str, Any]) -> None:
+        self._response = response
+        self.calls: list[dict[str, Any]] = []
+
+    def complete_json(
+        self, *, namespace: str, system_prompt: str, user_payload: dict[str, object]
+    ) -> dict[str, Any]:
+        self.calls.append(
+            {
+                "namespace": namespace,
+                "system_prompt": system_prompt,
+                "user_payload": user_payload,
+            }
+        )
+        return self._response
+
+
+# compute_fit_assessment ------------------------------------------------------
+
+
+def test_compute_fit_assessment_returns_none_when_llm_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RESUME_BUILDER_LLM_ENABLED", raising=False)
+    monkeypatch.delenv("RESUME_BUILDER_LLM_FIXTURE", raising=False)
+    assert build_resume.compute_fit_assessment(_resume_with_one_experience()) is None
+
+
+def test_compute_fit_assessment_returns_none_when_jd_context_thin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    resume = _resume_with_one_experience()
+    thin_resume = dataclasses.replace(resume, job_context=_make_job_context("short"))
+    assert build_resume.compute_fit_assessment(thin_resume) is None
+
+
+def test_compute_fit_assessment_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    fake = _FakeLLMClient(
+        {
+            "overall_fit_score": 42,
+            "overall_rationale": "domain mismatch",
+            "per_experience_scores": [
+                {
+                    "experience_id": "exp-1",
+                    "fit_score": 55,
+                    "rationale": "partial overlap",
+                },
+            ],
+        }
+    )
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+
+    assessment = build_resume.compute_fit_assessment(_resume_with_one_experience())
+
+    assert assessment is not None
+    assert assessment.overall_fit_score == 42.0
+    assert assessment.overall_rationale == "domain mismatch"
+    assert len(assessment.per_experience_scores) == 1
+    assert assessment.per_experience_scores[0].experience_id == "exp-1"
+    assert assessment.per_experience_scores[0].fit_score == 55.0
+    # Single LLM call routed through the dedicated namespace for caching.
+    assert fake.calls and fake.calls[0]["namespace"] == "fit_assessment"
+
+
+def test_compute_fit_assessment_rejects_out_of_range_overall_score(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    fake = _FakeLLMClient(
+        {
+            "overall_fit_score": 150,  # out of 0-100 range
+            "overall_rationale": "ok",
+            "per_experience_scores": [],
+        }
+    )
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+
+    assert build_resume.compute_fit_assessment(_resume_with_one_experience()) is None
+
+
+def test_compute_fit_assessment_drops_unknown_experience_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    fake = _FakeLLMClient(
+        {
+            "overall_fit_score": 30,
+            "overall_rationale": "stretch",
+            "per_experience_scores": [
+                {"experience_id": "exp-1", "fit_score": 40, "rationale": "ok"},
+                {"experience_id": "ghost-id", "fit_score": 90, "rationale": "x"},
+            ],
+        }
+    )
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+
+    assessment = build_resume.compute_fit_assessment(_resume_with_one_experience())
+
+    assert assessment is not None
+    assert {entry.experience_id for entry in assessment.per_experience_scores} == {
+        "exp-1"
+    }
+
+
+def test_compute_fit_assessment_returns_none_on_llm_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+
+    class _BoomClient:
+        def complete_json(self, **_kwargs: object) -> dict[str, Any]:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        "scripts.build_resume.LLMClient.from_env", lambda: _BoomClient()
+    )
+
+    assert build_resume.compute_fit_assessment(_resume_with_one_experience()) is None
+
+
+# _resolve_fit_narrative ------------------------------------------------------
+
+
+def _ns(**kwargs: object) -> argparse.Namespace:
+    """Tiny helper to build an argparse Namespace for resolver tests."""
+    defaults: dict[str, object] = {"fit_narrative": "auto", "cover_letter": False}
+    defaults.update(kwargs)
+    return argparse.Namespace(**defaults)
+
+
+def test_resolve_fit_narrative_off_short_circuits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+
+    def fail_if_called(_resume: Any) -> Any:
+        raise AssertionError("compute_fit_assessment should not be called")
+
+    monkeypatch.setattr("scripts.build_resume.compute_fit_assessment", fail_if_called)
+    assert (
+        build_resume._resolve_fit_narrative(
+            _ns(fit_narrative="off"), _resume_with_one_experience()
+        )
+        is None
+    )
+
+
+def test_resolve_fit_narrative_auto_defers_to_cover_letter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+
+    def fail_if_called(_resume: Any) -> Any:
+        raise AssertionError("cover-letter path must skip the LLM call")
+
+    monkeypatch.setattr("scripts.build_resume.compute_fit_assessment", fail_if_called)
+    assert (
+        build_resume._resolve_fit_narrative(
+            _ns(fit_narrative="auto", cover_letter=True),
+            _resume_with_one_experience(),
+        )
+        is None
+    )
+
+
+def test_resolve_fit_narrative_skips_when_llm_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RESUME_BUILDER_LLM_ENABLED", raising=False)
+    monkeypatch.delenv("RESUME_BUILDER_LLM_FIXTURE", raising=False)
+    assert (
+        build_resume._resolve_fit_narrative(_ns(), _resume_with_one_experience())
+        is None
+    )
+
+
+def test_resolve_fit_narrative_skips_when_jd_context_thin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    thin_resume = dataclasses.replace(
+        _resume_with_one_experience(), job_context=_make_job_context("short")
+    )
+    assert build_resume._resolve_fit_narrative(_ns(), thin_resume) is None
+
+
+def test_resolve_fit_narrative_auto_skips_when_score_at_or_above_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    monkeypatch.setattr(
+        "scripts.build_resume.compute_fit_assessment",
+        lambda _resume: build_resume.FitAssessment(
+            overall_fit_score=75.0,
+            overall_rationale="strong fit",
+            per_experience_scores=(),
+        ),
+    )
+    assert (
+        build_resume._resolve_fit_narrative(_ns(), _resume_with_one_experience())
+        is None
+    )
+
+
+def test_resolve_fit_narrative_auto_fires_below_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    expected = build_resume.FitAssessment(
+        overall_fit_score=42.0,
+        overall_rationale="domain mismatch",
+        per_experience_scores=(),
+    )
+    monkeypatch.setattr(
+        "scripts.build_resume.compute_fit_assessment", lambda _resume: expected
+    )
+    result = build_resume._resolve_fit_narrative(_ns(), _resume_with_one_experience())
+    assert result is expected
+
+
+def test_resolve_fit_narrative_on_bypasses_score_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    expected = build_resume.FitAssessment(
+        overall_fit_score=95.0,  # well above gate; auto would skip, on must fire
+        overall_rationale="strong fit",
+        per_experience_scores=(),
+    )
+    monkeypatch.setattr(
+        "scripts.build_resume.compute_fit_assessment", lambda _resume: expected
+    )
+    result = build_resume._resolve_fit_narrative(
+        _ns(fit_narrative="on"), _resume_with_one_experience()
+    )
+    assert result is expected
+
+
+# Summary augmentation --------------------------------------------------------
+
+
+def test_jd_tailored_summary_augmented_when_fit_assessment_provided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When fit_assessment is passed in, the system prompt asks for the
+    fit-narrative clause and the user payload carries the rationale.
+    """
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    fake = _FakeLLMClient(
+        {
+            "summary": (
+                "Senior test engineer with deep experience in distributed "
+                "systems testing, payments reliability, and CI/CD automation, "
+                "delivering measurable defect reductions and shipping framework "
+                "improvements that scale across teams of 50+ engineers as a "
+                "domain-adjacent fit translating QA-leadership signal into "
+                "this role's developer-tooling responsibilities."
+            )
+        }
+    )
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+
+    assessment = build_resume.FitAssessment(
+        overall_fit_score=45.0,
+        overall_rationale="QA -> developer tooling shift",
+        per_experience_scores=(),
+    )
+    result = build_resume._generate_jd_tailored_summary_via_llm(
+        _resume_with_one_experience(), fit_assessment=assessment
+    )
+
+    assert result  # not empty (passed bounds + layout guards)
+    assert fake.calls
+    call = fake.calls[0]
+    assert "stretch for this role" in call["system_prompt"]
+    assert call["user_payload"]["fit_narrative_rationale"] == (
+        "QA -> developer tooling shift"
+    )
+
+
+def test_jd_tailored_summary_unchanged_when_no_fit_assessment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No augmentation when fit_assessment is None (default behavior)."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    fake = _FakeLLMClient(
+        {
+            "summary": (
+                "Senior test engineer with deep experience across distributed "
+                "payments systems, automation pipelines, observability tooling, "
+                "and CI/CD scaling for engineering teams. Delivered measurable "
+                "reliability improvements, drove test framework redesigns, and "
+                "mentored peer engineers on long-horizon test architecture and "
+                "release cadence decisions."
+            )
+        }
+    )
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+
+    result = build_resume._generate_jd_tailored_summary_via_llm(
+        _resume_with_one_experience()
+    )
+
+    assert result
+    assert fake.calls
+    call = fake.calls[0]
+    assert "stretch for this role" not in call["system_prompt"]
+    assert "fit_narrative_rationale" not in call["user_payload"]
+
+
+# current_level profile.toml integration --------------------------------------
+
+
+def test_load_profile_accepts_optional_current_level(tmp_path: Path) -> None:
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(
+        """
+[profile]
+name = "Test User"
+headline = ""
+location = ""
+email = ""
+phone = ""
+website = ""
+linkedin = ""
+github = ""
+summary = ""
+current_level = "Senior Staff Engineer"
+""",
+        encoding="utf-8",
+    )
+
+    profile = build_resume.load_profile(profile_path)
+    assert profile.current_level == "Senior Staff Engineer"
+
+
+def test_load_profile_defaults_current_level_to_empty(tmp_path: Path) -> None:
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(
+        """
+[profile]
+name = "Test User"
+headline = ""
+location = ""
+email = ""
+phone = ""
+website = ""
+linkedin = ""
+github = ""
+summary = ""
+""",
+        encoding="utf-8",
+    )
+
+    profile = build_resume.load_profile(profile_path)
+    assert profile.current_level == ""

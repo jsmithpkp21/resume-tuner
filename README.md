@@ -70,7 +70,11 @@ Common vs Advanced flags:
   `--include-private-projects`, `--template`,
   `--top-skills-cap` (overrides the default top-N skill cap;
   default is 40 with LLM disabled, 46 with LLM enabled — tunable
-  for visual fit, see DESIGN.md "Top-N skill cap").
+  for visual fit, see DESIGN.md "Top-N skill cap"),
+  `--fit-narrative` (`auto|on|off`, default `auto`; in auto-mode an
+  LLM-judged fit score augments the profile summary with a
+  fit-narrative clause when the candidate is a stretch — see DESIGN.md
+  "Fit narrative").
 
 Run `python scripts/build_resume.py --help` for the authoritative list.
 

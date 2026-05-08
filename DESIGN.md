@@ -118,6 +118,15 @@ AI must follow these rules when selecting skills, categories, bullets, and exper
   - **Per-run override:** `python scripts/build_resume.py --top-skills-cap N` overrides both defaults. Use to A/B different cap values without editing source.
 - A post-pack visibility floor (`drop_skinny_categories`, `MIN_CATEGORY_VISIBLE_SKILLS = 3`) drops any category that ends up with fewer than 3 surviving skills, **unless any skill in the category is protected** (high-relevance / required, per `_compute_protected_skills`). Losing a required skill from the rendered output is worse than showing a skinny category, so a single protected skill keeps its category visible regardless of size. The guard runs independently of the cap value and uses the same protected-skill definition as the packer.
 
+### Fit narrative
+- The `fit_assessment` LLM stage runs once per `(JD × resume)` and emits both `overall_fit_score` (consumed by #272) and `per_experience_scores` (reserved for #271). Cached under `LLMClient` namespace `fit_assessment`; failures fall back to the deterministic summary path.
+- `--fit-narrative auto|on|off` (default `auto`) governs whether the profile-summary block is augmented with a fit-narrative clause:
+  - `auto` defers to `off` whenever `--cover-letter` is enabled, LLM stages are disabled, or JD context is below `_MIN_JD_DESCRIPTION_CHARS`. When LLM context is substantive, the narrative fires only when `overall_fit_score < _FIT_NARRATIVE_GATE_SCORE` (currently 60).
+  - `on` forces fire whenever LLM + JD context are present (bypasses the score gate but still respects the LLM/JD preconditions — there's no narrative to write without them).
+  - `off` suppresses the augmentation entirely.
+- When firing, the augmented prompt asks the LLM to weave a single short fit-narrative clause into the summary **within the same word and line budget** (`PROFILE_SUMMARY_MAX_WORDS = 112`, `PROFILE_SUMMARY_MAX_LINES = 6`). The existing wrap-line and word-count guardrails in `_generate_jd_tailored_summary_via_llm` still apply; if the augmented response overflows, the same reject-and-fall-back logic recovers a deterministic summary.
+- Optional `current_level` field in `[profile]` table (e.g. `"Senior Staff Engineer"`) is forwarded to the prompt as additional seniority context. Unset is the default — the LLM judges fit purely from experience content. The prompt language is domain-agnostic so the same stage works for non-tech roles.
+
 ### Experience Selection
 9. Include only experiences with an end date within **15 years**.
 10. Order experiences by **relevance + recency**.

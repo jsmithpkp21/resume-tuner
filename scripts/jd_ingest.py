@@ -690,6 +690,13 @@ class _PlainTextHTMLParser(HTMLParser):
         if tag.lower() in {"br", "p", "li", "div", "tr", "h1", "h2", "h3", "h4"}:
             self._chunks.append("\n")
 
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        # Route self-closing tags (e.g. <br/>, <br />) through the same
+        # break-inserting logic as their open-tag form. Without this,
+        # XHTML-style line breaks would be silently dropped, concatenating
+        # text that should land on separate lines.
+        self.handle_starttag(tag, attrs)
+
     @property
     def text(self) -> str:
         return _html_lib.unescape("".join(self._chunks)).strip()

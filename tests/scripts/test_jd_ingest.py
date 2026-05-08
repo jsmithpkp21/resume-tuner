@@ -371,6 +371,17 @@ def test_extract_role_hint_falls_through_to_path_when_query_is_filter() -> None:
         ("<div><p>A</p></div><div><p>B</p></div>", "A\n\nB"),
         # Whitespace runs are normalized.
         ("<p>too    many    spaces</p>", "too many spaces"),
+        # Self-closing line breaks (XHTML-style) must produce newlines just
+        # like the open-tag form. PR #263 round-2 review caught that
+        # HTMLParser routes <br/> / <br /> through handle_startendtag,
+        # which the parser previously didn't override.
+        ("Line 1<br/>Line 2", "Line 1\nLine 2"),
+        ("Line 1<br />Line 2", "Line 1\nLine 2"),
+        ("Line 1<BR/>Line 2", "Line 1\nLine 2"),
+        # Self-closing block tags also break.
+        ("Line 1<p/>Line 2", "Line 1\nLine 2"),
+        # Multiple self-closing breaks in a row.
+        ("a<br/>b<br/>c", "a\nb\nc"),
     ],
 )
 def test_html_to_text_normalizes(raw: str, expected: str) -> None:

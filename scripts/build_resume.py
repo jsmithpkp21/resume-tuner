@@ -2167,12 +2167,20 @@ class FitAssessment:
 
 
 def _coerce_fit_score(raw: object) -> float | None:
-    """Validate a 0-100 fit score; return None for unusable inputs."""
+    """Validate a 0-100 fit score; return None for unusable inputs.
+
+    Booleans are explicitly rejected because ``float(True) == 1.0`` would
+    silently accept a malformed LLM response (e.g. ``true``) as a real
+    score and skew the gate. Non-finite floats (NaN, inf) are rejected
+    via ``math.isfinite``.
+    """
+    if isinstance(raw, bool):
+        return None
     try:
         value = float(raw)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
-    if value != value:  # NaN
+    if not math.isfinite(value):
         return None
     if value < 0.0 or value > 100.0:
         return None
@@ -2243,8 +2251,10 @@ def compute_fit_assessment(resume: ResumeIR) -> FitAssessment | None:
                 "strongest possible fit and 0 means no relevant signal. "
                 "Consider experience depth, domain match, and seniority "
                 "signals together; do NOT weight job titles alone. Use "
-                "the candidate's current_level as additional context only "
-                "when provided. Reply with JSON only matching this schema: "
+                "the input's candidate_current_level as additional "
+                "seniority context when it is non-empty; otherwise judge "
+                "fit purely from experience content. Reply with JSON only "
+                "matching this schema: "
                 '{"overall_fit_score": <0-100 number>, '
                 '"overall_rationale": "<short string>", '
                 '"per_experience_scores": [{"experience_id": "<id from input>", '
@@ -2391,13 +2401,18 @@ def _generate_jd_tailored_summary_via_llm(
     )
     if fit_assessment is not None:
         user_payload["fit_narrative_rationale"] = fit_assessment.overall_rationale or ""
+        user_payload["fit_narrative_overall_score"] = fit_assessment.overall_fit_score
         system_prompt = base_prompt + (
-            " Additionally, the candidate is a stretch for this role; weave "
-            "a single short clause into the same paragraph that addresses "
-            "how the candidate's experience translates to the JD's domain "
-            "and seniority — without inventing achievements and without "
-            "repeating the JD verbatim. Stay within the same word budget; "
-            "the paragraph must still be one paragraph."
+            " Additionally, weave a single short fit-narrative clause into "
+            "the same paragraph guided by fit_narrative_rationale and "
+            "fit_narrative_overall_score: address how the candidate's "
+            "experience translates to the JD's domain and seniority. Frame "
+            "the clause neutrally — only emphasise stretch/translation "
+            "language if the rationale or score actually indicates a gap; "
+            "otherwise lean into how the existing strengths map directly. "
+            "Do not invent achievements, do not repeat the JD verbatim, "
+            "stay within the same word budget, and keep the output as one "
+            "paragraph."
         )
     else:
         system_prompt = base_prompt

@@ -6650,6 +6650,27 @@ def test_compute_fit_assessment_rejects_out_of_range_overall_score(
     assert build_resume.compute_fit_assessment(_resume_with_one_experience()) is None
 
 
+def test_coerce_fit_score_accepts_valid_numbers() -> None:
+    assert build_resume._coerce_fit_score(0) == 0.0
+    assert build_resume._coerce_fit_score(50) == 50.0
+    assert build_resume._coerce_fit_score(100.0) == 100.0
+    assert build_resume._coerce_fit_score("42") == 42.0
+
+
+def test_coerce_fit_score_rejects_unusable_inputs() -> None:
+    # Booleans look numeric to ``float()`` (True -> 1.0, False -> 0.0); a
+    # malformed LLM payload like ``true`` must not silently become a real
+    # score (PR #278 review).
+    assert build_resume._coerce_fit_score(True) is None
+    assert build_resume._coerce_fit_score(False) is None
+    assert build_resume._coerce_fit_score(None) is None
+    assert build_resume._coerce_fit_score("nope") is None
+    assert build_resume._coerce_fit_score(float("nan")) is None
+    assert build_resume._coerce_fit_score(float("inf")) is None
+    assert build_resume._coerce_fit_score(-1) is None
+    assert build_resume._coerce_fit_score(101) is None
+
+
 def test_compute_fit_assessment_drops_unknown_experience_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -6844,10 +6865,16 @@ def test_jd_tailored_summary_augmented_when_fit_assessment_provided(
     assert result  # not empty (passed bounds + layout guards)
     assert fake.calls
     call = fake.calls[0]
-    assert "stretch for this role" in call["system_prompt"]
+    # Augmentation references the rationale + score keys and frames the
+    # clause neutrally so --fit-narrative on against a high-fit JD does
+    # not force a "stretch" framing.
+    assert "fit-narrative clause" in call["system_prompt"]
+    assert "fit_narrative_rationale" in call["system_prompt"]
+    assert "fit_narrative_overall_score" in call["system_prompt"]
     assert call["user_payload"]["fit_narrative_rationale"] == (
         "QA -> developer tooling shift"
     )
+    assert call["user_payload"]["fit_narrative_overall_score"] == 45.0
 
 
 def test_jd_tailored_summary_unchanged_when_no_fit_assessment(
@@ -6876,8 +6903,9 @@ def test_jd_tailored_summary_unchanged_when_no_fit_assessment(
     assert result
     assert fake.calls
     call = fake.calls[0]
-    assert "stretch for this role" not in call["system_prompt"]
+    assert "fit-narrative clause" not in call["system_prompt"]
     assert "fit_narrative_rationale" not in call["user_payload"]
+    assert "fit_narrative_overall_score" not in call["user_payload"]
 
 
 # current_level profile.toml integration --------------------------------------

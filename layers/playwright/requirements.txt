@@ -6,4 +6,4 @@ python-docx==1.2.0
 reportlab==4.4.4
 pypdf==6.9.2
 playwright==1.35.0
-pytest-playwright>=0.4.0
+pytest-playwright==0.7.2

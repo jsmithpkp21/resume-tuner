@@ -952,7 +952,7 @@ def _playwright_fetch_html(sync_pw: Any, url: str) -> tuple[str, str] | None:
             finally:
                 browser.close()
     except Exception as exc:  # noqa: BLE001
-        logger.info("Playwright fetch failed: %s", exc)
+        logger.debug("Playwright fetch failed for %s: %s", url, exc, exc_info=True)
         return None
 
 

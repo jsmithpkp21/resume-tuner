@@ -1,9 +1,2 @@
-PyYAML==6.0.3
-tomli_w==1.0.0
-Pillow==12.2.0
-fonttools==4.62.1
-python-docx==1.2.0
-reportlab==4.4.4
-pypdf==6.9.2
 playwright==1.35.0
 pytest-playwright==0.7.2

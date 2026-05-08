@@ -1,5 +1,6 @@
 services:
   base_env:
+    hostname: ${COMPOSE_PROJECT_NAME:-base_env}
     build:
       context: .
       args:

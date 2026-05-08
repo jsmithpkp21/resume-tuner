@@ -137,6 +137,70 @@ defaults that match the repository configuration. These are safe to commit
 
 **For user-specific overrides:** Create `.env.local` (gitignored) to override values.
 
+### Host UID/GID Build Args
+
+The dev container runs as a non-root `app` user whose UID/GID are baked
+into the image via the `HOST_UID` / `HOST_GID` build args (defaults
+`1000:1000`, which matches a fresh Ubuntu/WSL user). Aligning the
+in-container UID with the host UID means files written to bind-mounted
+`/repo` are host-owned — no `sudo` needed to delete or edit them on
+stock Linux Docker, and no reliance on Docker Desktop's transparent
+UID translation.
+
+`make update-docker` automatically passes the current host UID/GID:
+
+```bash
+make update-docker
+# Equivalent to:
+docker compose build \
+  --build-arg HOST_UID=$(id -u) \
+  --build-arg HOST_GID=$(id -g)
+docker compose up -d
+```
+
+`scripts/docker_build.sh` (the Docker-CLI fallback path) auto-detects
+the host UID/GID via `id -u` / `id -g` and forwards them to
+`docker build` for you; you can override either by exporting
+`HOST_UID` / `HOST_GID` before invoking the script.
+
+If you build directly with `docker compose build` or `docker build`
+without going through `make update-docker` or `scripts/docker_build.sh`,
+pass the flags explicitly when your host UID is not `1000`:
+
+```bash
+docker compose build \
+  --build-arg HOST_UID=$(id -u) \
+  --build-arg HOST_GID=$(id -g)
+```
+
+#### One-time migration (existing venv volume)
+
+Pre-existing `<project>_base_env_cache` volumes from older root-owned
+images contain a root-owned `/opt/venv`. After pulling the non-root
+Dockerfile, drop the volume once so the new image's chowned `/opt/venv`
+is what populates the named volume:
+
+```bash
+make docker-down                            # or: docker compose down
+docker volume rm <project>_base_env_cache   # repo-derived volume name
+make docker-up                              # or: make update-docker
+```
+
+(Inspect existing volumes with `docker volume ls`.)
+
+Tool-cache directories on the host (e.g. `.ruff_cache`, `.mypy_cache`,
+`.pytest_cache`, `__pycache__`) that were written by a previous root
+container are also root-owned and will block writes from the new `app`
+user. Clear them once after migrating; if your host user can't `rm`
+them directly, use a throwaway root container:
+
+```bash
+docker run --rm -v "$PWD":/repo -w /repo --user 0:0 \
+  python:3.11-slim rm -rf .ruff_cache .mypy_cache .pytest_cache
+```
+
+New runs will write these as the host user automatically.
+
 ---
 
 ## Docker Workflows
@@ -179,11 +243,15 @@ docker-compose run --rm base_env python scripts/prepare_playwright_layer.py
 ### Cleanup
 
 ```bash
-# Stop and remove containers
-docker-compose down
+# Stop and remove containers (preferred; symmetric with `make docker-up`)
+make docker-down
+
+# Or directly (`docker compose` is the v2 plugin form; `docker-compose`
+# is the legacy v1 binary and may not be installed on newer hosts):
+docker compose down
 
 # Remove all volumes (venv cache)
-docker-compose down -v
+docker compose down -v
 
 # Remove image
 docker rmi base_repo
@@ -212,6 +280,7 @@ docker rmi base_repo
 - Automatically activated on startup
 - Project code mounted at `/repo`
 - Volume cache for faster rebuilds
+- Runs as non-root `app` user (UID/GID match host via build args)
 
 ---
 
@@ -220,6 +289,8 @@ docker rmi base_repo
 ```dockerfile
 ARG PYTHON_VERSION
 ARG PIP_VERSION
+ARG HOST_UID=1000
+ARG HOST_GID=1000
 
 FROM python:${PYTHON_VERSION}-slim
 # Python version comes from tooling.toml [python].version
@@ -237,9 +308,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install system dependencies (latest versions from base image)
 # System package versions are determined by the Python base image's Debian version
 
-COPY . .
-# Copy project files from the build context root into the container
-
 ENV VENV_PATH=/opt/venv
 RUN python${PYTHON_VERSION%.*} -m venv $VENV_PATH
 ENV PATH="$VENV_PATH/bin:$PATH"
@@ -251,8 +319,28 @@ RUN pip install --upgrade pip==${PIP_VERSION}
 RUN pip install -r requirements.txt
 # Install all Python dependencies
 
+# Create the non-root dev user and chown the venv BEFORE `COPY . .`
+# so the recursive chown stays cached across iterative rebuilds
+# (a code change invalidates COPY but not this layer).
+# Idempotent against UID/GID collisions in the base image (e.g. macOS GID 20).
+RUN if ! getent group ${HOST_GID} >/dev/null 2>&1; then \
+      groupadd --gid ${HOST_GID} app; \
+    fi \
+ && if ! getent passwd ${HOST_UID} >/dev/null 2>&1; then \
+      useradd --uid ${HOST_UID} --gid ${HOST_GID} --create-home --shell /bin/bash app; \
+    fi \
+ && chown -R ${HOST_UID}:${HOST_GID} /opt/venv
+
+COPY . .
+# Copy project files; bind-mount masks /repo at runtime so we
+# don't recurse the snapshot here.
+
+RUN chmod +x scripts/*.sh \
+ && chown ${HOST_UID}:${HOST_GID} /repo
+USER ${HOST_UID}:${HOST_GID}
+
 RUN /bin/bash -c "source $VENV_PATH/bin/activate && scripts/verify_env.sh"
-# Verify environment with activated venv
+# Verify environment with activated venv (runs as `app`, not root)
 # Build fails if verification fails
 
 CMD ["/bin/bash", "-c", "source $VENV_PATH/bin/activate && /bin/bash"]
@@ -263,7 +351,17 @@ CMD ["/bin/bash", "-c", "source $VENV_PATH/bin/activate && /bin/bash"]
 - Python version is sourced from `tooling.toml [python].version`
 - pip version is sourced from `tooling.toml`
 - System packages use latest versions from the Python base image
-- Docker build args are passed in by CI and `scripts/docker_build.sh`
+- `PYTHON_VERSION` and `PIP_VERSION` are forwarded by CI,
+  `scripts/docker_build.sh`, and `make update-docker`
+- `HOST_UID` / `HOST_GID` are forwarded automatically by
+  `make update-docker` and `scripts/docker_build.sh` (both detect
+  the host UID/GID at invocation); raw `docker compose build`
+  / `docker build` use the `1000:1000` defaults unless you pass
+  the args yourself
+- Container runs as a non-root user with host-matched UID/GID
+  (default `1000:1000`); files written to bind-mounted `/repo` are
+  host-owned on stock Linux Docker. See "Host UID/GID Build Args"
+  above for overrides.
 
 ---
 
@@ -399,12 +497,20 @@ docker-compose up --build --no-cache
   ```
 
 ### Volume mount permission issues
-- Usually automatic on Linux/WSL
-- On macOS, Docker Desktop handles this
-- Explicitly set permissions if needed:
+- The image bakes in a non-root `app` user with UID/GID matching the
+  host (defaults `1000:1000`). On a fresh Ubuntu/WSL host this just
+  works — files written from inside the container to `/repo` are
+  owned by your host user, no `sudo` needed to delete or edit them.
+- If your host UID is not `1000`, build with the matching args (or
+  use `make update-docker`, which auto-passes them):
   ```bash
-  docker-compose run --rm -u $(id -u):$(id -g) base_env bash
+  docker compose build \
+    --build-arg HOST_UID=$(id -u) \
+    --build-arg HOST_GID=$(id -g)
   ```
+- See "Host UID/GID Build Args" under Build Configuration for the
+  one-time migration step if you have an old root-owned `base_env_cache`
+  volume.
 
 ---
 
@@ -439,17 +545,17 @@ It is validated by:
 **Recommended workflow:**
 ```bash
 # Start container in background
-docker-compose up -d
+make docker-up
 
 # Work on code (auto-synced)
 # Edit files in your IDE on the host
 
 # Run commands in the container
-docker-compose exec base_env make test
-docker-compose exec base_env make lint
+make test-docker
+make lint-docker
 
 # When done
-docker-compose down
+make docker-down
 ```
 
 This replaces the need for `setup-python.sh` entirely!

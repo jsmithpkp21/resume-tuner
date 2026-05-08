@@ -34,7 +34,7 @@
       "sha256": "9dfb7ed30cace1765a80c7b310f968a61abcba6ae19788b266fad531da3bd93f"
     },
     ".github/workflows/verify-environment.yml": {
-      "sha256": "5a0a5ccc6c69dba14b5bc36685b0606ff80d2e8dbcdb5153ec7dccf967744a2f"
+      "sha256": "1522833e27e205e0fbc917db747a6fc261fe05da96992ce2a955e00e3ad20a90"
     },
     ".markdownlint.yaml": {
       "sha256": "afc88cf56f3f6b1b2c9b2fc7af77748ba8fc729ea18ba85757935f16f7f7a85a"
@@ -58,10 +58,10 @@
       "sha256": "f9ddbbd374c2ed96a714f62a422d2945ca1c2d1ebcfe3ef0b5c185a29a821041"
     },
     "DOCKER.md": {
-      "sha256": "406e98c9910e71636f807169e6092cf04c6a82f450d915430a718647ebb1f824"
+      "sha256": "601bb42a565b83cc6d03d3c1ac3e8e0dc9c67114a1c76ebf2291210186ef183b"
     },
     "Dockerfile": {
-      "sha256": "ea492e006840b3bb16c455535e0b958a1a08981f2bf6ded7e4dabbfd43a62d6b"
+      "sha256": "8a7cad0caf4e61450f8749bf98d481a8621698935413924531b641bdf7366751"
     },
     "FILE_DISTRIBUTION.md": {
       "sha256": "48d3502f126cbc86f8bf78ebac0f0f5414d60355c8711e7b4ed0616be3cfbc4e"
@@ -70,13 +70,13 @@
       "sha256": "90441f19e84cb77a9f4302d50dd3e9178011f8d1e2e20df43775838711589783"
     },
     "Makefile": {
-      "sha256": "b19655e3083658855f1925e78b4cb5c3a13aa68e1a1c37bf946b70a2c7e55deb"
+      "sha256": "16e81e1b3feb46442b62d29dd836fc11c6803b2417276db3e19e724e6feb28ce"
     },
     "commitlint.config.mjs": {
       "sha256": "ae0ebfa1b37453c8e29eff7c5af0b8eec5dc73f373298288cf7d79692b76daea"
     },
     "docker-compose.yml": {
-      "sha256": "7a27947936ee30c11099fc97415e841fb09256daa733c65998a5c6baea425d55"
+      "sha256": "06b9128e6e127dae340dd09cfb0a26b53f64560b1fa558f137ca5c968e8b9489"
     },
     "docs/REFERENCE/AUDIT_COMPLETE.md": {
       "sha256": "0279c1a94c179a7c63323423710c06f56039e56b8287b96fc393716c4cec1801"
@@ -193,7 +193,7 @@
       "sha256": "e20eae3f5cb3ed350e66ecb80c2e5690bb42ad8ceda1efcba24d497f4dfb045b"
     },
     "scripts/docker_build.sh": {
-      "sha256": "142fa294db1ea62017003df25985188562e90b7414fc2bb47f079a9c55ebbffd"
+      "sha256": "d7553f0877a2af98a94da0581d0eebdd86d748eb7007a2bb65ccb92b9da839b1"
     },
     "scripts/install_act.sh": {
       "sha256": "40608801ce6e289f98fe65b2714fc74be86c7296996b3ba580367d030ab6c4c9"
@@ -208,7 +208,7 @@
       "sha256": "27a02125de071f7fd002075f953b69a7ec4db8bf10ae9a1959f7c46b2a75d47c"
     },
     "scripts/prepare_playwright_layer.py": {
-      "sha256": "2a00b7c9336aca63b10677139b56ce46e00a354595ed1cddc8e43d85287c52d0"
+      "sha256": "42f86904f80b4c7ec9d06c77c36f1f2f82c0c47376a585bd5cb81db3fe3a8a21"
     },
     "scripts/run_commitlint.sh": {
       "sha256": "a25904e3072f97096545c6c1b0456ab442928f7878d15a1ccf6b459e04fbc338"
@@ -256,9 +256,9 @@
       "sha256": "eac4b80328394dacc977662feaf2f59062fde36d33d5ab7976ffd9be407413f0"
     }
   },
-  "generated_at_utc": "2026-05-08T19:09:55Z",
-  "requested_ref": "v1.22.2",
-  "resolved_ref": "8968a90e693c20fd2525fe78e6f7e8614ad432a8",
+  "generated_at_utc": "2026-05-08T23:31:49Z",
+  "requested_ref": "v1.25.1",
+  "resolved_ref": "f40d4a3c0318a15fc50898f8e603c06e9f188d17",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

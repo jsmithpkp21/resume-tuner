@@ -62,6 +62,47 @@ def read_requirements(path: str = "requirements.txt") -> list[str]:
     return requirements
 
 
+# PEP 440 version specifiers we strip when extracting a package name from
+# a requirement spec. Order matters for the longer-prefix-first rule
+# (`==` must be tried before `=`, `>=` before `>`, etc.). Direct
+# references via `@` (PEP 508) are handled separately because they're a
+# URL/path delimiter rather than a version specifier.
+_PEP440_SPECIFIERS: tuple[str, ...] = (
+    "==",
+    ">=",
+    "<=",
+    "~=",
+    "!=",
+    ">",
+    "<",
+)
+
+
+def _normalize_requirement_name(spec: str) -> str:
+    """Return the canonical lowercase package name from a requirement spec.
+
+    Strips:
+    - PEP 508 environment markers (everything after `;`)
+    - extras brackets (`pkg[extra1,extra2]` → `pkg`)
+    - PEP 508 direct references (`pkg @ file:///...` → `pkg`)
+    - any PEP 440 version specifier (`==`, `>=`, `<=`, `~=`, `!=`, `>`, `<`)
+
+    Used by both `verify_requirements_installed()` and
+    `PlaywrightEnvBuilder.prepare_requirements()` so the two paths stay
+    in lockstep — divergence here previously meant a layer file could
+    carry duplicate specs and `verify_requirements_installed()` would
+    falsely flag direct-reference deps as missing.
+    """
+    name: str = spec.split(";", 1)[0].split("[", 1)[0]
+    if "@" in name:
+        name = name.split("@", 1)[0]
+    for sep in _PEP440_SPECIFIERS:
+        if sep in name:
+            name = name.split(sep, 1)[0]
+            break
+    return name.strip().lower()
+
+
 def get_installed_packages(
     python_executable: str = sys.executable, timeout: int = 30
 ) -> set[str]:
@@ -119,11 +160,7 @@ def verify_requirements_installed(
     missing: list[str] = []
 
     for req in requirements:
-        name: str = req.split(";", 1)[0].split("[", 1)[0]
-        for sep in ("==", ">=", "<=", "~=", ">", "<", "!="):
-            if sep in name:
-                name = name.split(sep, 1)[0]
-        name = name.strip().lower()
+        name: str = _normalize_requirement_name(req)
         if name and name not in installed:
             missing.append(req)
     return (len(missing) == 0, missing)
@@ -216,28 +253,50 @@ class PlaywrightEnvBuilder:
     def prepare_requirements(
         self, base_requirements: list[str], extra_packages: list[str] | None = None
     ) -> str:
-        """Prepare combined requirements for the Playwright layer.
+        """Prepare extras-only requirements for the Playwright layer.
+
+        The output file contains only the entries from `extra_packages`
+        (or the default Playwright extras). Any extra whose package name
+        already appears in `base_requirements` is elided so the layer
+        stays a clean delta over base_env. `base_requirements` itself is
+        never written to the file.
+
+        Both default Playwright extras use strict `==` pins so consumer
+        installs are reproducible across time. Override via
+        `extra_packages=` for non-default layer recipes.
 
         Returns path to the written requirements file.
         """
-        extras: list[str] = extra_packages or [
-            "playwright==1.35.0",
-            "pytest-playwright>=0.4.0",
-        ]
-        # preserve order and uniqueness
+        if extra_packages is None:
+            extras: list[str] = [
+                "playwright==1.35.0",
+                "pytest-playwright==0.7.2",
+            ]
+        else:
+            extras = extra_packages
+
+        # Drop any extras whose package name already appears in
+        # base_requirements (caller already pins it). Uses the shared
+        # `_normalize_requirement_name` helper so this matching stays in
+        # lockstep with `verify_requirements_installed()` — handles all
+        # PEP 440 specifiers + `@` direct-references uniformly.
+        base_keys: set[str] = {
+            _normalize_requirement_name(line)
+            for line in base_requirements
+            if line.strip()
+        }
         seen: set[str] = set()
-        combined: list[str] = []
-        for line in base_requirements + extras:
-            key = (
-                line.split("==", 1)[0].split("[", 1)[0].split(";", 1)[0].strip().lower()
-            )
-            if key and key not in seen:
-                seen.add(key)
-                combined.append(line)
+        out_lines: list[str] = []
+        for line in extras:
+            key = _normalize_requirement_name(line)
+            if not key or key in seen or key in base_keys:
+                continue
+            seen.add(key)
+            out_lines.append(line)
 
         out_path: Path = self.layer_dir.joinpath("requirements.txt")
         with out_path.open("w", encoding="utf-8") as f:
-            for line in combined:
+            for line in out_lines:
                 f.write(f"{line}\n")
         return str(out_path)
 

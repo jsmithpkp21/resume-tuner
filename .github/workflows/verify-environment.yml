@@ -199,12 +199,31 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Pass the runner's UID/GID as build args so the in-container `app`
+      # user matches the bind-mounted workspace owner. Without this, lint /
+      # test / verify jobs (which mount ${{ github.workspace }} into /repo)
+      # fail to write tool caches like `.ruff_cache` because the container
+      # would run as the default UID 1000 against a workspace owned by the
+      # runner (typically UID 1001). See issue #322.
+      #
+      # Computed BEFORE the cache restore so the IDs participate in the
+      # cache key — a runner image upgrade that changes the UID would
+      # otherwise serve a stale cached tarball baked for the old UID,
+      # silently reintroducing the bind-mount permission mismatch.
+      - name: Compute runner host UID/GID
+        id: host_ids
+        run: |
+          {
+            echo "HOST_UID=$(id -u)"
+            echo "HOST_GID=$(id -g)"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Restore cached Docker image tar
         id: image_cache_restore
         uses: actions/cache/restore@v5.0.4
         with:
           path: /tmp/${{ steps.build_inputs.outputs.REPO_NAME }}.tar
-          key: docker-image-${{ runner.os }}-${{ steps.build_inputs.outputs.REPO_NAME }}-${{ steps.docker_inputs.outputs.hash }}
+          key: docker-image-${{ runner.os }}-${{ steps.build_inputs.outputs.REPO_NAME }}-${{ steps.docker_inputs.outputs.hash }}-uid${{ steps.host_ids.outputs.HOST_UID }}-gid${{ steps.host_ids.outputs.HOST_GID }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.0.0
@@ -222,6 +241,8 @@ jobs:
           build-args: |
             PYTHON_VERSION=${{ steps.build_inputs.outputs.PYTHON_VERSION }}
             PIP_VERSION=${{ steps.build_inputs.outputs.PIP_VERSION }}
+            HOST_UID=${{ steps.host_ids.outputs.HOST_UID }}
+            HOST_GID=${{ steps.host_ids.outputs.HOST_GID }}
 
       - name: Save Docker image to artifact
         if: ${{ steps.image_cache_restore.outputs.cache-hit != 'true' }}
@@ -232,7 +253,7 @@ jobs:
         uses: actions/cache/save@v5.0.4
         with:
           path: /tmp/${{ steps.build_inputs.outputs.REPO_NAME }}.tar
-          key: docker-image-${{ runner.os }}-${{ steps.build_inputs.outputs.REPO_NAME }}-${{ steps.docker_inputs.outputs.hash }}
+          key: docker-image-${{ runner.os }}-${{ steps.build_inputs.outputs.REPO_NAME }}-${{ steps.docker_inputs.outputs.hash }}-uid${{ steps.host_ids.outputs.HOST_UID }}-gid${{ steps.host_ids.outputs.HOST_GID }}
 
       - name: Upload Docker image artifact
         uses: actions/upload-artifact@v7.0.0

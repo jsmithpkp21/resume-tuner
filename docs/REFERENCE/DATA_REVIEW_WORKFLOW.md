@@ -107,9 +107,10 @@ hard-gates on canonical invariants drawn from two sources:
 - `DESIGN.md` rule 11 ("Each experience must include at least 3 bullets")
   becomes the `bullet_bank_below_minimum` gate. The
   `missing_general_role_description` gate is a new invariant introduced by
-  this script that fail-closes on an empty `general_role_description` —
-  the field is documented in `DESIGN.md` as required but not previously
-  enforced as non-empty.
+  this script — `DESIGN.md` lists "General Role Description" among the
+  canonical experience fields but does not mark it required or non-empty,
+  so this script is the first place to fail-close on emptiness of the
+  corresponding `general_role_description` TOML field.
 - `scripts/validate_experience_data.py` already errors when bullet `skills`
   or `related_skills` reference values not in `skills_matrix.csv`; the
   same checks run here as `bullet_skill_not_in_matrix` and

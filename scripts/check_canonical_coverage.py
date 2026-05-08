@@ -6,11 +6,12 @@ Reads only the canonical files (``data/experience/experience_db.toml`` and
 worksheet archive. The hard gates draw from two sources:
 
 - ``DESIGN.md``: rule 11 ("Each experience must include at least 3 bullets")
-  is enforced as the ``bullet_bank_below_minimum`` gate.  The
-  ``general_role_description`` field is documented as a required experience
-  field; the ``missing_general_role_description`` gate is a new invariant
-  introduced here that fail-closes on emptiness, which the design implies
-  but does not explicitly enforce elsewhere.
+  is enforced as the ``bullet_bank_below_minimum`` gate.  DESIGN.md also
+  lists "General Role Description" among the canonical experience fields,
+  but does not explicitly mark it required or non-empty; the
+  ``missing_general_role_description`` gate is therefore a new invariant
+  introduced by this script that fail-closes on emptiness of the
+  corresponding ``general_role_description`` TOML field.
 - ``scripts/validate_experience_data.py``: already errors when bullet
   ``skills`` or experience ``related_skills`` reference values not in
   ``skills_matrix.csv``.  The ``bullet_skill_not_in_matrix`` and

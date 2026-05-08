@@ -1389,8 +1389,16 @@ def _tokenize_gap_terms(text: str) -> list[str]:
     return tokens
 
 
-def write_gap_summary(resume: ResumeIR, output_path: Path) -> None:
-    """Write missing high-value JD terms not yet covered by selected skills/bullets."""
+def _compute_jd_term_coverage(
+    resume: ResumeIR,
+) -> tuple[dict[str, int], set[str]]:
+    """Tokenize the JD and resume content and return (job_term_counts, covered_terms).
+
+    `job_term_counts` maps each unique JD token to its raw occurrence count
+    (so `sum(values())` recovers the total token count). `covered_terms` is the
+    set of tokens found anywhere in the resume's skills/experiences/bullets;
+    callers intersect it with `job_term_counts` to compute coverage.
+    """
     description_excerpt = ""
     role_hint = ""
     if resume.job_context is not None:
@@ -1398,14 +1406,7 @@ def write_gap_summary(resume: ResumeIR, output_path: Path) -> None:
         role_hint = resume.job_context.role_hint.strip()
 
     job_terms = _tokenize_gap_terms(
-        " ".join(
-            part
-            for part in [
-                description_excerpt,
-                role_hint,
-            ]
-            if part.strip()
-        )
+        " ".join(part for part in [description_excerpt, role_hint] if part.strip())
     )
     job_term_counts: dict[str, int] = {}
     for term in job_terms:
@@ -1423,6 +1424,12 @@ def write_gap_summary(resume: ResumeIR, output_path: Path) -> None:
             covered_terms.update(_tokenize_gap_terms(bullet.text))
             for skill in bullet.skills:
                 covered_terms.update(_tokenize_gap_terms(skill))
+    return job_term_counts, covered_terms
+
+
+def write_gap_summary(resume: ResumeIR, output_path: Path) -> None:
+    """Write missing high-value JD terms not yet covered by selected skills/bullets."""
+    job_term_counts, covered_terms = _compute_jd_term_coverage(resume)
 
     missing_terms = [
         {"term": term, "count": count}
@@ -1435,7 +1442,7 @@ def write_gap_summary(resume: ResumeIR, output_path: Path) -> None:
     payload = {
         "target_role": resume.target_role,
         "target_company": resume.target_company,
-        "job_term_count": len(job_terms),
+        "job_term_count": sum(job_term_counts.values()),
         "unique_job_terms": len(job_term_counts),
         "covered_term_count": sum(
             1 for term in job_term_counts if term in covered_terms
@@ -1607,31 +1614,7 @@ def _build_skill_decisions(
 
 def _build_jd_coverage(resume: ResumeIR) -> dict[str, Any]:
     """Compute JD coverage breakdown for the decision report."""
-    description_excerpt = ""
-    role_hint = ""
-    if resume.job_context is not None:
-        description_excerpt = resume.job_context.description_excerpt.strip()
-        role_hint = resume.job_context.role_hint.strip()
-
-    job_terms = _tokenize_gap_terms(
-        " ".join(part for part in [description_excerpt, role_hint] if part.strip())
-    )
-    job_term_counts: dict[str, int] = {}
-    for term in job_terms:
-        job_term_counts[term] = job_term_counts.get(term, 0) + 1
-
-    covered_terms: set[str] = set()
-    for skills in resume.skills_by_category.values():
-        for skill in skills:
-            covered_terms.update(_tokenize_gap_terms(skill))
-    for experience in resume.experiences:
-        covered_terms.update(_tokenize_gap_terms(experience.general_role_description))
-        for skill in experience.related_skills:
-            covered_terms.update(_tokenize_gap_terms(skill))
-        for bullet in experience.bullets:
-            covered_terms.update(_tokenize_gap_terms(bullet.text))
-            for skill in bullet.skills:
-                covered_terms.update(_tokenize_gap_terms(skill))
+    job_term_counts, covered_terms = _compute_jd_term_coverage(resume)
 
     covered_in_jd = sorted(term for term in job_term_counts if term in covered_terms)
     missing_terms = [
@@ -1642,7 +1625,7 @@ def _build_jd_coverage(resume: ResumeIR) -> dict[str, Any]:
         if term not in covered_terms
     ]
     return {
-        "job_term_count": len(job_terms),
+        "job_term_count": sum(job_term_counts.values()),
         "unique_job_term_count": len(job_term_counts),
         "covered_term_count": len(covered_in_jd),
         "missing_term_count": len(missing_terms),
@@ -3725,6 +3708,13 @@ def run_pipeline(args: argparse.Namespace) -> int:
     if should_emit_gap_summary:
         write_gap_summary(resume, gap_output)
         written_paths.append(gap_output)
+
+    # Decision report gate is intentionally looser than gap summary: trim_by_rules
+    # populates removal reasons and select_skills mutates categories whenever
+    # processed-mode runs, regardless of whether a JD is attached or its excerpt
+    # is non-empty. The jd_coverage section degrades to zero terms when no JD is
+    # present, but the bullet/skill sections remain meaningful.
+    if args.processing_mode == "processed":
         write_decision_report(
             resume,
             baseline_resume,

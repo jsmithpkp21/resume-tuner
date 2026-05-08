@@ -1347,6 +1347,65 @@ def test_write_decision_report_records_bullet_rejection_reasons(tmp_path: Path) 
     assert "aws" not in skills["skills_dropped"]
 
 
+def test_trim_by_rules_populates_removal_reasons_for_duplicate_bullets() -> None:
+    profile = load_profile(_TRACKED_PROFILE_PATH)
+    experience = Experience(
+        id="exp-trim",
+        job_title="Staff SDET",
+        company="Acme",
+        start_date="2020-01",
+        end_date="present",
+        general_role_description="Ship reliability tooling.",
+        related_skills=("python",),
+        bullets=(
+            Bullet(
+                id="b-keep-1",
+                text="Built CI gating to reduce flaky failures by 30%.",
+                skills=("ci",),
+                impact_type="reliability",
+                domain="qa",
+            ),
+            Bullet(
+                id="b-keep-2",
+                text="Designed observability dashboards for payments.",
+                skills=("observability",),
+                impact_type="visibility",
+                domain="ops",
+            ),
+            Bullet(
+                id="b-dup",
+                text="Built CI gating to reduce flaky failures by 30%.",
+                skills=("ci",),
+                impact_type="reliability",
+                domain="qa",
+            ),
+            Bullet(
+                id="b-keep-3",
+                text="Refactored deployment automation across services.",
+                skills=("ci",),
+                impact_type="velocity",
+                domain="ops",
+            ),
+        ),
+    )
+    resume = build_resume.ResumeIR(
+        profile=profile,
+        target_role="Staff SDET",
+        target_company="Acme",
+        display_headline="Staff SDET",
+        job_context=None,
+        experiences=(experience,),
+        skills_by_category={"Quality": ["python", "ci"]},
+    )
+
+    removal_reasons: dict[str, str] = {}
+    trimmed = trim_by_rules(resume, removal_reasons=removal_reasons)
+
+    surviving_ids = {bullet.id for bullet in trimmed.experiences[0].bullets}
+    assert "b-dup" not in surviving_ids
+    assert removal_reasons.get("b-dup") == "duplicate"
+
+
 def test_build_resume_cli_rejects_unknown_template(tmp_path: Path) -> None:
     output_dir = tmp_path / "invalid_template"
     result = subprocess.run(

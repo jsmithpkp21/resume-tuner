@@ -3,10 +3,21 @@
 
 Reads only the canonical files (``data/experience/experience_db.toml`` and
 ``data/skills/skills_matrix.csv``) and reports coverage signals that survive
-worksheet archive. Hard gates mirror the invariants ``DESIGN.md`` describes
-and ``scripts/validate_experience_data.py`` already enforces (GRD present,
->=3 bullets, every bullet skill in matrix, every ``related_skills`` entry in
-matrix); soft signals are informational distributions.
+worksheet archive. The hard gates draw from two sources:
+
+- ``DESIGN.md``: rule 11 ("Each experience must include at least 3 bullets")
+  is enforced as the ``bullet_bank_below_minimum`` gate.  The
+  ``general_role_description`` field is documented as a required experience
+  field; the ``missing_general_role_description`` gate is a new invariant
+  introduced here that fail-closes on emptiness, which the design implies
+  but does not explicitly enforce elsewhere.
+- ``scripts/validate_experience_data.py``: already errors when bullet
+  ``skills`` or experience ``related_skills`` reference values not in
+  ``skills_matrix.csv``.  The ``bullet_skill_not_in_matrix`` and
+  ``related_skill_not_in_matrix`` gates here run the same checks so
+  canonical coverage is self-contained without invoking the validator.
+
+Soft signals are informational distributions.
 
 Run with ``--strict`` for CI use::
 

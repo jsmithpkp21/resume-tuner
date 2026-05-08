@@ -101,11 +101,21 @@ pytest -q tests/scripts/test_experience_skill_category_contract.py
 ## Canonical coverage (worksheet-independent)
 
 `python3 scripts/check_canonical_coverage.py --strict` reads only
-`data/experience/experience_db.toml` and `data/skills/skills_matrix.csv`. It hard-gates
-on the same invariants `scripts/validate_experience_data.py` enforces — every
-experience has a `general_role_description`, ≥3 `bullet_bank` entries, only bullet
-skills present in `skills_matrix.csv`, and only `related_skills` present in
-`skills_matrix.csv`. The report is written to `data/review/coverage_report.json`.
+`data/experience/experience_db.toml` and `data/skills/skills_matrix.csv`. It
+hard-gates on canonical invariants drawn from two sources:
+
+- `DESIGN.md` rule 11 ("Each experience must include at least 3 bullets")
+  becomes the `bullet_bank_below_minimum` gate. The
+  `missing_general_role_description` gate is a new invariant introduced by
+  this script that fail-closes on an empty `general_role_description` —
+  the field is documented in `DESIGN.md` as required but not previously
+  enforced as non-empty.
+- `scripts/validate_experience_data.py` already errors when bullet `skills`
+  or `related_skills` reference values not in `skills_matrix.csv`; the
+  same checks run here as `bullet_skill_not_in_matrix` and
+  `related_skill_not_in_matrix`.
+
+The report is written to `data/review/coverage_report.json`.
 
 This check exists so worksheet archive (see
 [`WORKSHEET_LIFECYCLE_POLICY.md`](WORKSHEET_LIFECYCLE_POLICY.md)) does not lose the

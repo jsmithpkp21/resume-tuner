@@ -22,6 +22,7 @@ from scripts.jd_ingest import (
     _extract_role_from_title,
     _extract_role_hint,
     _fetch_greenhouse_via_api,
+    _fetch_json_api,
     _fetch_workable_via_api,
     _html_to_text,
     _infer_source,
@@ -513,7 +514,7 @@ def test_fetch_workable_via_api_skips_when_required_url_parts_missing() -> None:
 def test_fetch_greenhouse_via_api_returns_none_on_title_only_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Round-1 review on PR #263: title alone is not enough.
+    """Issue #247 fix-3 review: title alone is not enough.
 
     Downstream JD-term extraction and LLM tailoring stages depend on
     description text. A title-only API payload would short-circuit
@@ -536,3 +537,146 @@ def test_fetch_workable_via_api_returns_none_on_title_only_payload(
         lambda _u: {"title": "Staff SDET", "description": ""},
     )
     assert _fetch_workable_via_api(account="acme", shortcode="abc") is None
+
+
+# --- Issue #247 fix-3 review: _fetch_json_api low-level coverage ---------
+
+
+class _FakeResponse:
+    """Minimal context-manager stand-in for urllib's response object."""
+
+    def __init__(
+        self,
+        *,
+        body: bytes,
+        content_length: str | None = None,
+        charset: str = "utf-8",
+        url: str | None = None,
+    ) -> None:
+        self._body = body
+        self._content_length = content_length
+        self._charset = charset
+        self._url = url
+
+        class _Headers:
+            def __init__(self, owner: _FakeResponse) -> None:
+                self._owner = owner
+
+            def get(self, key: str) -> str | None:
+                if key.lower() == "content-length":
+                    return self._owner._content_length
+                return None
+
+            def get_content_charset(self) -> str | None:
+                return self._owner._charset
+
+        self.headers = _Headers(self)
+
+    def read(self, n: int = -1) -> bytes:
+        if n is None or n < 0:
+            return self._body
+        return self._body[:n]
+
+    def geturl(self) -> str:
+        return self._url or "https://boards-api.greenhouse.io/v1/boards/x/jobs/1"
+
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+
+def _install_fake_opener(
+    monkeypatch: pytest.MonkeyPatch, response: _FakeResponse
+) -> None:
+    """Patch build_opener so opener.open(...) returns the supplied response."""
+
+    class _FakeOpener:
+        def open(self, *_args: object, **_kwargs: object) -> _FakeResponse:
+            return response
+
+    monkeypatch.setattr("scripts.jd_ingest.build_opener", lambda *_h: _FakeOpener())
+
+
+def test_fetch_json_api_returns_dict_for_valid_json_object(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body = b'{"title": "Staff SDET", "content": "<p>JD body</p>"}'
+    _install_fake_opener(monkeypatch, _FakeResponse(body=body))
+    out = _fetch_json_api("https://boards-api.greenhouse.io/v1/boards/x/jobs/1")
+    assert out == {"title": "Staff SDET", "content": "<p>JD body</p>"}
+
+
+def test_fetch_json_api_returns_none_when_payload_is_not_a_dict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """JSON arrays / strings / numbers must be rejected (caller wants a dict)."""
+    for body in (b'["a", "b"]', b'"just a string"', b"42", b"null", b"true"):
+        _install_fake_opener(monkeypatch, _FakeResponse(body=body))
+        assert (
+            _fetch_json_api("https://boards-api.greenhouse.io/v1/boards/x/jobs/1")
+            is None
+        )
+
+
+def test_fetch_json_api_returns_none_on_invalid_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_opener(monkeypatch, _FakeResponse(body=b"<html>not json</html>"))
+    assert (
+        _fetch_json_api("https://boards-api.greenhouse.io/v1/boards/x/jobs/1") is None
+    )
+
+
+def test_fetch_json_api_returns_none_on_oversize_content_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Server-declared Content-Length above the cap short-circuits the read."""
+    huge = str(10 * 1024 * 1024)  # 10 MiB declared
+    _install_fake_opener(
+        monkeypatch, _FakeResponse(body=b'{"title": "x"}', content_length=huge)
+    )
+    assert (
+        _fetch_json_api("https://boards-api.greenhouse.io/v1/boards/x/jobs/1") is None
+    )
+
+
+def test_fetch_json_api_returns_none_on_oversize_actual_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Even without a declared Content-Length, body > _MAX_FETCH_BYTES rejects.
+
+    Construct a body strictly larger than the cap so the post-read length
+    check fires.
+    """
+    from scripts.jd_ingest import _MAX_FETCH_BYTES
+
+    body = b"x" * (_MAX_FETCH_BYTES + 100)
+    _install_fake_opener(monkeypatch, _FakeResponse(body=body))
+    assert (
+        _fetch_json_api("https://boards-api.greenhouse.io/v1/boards/x/jobs/1") is None
+    )
+
+
+def test_fetch_json_api_returns_none_when_url_validation_fails() -> None:
+    """Invalid URL (e.g. localhost) is rejected before any network call."""
+    # No opener stub: if validation didn't fire, this would try a real fetch
+    # and the test would either hang or hit external network.
+    assert _fetch_json_api("http://localhost/api/widget") is None
+    assert _fetch_json_api("file:///etc/passwd") is None
+
+
+def test_fetch_json_api_returns_none_on_opener_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Any opener-level error (network failure, timeout, etc.) returns None."""
+
+    class _RaisingOpener:
+        def open(self, *_args: object, **_kwargs: object) -> _FakeResponse:
+            raise RuntimeError("connection refused")
+
+    monkeypatch.setattr("scripts.jd_ingest.build_opener", lambda *_h: _RaisingOpener())
+    assert (
+        _fetch_json_api("https://boards-api.greenhouse.io/v1/boards/x/jobs/1") is None
+    )

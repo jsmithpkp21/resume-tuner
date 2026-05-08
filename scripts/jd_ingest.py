@@ -36,13 +36,19 @@ _JOB_PAGE_FIXTURE_ENV = "RESUME_BUILDER_JOB_PAGE_FIXTURE"
 _MAX_DESCRIPTION_EXCERPT = 500
 _MAX_FETCH_BYTES = 256 * 1024
 
+# Single User-Agent for every outbound fetch (HTML page fetcher AND JSON
+# board-API fetcher). Centralized so updates can't drift between paths.
+_FETCH_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
 # Hosts where a public JSON board API serves the JD body the static-HTML
 # fetcher can't see (the page is JS-rendered). #247 fix #3 (partial).
 _GREENHOUSE_BOARD_HOSTS: tuple[str, ...] = (
     "boards.greenhouse.io",
     "job-boards.greenhouse.io",
 )
-_WORKABLE_BOARD_HOSTS: tuple[str, ...] = ("apply.workable.com",)
 
 
 class _ValidatingRedirectHandler(HTTPRedirectHandler):
@@ -322,8 +328,12 @@ _ATS_PATH_SLUG_DOMAINS: tuple[str, ...] = (
 # Workable's marketing / docs / help live at workable.com / www.workable.com /
 # help.workable.com — we don't want to treat those as job-board URLs and
 # pull the first path segment as a company slug. Only apply.workable.com
-# follows the apply.workable.com/<company>/j/<id>/ pattern.
+# follows the apply.workable.com/<company>/j/<id>/ pattern. The same hosts
+# are used by _try_board_api_fetch for Workable's JSON board API; the alias
+# below keeps the two purposes pinned to the same source so adding a host
+# can't accidentally diverge between ATS parsing and board-API dispatch.
 _ATS_PATH_SLUG_HOSTS: tuple[str, ...] = ("apply.workable.com",)
+_WORKABLE_BOARD_HOSTS: tuple[str, ...] = _ATS_PATH_SLUG_HOSTS
 # ATS hosts where the netloc subdomain is the hiring company's slug.
 # Example: https://<slug>.bamboohr.com/jobs/view.php?id=...
 _ATS_SUBDOMAIN_DOMAINS: tuple[str, ...] = (
@@ -714,13 +724,7 @@ def _fetch_json_api(api_url: str) -> dict[str, Any] | None:
         return None
     request = Request(
         api_url,
-        headers={
-            "Accept": "application/json",
-            "User-Agent": (
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-            ),
-        },
+        headers={"Accept": "application/json", "User-Agent": _FETCH_USER_AGENT},
     )
     opener = build_opener(_ValidatingRedirectHandler())
     try:
@@ -825,15 +829,7 @@ def _fetch_job_page_metadata(url: str) -> FetchedPage:
     api_result = _try_board_api_fetch(url)
     if api_result is not None:
         return api_result
-    request = Request(
-        url,
-        headers={
-            "User-Agent": (
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-            )
-        },
-    )
+    request = Request(url, headers={"User-Agent": _FETCH_USER_AGENT})
     opener = build_opener(_ValidatingRedirectHandler())
     try:
         # Re-validate immediately before connect to reduce DNS rebinding window.

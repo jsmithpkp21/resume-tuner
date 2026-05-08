@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.37.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.36.2...v0.37.0) (2026-05-08)
+
+
+### Features
+
+* **build-resume:** emit decision report artifact for [#23](https://github.com/jsmithpkp21/resume-builder/issues/23) ([fed71a4](https://github.com/jsmithpkp21/resume-builder/commit/fed71a4c5e25f10bde11404bcdb5ae52c3bbc916))
+
+
+### Bug Fixes
+
+* **build-resume:** address Copilot review on PR [#260](https://github.com/jsmithpkp21/resume-builder/issues/260) ([943ba48](https://github.com/jsmithpkp21/resume-builder/commit/943ba4814279157ebef39b09d2f243af62333eea))
+
 ## [0.36.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.36.1...v0.36.2) (2026-05-08)
 
 

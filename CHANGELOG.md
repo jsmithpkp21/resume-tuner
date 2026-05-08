@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.36.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.36.1...v0.36.2) (2026-05-08)
+
+
+### Bug Fixes
+
+* **jd-ingest:** role-extraction residuals after [#247](https://github.com/jsmithpkp21/resume-builder/issues/247) (closes [#255](https://github.com/jsmithpkp21/resume-builder/issues/255)) ([fbe7a14](https://github.com/jsmithpkp21/resume-builder/commit/fbe7a140c42742ff169f9929b03038c0d94936b6))
+
 ## [0.36.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.36.0...v0.36.1) (2026-05-07)
 
 

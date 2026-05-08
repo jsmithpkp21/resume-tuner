@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.42.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.41.0...v0.42.0) (2026-05-08)
+
+
+### Features
+
+* **skills:** LLM-aware top-N skill cap ([#256](https://github.com/jsmithpkp21/resume-builder/issues/256)) ([#273](https://github.com/jsmithpkp21/resume-builder/issues/273)) ([76d6521](https://github.com/jsmithpkp21/resume-builder/commit/76d6521c083488f1b551c2e70fe5493911a42be2))
+
 ## [0.41.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.40.0...v0.41.0) (2026-05-08)
 
 

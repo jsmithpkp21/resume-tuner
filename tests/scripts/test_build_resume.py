@@ -5963,6 +5963,21 @@ def test_generate_jd_tailored_summary_keeps_existing_terminal_punctuation(
     assert not out.endswith("?.")
 
 
+def test_generate_jd_tailored_summary_collapses_internal_whitespace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    words = _build_in_bounds_summary(100).split()
+    summary = " ".join(words[:50]) + "\n\n\t" + " ".join(words[50:])
+    _install_fake_llm(monkeypatch, payload={"summary": summary})
+    resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
+
+    out = build_resume._generate_jd_tailored_summary_via_llm(resume)
+    assert "\n" not in out
+    assert "\t" not in out
+    assert len(out.split()) == 100
+
+
 def test_generate_jd_tailored_summary_strips_trailing_separators_before_period(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

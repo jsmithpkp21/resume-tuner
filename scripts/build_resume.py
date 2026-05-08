@@ -1943,9 +1943,7 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
     - Wrap-line count above PROFILE_SUMMARY_MAX_LINES (6) when wrapped
       at PROFILE_SUMMARY_LINE_WIDTH (115) — the same 6-line PDF layout
       cap that _fit_profile_summary_layout enforces on the deterministic
-      path. (Earlier draft used the wrong line-width constant; PR #264
-      review caught that the LLM and deterministic paths must wrap at
-      the same width to enforce the same layout budget.)
+      path.
     """
     if not _llm_stage_enabled():
         return ""
@@ -2005,7 +2003,7 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
     candidate = response.get("summary", "")
     if not isinstance(candidate, str):
         return ""
-    candidate = candidate.strip()
+    candidate = " ".join(candidate.split())
     if not candidate:
         return ""
 

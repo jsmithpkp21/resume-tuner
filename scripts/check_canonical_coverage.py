@@ -257,6 +257,7 @@ def build_report(
 
 
 def write_report(report: CoverageReport, output_path: Path) -> None:
+    _assert_not_blocked_runtime_input(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n",

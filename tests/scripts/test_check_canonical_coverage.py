@@ -13,6 +13,7 @@ from scripts.check_canonical_coverage import (
     load_experience_db,
     load_skills_matrix,
     main,
+    write_report,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -229,6 +230,42 @@ def test_main_strict_returns_nonzero_when_gate_fails(
     assert output_path.exists()
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     assert payload["hard_gate_failures"], "report should record the failure"
+
+
+def test_write_report_rejects_blocked_sandbox_output(tmp_path: Path) -> None:
+    """`write_report` refuses to write into ``sandbox/`` (#20 guard).
+
+    Inputs are guarded by the loaders; outputs need the same protection so
+    ``--output sandbox/coverage.json`` cannot exfiltrate the report.
+    """
+    db_path = tmp_path / "db.toml"
+    _write_experience_db(db_path, _experience_block())
+    skills_path = tmp_path / "skills.csv"
+    _write_skills(skills_path, ["Python"])
+    blocked_output = REPO_ROOT / "sandbox" / "coverage.json"
+    if blocked_output.exists():
+        pytest.skip("Unexpected collision with existing sandbox file")
+
+    report = build_report(db_path, skills_path)
+    with pytest.raises(ValueError, match="blocked runtime directory"):
+        write_report(report, blocked_output)
+    assert not blocked_output.exists()
+
+
+def test_write_report_rejects_blocked_samples_output(tmp_path: Path) -> None:
+    """`write_report` refuses to write into ``data/samples/`` (#20 guard)."""
+    db_path = tmp_path / "db.toml"
+    _write_experience_db(db_path, _experience_block())
+    skills_path = tmp_path / "skills.csv"
+    _write_skills(skills_path, ["Python"])
+    blocked_output = REPO_ROOT / "data" / "samples" / "coverage.json"
+    if blocked_output.exists():
+        pytest.skip("Unexpected collision with existing samples file")
+
+    report = build_report(db_path, skills_path)
+    with pytest.raises(ValueError, match="blocked runtime directory"):
+        write_report(report, blocked_output)
+    assert not blocked_output.exists()
 
 
 def test_main_non_strict_returns_zero_even_when_gate_fails(

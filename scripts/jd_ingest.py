@@ -14,6 +14,7 @@ from __future__ import annotations
 import html as _html_lib
 import ipaddress
 import json
+import logging
 import os
 import re
 import socket
@@ -36,12 +37,43 @@ _JOB_PAGE_FIXTURE_ENV = "RESUME_BUILDER_JOB_PAGE_FIXTURE"
 _MAX_DESCRIPTION_EXCERPT = 500
 _MAX_FETCH_BYTES = 256 * 1024
 
+logger = logging.getLogger(__name__)
+
 # Single User-Agent for every outbound fetch (HTML page fetcher AND JSON
 # board-API fetcher). Centralized so updates can't drift between paths.
 _FETCH_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
+
+# Hosts that render the JD body via client-side JavaScript and have no
+# public JSON board API (so the cheap static-HTML fetch + the API path
+# both come back near-empty). Always-Playwright when the env var is set;
+# the headless-browser path is the only way to recover JD content from
+# these. See #247 fix #3.
+_JS_RENDERED_HOST_FAMILIES: tuple[str, ...] = (
+    "myworkdayjobs.com",  # Workday board family (e.g. *.wd1.myworkdayjobs.com)
+    # Specific subdomain match — generic 'careers.<company>.com' patterns
+    # often serve fine via static fetch + company-site URL fallback, so we
+    # don't blanket-include them.
+)
+# Specific hostnames (exact match) that need the Playwright path. Used for
+# entries that aren't part of a wildcard host family, like the Western Union
+# careers portal which renders the JD body in client-side JS even though it
+# lives on a vanity hostname.
+_JS_RENDERED_EXACT_HOSTS: tuple[str, ...] = ("careers.westernunion.com",)
+
+_PLAYWRIGHT_ENABLED_ENV = "RESUME_BUILDER_ENABLE_PLAYWRIGHT"
+_PLAYWRIGHT_TIMEOUT_SECONDS = 15.0
+# When the static fetch comes back below this many chars, retry via
+# Playwright even if the host isn't in the allowlist. Catches new
+# JS-rendered domains we haven't curated yet.
+_PLAYWRIGHT_RETRY_THRESHOLD_CHARS = 200
+# Settle-time after `domcontentloaded` for late-firing JS to finish
+# rendering the JD body. Tuned conservatively — most boards finish
+# rendering within ~1 s; 2 s leaves a margin without making the fetch
+# painfully slow.
+_PLAYWRIGHT_SETTLE_MS = 2000
 
 # Hosts where a public JSON board API serves the JD body the static-HTML
 # fetcher can't see (the page is JS-rendered). #247 fix #3 (partial).
@@ -829,6 +861,136 @@ def _try_board_api_fetch(url: str) -> FetchedPage | None:
     return None
 
 
+def _import_sync_playwright() -> Any:
+    """Import playwright.sync_api lazily; return ``sync_playwright`` or None.
+
+    Indirection makes the dependency a runtime concern rather than an
+    import-time hard dep: the module loads cleanly without playwright
+    installed, and only the Playwright code path needs it. Tests
+    monkeypatch this helper to inject a fake sync_playwright.
+    """
+    try:
+        from playwright.sync_api import sync_playwright  # noqa: PLC0415
+
+        return sync_playwright
+    except ImportError:
+        return None
+
+
+def _playwright_enabled() -> bool:
+    """True when the user opted into the Playwright path AND it's available."""
+    if os.getenv(_PLAYWRIGHT_ENABLED_ENV, "0").strip() != "1":
+        return False
+    return _import_sync_playwright() is not None
+
+
+def _host_needs_javascript_render(host: str) -> bool:
+    """Match host against the JS-rendered allowlist.
+
+    Returns True when the host is in either _JS_RENDERED_EXACT_HOSTS
+    (exact match) or under one of _JS_RENDERED_HOST_FAMILIES (suffix
+    match — e.g. ``becu.wd1.myworkdayjobs.com`` matches
+    ``myworkdayjobs.com``).
+    """
+    host = (host or "").lower().split(":", maxsplit=1)[0]
+    if not host:
+        return False
+    if host in _JS_RENDERED_EXACT_HOSTS:
+        return True
+    return any(
+        host == family or host.endswith("." + family)
+        for family in _JS_RENDERED_HOST_FAMILIES
+    )
+
+
+def _should_use_playwright(url: str, static_result: FetchedPage) -> bool:
+    """Decide whether to retry a fetch via the Playwright path.
+
+    Two triggers:
+    - host is in the curated JS-rendered allowlist (always retry); or
+    - the static fetch came back below _PLAYWRIGHT_RETRY_THRESHOLD_CHARS
+      of description content (catches JS-rendered domains we haven't
+      curated yet).
+
+    Both paths require the env-var opt-in via ``_playwright_enabled()``;
+    callers that haven't enabled the Playwright path never invoke this.
+    """
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if _host_needs_javascript_render(host):
+        return True
+    return len(static_result.description or "") < _PLAYWRIGHT_RETRY_THRESHOLD_CHARS
+
+
+def _playwright_fetch_html(sync_pw: Any, url: str) -> tuple[str, str] | None:
+    """Inner orchestration: launch Chromium, navigate, return (title, html).
+
+    Separated from the public _fetch_via_playwright wrapper so the
+    browser-dance logic can be tested without exercising the wrapper's
+    URL validation + result construction. ``sync_pw`` is the
+    ``playwright.sync_api.sync_playwright`` callable, injected so tests
+    can substitute a fake.
+    """
+    try:
+        with sync_pw() as pw:
+            browser = pw.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(user_agent=_FETCH_USER_AGENT)
+                page.goto(
+                    url,
+                    timeout=int(_PLAYWRIGHT_TIMEOUT_SECONDS * 1000),
+                    wait_until="domcontentloaded",
+                )
+                # Late-firing JS settle window. Most JD boards finish
+                # rendering within ~1 s of domcontentloaded.
+                page.wait_for_timeout(_PLAYWRIGHT_SETTLE_MS)
+                title = page.title() or ""
+                content_html = page.content() or ""
+                if len(content_html) > _MAX_FETCH_BYTES:
+                    content_html = content_html[:_MAX_FETCH_BYTES]
+                return title, content_html
+            finally:
+                browser.close()
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Playwright fetch failed: %s", exc)
+        return None
+
+
+def _fetch_via_playwright(url: str) -> FetchedPage | None:
+    """Fetch JD body via headless Chromium for JS-rendered pages.
+
+    Public wrapper. Returns None when:
+    - playwright isn't installed (caller falls back to static result);
+    - the URL fails security validation;
+    - the browser dance fails (timeout, launch error, etc.);
+    - the rendered content is empty after _html_to_text.
+
+    No raised exceptions; all failures degrade to None so the caller
+    can keep the static result.
+    """
+    sync_pw = _import_sync_playwright()
+    if sync_pw is None:
+        return None
+    try:
+        _validate_job_url(_normalize_url(url))
+    except Exception:  # noqa: BLE001
+        return None
+
+    raw = _playwright_fetch_html(sync_pw, url)
+    if raw is None:
+        return None
+    title, content_html = raw
+    description = _html_to_text(content_html)
+    if not description.strip():
+        return None
+    return FetchedPage(
+        status="fetched",
+        title=title,
+        description=description,
+        notes=("source:playwright",),
+    )
+
+
 def _fetch_job_page_metadata(url: str) -> FetchedPage:
     fixture_path = os.getenv(_JOB_PAGE_FIXTURE_ENV, "").strip()
     if fixture_path:
@@ -876,12 +1038,22 @@ def _fetch_job_page_metadata(url: str) -> FetchedPage:
     parser = _MetadataParser()
     parser.feed(html_text)
     parser.close()
-    return FetchedPage(
+    static_result = FetchedPage(
         status="fetched",
         title=parser.title,
         description=parser.description,
         notes=(),
     )
+    # JS-rendered fallback: when the user has opted into Playwright AND
+    # either the host is in our curated allowlist or the static fetch
+    # came back near-empty, retry via headless Chromium and prefer that
+    # result if it produced non-empty content. Static result still wins
+    # on any Playwright failure.
+    if _playwright_enabled() and _should_use_playwright(url, static_result):
+        pw_result = _fetch_via_playwright(url)
+        if pw_result is not None and pw_result.description.strip():
+            return pw_result
+    return static_result
 
 
 def _fetch_job_page_metadata_from_fixture(path: Path) -> FetchedPage:

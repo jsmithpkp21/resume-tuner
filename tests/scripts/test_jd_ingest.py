@@ -15,17 +15,25 @@ Covers the fixes from issue #247:
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from scripts.jd_ingest import (
+    FetchedPage,
     _extract_company_name,
     _extract_role_from_title,
     _extract_role_hint,
     _fetch_greenhouse_via_api,
     _fetch_json_api,
+    _fetch_via_playwright,
     _fetch_workable_via_api,
+    _host_needs_javascript_render,
     _html_to_text,
     _infer_source,
+    _playwright_enabled,
+    _playwright_fetch_html,
+    _should_use_playwright,
     _try_board_api_fetch,
 )
 
@@ -691,3 +699,421 @@ def test_fetch_json_api_returns_none_on_opener_exception(
     assert (
         _fetch_json_api("https://boards-api.greenhouse.io/v1/boards/x/jobs/1") is None
     )
+
+
+# --- #247 fix-3: Playwright JD fetcher -----------------------------------
+
+
+@pytest.mark.parametrize(
+    "host, expected",
+    [
+        # Workday family — any subdomain matches.
+        ("becu.wd1.myworkdayjobs.com", True),
+        ("foo.bar.myworkdayjobs.com", True),
+        ("myworkdayjobs.com", True),
+        # Western Union exact match.
+        ("careers.westernunion.com", True),
+        # Non-matching hosts.
+        ("careers.example.com", False),
+        ("workday.com", False),  # close-but-not-matching apex
+        ("not-westernunion.com", False),
+        ("careers.westernunion.com.evil.example", False),  # suffix isn't a match
+        ("", False),
+        ("CAREERS.WESTERNUNION.COM", True),  # case-insensitive
+    ],
+)
+def test_host_needs_javascript_render(host: str, expected: bool) -> None:
+    assert _host_needs_javascript_render(host) is expected
+
+
+def test_playwright_enabled_returns_false_when_env_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", raising=False)
+    assert _playwright_enabled() is False
+
+
+def test_playwright_enabled_returns_false_when_env_non_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", "true")
+    assert _playwright_enabled() is False
+
+
+def test_playwright_enabled_returns_false_when_package_not_installed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", "1")
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: None)
+    assert _playwright_enabled() is False
+
+
+def test_playwright_enabled_returns_true_when_env_set_and_package_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", "1")
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+    assert _playwright_enabled() is True
+
+
+@pytest.mark.parametrize(
+    "url, static_chars, expected",
+    [
+        # JS-rendered host: always retry regardless of static-fetch length.
+        ("https://becu.wd1.myworkdayjobs.com/job/123", 50, True),
+        ("https://becu.wd1.myworkdayjobs.com/job/123", 1000, True),
+        ("https://careers.westernunion.com/x", 0, True),
+        # Non-matching host: only retry when static came back below threshold.
+        ("https://example.com/jobs/123", 100, True),
+        ("https://example.com/jobs/123", 199, True),
+        ("https://example.com/jobs/123", 200, False),
+        ("https://example.com/jobs/123", 5000, False),
+    ],
+)
+def test_should_use_playwright_decision(
+    url: str, static_chars: int, expected: bool
+) -> None:
+    static = FetchedPage(
+        status="fetched",
+        title="t",
+        description="A" * static_chars,
+        notes=(),
+    )
+    assert _should_use_playwright(url, static) is expected
+
+
+# --- _playwright_fetch_html with a fake sync_playwright -------------------
+
+
+class _FakePage:
+    def __init__(self, *, title: str, content: str) -> None:
+        self._title = title
+        self._content = content
+        self.goto_calls: list[tuple[str, dict[str, object]]] = []
+        self.wait_calls: list[int] = []
+
+    def goto(self, url: str, **kwargs: object) -> None:
+        self.goto_calls.append((url, kwargs))
+
+    def wait_for_timeout(self, ms: int) -> None:
+        self.wait_calls.append(ms)
+
+    def title(self) -> str:
+        return self._title
+
+    def content(self) -> str:
+        return self._content
+
+
+class _FakeBrowser:
+    def __init__(self, page: _FakePage) -> None:
+        self._page = page
+        self.closed = False
+        self.new_page_kwargs: dict[str, object] = {}
+
+    def new_page(self, **kwargs: object) -> _FakePage:
+        self.new_page_kwargs = kwargs
+        return self._page
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _FakeChromium:
+    def __init__(self, browser: _FakeBrowser) -> None:
+        self._browser = browser
+        self.launch_kwargs: dict[str, object] = {}
+
+    def launch(self, **kwargs: object) -> _FakeBrowser:
+        self.launch_kwargs = kwargs
+        return self._browser
+
+
+class _FakePlaywright:
+    def __init__(self, chromium: _FakeChromium) -> None:
+        self.chromium = chromium
+
+
+class _FakeSyncPlaywrightCM:
+    def __init__(self, pw: _FakePlaywright) -> None:
+        self._pw = pw
+
+    def __enter__(self) -> _FakePlaywright:
+        return self._pw
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+
+def _make_fake_sync_playwright(
+    *, title: str = "Job Title", content: str = "<p>JD body</p>"
+) -> tuple[Any, _FakeBrowser, _FakeChromium]:
+    page = _FakePage(title=title, content=content)
+    browser = _FakeBrowser(page)
+    chromium = _FakeChromium(browser)
+    pw = _FakePlaywright(chromium)
+    cm = _FakeSyncPlaywrightCM(pw)
+
+    def factory() -> _FakeSyncPlaywrightCM:
+        return cm
+
+    return factory, browser, chromium
+
+
+def test_playwright_fetch_html_returns_title_and_content() -> None:
+    fake_sync, _browser, _chromium = _make_fake_sync_playwright(
+        title="Staff SDET", content="<p>JD body</p>"
+    )
+    out = _playwright_fetch_html(fake_sync, "https://example.com/job/1")
+    assert out == ("Staff SDET", "<p>JD body</p>")
+
+
+def test_playwright_fetch_html_passes_user_agent_and_settle_window() -> None:
+    fake_sync, browser, chromium = _make_fake_sync_playwright()
+    _playwright_fetch_html(fake_sync, "https://example.com/job/1")
+    # Browser launched headless; user-agent forwarded to new_page.
+    assert chromium.launch_kwargs == {"headless": True}
+    assert "user_agent" in browser.new_page_kwargs
+
+
+def test_playwright_fetch_html_truncates_oversize_content() -> None:
+    big = "<p>" + ("X" * (256 * 1024 + 100)) + "</p>"
+    fake_sync, _browser, _chromium = _make_fake_sync_playwright(title="t", content=big)
+    out = _playwright_fetch_html(fake_sync, "https://example.com/job/1")
+    assert out is not None
+    _title, html = out
+    assert len(html) == 256 * 1024  # _MAX_FETCH_BYTES
+
+
+def test_playwright_fetch_html_returns_none_on_browser_failure() -> None:
+    """Any exception during the browser dance returns None (caller falls back)."""
+
+    class _RaisingChromium:
+        def launch(self, **_kwargs: object) -> object:
+            raise RuntimeError("browser launch failed")
+
+    class _RaisingPW:
+        chromium = _RaisingChromium()
+
+    def factory() -> _FakeSyncPlaywrightCM:
+        return _FakeSyncPlaywrightCM(_RaisingPW())  # type: ignore[arg-type]
+
+    assert _playwright_fetch_html(factory, "https://example.com/job/1") is None
+
+
+# --- _fetch_via_playwright wrapper ---------------------------------------
+
+
+def test_fetch_via_playwright_returns_none_when_package_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: None)
+    assert _fetch_via_playwright("https://example.com/job/1") is None
+
+
+def test_fetch_via_playwright_returns_none_when_url_validation_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Localhost / non-public URLs are rejected before the browser launches."""
+    monkeypatch.setattr(
+        "scripts.jd_ingest._import_sync_playwright", lambda: lambda: None
+    )
+    assert _fetch_via_playwright("http://localhost/job") is None
+    assert _fetch_via_playwright("file:///etc/passwd") is None
+
+
+def test_fetch_via_playwright_wraps_html_into_fetched_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+    monkeypatch.setattr(
+        "scripts.jd_ingest._playwright_fetch_html",
+        lambda _sync, _url: ("Staff SDET", "<p>JD body here.</p>"),
+    )
+    out = _fetch_via_playwright("https://example.com/job/1")
+    assert out is not None
+    assert out.title == "Staff SDET"
+    assert "JD body here" in out.description
+    assert out.notes == ("source:playwright",)
+    assert out.status == "fetched"
+
+
+def test_fetch_via_playwright_returns_none_when_inner_fetch_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+    monkeypatch.setattr(
+        "scripts.jd_ingest._playwright_fetch_html", lambda _sync, _url: None
+    )
+    assert _fetch_via_playwright("https://example.com/job/1") is None
+
+
+def test_fetch_via_playwright_returns_none_when_html_strips_to_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """HTML that strips down to whitespace-only text is treated as no content."""
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+    monkeypatch.setattr(
+        "scripts.jd_ingest._playwright_fetch_html",
+        lambda _sync, _url: ("title", "<p></p><div>   </div>"),
+    )
+    assert _fetch_via_playwright("https://example.com/job/1") is None
+
+
+# --- Decision-tree integration in _fetch_job_page_metadata ---------------
+
+
+def test_fetch_job_page_metadata_skips_playwright_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Playwright path is never tried when the env var is unset."""
+    monkeypatch.delenv("RESUME_BUILDER_JOB_PAGE_FIXTURE", raising=False)
+    monkeypatch.delenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", raising=False)
+
+    def fail_if_called(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("_fetch_via_playwright must not be called")
+
+    monkeypatch.setattr("scripts.jd_ingest._fetch_via_playwright", fail_if_called)
+    monkeypatch.setattr("scripts.jd_ingest._try_board_api_fetch", lambda _u: None)
+    # Stub the static fetch by feeding a known HTML shape via the fixture path
+    # is too involved; instead, monkeypatch the opener so the static fetcher
+    # produces a known empty result.
+
+    class _StubOpener:
+        def open(self, *_args: object, **_kwargs: object) -> object:
+            class _R:
+                headers = type(
+                    "_H",
+                    (),
+                    {
+                        "get": staticmethod(lambda _k: None),
+                        "get_content_charset": staticmethod(lambda: "utf-8"),
+                    },
+                )()
+
+                def read(self, _n: int = -1) -> bytes:
+                    return b"<html><body></body></html>"
+
+                def geturl(self) -> str:
+                    return "https://example.com/job/1"
+
+                def __enter__(self) -> object:
+                    return self
+
+                def __exit__(self, *args: object) -> None:
+                    return None
+
+            return _R()
+
+    monkeypatch.setattr("scripts.jd_ingest.build_opener", lambda *_h: _StubOpener())
+    from scripts.jd_ingest import _fetch_job_page_metadata
+
+    result = _fetch_job_page_metadata("https://example.com/job/1")
+    assert result.notes != ("source:playwright",)
+
+
+def test_fetch_job_page_metadata_uses_playwright_for_js_rendered_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Workday URL + env opt-in => Playwright fetcher is invoked and wins."""
+    monkeypatch.delenv("RESUME_BUILDER_JOB_PAGE_FIXTURE", raising=False)
+    monkeypatch.setenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", "1")
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+    monkeypatch.setattr("scripts.jd_ingest._try_board_api_fetch", lambda _u: None)
+
+    pw_result = FetchedPage(
+        status="fetched",
+        title="Staff Engineer",
+        description="Real JD body fetched via headless browser. " * 10,
+        notes=("source:playwright",),
+    )
+    captured: dict[str, str] = {}
+
+    def fake_pw(url: str) -> FetchedPage:
+        captured["url"] = url
+        return pw_result
+
+    monkeypatch.setattr("scripts.jd_ingest._fetch_via_playwright", fake_pw)
+
+    class _EmptyOpener:
+        def open(self, *_args: object, **_kwargs: object) -> object:
+            class _R:
+                headers = type(
+                    "_H",
+                    (),
+                    {
+                        "get": staticmethod(lambda _k: None),
+                        "get_content_charset": staticmethod(lambda: "utf-8"),
+                    },
+                )()
+
+                def read(self, _n: int = -1) -> bytes:
+                    return b"<html><body></body></html>"
+
+                def geturl(self) -> str:
+                    return "https://becu.wd1.myworkdayjobs.com/job/123"
+
+                def __enter__(self) -> object:
+                    return self
+
+                def __exit__(self, *args: object) -> None:
+                    return None
+
+            return _R()
+
+    monkeypatch.setattr("scripts.jd_ingest.build_opener", lambda *_h: _EmptyOpener())
+    from scripts.jd_ingest import _fetch_job_page_metadata
+
+    result = _fetch_job_page_metadata("https://becu.wd1.myworkdayjobs.com/job/123")
+    assert result is pw_result
+    assert captured["url"] == "https://becu.wd1.myworkdayjobs.com/job/123"
+
+
+def test_fetch_job_page_metadata_falls_back_to_static_when_playwright_returns_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Playwright path fails => static result is returned (not silently dropped)."""
+    monkeypatch.delenv("RESUME_BUILDER_JOB_PAGE_FIXTURE", raising=False)
+    monkeypatch.setenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", "1")
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+    monkeypatch.setattr("scripts.jd_ingest._try_board_api_fetch", lambda _u: None)
+    monkeypatch.setattr("scripts.jd_ingest._fetch_via_playwright", lambda _u: None)
+
+    body = (
+        b"<html><head><title>Static Title</title></head>"
+        b"<body><p>Static body</p></body></html>"
+    )
+
+    class _StaticOpener:
+        def open(self, *_args: object, **_kwargs: object) -> object:
+            class _R:
+                headers = type(
+                    "_H",
+                    (),
+                    {
+                        "get": staticmethod(lambda _k: None),
+                        "get_content_charset": staticmethod(lambda: "utf-8"),
+                    },
+                )()
+
+                def read(self, _n: int = -1) -> bytes:
+                    return body
+
+                def geturl(self) -> str:
+                    return "https://becu.wd1.myworkdayjobs.com/job/123"
+
+                def __enter__(self) -> object:
+                    return self
+
+                def __exit__(self, *args: object) -> None:
+                    return None
+
+            return _R()
+
+    monkeypatch.setattr("scripts.jd_ingest.build_opener", lambda *_h: _StaticOpener())
+    from scripts.jd_ingest import _fetch_job_page_metadata
+
+    result = _fetch_job_page_metadata("https://becu.wd1.myworkdayjobs.com/job/123")
+    # Static result preserved when Playwright returns None.
+    assert result.notes == ()
+    assert result.title == "Static Title"

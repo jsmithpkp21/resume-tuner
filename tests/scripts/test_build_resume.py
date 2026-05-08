@@ -5910,11 +5910,22 @@ def _build_in_bounds_summary(words: int) -> str:
     return " ".join(["word"] * words)
 
 
+def _build_layout_overflow_summary(words: int = 50) -> str:
+    """Word-count-in-bounds but line-count-OUT-of-bounds for layout test.
+
+    Each token is intentionally long so wrap_lines exceeds
+    PROFILE_SUMMARY_MAX_LINES (6) at SUMMARY_LINE_WIDTH (72) even though
+    the word count itself sits inside _LLM_SUMMARY_MIN/MAX_WORDS.
+    """
+    return " ".join(["extremelylongtoken"] * words)
+
+
 def test_generate_jd_tailored_summary_returns_in_bounds_llm_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """In-bounds LLM output is accepted and gets a terminal period."""
-    summary = _build_in_bounds_summary(100)  # within [90, 112]
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    summary = _build_in_bounds_summary(50)  # within [30, 70]; ~4 wrap lines
     fake = _install_fake_llm(monkeypatch, payload={"summary": summary})
     resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
 
@@ -5929,20 +5940,43 @@ def test_generate_jd_tailored_summary_returns_in_bounds_llm_output(
     assert "Real JD body" in jd_excerpt
     assert fake.captured_payload["target_role"] == "Staff Software Engineer"
     assert fake.captured_payload["target_company"] == "Acme"
-    assert fake.captured_payload["min_words"] == 90
-    assert fake.captured_payload["max_words"] == 112
+    assert fake.captured_payload["min_words"] == build_resume._LLM_SUMMARY_MIN_WORDS
+    assert fake.captured_payload["max_words"] == build_resume._LLM_SUMMARY_MAX_WORDS
 
 
 def test_generate_jd_tailored_summary_keeps_existing_terminal_punctuation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    summary = _build_in_bounds_summary(100) + "?"
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    summary = _build_in_bounds_summary(50) + "?"
     _install_fake_llm(monkeypatch, payload={"summary": summary})
     resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
 
     out = build_resume._generate_jd_tailored_summary_via_llm(resume)
     assert out.endswith("?")
     assert not out.endswith("?.")
+
+
+def test_generate_jd_tailored_summary_strips_trailing_separators_before_period(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Trailing ',' / ';' / ':' must not produce ',.' / ';.' / ':.' output.
+
+    Round-1 review on PR #264 — the deterministic generator explicitly
+    rstrips ' ,;:' before adding the period; the LLM path now does the
+    same.
+    """
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    for trailing in (",", ";", ":", " ,", "  ;  ", "."):
+        summary = _build_in_bounds_summary(50) + trailing
+        _install_fake_llm(monkeypatch, payload={"summary": summary})
+        resume = _minimal_resume_ir(
+            job_context=_make_job_context("Real JD body. " * 30)
+        )
+        out = build_resume._generate_jd_tailored_summary_via_llm(resume)
+        # Must end with a single sentence terminator and no doubled punctuation.
+        assert out.endswith((".", "?", "!"))
+        assert not out.endswith((",.", ";.", ":."))
 
 
 @pytest.mark.parametrize(
@@ -5958,18 +5992,72 @@ def test_generate_jd_tailored_summary_keeps_existing_terminal_punctuation(
 def test_generate_jd_tailored_summary_rejects_malformed_responses(
     monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any]
 ) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
     _install_fake_llm(monkeypatch, payload=payload)
     resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
     assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
 
 
-@pytest.mark.parametrize("word_count", [0, 50, 89, 113, 200])
+@pytest.mark.parametrize("word_count", [0, 10, 29, 71, 100, 200])
 def test_generate_jd_tailored_summary_rejects_out_of_bounds_word_count(
     monkeypatch: pytest.MonkeyPatch, word_count: int
 ) -> None:
-    """Below MIN or above MAX words => empty string => caller falls back."""
+    """Below _LLM_SUMMARY_MIN_WORDS or above MAX => empty => caller falls back."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
     summary = _build_in_bounds_summary(word_count) if word_count else ""
     _install_fake_llm(monkeypatch, payload={"summary": summary})
+    resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
+    assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
+
+
+def test_generate_jd_tailored_summary_rejects_layout_overflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Word-count in bounds but wrap_lines > PROFILE_SUMMARY_MAX_LINES => reject.
+
+    Round-1 review on PR #264 — the LLM path was missing the layout-cap
+    check that the deterministic generator enforces via
+    _fit_profile_summary_layout. A summary that's word-count-valid but
+    won't fit 6 wrap lines must be rejected so the caller falls back to
+    the deterministic (layout-fitted) generator instead of silently
+    producing PDF that overflows the 6-line profile-summary slot.
+    """
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    summary = _build_layout_overflow_summary(50)  # 50 long tokens, ~12 wrap lines
+    _install_fake_llm(monkeypatch, payload={"summary": summary})
+    resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
+
+    # Sanity: word count is in bounds but line count is over.
+    assert (
+        build_resume._LLM_SUMMARY_MIN_WORDS <= 50 <= build_resume._LLM_SUMMARY_MAX_WORDS
+    )
+    assert (
+        len(build_resume._summary_wrap_lines(summary))
+        > build_resume.PROFILE_SUMMARY_MAX_LINES
+    )
+
+    assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
+
+
+def test_generate_jd_tailored_summary_returns_empty_when_llm_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Defensive: helper short-circuits when LLM gating is off.
+
+    Round-1 review on PR #264 — docstring promised this behavior but
+    the function previously didn't check _llm_stage_enabled() itself
+    (the gate lived in summarize_profile_for_role's caller path).
+    Now it's explicit so the helper is safe to call from anywhere.
+    """
+    monkeypatch.delenv("RESUME_BUILDER_LLM_ENABLED", raising=False)
+    monkeypatch.delenv("RESUME_BUILDER_LLM_FIXTURE", raising=False)
+
+    def fail_if_called() -> Any:
+        raise AssertionError(
+            "LLMClient.from_env should not be called when LLM is disabled"
+        )
+
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", fail_if_called)
     resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
     assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
 
@@ -5977,15 +6065,19 @@ def test_generate_jd_tailored_summary_rejects_out_of_bounds_word_count(
 def test_generate_jd_tailored_summary_returns_empty_when_llm_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
     _install_fake_llm(monkeypatch, raise_on_call=RuntimeError("network down"))
     resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
     assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
 
 
-def test_generate_jd_tailored_summary_returns_empty_when_no_job_context() -> None:
+def test_generate_jd_tailored_summary_returns_empty_when_no_job_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """No JD context => helper short-circuits without invoking LLM."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
     resume = _minimal_resume_ir(job_context=None)
-    # No monkeypatch needed: the function returns early before LLMClient touch.
+    # No mock needed: the function returns early before LLMClient touch.
     assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
 
 
@@ -5995,7 +6087,7 @@ def test_summarize_profile_for_role_uses_llm_summary_when_enabled(
     """Happy path: LLM enabled + substantive JD => profile.summary swapped."""
     monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
     monkeypatch.delenv("RESUME_BUILDER_LLM_FIXTURE", raising=False)
-    summary = _build_in_bounds_summary(100)
+    summary = _build_in_bounds_summary(50)  # in [30, 70], fits 6 lines
     _install_fake_llm(monkeypatch, payload={"summary": summary})
     resume = _minimal_resume_ir(
         summary="Original deterministic baseline.",

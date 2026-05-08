@@ -2,7 +2,7 @@
 
 Policy for the lifecycle of `data/experience/experience_reconciliation_worksheet.csv` and the canonical coverage signals that replace it once it is archived.
 
-Implements the `docs` half of issue #21. The companion script `scripts/check_canonical_coverage.py` (run via `make coverage-report`) implements the worksheet-independent coverage check.
+Implements the `docs` half of issue #21. The companion script `scripts/check_canonical_coverage.py` (run with `--strict` for CI use) implements the worksheet-independent coverage check.
 
 ## States
 
@@ -19,7 +19,7 @@ The worksheet moves through three explicit states.
 
 Reached when canonical coverage is stable enough that the worksheet adds no new signal that the canonical files do not already encode. The worksheet is kept in-tree as audit history but is no longer a required input for adding net-new evidence.
 
-Entry criteria — **all must hold simultaneously**, verified by `make coverage-report --strict` plus the worksheet-shape checks below:
+Entry criteria — **all must hold simultaneously**, verified by `python3 scripts/check_canonical_coverage.py --strict` plus the worksheet-shape checks below:
 
 Canonical (checked by `scripts/check_canonical_coverage.py`, hard gates):
 
@@ -34,7 +34,7 @@ Worksheet (checked by `scripts/generate_review_packet.py` coverage snapshot):
 - Zero rows with non-empty `conflict_codes` (i.e. `unresolved_conflicts == 0`).
 - Every non-drop row (`decision_code` not in `{DROP_DUP, DROP_OOS}`) has a non-empty `canonical_experience_id` and `provenance_quote`.
 
-Holding `coverage-report` and the worksheet-shape checks together is intentional: the canonical gates prove the runtime data is sound, and the worksheet gates prove that no in-flight reconciliation work is being abandoned by the archive.
+Holding the canonical coverage check and the worksheet-shape checks together is intentional: the canonical gates prove the runtime data is sound, and the worksheet gates prove that no in-flight reconciliation work is being abandoned by the archive.
 
 ### 3. Archived
 
@@ -46,7 +46,7 @@ Entry from steady-state requires an explicit, dated, reviewer-attributed decisio
 
 To move from steady-state to archived:
 
-1. Confirm steady-state criteria above. `make coverage-report` must exit 0 with `--strict`. The review-packet coverage snapshot must show zero unresolved conflicts and zero `C1`/`C2`/`DEFER`/`ESCALATE` rows.
+1. Confirm steady-state criteria above. `python3 scripts/check_canonical_coverage.py --strict` must exit 0. The review-packet coverage snapshot must show zero unresolved conflicts and zero `C1`/`C2`/`DEFER`/`ESCALATE` rows.
 2. Move the worksheet to a dated archive path:
 
    ```bash
@@ -84,14 +84,14 @@ If new source resumes need reconciliation after archive (e.g., a previously unkn
 
 1. `git mv` the dated archive CSV back to `data/experience/experience_reconciliation_worksheet.csv`.
 2. Update `lifecycle_state.json` to `state: "build"` and add an `unarchived_at` / `unarchived_by` / `reason` block. Keep the original `archived_at` / `archived_by` for history.
-3. Re-run `make coverage-report` and the review packet generator to confirm the restored worksheet integrates cleanly.
+3. Re-run `python3 scripts/check_canonical_coverage.py --strict` and the review packet generator to confirm the restored worksheet integrates cleanly.
 4. Open a PR titled `chore(experience): unarchive reconciliation worksheet` linking the new evidence and the rationale.
 
 ## What replaces the worksheet after archive
 
 The two coverage signals that survive archive:
 
-- **Canonical coverage** — `make coverage-report` (`scripts/check_canonical_coverage.py`). Reads `experience_db.toml` and `skills_matrix.csv` only, with no worksheet dependence. Hard-gates on the same rules as `DESIGN.md` (GRD present, ≥3 bullets, bullet skills in matrix). Soft signals on bullets-per-role distribution and skill-matrix utilization.
+- **Canonical coverage** — `python3 scripts/check_canonical_coverage.py --strict`. Reads `experience_db.toml` and `skills_matrix.csv` only, with no worksheet dependence. Hard-gates on the same rules `scripts/validate_experience_data.py` enforces (GRD present, ≥3 bullets, bullet skills in matrix, `related_skills` in matrix). Soft signals on bullets-per-role distribution and skill-matrix utilization across bullet skills, `related_skills`, and `related_skills_inferred`.
 - **Audit trail** — the dated CSV under `data/experience/archive/` and `lifecycle_state.json`. Read-only after archive; never edited in place.
 
 The worksheet-derived snapshot in `scripts/generate_review_packet.py` is **not** retained after archive. Once `lifecycle_state.json` is `archived`, the review-packet generator no longer needs worksheet inputs to function.
@@ -101,13 +101,13 @@ The worksheet-derived snapshot in `scripts/generate_review_packet.py` is **not**
 This policy defines states, criteria, and procedures. It does **not**:
 
 - Archive the existing 64-row worksheet now. Archive is a separate, reviewer-driven decision with its own PR.
-- Wire `make coverage-report` into `make check`. The new check ships as a standalone target until the gate criteria settle in practice.
+- Wire the canonical coverage check into `make check`. `Makefile` is a tooling-managed (synced) file, so a `coverage-report` make target is held until either the upstream tooling Makefile gains a `Makefile.local` include hook or the script is invoked directly from a tooling-side target. For now, run `python3 scripts/check_canonical_coverage.py --strict` directly.
 - Modify `scripts/generate_review_packet.py` to read `lifecycle_state.json`. That belongs in the archive PR, not this one.
 
 Tracked separately:
 
 - Follow-up: skip-worksheet-on-archive support in `generate_review_packet.py`.
-- Follow-up: opt-in inclusion of `coverage-report` in `make check` once the policy has stabilized.
+- Follow-up: tooling issue to add `-include Makefile.local` (or equivalent) to the upstream tooling Makefile, then add a `coverage-report` make target locally without breaking sync drift; once that is in place, opt the target into `make check`.
 
 ## Related
 

@@ -147,6 +147,25 @@ def test_clean_canonical_data_passes(tmp_path: Path) -> None:
     assert report.bullet_count == 3
 
 
+def test_unknown_related_skill_fails(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.toml"
+    body = _experience_block().replace(
+        'related_skills = ["Python"]',
+        'related_skills = ["Python", "GhostRoleSkill"]',
+    )
+    _write_experience_db(db_path, body)
+    skills_path = tmp_path / "skills.csv"
+    _write_skills(skills_path, ["Python"])
+
+    report = build_report(db_path, skills_path)
+
+    failures = [
+        f for f in report.hard_gate_failures if f.gate == "related_skill_not_in_matrix"
+    ]
+    assert failures, "expected at least one unknown-related-skill failure"
+    assert any("GhostRoleSkill" in f.detail for f in failures)
+
+
 # ---------------------------------------------------------------------------
 # Report shape contract
 # ---------------------------------------------------------------------------
@@ -272,6 +291,7 @@ def test_evaluate_hard_gates_reports_each_failure_independently() -> None:
         {
             "id": "exp_a",
             "general_role_description": "",
+            "related_skills": ["GhostRoleSkill"],
             "bullet_bank": [
                 {"id": "exp_a_b0", "skills": ["Python"]},
                 {"id": "exp_a_b1", "skills": ["GhostSkill"]},
@@ -286,4 +306,5 @@ def test_evaluate_hard_gates_reports_each_failure_independently() -> None:
         "bullet_bank_below_minimum",
         "bullet_skill_not_in_matrix",
         "missing_general_role_description",
+        "related_skill_not_in_matrix",
     ]

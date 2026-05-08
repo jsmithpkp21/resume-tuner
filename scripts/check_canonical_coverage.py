@@ -3,10 +3,14 @@
 
 Reads only the canonical files (``data/experience/experience_db.toml`` and
 ``data/skills/skills_matrix.csv``) and reports coverage signals that survive
-worksheet archive. Hard gates mirror ``DESIGN.md`` invariants; soft signals
-are informational distributions.
+worksheet archive. Hard gates mirror the invariants ``DESIGN.md`` describes
+and ``scripts/validate_experience_data.py`` already enforces (GRD present,
+>=3 bullets, every bullet skill in matrix, every ``related_skills`` entry in
+matrix); soft signals are informational distributions.
 
-Run via ``make coverage-report``.
+Run with ``--strict`` for CI use::
+
+    python3 scripts/check_canonical_coverage.py --strict
 """
 
 from __future__ import annotations
@@ -163,6 +167,18 @@ def evaluate_hard_gates(
                             detail=f"bullet {bullet_id!r} references skill {skill!r} not in skills_matrix.csv",
                         )
                     )
+
+        # Mirror validate_experience_data.py: related_skills must also be in the matrix.
+        # related_skills_inferred is intentionally informational only, matching that script.
+        for skill in exp.get("related_skills", []) or []:
+            if skill not in skills:
+                failures.append(
+                    HardGateFailure(
+                        gate="related_skill_not_in_matrix",
+                        experience_id=exp_id,
+                        detail=f"related_skill {skill!r} not in skills_matrix.csv",
+                    )
+                )
     return failures
 
 
@@ -183,8 +199,20 @@ def summarize_bullets_per_role(experiences: list[dict[str, Any]]) -> dict[str, A
 def summarize_skill_usage(
     experiences: list[dict[str, Any]], skills: set[str]
 ) -> tuple[int, int]:
+    """Count matrix skills referenced anywhere in canonical data.
+
+    Includes bullet skills, ``related_skills``, and ``related_skills_inferred``
+    so utilization metrics reflect real matrix usage — e.g. ``ADB`` appears in
+    ``related_skills`` while bullets use ``Android UI automation (ADB)``.
+    """
     referenced: set[str] = set()
     for exp in experiences:
+        for skill in exp.get("related_skills", []) or []:
+            if skill in skills:
+                referenced.add(skill)
+        for skill in exp.get("related_skills_inferred", []) or []:
+            if skill in skills:
+                referenced.add(skill)
         for bullet in exp.get("bullet_bank") or []:
             for skill in bullet.get("skills", []) or []:
                 if skill in skills:

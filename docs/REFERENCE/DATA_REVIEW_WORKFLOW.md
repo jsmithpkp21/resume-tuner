@@ -100,10 +100,11 @@ pytest -q tests/scripts/test_experience_skill_category_contract.py
 
 ## Canonical coverage (worksheet-independent)
 
-`make coverage-report` runs `scripts/check_canonical_coverage.py`, which reads only
+`python3 scripts/check_canonical_coverage.py --strict` reads only
 `data/experience/experience_db.toml` and `data/skills/skills_matrix.csv`. It hard-gates
-on the same invariants `DESIGN.md` enforces — every experience has a
-`general_role_description`, ≥3 `bullet_bank` entries, and only skills present in
+on the same invariants `scripts/validate_experience_data.py` enforces — every
+experience has a `general_role_description`, ≥3 `bullet_bank` entries, only bullet
+skills present in `skills_matrix.csv`, and only `related_skills` present in
 `skills_matrix.csv`. The report is written to `data/review/coverage_report.json`.
 
 This check exists so worksheet archive (see

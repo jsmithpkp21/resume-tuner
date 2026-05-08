@@ -15,7 +15,7 @@ MARKDOWN_LINT_TIMEOUT_SECONDS ?= 120
 # See docs/REFERENCE/adr/0001-local-tooling-runtime-policy.md invariant (1).
 MARKDOWNLINT_VERSION ?= 0.47.0
 
-.PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper pr-epic coverage-report docker-up docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
+.PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper pr-epic docker-up docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
 
 env:
 	scripts/create_env.sh
@@ -251,12 +251,6 @@ test-selective: env
 
 test-shell:
 	@if [ -f tests/test_setup.sh ]; then bash tests/test_setup.sh; else echo "No shell tests to run"; fi
-
-# Worksheet-independent canonical coverage report (issue #21).
-# Reads experience_db.toml + skills_matrix.csv only and exits non-zero
-# if any DESIGN.md hard gate fails. See WORKSHEET_LIFECYCLE_POLICY.md.
-coverage-report: env
-	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_canonical_coverage.py --strict"
 
 precommit: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && pre-commit install --hook-type pre-commit --hook-type pre-push --hook-type commit-msg"

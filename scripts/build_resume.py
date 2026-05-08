@@ -1889,13 +1889,122 @@ def summarize_for_role(resume: ResumeIR) -> ResumeIR:
 
 
 def summarize_profile_for_role(resume: ResumeIR) -> ResumeIR:
-    """Generate a concise top-of-page summary from processed resume content."""
-    generated_summary = _generate_profile_summary(resume)
+    """Generate a concise top-of-page summary from processed resume content.
+
+    When LLM tailoring is enabled and the JD context has substantive
+    content, prefer an LLM-tailored summary that conditions on the JD,
+    target role, and company. On any LLM failure (disabled, fixture
+    miss, malformed response, output outside word-budget bounds) fall
+    back to the deterministic generator so behavior degrades gracefully.
+    """
+    generated_summary = ""
+    if _llm_stage_enabled() and _has_substantive_jd_context(resume):
+        generated_summary = _generate_jd_tailored_summary_via_llm(resume)
+    if not generated_summary:
+        generated_summary = _generate_profile_summary(resume)
     if not generated_summary or generated_summary == resume.profile.summary:
         return resume
 
     updated_profile = dc_replace(resume.profile, summary=generated_summary)
     return dc_replace(resume, profile=updated_profile)
+
+
+def _has_substantive_jd_context(resume: ResumeIR) -> bool:
+    """True when the JD description has enough content for a tailored summary.
+
+    Reuses the same _MIN_JD_DESCRIPTION_CHARS threshold used by the
+    --require-jd-context gate so the two never disagree on what
+    "substantive" means.
+    """
+    if resume.job_context is None:
+        return False
+    return (
+        len(resume.job_context.description_excerpt or "") >= _MIN_JD_DESCRIPTION_CHARS
+    )
+
+
+def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
+    """Ask the LLM for a JD-conditioned summary; validate against word bounds.
+
+    Returns an empty string on any failure (LLM disabled, fixture miss,
+    malformed response, output below MIN_RATIO * MAX_WORDS or above
+    MAX_WORDS) so the caller falls back to the deterministic
+    _generate_profile_summary path.
+    """
+    job_context = resume.job_context
+    if job_context is None:
+        return ""
+
+    max_words = max(1, int(PROFILE_SUMMARY_MAX_WORDS))
+    min_words = min(max_words, max(1, math.ceil(max_words * PROFILE_SUMMARY_MIN_RATIO)))
+
+    top_skills = _collect_resume_skill_signals(resume)[:6]
+    experience_signals: list[dict[str, str]] = []
+    for experience in resume.experiences[:4]:
+        experience_signals.append(
+            {
+                "role": (experience.job_title or "").strip(),
+                "company": (experience.company or "").strip(),
+                "summary": (experience.general_role_description or "").strip(),
+            }
+        )
+
+    user_payload: dict[str, object] = {
+        "candidate_name": resume.profile.name,
+        "candidate_baseline_summary": (resume.profile.summary or "").strip(),
+        "target_company": resume.target_company or "",
+        "target_role": resume.target_role or "",
+        "top_skills": top_skills,
+        "recent_experiences": experience_signals,
+        "jd_excerpt": (job_context.description_excerpt or "").strip(),
+        "min_words": min_words,
+        "max_words": max_words,
+    }
+
+    try:
+        client = LLMClient.from_env()
+        response = client.complete_json(
+            namespace="jd_tailored_summary",
+            system_prompt=(
+                "You write the opening summary paragraph of a resume "
+                "tailored to a specific job description. Output exactly "
+                "one paragraph between min_words and max_words words "
+                "summarising how the candidate's actual experience and "
+                "skills fit the target role at the target company. Use "
+                "concrete details from recent_experiences and top_skills "
+                "when relevant; do NOT invent achievements. Preserve "
+                "acronym casing (SDET, QA, CI/CD, REST, SQL). Do NOT "
+                "include the candidate's name, the company name, or the "
+                "literal target role in the output. Reply with JSON "
+                'only: {"summary": "<paragraph>"}.'
+            ),
+            user_payload=user_payload,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.info("LLM JD-tailored summary skipped: %s", exc)
+        return ""
+
+    candidate = response.get("summary", "")
+    if not isinstance(candidate, str):
+        return ""
+    candidate = candidate.strip()
+    if not candidate:
+        return ""
+
+    word_count = len(candidate.split())
+    if word_count < min_words or word_count > max_words:
+        logger.info(
+            "LLM JD-tailored summary rejected: %d words outside [%d, %d]",
+            word_count,
+            min_words,
+            max_words,
+        )
+        return ""
+
+    # Add a terminal period to match _generate_profile_summary's contract.
+    if not candidate.endswith((".", "!", "?")):
+        candidate += "."
+    return candidate
 
 
 def _generate_profile_summary(resume: ResumeIR) -> str:

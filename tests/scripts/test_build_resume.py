@@ -5800,3 +5800,265 @@ def test_warn_if_jd_ingest_empty_text_with_llm_disabled(
     assert "LLM tailoring is disabled" in err
     assert "RESUME_BUILDER_LLM_ENABLED=1" in err
     assert "LLM tailoring stages will run on near-empty context" not in err
+
+
+# ----- issue #256: LLM-tailored summary in summarize_profile_for_role ----
+
+
+def _minimal_resume_ir(
+    *,
+    summary: str = "Software engineer.",
+    job_context: jd_ingest.JobContext | None = None,
+    target_role: str = "Staff Software Engineer",
+    target_company: str = "Acme",
+) -> build_resume.ResumeIR:
+    """Build the smallest ResumeIR that exercises summarize_profile_for_role.
+
+    Empty experiences + skills_by_category is sufficient because
+    _generate_jd_tailored_summary_via_llm only reads them as prompt
+    context — the LLM is mocked, and the deterministic fallback path
+    has its own existing test coverage.
+    """
+    profile = build_resume.Profile(
+        name="Jonathan Smith",
+        headline="",
+        location="",
+        email="",
+        phone="",
+        website="",
+        linkedin="",
+        github="",
+        summary=summary,
+        education_entries=(),
+        leadership_community_entries=(),
+    )
+    return build_resume.ResumeIR(
+        profile=profile,
+        target_role=target_role,
+        target_company=target_company,
+        display_headline="",
+        job_context=job_context,
+        experiences=(),
+        skills_by_category={},
+    )
+
+
+@pytest.mark.parametrize(
+    "excerpt, expected",
+    [
+        ("", False),
+        ("A" * 100, False),
+        ("A" * 199, False),
+        ("A" * 200, True),
+        ("A" * 1000, True),
+    ],
+)
+def test_has_substantive_jd_context_threshold(excerpt: str, expected: bool) -> None:
+    """_has_substantive_jd_context shares its threshold with the warn path."""
+    resume = _minimal_resume_ir(job_context=_make_job_context(excerpt))
+    assert build_resume._has_substantive_jd_context(resume) is expected
+
+
+def test_has_substantive_jd_context_returns_false_when_no_context() -> None:
+    resume = _minimal_resume_ir(job_context=None)
+    assert build_resume._has_substantive_jd_context(resume) is False
+
+
+class _LLMSummaryFakeClient:
+    """Pluggable stand-in for LLMClient.from_env() in summary tests."""
+
+    response_payload: dict[str, Any] = {}
+    raise_on_call: BaseException | None = None
+    captured_namespace: str = ""
+    captured_payload: dict[str, object] = {}
+
+    @classmethod
+    def from_env(cls) -> _LLMSummaryFakeClient:
+        return cls()
+
+    def complete_json(
+        self,
+        *,
+        namespace: str,
+        system_prompt: str,
+        user_payload: dict[str, object],
+    ) -> dict[str, Any]:
+        type(self).captured_namespace = namespace
+        type(self).captured_payload = dict(user_payload)
+        exc = type(self).raise_on_call
+        if exc is not None:
+            raise exc
+        return type(self).response_payload
+
+
+def _install_fake_llm(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    payload: dict[str, Any] | None = None,
+    raise_on_call: BaseException | None = None,
+) -> type[_LLMSummaryFakeClient]:
+    """Wire _LLMSummaryFakeClient as build_resume.LLMClient + reset state."""
+    _LLMSummaryFakeClient.response_payload = payload or {}
+    _LLMSummaryFakeClient.raise_on_call = raise_on_call
+    _LLMSummaryFakeClient.captured_namespace = ""
+    _LLMSummaryFakeClient.captured_payload = {}
+    monkeypatch.setattr(build_resume, "LLMClient", _LLMSummaryFakeClient)
+    return _LLMSummaryFakeClient
+
+
+def _build_in_bounds_summary(words: int) -> str:
+    return " ".join(["word"] * words)
+
+
+def test_generate_jd_tailored_summary_returns_in_bounds_llm_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """In-bounds LLM output is accepted and gets a terminal period."""
+    summary = _build_in_bounds_summary(100)  # within [90, 112]
+    fake = _install_fake_llm(monkeypatch, payload={"summary": summary})
+    resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
+
+    out = build_resume._generate_jd_tailored_summary_via_llm(resume)
+
+    assert out.startswith("word word")
+    assert out.endswith(".")
+    assert fake.captured_namespace == "jd_tailored_summary"
+    # Prompt payload includes the JD excerpt, target role/company, and bounds.
+    jd_excerpt = fake.captured_payload["jd_excerpt"]
+    assert isinstance(jd_excerpt, str)
+    assert "Real JD body" in jd_excerpt
+    assert fake.captured_payload["target_role"] == "Staff Software Engineer"
+    assert fake.captured_payload["target_company"] == "Acme"
+    assert fake.captured_payload["min_words"] == 90
+    assert fake.captured_payload["max_words"] == 112
+
+
+def test_generate_jd_tailored_summary_keeps_existing_terminal_punctuation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _build_in_bounds_summary(100) + "?"
+    _install_fake_llm(monkeypatch, payload={"summary": summary})
+    resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
+
+    out = build_resume._generate_jd_tailored_summary_via_llm(resume)
+    assert out.endswith("?")
+    assert not out.endswith("?.")
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},  # missing summary key
+        {"summary": ""},  # empty string
+        {"summary": "   "},  # whitespace only
+        {"summary": None},  # non-string
+        {"summary": 123},  # non-string
+    ],
+)
+def test_generate_jd_tailored_summary_rejects_malformed_responses(
+    monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any]
+) -> None:
+    _install_fake_llm(monkeypatch, payload=payload)
+    resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
+    assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
+
+
+@pytest.mark.parametrize("word_count", [0, 50, 89, 113, 200])
+def test_generate_jd_tailored_summary_rejects_out_of_bounds_word_count(
+    monkeypatch: pytest.MonkeyPatch, word_count: int
+) -> None:
+    """Below MIN or above MAX words => empty string => caller falls back."""
+    summary = _build_in_bounds_summary(word_count) if word_count else ""
+    _install_fake_llm(monkeypatch, payload={"summary": summary})
+    resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
+    assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
+
+
+def test_generate_jd_tailored_summary_returns_empty_when_llm_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_llm(monkeypatch, raise_on_call=RuntimeError("network down"))
+    resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
+    assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
+
+
+def test_generate_jd_tailored_summary_returns_empty_when_no_job_context() -> None:
+    """No JD context => helper short-circuits without invoking LLM."""
+    resume = _minimal_resume_ir(job_context=None)
+    # No monkeypatch needed: the function returns early before LLMClient touch.
+    assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
+
+
+def test_summarize_profile_for_role_uses_llm_summary_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Happy path: LLM enabled + substantive JD => profile.summary swapped."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    monkeypatch.delenv("RESUME_BUILDER_LLM_FIXTURE", raising=False)
+    summary = _build_in_bounds_summary(100)
+    _install_fake_llm(monkeypatch, payload={"summary": summary})
+    resume = _minimal_resume_ir(
+        summary="Original deterministic baseline.",
+        job_context=_make_job_context("Real JD body. " * 30),
+    )
+
+    out = build_resume.summarize_profile_for_role(resume)
+
+    assert out.profile.summary != "Original deterministic baseline."
+    assert out.profile.summary.startswith("word word")
+    assert out.profile.summary.endswith(".")
+
+
+def test_summarize_profile_for_role_falls_back_to_deterministic_on_llm_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LLM enabled + LLM returns empty => deterministic generator runs."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    monkeypatch.delenv("RESUME_BUILDER_LLM_FIXTURE", raising=False)
+    _install_fake_llm(monkeypatch, payload={"summary": ""})
+    captured: dict[str, bool] = {"called": False}
+
+    real_generate = build_resume._generate_profile_summary
+
+    def spy(resume: build_resume.ResumeIR) -> str:
+        captured["called"] = True
+        return real_generate(resume)
+
+    monkeypatch.setattr(build_resume, "_generate_profile_summary", spy)
+    resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
+
+    build_resume.summarize_profile_for_role(resume)
+
+    assert captured["called"] is True
+
+
+def test_summarize_profile_for_role_skips_llm_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LLM disabled => helper never even constructs an LLMClient."""
+    monkeypatch.delenv("RESUME_BUILDER_LLM_ENABLED", raising=False)
+    monkeypatch.delenv("RESUME_BUILDER_LLM_FIXTURE", raising=False)
+
+    def fail_if_called() -> Any:
+        raise AssertionError("LLMClient.from_env should not be called")
+
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", fail_if_called)
+    resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
+
+    build_resume.summarize_profile_for_role(resume)
+
+
+def test_summarize_profile_for_role_skips_llm_when_jd_context_thin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Substantive JD threshold not met => helper never constructs LLMClient."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+
+    def fail_if_called() -> Any:
+        raise AssertionError("LLMClient.from_env should not be called")
+
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", fail_if_called)
+    resume = _minimal_resume_ir(
+        job_context=_make_job_context("A" * 100)  # under 200-char threshold
+    )
+    build_resume.summarize_profile_for_role(resume)

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.39.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.38.0...v0.39.0) (2026-05-08)
+
+
+### Features
+
+* **build_resume:** jd-tailored summary via llm ([#256](https://github.com/jsmithpkp21/resume-builder/issues/256), partial) ([a75c157](https://github.com/jsmithpkp21/resume-builder/commit/a75c157486c70676cb6ba55874f46c2be7d04332))
+
+
+### Bug Fixes
+
+* **build_resume:** loosen llm summary lower-word bound to sanity floor ([28a1a68](https://github.com/jsmithpkp21/resume-builder/commit/28a1a68794b75dedb3e80cac56d1f04f9f415294))
+* **build_resume:** normalize LLM summary whitespace and clean stale reference ([f83530e](https://github.com/jsmithpkp21/resume-builder/commit/f83530ec32062ed1af62775331e65022d7680169))
+* **build_resume:** tighten llm summary bounds + add layout/separator/disabled guards ([c2a84e6](https://github.com/jsmithpkp21/resume-builder/commit/c2a84e6434eca35b5af5eed1ae1727782bc21596))
+* **build_resume:** use profile-summary line width + revert llm word bounds ([ff75caa](https://github.com/jsmithpkp21/resume-builder/commit/ff75caa6e97596615cb584f5cb61b22cf2dbe7fb))
+
 ## [0.38.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.37.0...v0.38.0) (2026-05-08)
 
 

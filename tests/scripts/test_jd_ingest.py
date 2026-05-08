@@ -20,6 +20,7 @@ import pytest
 from scripts.jd_ingest import (
     _extract_company_name,
     _extract_role_from_title,
+    _extract_role_hint,
     _infer_source,
 )
 
@@ -206,3 +207,135 @@ def test_extract_role_from_title_rejects_generic_lhs_after_split(
     because the generic-title check only ran on the un-split string.
     """
     assert _extract_role_from_title(source="company-site", title=title) == ""
+
+
+# --- Issue #255 sub-item 1: ATS sources should also use title-based role ---
+
+
+@pytest.mark.parametrize(
+    "title, expected",
+    [
+        # Workable URLs (apply.workable.com/<co>/j/<id>/) are now classified
+        # as ATS but the static fetcher still sees a useful <title>. Pre-fix
+        # ATS sources returned "" from this function regardless.
+        ("Staff SDET - Murmuration", "Staff SDET"),
+        ("Senior Software Engineer - Acme Corp", "Senior Software Engineer"),
+        ("Engineering Manager - Some Company | Workable", "Engineering Manager"),
+    ],
+)
+def test_extract_role_from_title_now_runs_for_ats_source(
+    title: str, expected: str
+) -> None:
+    """Issue #255 sub-item 1: ATS title extraction.
+
+    Pre-fix the function only honored linkedin / indeed / company-site
+    sources; ATS classification (Workable, Greenhouse, Lever, Workday)
+    suppressed title-based role extraction even when the title carried
+    the role.
+    """
+    assert _extract_role_from_title(source="ats", title=title) == expected
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        # Workday's static-fetch shell title is typically generic boilerplate.
+        # The post-split generic-title guard must still reject these even
+        # under the now-eligible ATS source.
+        "Career Opportunities",
+        "Job Listings",
+        "Open Positions",
+        "Careers - Acme Corp",
+    ],
+)
+def test_extract_role_from_title_still_rejects_generic_for_ats_source(
+    title: str,
+) -> None:
+    """Generic shell titles must still return '' even when source=ats.
+
+    Without this regression check, broadening the source set could
+    unintentionally let Workday's "Career Opportunities" title slip
+    through as the role.
+    """
+    assert _extract_role_from_title(source="ats", title=title) == ""
+
+
+# --- Issue #255 sub-item 2: filter-style ?q= values must not become roles ---
+
+
+@pytest.mark.parametrize(
+    "query, expected_returns",
+    [
+        # The case that bit job3_becu — Workday URL with ?q=staff (search
+        # filter), with no other role signal in title or description.
+        ({"q": ["staff"]}, ""),
+        # Other common filter values that should be rejected as roles.
+        ({"q": ["senior"]}, ""),
+        ({"q": ["remote"]}, ""),
+        ({"q": ["principal"]}, ""),
+        ({"keywords": ["software"]}, ""),
+        # Title-cased single-word filter is also a filter.
+        ({"q": ["Staff"]}, ""),
+        # Non-filter single-word values still flow through (e.g. an actual
+        # role name in `position`).
+        ({"position": ["SDET"]}, "SDET"),
+    ],
+)
+def test_extract_role_hint_skips_single_word_filter_values(
+    query: dict[str, list[str]], expected_returns: str
+) -> None:
+    """Issue #255 sub-item 2: ?q=staff is a filter, not a role.
+
+    With no signal in title / path / description, role-from-query is the
+    last resort. When the only query value is a single-word level/filter
+    qualifier (`staff`, `senior`, `remote`, ...), reject it and let
+    later branches return '' instead.
+    """
+    result = _extract_role_hint(
+        query=query,
+        path="/",
+        source="ats",
+        page_title="",
+        description="",
+    )
+    assert result == expected_returns
+
+
+def test_extract_role_hint_keeps_multi_word_filter_token_values() -> None:
+    """Multi-token query values are accepted even if a token is filter-like.
+
+    A real role like 'Senior Software Engineer' contains tokens that
+    individually appear in the filter set; only single-token values are
+    rejected.
+    """
+    result = _extract_role_hint(
+        query={"keywords": ["Senior Software Engineer"]},
+        path="/",
+        source="ats",
+        page_title="",
+        description="",
+    )
+    assert result == "Senior Software Engineer"
+
+
+def test_extract_role_hint_falls_through_to_path_when_query_is_filter() -> None:
+    """When ?q=<filter> is rejected, path-slug extraction wins.
+
+    This is the becu URL shape — single-word filter on top of a rich
+    path slug. The filter must yield to the path so the actual role
+    surfaces (even if humanization isn't perfect — that's separate work).
+    """
+    result = _extract_role_hint(
+        query={"q": ["staff"]},
+        path=(
+            "/en-US/External/details/Staff-Software-Developer-Engineer-in-Test_R-13007"
+        ),
+        source="ats",
+        page_title="",
+        description="",
+    )
+    # The path-extraction humanization isn't perfect (trailing job-id is a
+    # known wart, separate follow-up). Just confirm that the filter no
+    # longer wins and a path-derived role is returned.
+    assert result != "staff"
+    assert "Staff" in result and "Software" in result and "Engineer" in result

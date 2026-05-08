@@ -365,6 +365,40 @@ _GENERIC_PAGE_TITLES: frozenset[str] = frozenset(
     }
 )
 
+# Single-word level / seniority / work-arrangement values that show up as
+# search-filter query strings on hosted ATS pages (e.g. Workday's `?q=staff`
+# is a level filter, not the role). Rejecting these as role values lets
+# _extract_role_hint fall through to the URL path slug, which usually
+# carries the actual role title. Multi-token query values are still
+# accepted — `?keywords=Senior Software Engineer` is the real role even
+# though "Senior" is in this set.
+_GENERIC_ROLE_LEVEL_FILTERS: frozenset[str] = frozenset(
+    {
+        # Levels / seniority
+        "staff",
+        "senior",
+        "principal",
+        "junior",
+        "intern",
+        "lead",
+        "director",
+        "vp",
+        "manager",
+        # Generic role nouns (when they appear alone, they're filters, not roles)
+        "engineer",
+        "developer",
+        "engineering",
+        "software",
+        # Work arrangement
+        "remote",
+        "hybrid",
+        "onsite",
+        "fulltime",
+        "parttime",
+        "contract",
+    }
+)
+
 
 def _infer_source(netloc: str) -> str:
     host = netloc.lower().split(":", maxsplit=1)[0]  # strip optional port
@@ -443,8 +477,18 @@ def _extract_role_hint(
     role_keys = ("keywords", "q", "title", "position")
     for key in role_keys:
         values = query.get(key, [])
-        if values and values[0].strip():
-            return values[0].strip()
+        if not (values and values[0].strip()):
+            continue
+        candidate = values[0].strip()
+        # Single-word level / arrangement filters (e.g. ?q=staff on Workday) are
+        # search filters, not roles. Skip and fall through to path/description
+        # extraction, which usually has the real role slug.
+        if (
+            len(candidate.split()) == 1
+            and candidate.lower() in _GENERIC_ROLE_LEVEL_FILTERS
+        ):
+            continue
+        return candidate
 
     role_from_path = _extract_role_from_path(path=path)
     if role_from_path:
@@ -525,7 +569,7 @@ def _extract_role_from_title(*, source: str, title: str) -> str:
     # through to URL/path/description-based role extraction instead.
     if cleaned.lower() in _GENERIC_PAGE_TITLES:
         return ""
-    if source in {"linkedin", "indeed", "company-site"} and " - " in cleaned:
+    if source in {"linkedin", "indeed", "company-site", "ats"} and " - " in cleaned:
         lhs = cleaned.split(" - ")[0].strip()
         # Same generic-title guard after splitting: 'Careers - Acme Corp'
         # should fall through, not return 'Careers' as the role.

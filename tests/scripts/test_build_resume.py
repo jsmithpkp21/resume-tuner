@@ -1174,6 +1174,179 @@ def test_build_resume_cli_processed_mode_emits_gap_summary_for_job_text(
     assert isinstance(payload["missing_terms"], list)
 
 
+def test_build_resume_cli_processed_mode_emits_decision_report_for_job_text(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "processed_decision_report"
+    job_text_file = tmp_path / "job_text.txt"
+    job_text_file.write_text(
+        (
+            "Staff SDET focused on fraud prevention, risk analytics, and payments APIs. "
+            "Expect deep CI/CD, observability, and compliance automation ownership."
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--outputs",
+            "html",
+            "--output-dir",
+            str(output_dir),
+            "--processing-mode",
+            "processed",
+            "--job-text-file",
+            str(job_text_file),
+            "--company",
+            "smoke",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    decision_report_path = (
+        output_dir / "resumes" / "latest_resume_processed_decision_report.json"
+    )
+    assert decision_report_path.exists()
+    payload = json.loads(decision_report_path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == build_resume.DECISION_REPORT_SCHEMA_VERSION
+    assert payload["processing_mode"] == "processed"
+    assert set(payload["bullets"].keys()) == {"selected", "rejected"}
+    assert isinstance(payload["bullets"]["selected"], list)
+    assert isinstance(payload["bullets"]["rejected"], list)
+    skills = payload["skills"]
+    for required_key in (
+        "categories_before",
+        "categories_after",
+        "category_merges",
+        "category_renames",
+        "categories_dropped",
+        "skill_moves",
+        "skills_dropped",
+        "inferred_skills",
+    ):
+        assert required_key in skills, required_key
+    coverage = payload["jd_coverage"]
+    for required_key in (
+        "job_term_count",
+        "unique_job_term_count",
+        "covered_term_count",
+        "missing_term_count",
+        "covered_terms",
+        "missing_terms",
+    ):
+        assert required_key in coverage, required_key
+    if payload["bullets"]["selected"]:
+        first_selected = payload["bullets"]["selected"][0]
+        for required_key in (
+            "bullet_id",
+            "experience_id",
+            "position",
+            "text",
+            "skills",
+            "confidence",
+            "tags",
+            "has_measurable_outcome",
+        ):
+            assert required_key in first_selected, required_key
+
+
+def test_write_decision_report_records_bullet_rejection_reasons(tmp_path: Path) -> None:
+    profile = load_profile(_TRACKED_PROFILE_PATH)
+    experience_with_duplicate = Experience(
+        id="exp-test",
+        job_title="Staff SDET",
+        company="Acme",
+        start_date="2020-01",
+        end_date="present",
+        general_role_description="Ship reliability tooling.",
+        related_skills=("python",),
+        bullets=(
+            Bullet(
+                id="b1",
+                text="Built CI gating to reduce flaky failures by 30%.",
+                skills=("ci", "python"),
+                impact_type="reliability",
+                domain="qa",
+            ),
+            Bullet(
+                id="b2",
+                text="Built CI gating to reduce flaky failures by 30%.",
+                skills=("ci", "python"),
+                impact_type="reliability",
+                domain="qa",
+            ),
+            Bullet(
+                id="b3",
+                text="Designed observability dashboards for payments.",
+                skills=("observability",),
+                impact_type="visibility",
+                domain="ops",
+            ),
+        ),
+    )
+    baseline_resume = build_resume.ResumeIR(
+        profile=profile,
+        target_role="Staff SDET",
+        target_company="Acme",
+        display_headline="Staff SDET",
+        job_context=None,
+        experiences=(experience_with_duplicate,),
+        skills_by_category={"Quality": ["python", "ci"], "Cloud": ["aws"]},
+    )
+
+    final_experience = Experience(
+        id="exp-test",
+        job_title="Staff SDET",
+        company="Acme",
+        start_date="2020-01",
+        end_date="present",
+        general_role_description="Ship reliability tooling.",
+        related_skills=("python",),
+        bullets=(
+            experience_with_duplicate.bullets[0],
+            experience_with_duplicate.bullets[2],
+        ),
+    )
+    final_resume = build_resume.ResumeIR(
+        profile=profile,
+        target_role="Staff SDET",
+        target_company="Acme",
+        display_headline="Staff SDET",
+        job_context=None,
+        experiences=(final_experience,),
+        skills_by_category={"Quality & Cloud": ["python", "ci", "aws"]},
+    )
+    removal_reasons = {"b2": "duplicate"}
+
+    output_path = tmp_path / "decision_report.json"
+    build_resume.write_decision_report(
+        final_resume,
+        baseline_resume,
+        removal_reasons=removal_reasons,
+        output_path=output_path,
+    )
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert payload["schema_version"] == build_resume.DECISION_REPORT_SCHEMA_VERSION
+    selected_ids = {item["bullet_id"] for item in payload["bullets"]["selected"]}
+    assert selected_ids == {"b1", "b3"}
+    rejected = payload["bullets"]["rejected"]
+    assert len(rejected) == 1
+    assert rejected[0]["bullet_id"] == "b2"
+    assert rejected[0]["reason"] == "duplicate"
+    skills = payload["skills"]
+    assert skills["categories_dropped"] == ["Cloud", "Quality"]
+    merge_targets = {entry["into"] for entry in skills["category_merges"]}
+    assert merge_targets == {"Quality & Cloud"}
+    assert "aws" not in skills["skills_dropped"]
+
+
 def test_build_resume_cli_rejects_unknown_template(tmp_path: Path) -> None:
     output_dir = tmp_path / "invalid_template"
     result = subprocess.run(

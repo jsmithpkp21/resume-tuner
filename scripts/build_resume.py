@@ -1447,6 +1447,210 @@ def write_gap_summary(resume: ResumeIR, output_path: Path) -> None:
     )
 
 
+DECISION_REPORT_SCHEMA_VERSION = 1
+
+
+def write_decision_report(
+    resume: ResumeIR,
+    baseline_resume: ResumeIR,
+    *,
+    removal_reasons: dict[str, str],
+    output_path: Path,
+    processing_mode: str = "processed",
+) -> None:
+    """Emit a JSON explainability artifact describing this build's decisions.
+
+    Compares the assembled-but-pre-pipeline `baseline_resume` against the final
+    `resume` to derive selected/rejected bullet sets, skill-category transitions,
+    and JD coverage. `removal_reasons` is populated by `trim_by_rules` and maps
+    bullet ids to their precise rejection reason ("duplicate", "action_word_cap",
+    "line_budget"); ids absent from this map fall back to the generic
+    "trimmed" label.
+    """
+    final_bullet_ids: set[str] = {
+        bullet.id for experience in resume.experiences for bullet in experience.bullets
+    }
+
+    selected: list[dict[str, Any]] = []
+    for experience in resume.experiences:
+        for position, bullet in enumerate(experience.bullets):
+            metadata = resume.enrichment_by_bullet_id.get(bullet.id, {})
+            confidence = 0.0
+            tags: list[str] = []
+            if isinstance(metadata, dict):
+                confidence = _coerce_relevance_score(metadata.get("confidence"))
+                raw_tags = metadata.get("tags", [])
+                if isinstance(raw_tags, list):
+                    tags = [str(tag).strip() for tag in raw_tags if str(tag).strip()]
+            selected.append(
+                {
+                    "bullet_id": bullet.id,
+                    "experience_id": experience.id,
+                    "position": position,
+                    "text": bullet.text,
+                    "skills": list(bullet.skills),
+                    "confidence": confidence,
+                    "tags": tags,
+                    "has_measurable_outcome": _has_measurable_outcome(bullet.text),
+                }
+            )
+
+    rejected: list[dict[str, Any]] = []
+    for experience in baseline_resume.experiences:
+        for bullet in experience.bullets:
+            if bullet.id in final_bullet_ids:
+                continue
+            rejected.append(
+                {
+                    "bullet_id": bullet.id,
+                    "experience_id": experience.id,
+                    "text": bullet.text,
+                    "reason": removal_reasons.get(bullet.id, "trimmed"),
+                }
+            )
+
+    skills_section = _build_skill_decisions(
+        baseline=baseline_resume.skills_by_category,
+        final=resume.skills_by_category,
+    )
+    coverage_section = _build_jd_coverage(resume)
+
+    payload: dict[str, Any] = {
+        "schema_version": DECISION_REPORT_SCHEMA_VERSION,
+        "target_role": resume.target_role,
+        "target_company": resume.target_company,
+        "processing_mode": processing_mode,
+        "bullets": {
+            "selected": selected,
+            "rejected": rejected,
+        },
+        "skills": skills_section,
+        "jd_coverage": coverage_section,
+    }
+    output_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
+def _build_skill_decisions(
+    *,
+    baseline: dict[str, list[str]],
+    final: dict[str, list[str]],
+) -> dict[str, Any]:
+    """Diff baseline vs final skills_by_category to surface category transitions."""
+    baseline_skill_to_cat: dict[str, str] = {}
+    for category, skills in baseline.items():
+        for skill in skills:
+            baseline_skill_to_cat.setdefault(skill, category)
+    final_skill_to_cat: dict[str, str] = {}
+    for category, skills in final.items():
+        for skill in skills:
+            final_skill_to_cat.setdefault(skill, category)
+
+    baseline_skill_set = set(baseline_skill_to_cat)
+    final_skill_set = set(final_skill_to_cat)
+    inferred_skills = sorted(final_skill_set - baseline_skill_set)
+    dropped_skills = sorted(baseline_skill_set - final_skill_set)
+
+    skill_moves: list[dict[str, str]] = []
+    for skill in sorted(baseline_skill_set & final_skill_set):
+        source_category = baseline_skill_to_cat[skill]
+        destination_category = final_skill_to_cat[skill]
+        if source_category != destination_category:
+            skill_moves.append(
+                {
+                    "skill": skill,
+                    "from": source_category,
+                    "to": destination_category,
+                }
+            )
+
+    category_merges: list[dict[str, Any]] = []
+    dropped_categories = sorted(set(baseline) - set(final))
+    for category in dropped_categories:
+        moved_to_counts: dict[str, list[str]] = {}
+        for skill in baseline[category]:
+            destination = final_skill_to_cat.get(skill)
+            if destination and destination != category:
+                moved_to_counts.setdefault(destination, []).append(skill)
+        if not moved_to_counts:
+            continue
+        # Pick the destination that received the most skills; ties broken
+        # alphabetically so output is deterministic.
+        target_category = sorted(
+            moved_to_counts.items(),
+            key=lambda item: (-len(item[1]), item[0]),
+        )[0][0]
+        category_merges.append(
+            {
+                "from": category,
+                "into": target_category,
+                "skills_moved": sorted(moved_to_counts[target_category]),
+            }
+        )
+
+    return {
+        "categories_before": {
+            category: list(skills) for category, skills in baseline.items()
+        },
+        "categories_after": {
+            category: list(skills) for category, skills in final.items()
+        },
+        "category_merges": category_merges,
+        "category_renames": [],
+        "categories_dropped": dropped_categories,
+        "skill_moves": skill_moves,
+        "skills_dropped": dropped_skills,
+        "inferred_skills": inferred_skills,
+    }
+
+
+def _build_jd_coverage(resume: ResumeIR) -> dict[str, Any]:
+    """Compute JD coverage breakdown for the decision report."""
+    description_excerpt = ""
+    role_hint = ""
+    if resume.job_context is not None:
+        description_excerpt = resume.job_context.description_excerpt.strip()
+        role_hint = resume.job_context.role_hint.strip()
+
+    job_terms = _tokenize_gap_terms(
+        " ".join(part for part in [description_excerpt, role_hint] if part.strip())
+    )
+    job_term_counts: dict[str, int] = {}
+    for term in job_terms:
+        job_term_counts[term] = job_term_counts.get(term, 0) + 1
+
+    covered_terms: set[str] = set()
+    for skills in resume.skills_by_category.values():
+        for skill in skills:
+            covered_terms.update(_tokenize_gap_terms(skill))
+    for experience in resume.experiences:
+        covered_terms.update(_tokenize_gap_terms(experience.general_role_description))
+        for skill in experience.related_skills:
+            covered_terms.update(_tokenize_gap_terms(skill))
+        for bullet in experience.bullets:
+            covered_terms.update(_tokenize_gap_terms(bullet.text))
+            for skill in bullet.skills:
+                covered_terms.update(_tokenize_gap_terms(skill))
+
+    covered_in_jd = sorted(term for term in job_term_counts if term in covered_terms)
+    missing_terms = [
+        {"term": term, "count": count}
+        for term, count in sorted(
+            job_term_counts.items(), key=lambda item: (-item[1], item[0])
+        )
+        if term not in covered_terms
+    ]
+    return {
+        "job_term_count": len(job_terms),
+        "unique_job_term_count": len(job_term_counts),
+        "covered_term_count": len(covered_in_jd),
+        "missing_term_count": len(missing_terms),
+        "covered_terms": covered_in_jd,
+        "missing_terms": missing_terms,
+    }
+
+
 def _coerce_relevance_score(raw: object) -> float:
     try:
         numeric = float(str(raw))
@@ -1619,7 +1823,11 @@ def _enrich_experience_bullets(
     return parsed
 
 
-def trim_by_rules(resume: ResumeIR) -> ResumeIR:
+def trim_by_rules(
+    resume: ResumeIR,
+    *,
+    removal_reasons: dict[str, str] | None = None,
+) -> ResumeIR:
     """Apply deterministic layout and diversity trimming without rewriting text.
 
     Purpose:
@@ -1644,6 +1852,7 @@ def trim_by_rules(resume: ResumeIR) -> ResumeIR:
         experiences=resume.experiences,
         enrichment_by_bullet_id=resume.enrichment_by_bullet_id,
         max_bullet_lines=max_bullet_lines,
+        removal_reasons=removal_reasons,
     )
     if trimmed_experiences == resume.experiences:
         return resume
@@ -2178,18 +2387,24 @@ def _apply_rule_based_trimming(
     experiences: tuple[Experience, ...],
     enrichment_by_bullet_id: dict[str, dict[str, object]],
     max_bullet_lines: int,
+    removal_reasons: dict[str, str] | None = None,
 ) -> tuple[Experience, ...]:
     selected_by_experience = [list(experience.bullets) for experience in experiences]
 
-    _drop_duplicate_bullets(selected_by_experience)
+    _drop_duplicate_bullets(
+        selected_by_experience,
+        removal_reasons=removal_reasons,
+    )
     _limit_action_word_repetition(
         selected_by_experience,
         enrichment_by_bullet_id=enrichment_by_bullet_id,
+        removal_reasons=removal_reasons,
     )
     _enforce_bullet_line_budget(
         selected_by_experience,
         enrichment_by_bullet_id=enrichment_by_bullet_id,
         max_bullet_lines=max_bullet_lines,
+        removal_reasons=removal_reasons,
     )
 
     trimmed_experiences: list[Experience] = []
@@ -2211,7 +2426,11 @@ def _apply_rule_based_trimming(
     return tuple(trimmed_experiences)
 
 
-def _drop_duplicate_bullets(selected_by_experience: list[list[Bullet]]) -> None:
+def _drop_duplicate_bullets(
+    selected_by_experience: list[list[Bullet]],
+    *,
+    removal_reasons: dict[str, str] | None = None,
+) -> None:
     seen_texts: set[str] = set()
     for bullets in selected_by_experience:
         filtered: list[Bullet] = []
@@ -2225,6 +2444,8 @@ def _drop_duplicate_bullets(selected_by_experience: list[list[Bullet]]) -> None:
                 and normalized_text in seen_texts
                 and len(filtered) >= DEFAULT_MIN_BULLETS_PER_EXPERIENCE
             ):
+                if removal_reasons is not None:
+                    removal_reasons[bullet.id] = "duplicate"
                 continue
             filtered.append(bullet)
             seen_texts.add(normalized_text)
@@ -2235,6 +2456,7 @@ def _limit_action_word_repetition(
     selected_by_experience: list[list[Bullet]],
     *,
     enrichment_by_bullet_id: dict[str, dict[str, object]],
+    removal_reasons: dict[str, str] | None = None,
 ) -> None:
     occurrences: dict[str, list[tuple[int, int, Bullet]]] = {}
     for exp_index, bullets in enumerate(selected_by_experience):
@@ -2268,9 +2490,10 @@ def _limit_action_word_repetition(
             current = selected_by_experience[exp_index]
             if len(current) <= DEFAULT_MIN_BULLETS_PER_EXPERIENCE:
                 continue
-            selected_by_experience[exp_index] = [
-                existing for existing in current if existing.id != bullet.id
-            ]
+            updated = [existing for existing in current if existing.id != bullet.id]
+            if removal_reasons is not None and len(updated) < len(current):
+                removal_reasons[bullet.id] = "action_word_cap"
+            selected_by_experience[exp_index] = updated
 
 
 def _estimate_wrapped_line_count(text: str, line_width: int) -> int:
@@ -2479,6 +2702,7 @@ def _enforce_bullet_line_budget(
     *,
     enrichment_by_bullet_id: dict[str, dict[str, object]],
     max_bullet_lines: int,
+    removal_reasons: dict[str, str] | None = None,
 ) -> None:
     while _estimate_total_bullet_lines(selected_by_experience) > max_bullet_lines:
         candidates: list[tuple[float, int, int, Bullet]] = []
@@ -2513,6 +2737,8 @@ def _enforce_bullet_line_budget(
         selected_by_experience[exp_index] = [
             bullet for bullet in current if bullet.id != bullet_to_remove.id
         ]
+        if removal_reasons is not None:
+            removal_reasons[bullet_to_remove.id] = "line_budget"
 
 
 def _extract_action_word(text: str) -> str:
@@ -3421,11 +3647,16 @@ def run_pipeline(args: argparse.Namespace) -> int:
     ):
         resume = dc_replace(resume, independent_projects=())
 
+    # Snapshot the assembled-but-pre-pipeline resume so the decision report can
+    # diff it against the final resume (rejected bullets, skill-category moves).
+    baseline_resume = resume
+    bullet_removal_reasons: dict[str, str] = {}
+
     if args.processing_mode == "processed":
         resume = transform_for_role(resume)
         resume = trim_for_role(resume)
         resume = enrich_data(resume)
-        resume = trim_by_rules(resume)
+        resume = trim_by_rules(resume, removal_reasons=bullet_removal_reasons)
         resume = _apply_display_experience_selection(resume)
         resume = summarize_for_role(resume)
         resume = select_skills(resume)
@@ -3450,6 +3681,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
     ir_output = resume_dir / f"{output_prefix}_ir_snapshot.json"
     text_snapshot_output = resume_dir / f"{output_prefix}_ir_snapshot.txt"
     gap_output = resume_dir / f"{output_prefix}_gap_summary.json"
+    decision_report_output = resume_dir / f"{output_prefix}_decision_report.json"
 
     outputs = _resolve_outputs(args)
     needs_html = "html" in outputs
@@ -3493,6 +3725,14 @@ def run_pipeline(args: argparse.Namespace) -> int:
     if should_emit_gap_summary:
         write_gap_summary(resume, gap_output)
         written_paths.append(gap_output)
+        write_decision_report(
+            resume,
+            baseline_resume,
+            removal_reasons=bullet_removal_reasons,
+            output_path=decision_report_output,
+            processing_mode=args.processing_mode,
+        )
+        written_paths.append(decision_report_output)
 
     if primary_template == "default":
         default_template_html: Path | None = html_output

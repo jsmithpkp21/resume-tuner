@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.41.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.40.0...v0.41.0) (2026-05-08)
+
+
+### Features
+
+* **jd-ingest:** add greenhouse + workable board-api fetchers ([41b7048](https://github.com/jsmithpkp21/resume-builder/commit/41b70487a78986cb1ddfd39ee0442facd34ac87c))
+
+
+### Bug Fixes
+
+* **jd-ingest:** dedup workable host + user-agent, add _fetch_json_api tests ([18242d5](https://github.com/jsmithpkp21/resume-builder/commit/18242d58602052f6927943c626b92d787a35a694))
+* **jd-ingest:** handle self-closing html tags in plain-text parser ([272df04](https://github.com/jsmithpkp21/resume-builder/commit/272df0439f85c981b7d3420a676d3cd23a064c2d))
+* **jd-ingest:** require non-empty description + collapse nbsp runs ([3a4baec](https://github.com/jsmithpkp21/resume-builder/commit/3a4baec565b1f1da36bb2018367843b7189c31ce))
+
 ## [0.40.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.39.0...v0.40.0) (2026-05-08)
 
 

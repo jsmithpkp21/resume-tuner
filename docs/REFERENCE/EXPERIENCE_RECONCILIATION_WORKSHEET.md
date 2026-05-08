@@ -14,7 +14,9 @@ Worksheet rows are provenance records. They are used to verify source coverage a
 
 - Build phase: worksheet is active and required for role-by-role reconciliation.
 - Steady state: canonical data in `data/experience/experience_db.toml` is the runtime source; worksheet remains as audit history.
-- Retirement option: worksheet can be archived once canonical coverage is stable and replacement coverage checks exist.
+- Archived: worksheet retired once canonical coverage is stable and replacement coverage checks (`make coverage-report`) pass.
+
+The full state machine, transition criteria, archive procedure, and un-archive procedure are defined in [`WORKSHEET_LIFECYCLE_POLICY.md`](WORKSHEET_LIFECYCLE_POLICY.md).
 
 ## Category authority
 

@@ -97,3 +97,17 @@ pytest -q tests/scripts/test_experience_skill_category_contract.py
 - `bullet_skill_text_mismatch` is warning-only and checks a small set of explicit tooling
   skills (`CI/CD`, `GitHub Actions`, `Docker`) against bullet text.
 - Resolve by either adding explicit text evidence for the skill or removing the mismatched skill.
+
+## Canonical coverage (worksheet-independent)
+
+`make coverage-report` runs `scripts/check_canonical_coverage.py`, which reads only
+`data/experience/experience_db.toml` and `data/skills/skills_matrix.csv`. It hard-gates
+on the same invariants `DESIGN.md` enforces — every experience has a
+`general_role_description`, ≥3 `bullet_bank` entries, and only skills present in
+`skills_matrix.csv`. The report is written to `data/review/coverage_report.json`.
+
+This check exists so worksheet archive (see
+[`WORKSHEET_LIFECYCLE_POLICY.md`](WORKSHEET_LIFECYCLE_POLICY.md)) does not lose the
+"is the canonical data sound?" signal. Use it alongside the worksheet-derived
+review packet during build and steady-state phases; it is the only coverage signal
+once the worksheet is archived.

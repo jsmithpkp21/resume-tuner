@@ -2359,10 +2359,15 @@ def test_trim_for_role_keeps_experience_when_scores_are_empty(
     assert trimmed.experiences[0] == resume.experiences[0]
 
 
-def test_trim_for_role_is_reproducible_across_runs(
+def test_trim_for_role_is_reproducible_in_process(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Issue #22 acceptance: same input produces same selected bullet ids."""
+    """Issue #22 acceptance: same input produces same selected bullet ids
+    within a single Python process.
+
+    The cross-process variant below additionally guards against
+    hash-randomization-driven nondeterminism that this test cannot catch.
+    """
     monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
     profile = load_profile(PROFILE)
     experiences = load_experiences(
@@ -2407,6 +2412,76 @@ def test_trim_for_role_is_reproducible_across_runs(
     ]
     assert sum(len(ids) for ids in first_ids) >= 5
     assert first_ids == second_ids
+
+
+def test_trim_for_role_is_reproducible_across_processes(tmp_path: Path) -> None:
+    """Issue #22 acceptance: same input produces same selected bullet ids
+    across separate Python processes with different PYTHONHASHSEED values.
+
+    Catches nondeterminism that only surfaces when hash-randomized dict/set
+    iteration differs between processes — something the in-process test
+    cannot detect.
+    """
+    experience_db = REPO_ROOT / "data" / "experience" / "experience_db.toml"
+    runner = tmp_path / "repro_trim.py"
+    runner.write_text(
+        f"""import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, {str(REPO_ROOT)!r})
+os.environ["RESUME_BUILDER_LLM_ENABLED"] = "1"
+
+import scripts.build_resume as br
+from scripts import jd_ingest
+
+
+def _scores(*, client, resume, experience):
+    return {{
+        b.id: float(sum(ord(c) for c in b.id) % 100) / 100.0
+        for b in experience.bullets
+    }}
+
+
+br._score_bullet_relevance = _scores
+
+profile = br.load_profile(Path({str(PROFILE)!r}))
+experiences = br.load_experiences(Path({str(experience_db)!r}))
+resume = br.assemble_baseline_resume(
+    profile=profile,
+    target_role="Senior SDET",
+    target_company="Charles Schwab",
+    job_context=jd_ingest.ingest_job_text(
+        "Job Title: Senior SDET\\nCompany: Charles Schwab\\n"
+        "Looking for a Senior SDET focused on debugging and CI reliability."
+    ),
+    experiences=experiences,
+    skills_by_category={{}},
+)
+
+trimmed = br.trim_for_role(resume)
+print(json.dumps([[b.id for b in e.bullets] for e in trimmed.experiences]))
+""",
+        encoding="utf-8",
+    )
+
+    def run(seed: str) -> str:
+        result = subprocess.run(
+            [sys.executable, str(runner)],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        return result.stdout
+
+    first = run("0")
+    second = run("12345")
+    assert first == second
+    payload = json.loads(first)
+    assert sum(len(ids) for ids in payload) >= 5
 
 
 def test_enrich_data_adds_metadata_without_changing_bullets(

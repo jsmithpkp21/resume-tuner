@@ -124,15 +124,6 @@ _TRAILING_FRAGMENT_WORDS = {
 PROFILE_SUMMARY_MAX_WORDS = 112
 PROFILE_SUMMARY_MIN_RATIO = 0.8
 
-# LLM-specific word bounds for _generate_jd_tailored_summary_via_llm.
-# The deterministic generator's PROFILE_SUMMARY_MAX_WORDS (112) is a
-# pre-layout-fitting cap; in practice _fit_profile_summary_layout trims
-# its output to ~25-50 words so it fits PROFILE_SUMMARY_MAX_LINES (6)
-# at SUMMARY_LINE_WIDTH (72). For LLM output we'd rather REJECT and
-# fall back to the deterministic path than silently truncate, so the
-# bounds are aligned with what actually fits the layout.
-_LLM_SUMMARY_MIN_WORDS = 30
-_LLM_SUMMARY_MAX_WORDS = 70
 LLM_ENABLED_ENV = "RESUME_BUILDER_LLM_ENABLED"
 LLM_FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"
 
@@ -1946,10 +1937,15 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
     - Raised exception during the LLM call (network, JSON-decode, etc.).
     - Malformed response (missing key, non-string value, empty/whitespace
       string).
-    - Word count outside [MIN_RATIO * MAX_WORDS, MAX_WORDS].
-    - Wrap-line count above PROFILE_SUMMARY_MAX_LINES (the same 6-line
-      PDF layout cap that _fit_profile_summary_layout enforces on the
-      deterministic path).
+    - Word count outside [PROFILE_SUMMARY_MIN_RATIO * PROFILE_SUMMARY_MAX_WORDS,
+      PROFILE_SUMMARY_MAX_WORDS] — same word-budget contract as the
+      deterministic generator (90-112 words at the current calibration).
+    - Wrap-line count above PROFILE_SUMMARY_MAX_LINES (6) when wrapped
+      at PROFILE_SUMMARY_LINE_WIDTH (115) — the same 6-line PDF layout
+      cap that _fit_profile_summary_layout enforces on the deterministic
+      path. (Earlier draft used the wrong line-width constant; PR #264
+      review caught that the LLM and deterministic paths must wrap at
+      the same width to enforce the same layout budget.)
     """
     if not _llm_stage_enabled():
         return ""
@@ -1957,8 +1953,8 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
     if job_context is None:
         return ""
 
-    max_words = _LLM_SUMMARY_MAX_WORDS
-    min_words = _LLM_SUMMARY_MIN_WORDS
+    max_words = max(1, int(PROFILE_SUMMARY_MAX_WORDS))
+    min_words = min(max_words, max(1, math.ceil(max_words * PROFILE_SUMMARY_MIN_RATIO)))
 
     top_skills = _collect_resume_skill_signals(resume)[:6]
     experience_signals: list[dict[str, str]] = []
@@ -2027,8 +2023,11 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
     # summary slot. _fit_profile_summary_layout on the deterministic path
     # *trims* to fit; here we'd rather REJECT and fall back so the caller
     # gets a guaranteed-good deterministic summary instead of silently
-    # dropping the LLM's tail clauses.
-    wrap_lines = _summary_wrap_lines(candidate)
+    # dropping the LLM's tail clauses. The wrap must use the same width
+    # constant the deterministic path uses (PROFILE_SUMMARY_LINE_WIDTH,
+    # not the default SUMMARY_LINE_WIDTH that's calibrated for the
+    # narrower experience-bullet layout).
+    wrap_lines = _summary_wrap_lines(candidate, line_width=PROFILE_SUMMARY_LINE_WIDTH)
     if len(wrap_lines) > PROFILE_SUMMARY_MAX_LINES:
         logger.info(
             "LLM JD-tailored summary rejected: %d wrap lines exceeds %d",

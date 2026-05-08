@@ -21,7 +21,11 @@ from scripts.jd_ingest import (
     _extract_company_name,
     _extract_role_from_title,
     _extract_role_hint,
+    _fetch_greenhouse_via_api,
+    _fetch_workable_via_api,
+    _html_to_text,
     _infer_source,
+    _try_board_api_fetch,
 )
 
 # --- _extract_company_name: ATS path-slug for Workable -------------------
@@ -339,3 +343,162 @@ def test_extract_role_hint_falls_through_to_path_when_query_is_filter() -> None:
     # longer wins and a path-derived role is returned.
     assert result != "staff"
     assert "Staff" in result and "Software" in result and "Engineer" in result
+
+
+# --- Issue #247 fix-3 (subset): board-API fetchers + dispatcher ----------
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("", ""),
+        ("Plain text only", "Plain text only"),
+        ("<p>Hello <b>world</b>!</p>", "Hello world!"),
+        ("<p>One</p><p>Two</p>", "One\nTwo"),
+        # HTML entities decode after tag-strip.
+        ("<p>Smith &amp; Sons</p>", "Smith & Sons"),
+        # NBSP is whitespace per str.isspace, so leading NBSP gets stripped.
+        ("&nbsp; spaces", "spaces"),
+        # Adjacent block-open tags (div+p, div+p) leave a blank line between
+        # paragraphs — fine for JD downstream truncation.
+        ("<div><p>A</p></div><div><p>B</p></div>", "A\n\nB"),
+        # Whitespace runs are normalized.
+        ("<p>too    many    spaces</p>", "too many spaces"),
+    ],
+)
+def test_html_to_text_normalizes(raw: str, expected: str) -> None:
+    assert _html_to_text(raw) == expected
+
+
+def test_try_board_api_fetch_dispatches_to_greenhouse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, str] = {}
+
+    def fake_json(api_url: str) -> dict[str, str]:
+        captured["api_url"] = api_url
+        return {"title": "Senior SWE", "content": "<p>JD body here</p>"}
+
+    monkeypatch.setattr("scripts.jd_ingest._fetch_json_api", fake_json)
+
+    page = _try_board_api_fetch("https://boards.greenhouse.io/acme/jobs/12345")
+    assert page is not None
+    assert (
+        captured["api_url"]
+        == "https://boards-api.greenhouse.io/v1/boards/acme/jobs/12345"
+    )
+    assert page.title == "Senior SWE"
+    assert "JD body here" in page.description
+    assert "source:greenhouse_api" in page.notes
+
+
+def test_try_board_api_fetch_dispatches_to_job_boards_greenhouse_io(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The newer job-boards.greenhouse.io subdomain dispatches the same."""
+    captured: dict[str, str] = {}
+
+    def fake_json(api_url: str) -> dict[str, str]:
+        captured["api_url"] = api_url
+        return {"title": "T", "content": "<p>D</p>"}
+
+    monkeypatch.setattr("scripts.jd_ingest._fetch_json_api", fake_json)
+    page = _try_board_api_fetch(
+        "https://job-boards.greenhouse.io/elitetechnology/jobs/5206489008"
+    )
+    assert page is not None
+    assert (
+        captured["api_url"] == "https://boards-api.greenhouse.io/v1/boards/"
+        "elitetechnology/jobs/5206489008"
+    )
+
+
+def test_try_board_api_fetch_dispatches_to_workable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, str] = {}
+
+    def fake_json(api_url: str) -> dict[str, str]:
+        captured["api_url"] = api_url
+        return {"title": "Staff SDET", "description": "<p>Workable JD body</p>"}
+
+    monkeypatch.setattr("scripts.jd_ingest._fetch_json_api", fake_json)
+
+    page = _try_board_api_fetch("https://apply.workable.com/murmuration/j/44B92237B8/")
+    assert page is not None
+    assert captured["api_url"] == (
+        "https://apply.workable.com/api/v3/widget/accounts/murmuration/jobs/44B92237B8"
+    )
+    assert page.title == "Staff SDET"
+    assert "Workable JD body" in page.description
+    assert "source:workable_api" in page.notes
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        # Non-supported hosts must not dispatch (caller falls back to HTML).
+        "https://www.example.com/careers/123",
+        "https://becu.wd1.myworkdayjobs.com/.../R-13007",
+        "https://careers.westernunion.com/job-details/23275610/staff/",
+        "https://www.linkedin.com/jobs/view/1234",
+        # Greenhouse host but no /jobs/<id> tail.
+        "https://boards.greenhouse.io/acme",
+        "https://boards.greenhouse.io/acme/applications",
+        # Workable host but no /j/<shortcode>.
+        "https://apply.workable.com/acme/dashboard",
+    ],
+)
+def test_try_board_api_fetch_returns_none_for_unsupported_urls(
+    monkeypatch: pytest.MonkeyPatch, url: str
+) -> None:
+    """Unsupported URL families must not call the JSON API."""
+
+    def fake_json(_api_url: str) -> dict[str, str]:
+        raise AssertionError("API should not be called for non-matching URLs")
+
+    monkeypatch.setattr("scripts.jd_ingest._fetch_json_api", fake_json)
+    assert _try_board_api_fetch(url) is None
+
+
+def test_try_board_api_fetch_returns_none_on_api_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the API itself fails, dispatch returns None for HTML fallback."""
+
+    monkeypatch.setattr("scripts.jd_ingest._fetch_json_api", lambda _url: None)
+    assert _try_board_api_fetch("https://boards.greenhouse.io/acme/jobs/12345") is None
+    assert _try_board_api_fetch("https://apply.workable.com/acme/j/abc123/") is None
+
+
+def test_fetch_greenhouse_via_api_returns_none_on_empty_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An API call that returns an empty / title-less / content-less payload
+    should be treated as a failure so the caller falls back to HTML."""
+    monkeypatch.setattr(
+        "scripts.jd_ingest._fetch_json_api",
+        lambda _u: {"title": "", "content": ""},
+    )
+    assert _fetch_greenhouse_via_api(board="acme", job_id="123") is None
+
+
+def test_fetch_workable_via_api_returns_none_on_empty_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "scripts.jd_ingest._fetch_json_api",
+        lambda _u: {"title": "", "description": ""},
+    )
+    assert _fetch_workable_via_api(account="acme", shortcode="abc") is None
+
+
+def test_fetch_greenhouse_via_api_skips_when_required_url_parts_missing() -> None:
+    """Defensive: empty board / job_id arguments shouldn't issue a request."""
+    assert _fetch_greenhouse_via_api(board="", job_id="123") is None
+    assert _fetch_greenhouse_via_api(board="acme", job_id="") is None
+
+
+def test_fetch_workable_via_api_skips_when_required_url_parts_missing() -> None:
+    assert _fetch_workable_via_api(account="", shortcode="abc") is None
+    assert _fetch_workable_via_api(account="acme", shortcode="") is None

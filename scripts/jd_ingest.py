@@ -11,7 +11,9 @@ Future phases can replace or augment this with richer provider adapters.
 
 from __future__ import annotations
 
+import html as _html_lib
 import ipaddress
+import json
 import os
 import re
 import socket
@@ -33,6 +35,14 @@ else:
 _JOB_PAGE_FIXTURE_ENV = "RESUME_BUILDER_JOB_PAGE_FIXTURE"
 _MAX_DESCRIPTION_EXCERPT = 500
 _MAX_FETCH_BYTES = 256 * 1024
+
+# Hosts where a public JSON board API serves the JD body the static-HTML
+# fetcher can't see (the page is JS-rendered). #247 fix #3 (partial).
+_GREENHOUSE_BOARD_HOSTS: tuple[str, ...] = (
+    "boards.greenhouse.io",
+    "job-boards.greenhouse.io",
+)
+_WORKABLE_BOARD_HOSTS: tuple[str, ...] = ("apply.workable.com",)
 
 
 class _ValidatingRedirectHandler(HTTPRedirectHandler):
@@ -653,10 +663,158 @@ def _extract_company_from_text_blob(text: str) -> str:
     return ""
 
 
+class _PlainTextHTMLParser(HTMLParser):
+    """Strip HTML tags, collect plain text. Used to render API-returned
+    HTML (Greenhouse \"content\", Workable \"description\") into the
+    plain-text shape the rest of the pipeline expects.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._chunks: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self._chunks.append(data)
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() in {"br", "p", "li", "div", "tr", "h1", "h2", "h3", "h4"}:
+            self._chunks.append("\n")
+
+    @property
+    def text(self) -> str:
+        return _html_lib.unescape("".join(self._chunks)).strip()
+
+
+def _html_to_text(raw: str) -> str:
+    """Convert API-returned HTML into normalized plain text."""
+    if not raw:
+        return ""
+    parser = _PlainTextHTMLParser()
+    parser.feed(raw)
+    parser.close()
+    # Collapse runs of whitespace (excluding newlines we inserted) so the
+    # downstream description-excerpt truncation gets useful content.
+    text = re.sub(r"[ \t]+", " ", parser.text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text
+
+
+def _fetch_json_api(api_url: str) -> dict[str, Any] | None:
+    """HTTP GET + JSON parse with the same security validation as page fetch.
+
+    Returns None on any failure so the caller can fall back to the
+    static HTML fetch path.
+    """
+    try:
+        _validate_job_url(_normalize_url(api_url))
+    except Exception:  # noqa: BLE001
+        return None
+    request = Request(
+        api_url,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+        },
+    )
+    opener = build_opener(_ValidatingRedirectHandler())
+    try:
+        with opener.open(request, timeout=8) as response:  # nosec B310 - validated above
+            _validate_job_url(_normalize_url(response.geturl()))
+            content_length_header = response.headers.get("Content-Length")
+            if content_length_header:
+                try:
+                    if int(content_length_header) > _MAX_FETCH_BYTES:
+                        return None
+                except ValueError:
+                    pass
+            charset = response.headers.get_content_charset() or "utf-8"
+            content = response.read(_MAX_FETCH_BYTES + 1)
+            if len(content) > _MAX_FETCH_BYTES:
+                return None
+            text = content.decode(charset, errors="replace")
+    except Exception:  # noqa: BLE001
+        return None
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _fetch_greenhouse_via_api(*, board: str, job_id: str) -> FetchedPage | None:
+    """Greenhouse public board API: returns full JD body as HTML in `content`."""
+    if not (board and job_id):
+        return None
+    api_url = f"https://boards-api.greenhouse.io/v1/boards/{board}/jobs/{job_id}"
+    payload = _fetch_json_api(api_url)
+    if payload is None:
+        return None
+    title = (payload.get("title") or "").strip()
+    description = _html_to_text(payload.get("content") or "")
+    if not (title or description):
+        return None
+    return FetchedPage(
+        status="fetched",
+        title=title,
+        description=description,
+        notes=("source:greenhouse_api",),
+    )
+
+
+def _fetch_workable_via_api(*, account: str, shortcode: str) -> FetchedPage | None:
+    """Workable widget API: returns full JD body as HTML in `description`."""
+    if not (account and shortcode):
+        return None
+    api_url = (
+        f"https://apply.workable.com/api/v3/widget/accounts/{account}/jobs/{shortcode}"
+    )
+    payload = _fetch_json_api(api_url)
+    if payload is None:
+        return None
+    title = (payload.get("title") or "").strip()
+    description = _html_to_text(payload.get("description") or "")
+    if not (title or description):
+        return None
+    return FetchedPage(
+        status="fetched",
+        title=title,
+        description=description,
+        notes=("source:workable_api",),
+    )
+
+
+def _try_board_api_fetch(url: str) -> FetchedPage | None:
+    """Detect supported job-board URL families and try their JSON APIs.
+
+    Returns a FetchedPage on success, or None when the URL doesn't
+    match a supported family or the API call fails. The static-HTML
+    fetcher is the fallback in either case.
+    """
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    segments = [s for s in parsed.path.split("/") if s]
+
+    if host in _GREENHOUSE_BOARD_HOSTS:
+        # boards.greenhouse.io/<board>/jobs/<job_id>
+        if len(segments) >= 3 and segments[1] == "jobs":
+            return _fetch_greenhouse_via_api(board=segments[0], job_id=segments[2])
+    if host in _WORKABLE_BOARD_HOSTS:
+        # apply.workable.com/<account>/j/<shortcode>/
+        if len(segments) >= 3 and segments[1] == "j":
+            return _fetch_workable_via_api(account=segments[0], shortcode=segments[2])
+    return None
+
+
 def _fetch_job_page_metadata(url: str) -> FetchedPage:
     fixture_path = os.getenv(_JOB_PAGE_FIXTURE_ENV, "").strip()
     if fixture_path:
         return _fetch_job_page_metadata_from_fixture(Path(fixture_path))
+    api_result = _try_board_api_fetch(url)
+    if api_result is not None:
+        return api_result
     request = Request(
         url,
         headers={

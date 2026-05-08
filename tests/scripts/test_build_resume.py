@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import html as html_lib
 import io
 import ipaddress
@@ -5802,7 +5803,7 @@ def test_warn_if_jd_ingest_empty_text_with_llm_disabled(
     assert "LLM tailoring stages will run on near-empty context" not in err
 
 
-# ----- issue #256: LLM-tailored summary in summarize_profile_for_role ----
+# ----- issue #247 fix-4: --require-jd-context hard gate -----------------
 
 
 def _minimal_resume_ir(
@@ -5841,6 +5842,161 @@ def _minimal_resume_ir(
         experiences=(),
         skills_by_category={},
     )
+
+
+@pytest.mark.parametrize(
+    "excerpt, expected",
+    [
+        ("", True),
+        ("A" * 50, True),  # well below 200-char threshold
+        ("A" * 199, True),
+        ("A" * 200, False),  # exactly at the threshold
+        ("A" * 1000, False),
+    ],
+)
+def test_jd_context_below_threshold(excerpt: str, expected: bool) -> None:
+    """Threshold check used by both the WARNING and the hard gate."""
+    assert (
+        build_resume._jd_context_below_threshold(_make_job_context(excerpt)) is expected
+    )
+
+
+@pytest.mark.parametrize(
+    "flag, env, expected",
+    [
+        (False, None, False),
+        (True, None, True),
+        (False, "1", True),
+        (True, "1", True),
+        # Non-"1" env values are treated as off (only the literal "1" enables).
+        (False, "0", False),
+        (False, "true", False),
+        (False, "", False),
+        # Conflict: explicit flag wins. Setting the env var to "0" while
+        # also passing --require-jd-context does NOT disable gating.
+        # Documented behavior — env can enable, but it cannot override-down
+        # an explicit per-call flag.
+        (True, "0", True),
+        (True, "", True),
+        (True, "false", True),
+    ],
+)
+def test_jd_context_required_resolves_flag_and_env(
+    monkeypatch: pytest.MonkeyPatch,
+    flag: bool,
+    env: str | None,
+    expected: bool,
+) -> None:
+    if env is None:
+        monkeypatch.delenv(build_resume.REQUIRE_JD_CONTEXT_ENV, raising=False)
+    else:
+        monkeypatch.setenv(build_resume.REQUIRE_JD_CONTEXT_ENV, env)
+    ns = argparse.Namespace(require_jd_context=flag)
+    assert build_resume._jd_context_required(ns) is expected
+
+
+def test_jd_context_required_handles_namespace_without_attribute(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """getattr default keeps run_pipeline tolerant of legacy callers."""
+    monkeypatch.delenv(build_resume.REQUIRE_JD_CONTEXT_ENV, raising=False)
+    assert build_resume._jd_context_required(argparse.Namespace()) is False
+
+
+def test_run_pipeline_returns_jd_context_required_when_gate_fires(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """End-to-end gate path: empty ingest + flag set => non-zero exit."""
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    def fake_ingest(_url: str) -> jd_ingest.JobContext:
+        return _make_job_context("")  # 0-char excerpt
+
+    monkeypatch.setattr(build_resume, "ingest_job_context", fake_ingest)
+    monkeypatch.delenv(build_resume.REQUIRE_JD_CONTEXT_ENV, raising=False)
+
+    pipeline_args = argparse.Namespace(
+        profile=profile_path,
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        skills_matrix=REPO_ROOT / "data" / "skills" / "skills_matrix.csv",
+        job_url="https://careers.example.com/listing/123",
+        job_text_file=None,
+        target_role="",
+        output_dir=tmp_path / "out",
+        processing_mode="processed",
+        outputs=("pdf",),
+        company=None,
+        pdf_filename=None,
+        docx_filename=None,
+        allow_overflow_pdf=True,
+        post_layout_cleanup="enabled",
+        template="modern",
+        include_private_projects=False,
+        cover_letter=False,
+        require_jd_context=True,  # gate ON
+    )
+    rc = build_resume.run_pipeline(pipeline_args)
+    assert rc == build_resume.EXIT_JD_CONTEXT_REQUIRED
+    err = capsys.readouterr().err
+    assert "ERROR: --require-jd-context" in err
+    assert "0 chars" in err
+    assert str(build_resume.EXIT_JD_CONTEXT_REQUIRED) in err
+    # Source label names the offending input so the operator can find it.
+    assert "--job-url https://careers.example.com/listing/123" in err
+
+
+def test_run_pipeline_returns_jd_context_required_for_short_job_text_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Gate fires on the --job-text-file path too, not just --job-url.
+
+    Round-2 review on PR #261 — the help text said 'when JD ingest
+    produces less than N characters of description', but the gate was
+    only wired to the --job-url branch. A too-short text file should
+    fail-fast for the same reason: scripted runs that depend on JD
+    context shouldn't silently ship an un-tailored baseline.
+    """
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+    short_jd = tmp_path / "jd.txt"
+    short_jd.write_text("hello", encoding="utf-8")  # 5 chars; well under threshold
+    monkeypatch.delenv(build_resume.REQUIRE_JD_CONTEXT_ENV, raising=False)
+
+    pipeline_args = argparse.Namespace(
+        profile=profile_path,
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        skills_matrix=REPO_ROOT / "data" / "skills" / "skills_matrix.csv",
+        job_url="",
+        job_text_file=short_jd,
+        target_role="",
+        output_dir=tmp_path / "out",
+        processing_mode="processed",
+        outputs=("pdf",),
+        company=None,
+        pdf_filename=None,
+        docx_filename=None,
+        allow_overflow_pdf=True,
+        post_layout_cleanup="enabled",
+        template="modern",
+        include_private_projects=False,
+        cover_letter=False,
+        require_jd_context=True,
+    )
+    rc = build_resume.run_pipeline(pipeline_args)
+    assert rc == build_resume.EXIT_JD_CONTEXT_REQUIRED
+    err = capsys.readouterr().err
+    assert "ERROR: --require-jd-context" in err
+    assert "5 chars" in err
+    assert "--job-text-file" in err
+    assert str(short_jd) in err
+
+
+# ----- issue #256: LLM-tailored summary in summarize_profile_for_role ----
 
 
 @pytest.mark.parametrize(

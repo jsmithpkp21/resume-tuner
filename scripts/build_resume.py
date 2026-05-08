@@ -138,6 +138,14 @@ _LLM_SUMMARY_MIN_WORDS = 30
 
 LLM_ENABLED_ENV = "RESUME_BUILDER_LLM_ENABLED"
 LLM_FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"
+REQUIRE_JD_CONTEXT_ENV = "RESUME_BUILDER_REQUIRE_JD_CONTEXT"
+
+# Dedicated exit code for the --require-jd-context gate so scripted /
+# CI consumers can distinguish "JD ingest was empty and required" from
+# any other validation/build failure. The rest of the pipeline still
+# returns literal 0 / 1 values; introducing a full named-exit-code
+# scheme is out of scope here.
+EXIT_JD_CONTEXT_REQUIRED = 5
 
 logger = logging.getLogger(__name__)
 
@@ -362,6 +370,27 @@ def parse_args() -> argparse.Namespace:
             "For finer control (word budget, hiring manager override, "
             "addressee confidence threshold) use scripts/build_cover_letter.py "
             "directly."
+        ),
+    )
+    common.add_argument(
+        "--require-jd-context",
+        dest="require_jd_context",
+        action="store_true",
+        default=False,
+        help=(
+            "When JD ingest produces less than "
+            f"{_MIN_JD_DESCRIPTION_CHARS} characters of description, exit "
+            f"non-zero (code {EXIT_JD_CONTEXT_REQUIRED}) instead of "
+            "proceeding with the un-tailored baseline. The --job-url path "
+            "additionally prints the existing WARNING (which describes the "
+            "JS-rendered-content failure mode and the --job-text-file "
+            "workaround) before the ERROR; the --job-text-file path emits "
+            "only the ERROR since the diagnostic doesn't apply to user-"
+            "supplied text. Useful for scripted runs where producing a "
+            "generic resume would be a silent failure. Also enabled by "
+            f"{REQUIRE_JD_CONTEXT_ENV}=1; either signal independently enables "
+            "gating, and once enabled there is no override-down (i.e. env "
+            "var = '0' does not disable an explicit --require-jd-context flag)."
         ),
     )
 
@@ -1717,6 +1746,25 @@ def _llm_stage_enabled() -> bool:
     llm_enabled = os.getenv(LLM_ENABLED_ENV, "0").strip() == "1"
     fixture_enabled = os.getenv(LLM_FIXTURE_ENV, "0").strip() == "1"
     return llm_enabled or fixture_enabled
+
+
+def _jd_context_required(args: argparse.Namespace) -> bool:
+    """Return True when the JD-context gate should hard-fail empty ingest.
+
+    Either the CLI flag or the env var independently enables the gate;
+    the OR-semantics let CI / shell turn gating on (via env=1) without
+    each call site needing the flag, and let an interactive caller turn
+    gating on (via the flag) without exporting an env var. Truthy
+    env = literal "1".
+
+    Note: there is no override-down semantic. Setting the env var to
+    "0" while passing --require-jd-context still gates, because the
+    explicit flag wins as the per-call signal. To disable gating, pass
+    no flag AND leave the env var unset / non-"1".
+    """
+    flag = bool(getattr(args, "require_jd_context", False))
+    env = os.getenv(REQUIRE_JD_CONTEXT_ENV, "0").strip() == "1"
+    return flag or env
 
 
 def _extract_company_via_llm(job_context: JobContext) -> str:
@@ -3626,6 +3674,25 @@ def write_text_snapshot(resume: ResumeIR, output_path: Path) -> None:
 _MIN_JD_DESCRIPTION_CHARS = 200
 
 
+def _jd_context_below_threshold(job_context: JobContext) -> bool:
+    """Shared check used by the WARNING, the gate, and the LLM-summary path.
+
+    Returns True when the JD-ingest result is below the
+    _MIN_JD_DESCRIPTION_CHARS threshold — i.e. the JD context is too
+    thin to reliably tailor against. Two common causes:
+
+    - --job-url: the static fetcher couldn't see JS-rendered content
+      and only got the navigation shell.
+    - --job-text-file: the user-supplied file is empty or near-empty.
+
+    The predicate is intentionally generic about the cause; callers
+    that want to surface the JS-render-specific diagnostic do so
+    themselves (see _warn_if_jd_ingest_empty on the --job-url path).
+    """
+    excerpt_len = len(job_context.description_excerpt or "")
+    return excerpt_len < _MIN_JD_DESCRIPTION_CHARS
+
+
 def _warn_if_jd_ingest_empty(*, job_context: JobContext, job_url: str) -> None:
     """Print a prominent stderr warning when JD ingest looks essentially empty.
 
@@ -3637,9 +3704,9 @@ def _warn_if_jd_ingest_empty(*, job_context: JobContext, job_url: str) -> None:
     branches on whether LLM tailoring is enabled so the message matches
     actual runtime behavior in both modes.
     """
-    excerpt_len = len(job_context.description_excerpt or "")
-    if excerpt_len >= _MIN_JD_DESCRIPTION_CHARS:
+    if not _jd_context_below_threshold(job_context):
         return
+    excerpt_len = len(job_context.description_excerpt or "")
     if _llm_stage_enabled():
         effect_line = (
             "  Effect: LLM tailoring stages will run on near-empty context, "
@@ -3662,6 +3729,26 @@ def _warn_if_jd_ingest_empty(*, job_context: JobContext, job_url: str) -> None:
         "  Workaround: copy the JD text into a file and rerun with "
         "--job-text-file <path> instead of --job-url.\n"
         "  Tracking: https://github.com/jsmithpkp21/resume-builder/issues/247",
+        file=sys.stderr,
+    )
+
+
+def _emit_jd_context_required_error(*, excerpt_len: int, source_label: str) -> None:
+    """Print the --require-jd-context gate's ERROR line.
+
+    Shared helper for both the --job-url and --job-text-file ingest
+    branches. The source_label is the user-facing string that names
+    the input the gate is rejecting (e.g. "--job-url <url>" or
+    "--job-text-file <path>") so the operator can find which input
+    came up short.
+    """
+    print(
+        f"ERROR: --require-jd-context (or {REQUIRE_JD_CONTEXT_ENV}=1) is set "
+        f"and JD ingest produced only {excerpt_len} chars (< "
+        f"{_MIN_JD_DESCRIPTION_CHARS}-char threshold) from "
+        f"{source_label}. Aborting with exit code "
+        f"{EXIT_JD_CONTEXT_REQUIRED} rather than shipping an "
+        f"un-tailored baseline resume.",
         file=sys.stderr,
     )
 
@@ -3714,9 +3801,21 @@ def run_pipeline(args: argparse.Namespace) -> int:
         assert_not_blocked_runtime_input(job_text_file)
         job_text = job_text_file.read_text(encoding="utf-8")
         job_context = ingest_job_text(job_text, source_hint="job-text-file")
+        if _jd_context_required(args) and _jd_context_below_threshold(job_context):
+            _emit_jd_context_required_error(
+                excerpt_len=len(job_context.description_excerpt or ""),
+                source_label=f"--job-text-file {job_text_file}",
+            )
+            return EXIT_JD_CONTEXT_REQUIRED
     elif has_job_url:
         job_context = ingest_job_context(job_url)
         _warn_if_jd_ingest_empty(job_context=job_context, job_url=job_url)
+        if _jd_context_required(args) and _jd_context_below_threshold(job_context):
+            _emit_jd_context_required_error(
+                excerpt_len=len(job_context.description_excerpt or ""),
+                source_label=f"--job-url {job_url}",
+            )
+            return EXIT_JD_CONTEXT_REQUIRED
 
     # When the deterministic JD extractor returned no company name, ask the
     # LLM (gated by RESUME_BUILDER_LLM_ENABLED / fixture mode). Cheap to gate:

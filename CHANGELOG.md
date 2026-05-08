@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.43.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.42.0...v0.43.0) (2026-05-08)
+
+
+### Features
+
+* **jd-ingest:** add playwright fetcher for js-rendered job boards ([#247](https://github.com/jsmithpkp21/resume-builder/issues/247) fix-3 part 2) ([814f2c2](https://github.com/jsmithpkp21/resume-builder/commit/814f2c229e325977d51714949e9dbb2d069cf81f))
+* **playwright:** add layer scaffolding and runtime install script ([#247](https://github.com/jsmithpkp21/resume-builder/issues/247) fix-3 part 1) ([accd075](https://github.com/jsmithpkp21/resume-builder/commit/accd075a10f9fe2e5dd7ada88db243e6de394d26))
+
+
+### Bug Fixes
+
+* **playwright:** pin pytest-playwright and tighten failure logging ([#247](https://github.com/jsmithpkp21/resume-builder/issues/247) fix-3 review-1) ([9665570](https://github.com/jsmithpkp21/resume-builder/commit/96655707366fa4bf3183916a3d9c283ac0de4b0c))
+
 ## [0.42.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.41.0...v0.42.0) (2026-05-08)
 
 

@@ -2097,8 +2097,16 @@ def _resolve_fit_narrative(
     substantive JD context), assessment failure, or auto-mode score above
     the ``_FIT_NARRATIVE_GATE_SCORE`` gate.
     """
-    mode = getattr(args, "fit_narrative", "auto")
+    # Defensive normalization for programmatic callers that may build an
+    # argparse.Namespace by hand and pass un-validated values; the CLI path
+    # already runs the same canonicalization through _parse_fit_narrative_mode.
+    raw_mode = getattr(args, "fit_narrative", "auto")
+    mode = str(raw_mode or "auto").strip().lower()
+    if mode not in _FIT_NARRATIVE_MODES:
+        logger.info("fit_narrative coerced unexpected mode %r to 'auto'", raw_mode)
+        mode = "auto"
     if mode == "off":
+        logger.info("fit_narrative skipped: --fit-narrative off")
         return None
     cover_letter_enabled = bool(getattr(args, "cover_letter", False))
     if mode == "auto" and cover_letter_enabled:
@@ -2312,6 +2320,20 @@ def compute_fit_assessment(resume: ResumeIR) -> FitAssessment | None:
             )
         )
         seen_ids.add(experience_id)
+
+    # Reject payloads that don't cover every known experience. The prompt
+    # asks for "one entry per input experience" and #271 will use this
+    # mapping to decide compression — caching a partial set would silently
+    # miscompress. If the resume has no experiences (synthetic edge case),
+    # the response just needs to lack per-experience entries to be valid.
+    if known_experience_ids and seen_ids != known_experience_ids:
+        missing = sorted(known_experience_ids - seen_ids)
+        logger.info(
+            "fit_assessment rejected: per_experience_scores missing entries "
+            "for known experience_id(s): %s",
+            ", ".join(missing),
+        )
+        return None
 
     return FitAssessment(
         overall_fit_score=overall_score,

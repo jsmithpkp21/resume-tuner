@@ -6695,6 +6695,25 @@ def test_compute_fit_assessment_drops_unknown_experience_ids(
     }
 
 
+def test_compute_fit_assessment_rejects_payload_missing_known_experience_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The prompt asks for one entry per input experience and #271 will use
+    this mapping for compression; caching a partial set would silently
+    miscompress, so a missing known experience_id rejects the payload."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    fake = _FakeLLMClient(
+        {
+            "overall_fit_score": 30,
+            "overall_rationale": "stretch",
+            "per_experience_scores": [],  # exp-1 is known but absent
+        }
+    )
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+
+    assert build_resume.compute_fit_assessment(_resume_with_one_experience()) is None
+
+
 def test_compute_fit_assessment_returns_none_on_llm_exception(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -6723,7 +6742,34 @@ def _ns(**kwargs: object) -> argparse.Namespace:
 
 def test_resolve_fit_narrative_off_short_circuits(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+
+    def fail_if_called(_resume: Any) -> Any:
+        raise AssertionError("compute_fit_assessment should not be called")
+
+    monkeypatch.setattr("scripts.build_resume.compute_fit_assessment", fail_if_called)
+    caplog.set_level(logging.INFO, logger="scripts.build_resume")
+    assert (
+        build_resume._resolve_fit_narrative(
+            _ns(fit_narrative="off"), _resume_with_one_experience()
+        )
+        is None
+    )
+    # Off path now logs at INFO so debugging stays consistent with the
+    # other skip paths (PR #278 review).
+    assert any(
+        "fit_narrative skipped: --fit-narrative off" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+def test_resolve_fit_narrative_normalizes_uppercase_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Programmatic callers may pass un-normalized values; resolver should
+    canonicalize so 'OFF' still hits the off branch (PR #278 review)."""
     monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
 
     def fail_if_called(_resume: Any) -> Any:
@@ -6732,10 +6778,30 @@ def test_resolve_fit_narrative_off_short_circuits(
     monkeypatch.setattr("scripts.build_resume.compute_fit_assessment", fail_if_called)
     assert (
         build_resume._resolve_fit_narrative(
-            _ns(fit_narrative="off"), _resume_with_one_experience()
+            _ns(fit_narrative="OFF"), _resume_with_one_experience()
         )
         is None
     )
+
+
+def test_resolve_fit_narrative_coerces_unknown_mode_to_auto(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unexpected programmatic values fall back to 'auto' rather than
+    silently bypassing the auto-mode gates (PR #278 review)."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+
+    def fail_if_called(_resume: Any) -> Any:
+        raise AssertionError("auto-mode + cover-letter must skip the LLM call")
+
+    monkeypatch.setattr("scripts.build_resume.compute_fit_assessment", fail_if_called)
+    # Auto-mode skips when cover_letter is set; using cover_letter=True lets
+    # us confirm the unknown 'bogus' value was coerced into auto's behavior.
+    result = build_resume._resolve_fit_narrative(
+        _ns(fit_narrative="bogus", cover_letter=True),
+        _resume_with_one_experience(),
+    )
+    assert result is None
 
 
 def test_resolve_fit_narrative_auto_defers_to_cover_letter(

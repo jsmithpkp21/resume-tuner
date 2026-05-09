@@ -7459,6 +7459,36 @@ def test_apply_experience_compression_no_context_resets_pre_existing_compressed(
     assert all(exp.compression == "full" for exp in result.experiences)
 
 
+def test_compute_bullet_line_budget_credits_empty_role_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An experience with empty general_role_description must NOT cost a
+    role-summary line in the budget. Without this guard
+    _estimate_wrapped_line_count("") returns 1 and apply_experience_
+    compression's auto-mode simulation can't actually credit the freed
+    space (PR #278 review).
+
+    Lift the DEFAULT_MAX_BULLET_LINES cap during this assertion so the
+    cap doesn't mask the credit on small fixture resumes (the production
+    cap clamps both budgets to the same value when there's plenty of
+    headroom).
+    """
+    monkeypatch.setattr("scripts.build_resume.DEFAULT_MAX_BULLET_LINES", 10_000)
+    base = _resume_with_n_experiences(2)
+    cleared = dataclasses.replace(
+        base,
+        experiences=tuple(
+            dataclasses.replace(exp, general_role_description="")
+            for exp in base.experiences
+        ),
+    )
+    full_budget = build_resume._compute_bullet_line_budget(base)
+    cleared_budget = build_resume._compute_bullet_line_budget(cleared)
+    # Cleared description -> more bullet-line budget available. Without the
+    # fix, both budgets would be equal because empty text counts as 1 line.
+    assert cleared_budget > full_budget
+
+
 def test_apply_experience_compression_auto_resets_stale_compression_when_nothing_to_compress() -> (
     None
 ):

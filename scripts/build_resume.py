@@ -3530,14 +3530,20 @@ def _compute_bullet_line_budget(resume: ResumeIR) -> int:
         # at SUMMARY_MAX_LINES (2) wrap-lines in the SUMMARY_LINE_WIDTH (72)
         # column. Re-rendered at full content width that's ≤2 lines, so cap
         # the wrap-line count at SUMMARY_MAX_LINES rather than measuring the
-        # pre-stage long enriched description directly.
-        role_header_pt += PDF_BODY_LINE_PT * min(
-            SUMMARY_MAX_LINES,
-            _estimate_wrapped_line_count(
-                experience.general_role_description,
-                DEFAULT_BULLET_LINE_WIDTH,
-            ),
-        )
+        # pre-stage long enriched description directly. Skip the cost when
+        # general_role_description is empty so the renderer's "no role-summary
+        # paragraph rendered" path matches the budget — needed for compressed
+        # mode's freed-space credit (PR #278 review). Without this guard
+        # _estimate_wrapped_line_count("") returns 1, so an empty description
+        # would still cost PDF_BODY_LINE_PT and the credit wouldn't apply.
+        if experience.general_role_description.strip():
+            role_header_pt += PDF_BODY_LINE_PT * min(
+                SUMMARY_MAX_LINES,
+                _estimate_wrapped_line_count(
+                    experience.general_role_description,
+                    DEFAULT_BULLET_LINE_WIDTH,
+                ),
+            )
 
     education_pt = 0.0
     for education_item in resume.profile.education_entries:

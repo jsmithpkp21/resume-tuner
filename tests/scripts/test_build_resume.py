@@ -6317,6 +6317,58 @@ def test_generate_jd_tailored_summary_falls_back_when_trim_drops_below_floor(
     assert out == ""
 
 
+def test_generate_jd_tailored_summary_measures_wrap_lines_after_period_append(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PR #287 review: wrap-line check must run on the post-normalization
+    candidate (rstripped + terminal period appended), not the raw LLM
+    response. Pre-fix the period was added AFTER the wrap-line check, so
+    a borderline summary that wrapped to exactly 6 lines could become
+    7 lines once the period was appended — silently violating
+    PROFILE_SUMMARY_MAX_LINES.
+
+    Constructing the exact byte boundary is brittle (depends on
+    `textwrap` internals); instead this test exercises the invariant
+    directly: regardless of input shape, the returned summary must
+    always wrap to ≤ PROFILE_SUMMARY_MAX_LINES at the profile width.
+    Multiple inputs are tried so the invariant catches any future
+    reordering regression.
+    """
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+
+    # Inputs that previously could trip the bug: word counts straddling
+    # the 6-line cap at width 115, with and without trailing punctuation
+    # the rstrip would remove (forcing the period to be appended later).
+    inputs = [
+        _build_in_bounds_summary(95),  # ~5 lines, well under
+        _build_in_bounds_summary(105),  # near the boundary
+        _build_in_bounds_summary(105) + ",",  # trailing comma → rstrip → period append
+        _build_in_bounds_summary(105) + " ;",  # trailing semicolon
+        _build_layout_overflow_summary(100),  # forces trim path
+    ]
+
+    for raw_summary in inputs:
+        _install_fake_llm(monkeypatch, payload={"summary": raw_summary})
+        resume = _minimal_resume_ir(
+            job_context=_make_job_context("Real JD body. " * 30)
+        )
+        out = build_resume._generate_jd_tailored_summary_via_llm(resume)
+        if not out:
+            # Either the wildly-over-budget fallback or the LLM disabled
+            # path; both leave the wrap-line invariant trivially satisfied.
+            continue
+        wrapped = build_resume._summary_wrap_lines(
+            out, line_width=build_resume.PROFILE_SUMMARY_LINE_WIDTH
+        )
+        assert len(wrapped) <= build_resume.PROFILE_SUMMARY_MAX_LINES, (
+            f"output exceeds {build_resume.PROFILE_SUMMARY_MAX_LINES} lines "
+            f"({len(wrapped)} lines); input was {raw_summary!r}; output {out!r}"
+        )
+        # Also assert the output ends with terminal punctuation (the
+        # normalization invariant the fix preserves).
+        assert out.endswith((".", "?", "!"))
+
+
 def test_generate_jd_tailored_summary_returns_empty_when_llm_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

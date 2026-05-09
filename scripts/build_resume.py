@@ -2140,12 +2140,26 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
         )
         return ""
 
+    # Normalize terminal punctuation BEFORE measuring wrap lines —
+    # PR #287 review: appending a period after the wrap check could
+    # push a borderline summary from 6 → 7 lines (the period adds a
+    # char to the last word which might no longer fit on the line at
+    # PROFILE_SUMMARY_LINE_WIDTH). Strip trailing list separators
+    # first so an LLM response ending with `,` or `:` doesn't produce
+    # `,.` / `:.` once the period is appended.
+    candidate = candidate.rstrip(" ,;:")
+    if not candidate:
+        return ""
+    if not candidate.endswith((".", "!", "?")):
+        candidate += "."
+
     # If the LLM summary doesn't fit the 6-line profile-summary slot,
     # trim it the same way the deterministic path does
     # (_fit_profile_summary_layout pops trailing words / drops incomplete
-    # tail clauses while preserving sentence boundaries). Issue #282:
-    # the prior policy was to REJECT and fall back to deterministic, on
-    # the theory that a trimmed LLM summary might silently drop key
+    # tail clauses while preserving sentence boundaries AND re-applying
+    # terminal-period normalization on each retry). Issue #282: the
+    # prior policy was to REJECT and fall back to deterministic, on the
+    # theory that a trimmed LLM summary might silently drop key
     # tailoring clauses. In practice that meant a 1-line overflow lost
     # 100% of the LLM's tailoring (e.g. v4 llama::becu produced 7 lines
     # over a 6-line cap → full deterministic fallback). Trimming retains
@@ -2179,16 +2193,10 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
             original_words,
             trimmed_words,
         )
+        # `_fit_profile_summary_layout` returns a sentence-safe,
+        # period-terminated string — no further normalization needed.
         candidate = trimmed
 
-    # Strip trailing list separators before adding the terminal period —
-    # otherwise an LLM response that ends with ',' or ':' produces ",."
-    # / ":." which the deterministic generator explicitly avoids.
-    candidate = candidate.rstrip(" ,;:")
-    if not candidate:
-        return ""
-    if not candidate.endswith((".", "!", "?")):
-        candidate += "."
     return candidate
 
 

@@ -1620,3 +1620,65 @@ def test_audit_falls_back_to_original_body_on_validator_failure(
     # the body.
     assert "Replaced opening that should NOT reach the file." not in md_text
     assert "I am applying for the Senior Principal" in md_text
+
+
+def test_audit_rejects_null_string_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PR #305 review: a malformed validator returning JSON ``null`` for
+    opening / closing / body_paragraphs entries must NOT reach the
+    rendered letter as the literal string ``"None"``. The fallback uses
+    strict ``isinstance`` checks (``str(None) == "None"`` is truthy and
+    would have slipped through the prior ``str(...).strip()`` coercion)
+    so the original draft is preserved instead.
+    """
+    profile_path, experience_path, jd_path = _write_inputs(tmp_path)
+    _enable_fixture_mode(monkeypatch)
+
+    def handler(namespace: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if namespace == build_cover_letter.ADDRESSEE_NAMESPACE:
+            return {"hiring_manager_name": None, "confidence": 0.0}
+        if namespace == build_cover_letter.BODY_NAMESPACE:
+            return _good_body()
+        if namespace == build_cover_letter.AUDIT_NAMESPACE:
+            # JSON null lands in Python as None — must trigger the
+            # type-check fallback, not a "None" literal in the letter.
+            return {
+                "violations": [],
+                "corrected_body": {
+                    "opening": None,
+                    "body_paragraphs": [None, "valid sentence"],
+                    "closing_paragraph": None,
+                },
+            }
+        raise AssertionError(f"unexpected namespace {namespace}")
+
+    _patch_llm(monkeypatch, handler)
+
+    out_dir = tmp_path / "out"
+    rc, _ = _run_cli(
+        monkeypatch,
+        [
+            "--profile",
+            str(profile_path),
+            "--experience-db",
+            str(experience_path),
+            "--job-text-file",
+            str(jd_path),
+            "--company",
+            "Graphcore",
+            "--output-dir",
+            str(out_dir),
+            "--outputs",
+            "md",
+        ],
+    )
+    assert rc == build_cover_letter.EXIT_SUCCESS
+    md_text = (out_dir / "graphcore_cover_letter.md").read_text("utf-8")
+    # The literal string "None" must not appear as a rendered paragraph.
+    # ("None" can legitimately appear in addresses or other fields, so
+    # we check the paragraph anchors specifically.)
+    assert "\nNone\n" not in md_text
+    assert "None.\n" not in md_text
+    # Original good_body opening retained.
+    assert "I am applying for the Senior Principal" in md_text

@@ -517,12 +517,18 @@ def _collect_candidate_known_skills(experiences: tuple[Experience, ...]) -> list
     """Flatten the candidate's actually-applied skills into a sorted list (#303 v4).
 
     Sources: every ``experience.related_skills`` entry plus every
-    ``bullet.skills`` entry across in-window experiences. Used by the
-    post-draft audit pass below to ground the "claim experience only with
-    technologies in this list" rule in concrete data — the v4 attempt to
-    surface this list inside the body-draft user_payload broke schema
-    reliability across all three test models, so the list now flows only
-    into the audit prompt where it has a tighter, single-purpose home.
+    ``bullet.skills`` entry across the experiences passed in. The
+    cover-letter pipeline supplies the full ``load_experiences()`` set —
+    no recency filter — because the audit's allow-list should reflect
+    every skill the candidate has ever applied, not just the in-window
+    subset; otherwise a legitimate cross-experience skill could be
+    rewritten as a "transferable principle" and lose accuracy. Used by
+    the post-draft audit pass below to ground the "claim experience only
+    with technologies in this list" rule in concrete data — the v4
+    attempt to surface this list inside the body-draft user_payload
+    broke schema reliability across all three test models, so the list
+    now flows only into the audit prompt where it has a tighter,
+    single-purpose home.
     """
     seen: dict[str, str] = {}  # case-insensitive dedupe; preserve first casing
     for exp in experiences:
@@ -623,12 +629,40 @@ def _audit_and_correct_body(
     corrected = result.get("corrected_body")
     if not isinstance(corrected, dict):
         return body, warnings
-    new_opening = str(corrected.get("opening", "")).strip()
-    new_paragraphs_raw = corrected.get("body_paragraphs", [])
-    if not isinstance(new_paragraphs_raw, list):
+
+    # Strict type checks — `str(None) == "None"` is truthy and would let a
+    # malformed validator response (e.g. `"closing_paragraph": null`) reach
+    # the rendered letter as the literal text "None". PR #305 review:
+    # require non-empty strings up front and fall back when types are
+    # wrong, keeping the audit purely additive.
+    raw_opening = corrected.get("opening")
+    raw_closing = corrected.get("closing_paragraph")
+    raw_paragraphs = corrected.get("body_paragraphs")
+    if (
+        not isinstance(raw_opening, str)
+        or not isinstance(raw_closing, str)
+        or not isinstance(raw_paragraphs, list)
+    ):
+        logger.info(
+            "cover_letter_audit returned non-string opening/closing or "
+            "non-list body_paragraphs; keeping original draft"
+        )
         return body, warnings
-    new_paragraphs = tuple(str(p).strip() for p in new_paragraphs_raw if str(p).strip())
-    new_closing = str(corrected.get("closing_paragraph", "")).strip()
+
+    new_opening = raw_opening.strip()
+    new_closing = raw_closing.strip()
+    new_paragraphs: list[str] = []
+    for p in raw_paragraphs:
+        if not isinstance(p, str):
+            logger.info(
+                "cover_letter_audit returned a non-string body_paragraph; "
+                "keeping original draft"
+            )
+            return body, warnings
+        stripped = p.strip()
+        if stripped:
+            new_paragraphs.append(stripped)
+
     if not new_opening or not new_paragraphs or not new_closing:
         # Validator returned an incomplete corrected body — fall back to
         # the original draft so a buggy audit can never blank the letter.
@@ -641,7 +675,7 @@ def _audit_and_correct_body(
     return (
         CoverLetterBody(
             opening=new_opening,
-            body_paragraphs=new_paragraphs,
+            body_paragraphs=tuple(new_paragraphs),
             closing_paragraph=new_closing,
         ),
         warnings,

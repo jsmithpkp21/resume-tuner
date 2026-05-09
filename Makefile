@@ -76,23 +76,34 @@ upgrade:
 # Allows `HOST_UID` / `HOST_GID` env-var overrides so an invoker who is
 # already root (CI image, sudo bash, …) can still bake a non-root user
 # into the image. Without an override, refuses to run as UID 0 — silently
-# baking root would defeat issue #322.
+# baking root would defeat issue #322. `HOST_UID_ALLOW_ROOT=1` is the
+# opt-in escape hatch, matching `scripts/docker_build.sh` and the
+# Dockerfile guard from issue #353; the build-arg is forwarded to docker
+# compose so the in-image guard sees the same value.
 update-docker:
 	@set -e; \
 	HOST_UID="$${HOST_UID:-$$(id -u)}"; HOST_GID="$${HOST_GID:-$$(id -g)}"; \
-	if [ "$$HOST_UID" = "0" ]; then \
-		echo "update-docker: refusing to bake UID 0 (root) into the image -- this would defeat the non-root-user goal (issue #322)." >&2; \
-		echo "Re-run as a non-root user, or pass HOST_UID/HOST_GID explicitly:" >&2; \
-		echo "  HOST_UID=1000 HOST_GID=1000 make update-docker" >&2; \
-		exit 1; \
-	fi; \
+	HOST_UID_ALLOW_ROOT="$${HOST_UID_ALLOW_ROOT:-0}"; \
 	case "$$HOST_UID" in ''|*[!0-9]*) \
 		echo "update-docker: HOST_UID must be a non-negative integer, got '$$HOST_UID'." >&2; exit 1;; \
 	esac; \
 	case "$$HOST_GID" in ''|*[!0-9]*) \
 		echo "update-docker: HOST_GID must be a non-negative integer, got '$$HOST_GID'." >&2; exit 1;; \
 	esac; \
-	$(DOCKER_COMPOSE) build --build-arg HOST_UID=$$HOST_UID --build-arg HOST_GID=$$HOST_GID; \
+	case "$$HOST_UID_ALLOW_ROOT" in 0|1) ;; *) \
+		echo "update-docker: HOST_UID_ALLOW_ROOT must be '0' or '1', got '$$HOST_UID_ALLOW_ROOT'." >&2; exit 1;; \
+	esac; \
+	case "$$HOST_UID" in \
+		*[!0]*) : ;; \
+		*) if [ "$$HOST_UID_ALLOW_ROOT" != "1" ]; then \
+			echo "update-docker: refusing to bake UID 0 (root) into the image -- this would defeat the non-root-user goal (issue #322)." >&2; \
+			echo "Re-run as a non-root user, pass HOST_UID/HOST_GID explicitly:" >&2; \
+			echo "  HOST_UID=1000 HOST_GID=1000 make update-docker" >&2; \
+			echo "Or opt in to a root-baked image: HOST_UID_ALLOW_ROOT=1 make update-docker" >&2; \
+			exit 1; \
+		fi ;; \
+	esac; \
+	$(DOCKER_COMPOSE) build --build-arg HOST_UID="$$HOST_UID" --build-arg HOST_GID="$$HOST_GID" --build-arg HOST_UID_ALLOW_ROOT="$$HOST_UID_ALLOW_ROOT"; \
 	$(DOCKER_COMPOSE) up -d; \
 	echo "Docker container rebuilt and restarted. jq and other dependencies are now available."; \
 	echo "Container runs as non-root user (UID=$$HOST_UID, GID=$$HOST_GID); files written to /repo are host-owned."

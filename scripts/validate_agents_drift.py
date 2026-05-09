@@ -114,6 +114,40 @@ INVARIANTS: tuple[Invariant, ...] = (
         re.compile(r"-include\s+Makefile\.local(?![\w.-])"),
         "Makefile.local consumer-extension hook reference",
     ),
+    Invariant(
+        "diff_scope_stop_check",
+        re.compile(r"git diff --name-status origin/main\.\.\.HEAD"),
+        "Diff-scope stop/check guardrail (halt on unexpected diff vs origin/main)",
+    ),
+    Invariant(
+        "post_branch_verification",
+        # All three commands must appear in order, AND the diff command must
+        # carry its base ref (`origin/main...HEAD`) — locking just the
+        # `git diff --name-status` prefix would let the checklist regress to
+        # a base-less form. re.DOTALL lets `.` cross the markdown bullet/
+        # numbering between commands.
+        re.compile(
+            r"git branch --show-current.*?git log --oneline -5.*?"
+            r"git diff --name-status origin/main\.\.\.HEAD",
+            re.DOTALL,
+        ),
+        "Post-branch verification checklist (all three commands, in order, with base-qualified diff)",
+    ),
+    Invariant(
+        "pr_creation_timing",
+        # Anchor on the bullet label ("PR creation timing") AND require the
+        # `only after` semantics so a flipped rule ("run gh pr create
+        # before the first commit is pushed") fails the check — presence
+        # of `gh pr create` / `first commit` / `pushed` / `epic` alone is
+        # not enough to prove the rule's meaning. re.DOTALL lets the match
+        # span the bullet's wrapped lines.
+        re.compile(
+            r"PR creation timing.*?gh pr create.*?only after.*?"
+            r"first commit.*?pushed.*?epic",
+            re.DOTALL | re.IGNORECASE,
+        ),
+        "PR creation timing rule (gh pr create only after first push; epic exception)",
+    ),
 )
 
 

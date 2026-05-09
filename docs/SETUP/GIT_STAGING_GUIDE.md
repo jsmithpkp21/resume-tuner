@@ -57,6 +57,61 @@ git diff --staged
 | Commit staged changes | `git commit -m "message"` |
 | Push to GitHub | `git push origin branch-name` |
 
+## Clean PR recovery: rebuild an issue branch from `main`
+
+Use this when an issue branch's history has accumulated unrelated commits
+(e.g. an accidental `main` merge, sync history, or a wrong base) and you
+want a clean PR diff against `origin/main`.
+
+- **What it preserves:** the intended commits, replayed onto a fresh branch.
+- **What it discards:** the old branch's ancestry beyond those commits.
+- **Branch-safe:** no destructive commands (`git push --force`, `git reset --hard`, `git branch -D`).
+  If you find yourself reaching for one, stop and ask for review first.
+
+### Steps
+
+1. Make sure you have an up-to-date `origin/main`:
+
+   ```bash
+   git fetch origin main
+   ```
+
+2. Identify the commits you actually want to keep, in oldest-first order
+   (the order you'll cherry-pick them in):
+
+   ```bash
+   git log <old-branch> --not origin/main --oneline --reverse
+   ```
+
+3. Create a new branch from `origin/main` and cherry-pick those commits
+   (replace each `<sha-N>` with a SHA from the previous step, oldest first):
+
+   ```bash
+   git switch -c <new-branch> origin/main
+   git cherry-pick <sha-1> <sha-2> <sha-3>
+   ```
+
+4. Verify the diff against `main` is exactly what you expect:
+
+   ```bash
+   git diff --name-status origin/main...HEAD
+   ```
+
+5. Publish the recovery branch and open or repoint the PR:
+
+   ```bash
+   git push -u origin <new-branch>
+   ```
+
+6. Keep the old branch around until the recovery PR is reviewed and
+   merged — only delete it once the new PR is in. This preserves an
+   escape hatch if a cherry-pick missed something.
+
+This runbook is the canonical recovery procedure for wrong-base or
+messy-history issue branches across all repos that consume `tooling`.
+
+---
+
 ## What Just Happened
 
 1. ✅ Fixed end-of-file issue in `.pre-commit-config.yaml`

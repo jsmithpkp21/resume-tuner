@@ -61,6 +61,13 @@ pytest -q tests/scripts/test_consumer_contract.py
 
 - Keep changes minimal and scoped; do not bundle unrelated refactors in the same PR.
 - Branch base policy: create new issue branches from `main` by default; if the issue is an epic child issue, create/rebase from the active `epic/*` branch instead.
+- Wrong-base or messy-history branch? Recover with the "Clean PR recovery" runbook in `docs/SETUP/GIT_STAGING_GUIDE.md` — create a fresh branch from `origin/main` and cherry-pick the intended commits (branch-safe, no destructive flags).
+- Diff-scope stop/check: inspect the file diff against the chosen base — `git diff --name-status origin/main...HEAD` for default issues, `git diff --name-status origin/epic/<x>...HEAD` for child issues based on an epic. If files appear that look unrelated to the current issue, stop. Do not amend, force-push, or "clean up" the branch — the most likely cause is a wrong base. Surface the unexpected diff to the user and follow the Clean PR recovery runbook in `docs/SETUP/GIT_STAGING_GUIDE.md`.
+- Post-branch verification: immediately after `make branch ISSUE=<num>` (or any branch creation), confirm the branch is correctly based against the chosen base (`origin/main` for default issues, `origin/epic/<x>` for child issues):
+  1. `git branch --show-current` — confirms the branch name.
+  2. `git log --oneline -5` — top entry should match the chosen base.
+  3. `git diff --name-status origin/main...HEAD` (or `origin/epic/<x>...HEAD` for child issues) — should be empty for a fresh branch; non-empty means the base is wrong.
+- PR creation timing: run `gh pr create` only after the first commit on the feature branch has been pushed. Issues and branches can be created upfront; PRs cannot. The exception is **epic branches** — epics may open the PR before any code lands because the first child issue carries the work and the epic PR functions as a long-running tracker.
 - Treat `pyproject.toml` as generated in consumers: update `.pyproject.meta.toml` and regenerate via `scripts/merge_pyproject.py`.
 - Preserve sync security invariants in `scripts/sync_tooling.sh` (path traversal checks, symlink protections, fail-closed behavior).
 - When changing managed-file scope: in the **tooling source repo**, update `.tooling-sync-manifest.toml`, related docs (e.g. `FILE_DISTRIBUTION.md`), and `tests/scripts/test_sync_tooling_regressions.py`; in **consumer repos**, run `make sync-tooling`, `make drift-check`, and `pytest -q tests/scripts/test_consumer_contract.py`.

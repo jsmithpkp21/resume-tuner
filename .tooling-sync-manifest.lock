@@ -4,7 +4,7 @@
       "sha256": "ac1ba68ad3d1e1cc5863378e67d61d911e82316163bc59a56de08d4ade3a99cb"
     },
     ".github/copilot-instructions.md": {
-      "sha256": "5ea1750a68467b6d2197a93169d807c56e2952d5dbcd7a38dbd81f894a9ff680"
+      "sha256": "87181442e026b8d83f5acbbb92ee14e419013d0c91427de2b8b9350c4dcfe7ba"
     },
     ".github/dev-tool-pin-lock.json": {
       "sha256": "ec73d4350dc8e786efeacea313382227194c602b457b469eb13bd359a618e1f0"
@@ -46,7 +46,7 @@
       "sha256": "685f55f5dc1993f49ea4b68d8b35ddda207def419bd980d3b0f549ec77cc887e"
     },
     "AGENTS.md": {
-      "sha256": "bdb5d3330f38fa3e157b3a89cb81cd783c933e2bf27f8da95c91ca334d6e536f"
+      "sha256": "0419f7a6894b3c6c4d4352d64e1af2152d69791db57351ddccf6d1e9decf4565"
     },
     "CLAUDE.md": {
       "sha256": "6a676ef88e9f075ae313d16e15d68d3359e958418535974399008654a1666548"
@@ -55,13 +55,13 @@
       "sha256": "a119ba8ab7e5440b248716040e80b22aa90e296a24b6bbbfc3a2ff24556cf51d"
     },
     "CONTRIBUTING.md": {
-      "sha256": "f9ddbbd374c2ed96a714f62a422d2945ca1c2d1ebcfe3ef0b5c185a29a821041"
+      "sha256": "f5e0e73f7ebb447cbdeacc5041742399f45f74492f4c4da3625e7dd6b490e6de"
     },
     "DOCKER.md": {
       "sha256": "01a8435cf330f4446c4674c47c3936146350b218cd6b136b58d025694336ace3"
     },
     "Dockerfile": {
-      "sha256": "8a7cad0caf4e61450f8749bf98d481a8621698935413924531b641bdf7366751"
+      "sha256": "05e4b1f86730a62487b37bcf35f05d1fc089df84959b55e2a5d5c1dba28383b5"
     },
     "FILE_DISTRIBUTION.md": {
       "sha256": "49f943ad265a2f742674a9dd121bd1b33d2157da8f0271aefb4a6a7353f15c23"
@@ -70,7 +70,7 @@
       "sha256": "90441f19e84cb77a9f4302d50dd3e9178011f8d1e2e20df43775838711589783"
     },
     "Makefile": {
-      "sha256": "af79acc9c1f9464ba5337ce62dde4f468bccedfb02883347af92597d87050312"
+      "sha256": "41cc93c2a41adece1a7908e9402b20e8b4737af17c3367debabf16fa9a651dd3"
     },
     "commitlint.config.mjs": {
       "sha256": "ae0ebfa1b37453c8e29eff7c5af0b8eec5dc73f373298288cf7d79692b76daea"
@@ -163,7 +163,7 @@
       "sha256": "3b935e7da2ddff7691a6906c11e61338a662377c1ec79901e830950c31c01883"
     },
     "docs/SETUP/GIT_STAGING_GUIDE.md": {
-      "sha256": "29768ba94d9083d1ff23f55ee0c66c00008f915e4ab41d681907b4f93485a064"
+      "sha256": "b083900c77a7f2081785b447996cf3f4424186a6089ac8833c84ef7eb6ff8859"
     },
     "docs/SETUP/NEW_PROJECT.md": {
       "sha256": "f34e34e36715e5b334edd8918ed596577536ea474217bbc4bc0c4c438b4e33e2"
@@ -193,7 +193,7 @@
       "sha256": "e20eae3f5cb3ed350e66ecb80c2e5690bb42ad8ceda1efcba24d497f4dfb045b"
     },
     "scripts/docker_build.sh": {
-      "sha256": "d7553f0877a2af98a94da0581d0eebdd86d748eb7007a2bb65ccb92b9da839b1"
+      "sha256": "eb2bea35f28fa4090a9bf88d6ceabeaaa7c60ab9961cab05f556df149d66ff0c"
     },
     "scripts/install_act.sh": {
       "sha256": "40608801ce6e289f98fe65b2714fc74be86c7296996b3ba580367d030ab6c4c9"
@@ -226,7 +226,7 @@
       "sha256": "be7e2ad0678d3821a38eb45b2b83c45652777632f556914632d27266b4b786ff"
     },
     "scripts/validate_agents_drift.py": {
-      "sha256": "d180275f00534d8912a6b6ea545a3efecff72c5fa66b1ee545dd8cb52fd6469d"
+      "sha256": "a499614c03abaac8cdd57a686874f1f03febd045c6361a20e6b127764d118be0"
     },
     "scripts/validate_commit_subject.sh": {
       "sha256": "d112fc2b0fbf93f3ba313625814dc0775d11fa07732f5591bb6c4c8ee224d147"
@@ -254,11 +254,14 @@
     },
     "tests/workflows/test_action_runtime_compatibility.py": {
       "sha256": "eac4b80328394dacc977662feaf2f59062fde36d33d5ab7976ffd9be407413f0"
+    },
+    "tests/workflows/test_release_please.py": {
+      "sha256": "428d00d9550fcd46deea5255bcce2ef96f23131ba58d0be5f148a476a0ce19d9"
     }
   },
-  "generated_at_utc": "2026-05-09T03:10:00Z",
-  "requested_ref": "v1.26.2",
-  "resolved_ref": "959b9caaabef43f1159a9410f41d0d33073137e9",
+  "generated_at_utc": "2026-05-09T23:37:17Z",
+  "requested_ref": "v1.28.3",
+  "resolved_ref": "cc825a06c6784debb661695c4cb8c89eb64b14e3",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

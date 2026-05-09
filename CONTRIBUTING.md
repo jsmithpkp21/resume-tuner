@@ -81,6 +81,29 @@ git checkout -b feature/your-feature-name
 - `refactor/` - Code refactoring
 - `test/` - Test improvements
 
+> **Wrong base or messy ancestry?** See
+> [Clean PR recovery: rebuild an issue branch from `main`](docs/SETUP/GIT_STAGING_GUIDE.md#clean-pr-recovery-rebuild-an-issue-branch-from-main)
+> for the canonical, branch-safe runbook (new branch from `origin/main`
+> + cherry-pick).
+
+> **Just made a branch?** Run a quick verification before you start working
+> so a wrong base is caught up front, not at PR review. Diff against your
+> *chosen* base — `origin/main` for default issues, `origin/epic/<x>` for
+> child issues based on an epic:
+>
+> ```bash
+> git branch --show-current
+> git log --oneline -5
+> # default issue (based on main):
+> git diff --name-status origin/main...HEAD          # should be empty
+> # child issue (based on an epic):
+> git diff --name-status origin/epic/<x>...HEAD      # should be empty
+> ```
+>
+> A non-empty diff against your chosen base on a brand-new branch means
+> the base is wrong — recover with the Clean PR recovery runbook above
+> before committing any work.
+
 ### 2. Make Changes
 
 Edit files, test locally, commit:

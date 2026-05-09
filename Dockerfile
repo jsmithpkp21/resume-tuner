@@ -8,6 +8,12 @@ ARG AWK_IMPL_PACKAGE=gawk
 # `--build-arg HOST_UID=$(id -u) --build-arg HOST_GID=$(id -g)` for other hosts.
 ARG HOST_UID=1000
 ARG HOST_GID=1000
+# Defense-in-depth (issue #353): refuse `HOST_UID=0` (root) by default.
+# `scripts/docker_build.sh` and the `update-docker` Makefile target already
+# enforce this, but a caller invoking `docker build` directly bypasses both.
+# Pass `--build-arg HOST_UID_ALLOW_ROOT=1` to opt in (e.g. CI image that
+# genuinely needs UID 0); matches the env-var escape hatch in docker_build.sh.
+ARG HOST_UID_ALLOW_ROOT=0
 
 FROM python:${PYTHON_VERSION}-slim
 
@@ -17,6 +23,7 @@ ARG PIP_VERSION
 ARG AWK_IMPL_PACKAGE
 ARG HOST_UID
 ARG HOST_GID
+ARG HOST_UID_ALLOW_ROOT
 
 # Set working directory
 WORKDIR /repo
@@ -76,13 +83,54 @@ RUN pip install -r requirements.txt -r requirements-dev.txt
 # we reuse it rather than failing the build. `USER` is set numerically so
 # the container runs as the requested UID:GID even when no `app` row was
 # added to /etc/passwd.
-RUN if ! getent group ${HOST_GID} >/dev/null 2>&1; then \
-      groupadd --gid ${HOST_GID} app; \
+# Defense-in-depth (issue #349): validate HOST_UID/HOST_GID are numeric
+# before any shell consumer uses them, and quote every expansion below.
+# `scripts/docker_build.sh` and the `update-docker` make target already
+# enforce `^[0-9]+$`, but a caller invoking `docker build` directly
+# bypasses both. Docker ARG substitution is *textual* — at parse time
+# Docker replaces `${HOST_UID}` with the literal build-arg value inside
+# the RUN string, then hands the result to `/bin/sh -c`. So an unquoted
+# expansion of an attacker-supplied value is parsed by the shell from
+# scratch, with two failure modes:
+#   * word-splitting / globbing — e.g. `1000 --shell /bin/sh` injects
+#     extra arguments to groupadd/useradd/chown;
+#   * shell metacharacter injection — e.g. `1000; rm -rf /` ends the
+#     current command and starts a new one, because `;` is a control
+#     operator when shell parses the substituted text.
+# The numeric `case` guards short-circuit both: if either build arg
+# fails the `*[!0-9]*` check the build aborts before any consumer runs.
+#
+# Defense-in-depth (issue #353): after the numeric check passes, also
+# refuse `HOST_UID=0` unless `HOST_UID_ALLOW_ROOT=1` is set. `0` passes
+# the numeric guard above but baking root into the image defeats the
+# non-root-user goal from issue #322; this mirrors the gate in
+# `scripts/docker_build.sh` and the `update-docker` Makefile target so
+# all three entry paths enforce the same policy.
+#
+# An all-zeros `case` (rather than `[ "${HOST_UID}" -eq 0 ]`) catches
+# the same bypass set — `0`, `00`, `000`, … — that `getent`/`useradd`/
+# Docker `USER` resolve to UID 0, while sidestepping `[ -eq ]`'s
+# base-detection edge cases: `08` errors in some shells (invalid octal),
+# and bash's `[ -eq ]` auto-detects `0xN` as hex. The numeric `case`
+# guard above already restricts the operand to pure digits, so the only
+# remaining question is whether those digits represent zero or non-zero
+# — a literal-character `case` answers it without invoking arithmetic.
+RUN case "${HOST_UID}" in ''|*[!0-9]*) echo "HOST_UID must be numeric, got: ${HOST_UID}" >&2; exit 1;; esac \
+ && case "${HOST_GID}" in ''|*[!0-9]*) echo "HOST_GID must be numeric, got: ${HOST_GID}" >&2; exit 1;; esac \
+ && case "${HOST_UID}" in \
+      *[!0]*) ;; \
+      *) if [ "${HOST_UID_ALLOW_ROOT}" != "1" ]; then \
+           echo "HOST_UID=0 (root) refused; pass --build-arg HOST_UID_ALLOW_ROOT=1 to opt in" >&2; \
+           exit 1; \
+         fi ;; \
+    esac \
+ && if ! getent group "${HOST_GID}" >/dev/null 2>&1; then \
+      groupadd --gid "${HOST_GID}" app; \
     fi \
- && if ! getent passwd ${HOST_UID} >/dev/null 2>&1; then \
-      useradd --uid ${HOST_UID} --gid ${HOST_GID} --create-home --shell /bin/bash app; \
+ && if ! getent passwd "${HOST_UID}" >/dev/null 2>&1; then \
+      useradd --uid "${HOST_UID}" --gid "${HOST_GID}" --create-home --shell /bin/bash app; \
     fi \
- && chown -R ${HOST_UID}:${HOST_GID} /opt/venv
+ && chown -R "${HOST_UID}:${HOST_GID}" /opt/venv
 
 # Copy repository files. Invalidates on any code change but the
 # user-creation + venv-chown layer above is already cached.
@@ -95,7 +143,7 @@ COPY . .
 # recursing through the workspace snapshot would balloon this layer
 # for no runtime benefit.
 RUN chmod +x scripts/*.sh \
- && chown ${HOST_UID}:${HOST_GID} /repo
+ && chown "${HOST_UID}:${HOST_GID}" /repo
 
 USER ${HOST_UID}:${HOST_GID}
 

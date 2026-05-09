@@ -10,6 +10,12 @@ Docker containers provide a fully reproducible, isolated environment with all de
 > track**: opt in here when you want a fully containerized substrate end-to-end
 > rather than the per-tool fallback path.
 
+> **Compose CLI form:** Examples in this doc use `make docker-*` targets where
+> available; raw invocations use `docker compose` (the v2 plugin form). The
+> legacy `docker-compose` (v1) binary is not required and may not be installed
+> on newer hosts. References to the file `docker-compose.yml` are unchanged —
+> this convention is about the CLI, not the file.
+
 ---
 
 ## Quick Start with Docker
@@ -20,7 +26,7 @@ Docker containers provide a fully reproducible, isolated environment with all de
 # Build and start the container (deterministic build args from setup files)
 bash scripts/docker_build.sh
 
-docker-compose up
+make docker-up
 
 # You'll be inside a bash shell in the container with the venv activated
 $ python --version
@@ -61,10 +67,8 @@ by overriding `DOCKER_SERVICE`:
 make test-docker DOCKER_SERVICE=<service-name>
 ```
 
-User-facing `docker-compose` examples in this doc use the literal `base_env`
-name since shell snippets cannot interpolate Make variables. (`docker compose`
-without the hyphen is the equivalent v2+ form; both work against the same
-`docker-compose.yml`.)
+Raw `docker compose` examples in this doc use the literal `base_env` name
+since shell snippets cannot interpolate Make variables.
 
 ---
 
@@ -94,7 +98,7 @@ source ~/envs/"${REPO_NAME}"-env/bin/activate
 
 **With Docker:**
 ```bash
-docker-compose up --build  # Everything is pre-configured
+make update-docker  # Everything is pre-configured (rebuilds + starts in background)
 ```
 
 ---
@@ -115,10 +119,10 @@ This script:
 - Passes them to `docker build` with `--build-arg`
 - Ensures build matches the repository configuration exactly
 
-### Option 2: Using docker-compose with .env file
+### Option 2: Using docker compose with .env file
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 This approach uses the `.env` file which contains:
@@ -208,23 +212,23 @@ New runs will write these as the host user automatically.
 ### Running Tests
 
 ```bash
-# Inside the container
-docker-compose exec base_env make test
-docker-compose exec base_env make lint
-docker-compose exec base_env make lint-fix    # Auto-fix linting issues
-docker-compose exec base_env make typecheck   # Type checking only
-docker-compose exec base_env make verify
+# Use the make wrappers — they auto-start the container if needed
+make test-docker
+make lint-docker
+make lint-fix-docker        # Auto-fix linting issues
+make typecheck-docker       # Type checking only
+make check-docker           # Full lint + typecheck + test
 ```
 
 ### Development with Hot Reload
 
 ```bash
-# Start container in background
-docker-compose up -d
+# Start container in background (idempotent)
+make docker-up
 
 # Edit files on your host machine
 # Changes are immediately available in the container
-docker-compose exec base_env bash
+make docker-shell
 
 # Inside container:
 $ make test
@@ -235,9 +239,9 @@ $ scripts/verify_env.sh
 
 ```bash
 # Run a single command without entering bash
-docker-compose run --rm base_env make test
-docker-compose run --rm base_env pytest tests/
-docker-compose run --rm base_env python scripts/prepare_playwright_layer.py
+docker compose run --rm base_env make test
+docker compose run --rm base_env pytest tests/
+docker compose run --rm base_env python scripts/prepare_playwright_layer.py
 ```
 
 ### Cleanup
@@ -246,8 +250,7 @@ docker-compose run --rm base_env python scripts/prepare_playwright_layer.py
 # Stop and remove containers (preferred; symmetric with `make docker-up`)
 make docker-down
 
-# Or directly (`docker compose` is the v2 plugin form; `docker-compose`
-# is the legacy v1 binary and may not be installed on newer hosts):
+# Or invoke compose directly:
 docker compose down
 
 # Remove all volumes (venv cache)
@@ -405,8 +408,8 @@ volumes:
 ```
 
 **Key Points:**
-- `docker-compose up`/`build` works directly: Compose auto-loads `.env` from the repo root, which provides `PYTHON_VERSION` and `PIP_VERSION` build args. No shell-level setup required.
-- `scripts/load_build_env.sh` exports the same variables in your current shell from `tooling.toml`. It is needed only by `scripts/docker_build.sh` (the docker-CLI fallback path), not by `docker-compose`.
+- `docker compose up`/`build` works directly: Compose auto-loads `.env` from the repo root, which provides `PYTHON_VERSION` and `PIP_VERSION` build args. No shell-level setup required.
+- `scripts/load_build_env.sh` exports the same variables in your current shell from `tooling.toml`. It is needed only by `scripts/docker_build.sh` (the docker-CLI fallback path), not by `docker compose`.
 - For deterministic builds outside Compose, use `bash scripts/docker_build.sh` (which sources `load_build_env.sh` internally).
 - `.env` and `tooling.toml` are kept in sync by `scripts/validate_env_file.py` (run via `make env-file-check` and the pre-commit hook); use `make env-file-fix` to update `.env` after bumping versions in `tooling.toml`.
 - Venv is **automatically activated** on startup (via command override)
@@ -448,10 +451,10 @@ make test
 bash scripts/docker_build.sh
 
 # 2. Use environment
-docker-compose up
+make docker-up
 
 # 3. Run tests
-docker-compose exec base_env make test
+make test-docker
 ```
 
 ---
@@ -481,7 +484,7 @@ docker-compose exec base_env make test
 docker ps
 
 # View build logs
-docker-compose up --build --no-cache
+docker compose up --build --no-cache
 ```
 
 ### Slow first build

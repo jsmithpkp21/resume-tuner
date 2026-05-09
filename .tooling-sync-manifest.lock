@@ -58,7 +58,7 @@
       "sha256": "f9ddbbd374c2ed96a714f62a422d2945ca1c2d1ebcfe3ef0b5c185a29a821041"
     },
     "DOCKER.md": {
-      "sha256": "601bb42a565b83cc6d03d3c1ac3e8e0dc9c67114a1c76ebf2291210186ef183b"
+      "sha256": "01a8435cf330f4446c4674c47c3936146350b218cd6b136b58d025694336ace3"
     },
     "Dockerfile": {
       "sha256": "8a7cad0caf4e61450f8749bf98d481a8621698935413924531b641bdf7366751"
@@ -256,9 +256,9 @@
       "sha256": "eac4b80328394dacc977662feaf2f59062fde36d33d5ab7976ffd9be407413f0"
     }
   },
-  "generated_at_utc": "2026-05-09T01:53:07Z",
-  "requested_ref": "v1.26.1",
-  "resolved_ref": "e2b3c1303796997d0f0b17ccb021cc06047fe7aa",
+  "generated_at_utc": "2026-05-09T03:10:00Z",
+  "requested_ref": "v1.26.2",
+  "resolved_ref": "959b9caaabef43f1159a9410f41d0d33073137e9",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

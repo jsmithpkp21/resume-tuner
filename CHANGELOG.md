@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.5](https://github.com/jsmithpkp21/resume-builder/compare/v0.43.4...v0.43.5) (2026-05-09)
+
+
+### Bug Fixes
+
+* **jd-ingest:** extract schema.org/JobPosting JSON-LD when available (closes [#293](https://github.com/jsmithpkp21/resume-builder/issues/293), item 2) ([2354e08](https://github.com/jsmithpkp21/resume-builder/commit/2354e08390431e5479fee1e46025467661dfe9c7))
+
 ## [0.43.4](https://github.com/jsmithpkp21/resume-builder/compare/v0.43.3...v0.43.4) (2026-05-09)
 
 

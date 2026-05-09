@@ -7529,6 +7529,57 @@ def test_apply_experience_compression_skips_bulletless_experiences() -> None:
     assert by_id["exp-empty"].compression == "full"
 
 
+def test_apply_experience_compression_top_n_boundary_against_visible_roles() -> None:
+    """top-N's boundary is computed against the full visible-roles list, not
+    the bullet-bearing-filtered list. A bullet-less role in the first N
+    positions still consumes one of the top-N slots — issue #299.
+
+    Setup: 4 visible experiences where the first is bullet-less and the
+    other three carry bullets. Under `top-2`:
+    - exp-1 (bullet-less, in top-2) stays full (can't compress anyway, but
+      it's also one of the kept top-2 visible roles).
+    - exp-2 (bullet-bearing, in top-2) stays full (kept).
+    - exp-3 and exp-4 are beyond top-2 and have bullets → both compress
+      (the 50% cap on 4 visible experiences allows up to 2).
+
+    Pre-fix behavior would have skewed the slice by one bullet-less role
+    in the prefix and only compressed exp-4.
+    """
+    bulletless = build_resume.Experience(
+        id="exp-1",
+        job_title="Junior Tester",
+        company="OldCo",
+        start_date="2024-01",
+        end_date="2024-06",
+        general_role_description="Brief stint.",
+        related_skills=("Python",),
+        bullets=(),
+    )
+    base = _resume_with_n_experiences(3)
+    # _resume_with_n_experiences gives exp-1..exp-3 by default; rename them
+    # to slot the bullet-less first while preserving stable ordering.
+    renamed = []
+    for offset, exp in enumerate(base.experiences):
+        renamed_exp = dataclasses.replace(exp, id=f"exp-{offset + 2}")
+        renamed_bullets = tuple(
+            dataclasses.replace(b, id=f"b-{offset + 2}-{bidx}")
+            for bidx, b in enumerate(exp.bullets, start=1)
+        )
+        renamed.append(dataclasses.replace(renamed_exp, bullets=renamed_bullets))
+    resume = dataclasses.replace(base, experiences=(bulletless,) + tuple(renamed))
+
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("top-2"), resume, fit_assessment=None
+    )
+    by_id = {exp.id: exp.compression for exp in result.experiences}
+    assert by_id == {
+        "exp-1": "full",  # bullet-less, in top-2
+        "exp-2": "full",  # bullet-bearing, in top-2
+        "exp-3": "compressed",  # beyond top-2, bullet-bearing
+        "exp-4": "compressed",  # beyond top-2, bullet-bearing
+    }
+
+
 def test_compute_bullet_line_budget_credits_empty_role_summary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

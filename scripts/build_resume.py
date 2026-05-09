@@ -2381,13 +2381,20 @@ def apply_experience_compression(
     # rendered roles, not just bullet-bearing ones (PR #278 review).
     indexed = [(idx, exp) for idx, exp in enumerate(in_window) if exp.bullets]
     if top_n is not None:
-        # _prepare_display_experiences already orders by relevance descending,
-        # so the bottom of the beyond-N slice is the lowest-ranked. Reverse
-        # the slice so when the 50% cap applies we keep the *worst* of the
-        # demoted group compressed (PR #278 review). Without this we were
-        # compressing the top of the beyond-N group, leaving the truly
-        # weakest matches uncompressed.
-        candidates = list(reversed(indexed[top_n:]))
+        # top-N's boundary is computed against the full visible-roles list
+        # (in_window), then filtered to bullet-bearing candidates. A bullet-
+        # less role inside the first N positions still takes one of those
+        # slots — matches the spec's "top N visible roles" reading. Without
+        # this, slicing the bullet-bearing-filtered list directly skewed the
+        # boundary by 1 per bullet-less role in the prefix (issue #299).
+        # _prepare_display_experiences orders descending by relevance, so the
+        # bottom of the beyond-N slice is the lowest-ranked. Reverse so when
+        # the 50% cap applies we keep the *worst* of the demoted group
+        # compressed (PR #278 review).
+        beyond_n = list(enumerate(in_window))[top_n:]
+        candidates = list(
+            reversed([(idx, exp) for idx, exp in beyond_n if exp.bullets])
+        )
     elif fit_assessment is None:
         # Deterministic fallback: lowest-ranked first.
         candidates = list(reversed(indexed))

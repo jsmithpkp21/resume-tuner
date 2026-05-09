@@ -7459,6 +7459,93 @@ def test_apply_experience_compression_no_context_resets_pre_existing_compressed(
     assert all(exp.compression == "full" for exp in result.experiences)
 
 
+def test_apply_experience_compression_auto_resets_stale_compression_when_nothing_to_compress() -> (
+    None
+):
+    """auto-mode that decides nothing should compress (because layout fits)
+    must still reset any pre-existing 'compressed' markers — without the
+    reset, stale markers from a prior pass would silently survive
+    (PR #278 review)."""
+    # Tiny resume; layout-fit budget will easily accommodate it.
+    base = _resume_with_n_experiences(2)
+    pre_marked = dataclasses.replace(
+        base,
+        experiences=tuple(
+            dataclasses.replace(exp, compression="compressed")
+            for exp in base.experiences
+        ),
+    )
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("auto"), pre_marked, fit_assessment=None
+    )
+    assert all(exp.compression == "full" for exp in result.experiences)
+
+
+def test_apply_experience_compression_top_n_resets_stale_when_cap_floor_zero() -> None:
+    """top-N early return (max_compressible == 0 because of floor on small
+    inputs) must still reset stale compression markers (PR #278 review)."""
+    base = _resume_with_n_experiences(1)  # 50% of 1 = 0 → cap floors to 0
+    pre_marked = dataclasses.replace(
+        base,
+        experiences=(
+            dataclasses.replace(base.experiences[0], compression="compressed"),
+        ),
+    )
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("top-0"),  # bypass CLI validator
+        pre_marked,
+        fit_assessment=None,
+    )
+    assert all(exp.compression == "full" for exp in result.experiences)
+
+
+def test_fit_assessment_will_be_consumed_off_and_all_returns_false() -> None:
+    """No consumer when fit-narrative is off AND experience-mode is all —
+    pipeline can skip the LLM round-trip entirely (PR #278 review)."""
+    args = argparse.Namespace(
+        fit_narrative="off", experience_mode="all", cover_letter=False
+    )
+    assert build_resume._fit_assessment_will_be_consumed(args) is False
+
+
+def test_fit_assessment_will_be_consumed_on_with_all_still_returns_true() -> None:
+    """fit-narrative on always wants the assessment, even if experience-mode
+    is all (the narrative augmentation is still in play)."""
+    args = argparse.Namespace(
+        fit_narrative="on", experience_mode="all", cover_letter=False
+    )
+    assert build_resume._fit_assessment_will_be_consumed(args) is True
+
+
+def test_fit_assessment_will_be_consumed_auto_experience_mode_returns_true() -> None:
+    """experience-mode auto reads per_experience_scores even when
+    fit-narrative is off."""
+    args = argparse.Namespace(
+        fit_narrative="off", experience_mode="auto", cover_letter=False
+    )
+    assert build_resume._fit_assessment_will_be_consumed(args) is True
+
+
+def test_fit_assessment_will_be_consumed_auto_with_cover_letter_and_all_returns_false() -> (
+    None
+):
+    """Auto-mode narrative defers to off when cover-letter is on; combined
+    with experience-mode all, no consumer remains."""
+    args = argparse.Namespace(
+        fit_narrative="auto", experience_mode="all", cover_letter=True
+    )
+    assert build_resume._fit_assessment_will_be_consumed(args) is False
+
+
+def test_fit_assessment_will_be_consumed_top_n_alone_returns_false() -> None:
+    """top-N orders by recency, not fit_score, so it doesn't consume the
+    assessment. With fit-narrative off, no consumer remains."""
+    args = argparse.Namespace(
+        fit_narrative="off", experience_mode="top-3", cover_letter=False
+    )
+    assert build_resume._fit_assessment_will_be_consumed(args) is False
+
+
 def test_baseline_resume_for_fit_assessment_drops_out_of_window_experiences() -> None:
     """The fit_assessment baseline filter must drop experiences older than
     EXPERIENCE_DISPLAY_RECENCY_YEARS so the LLM doesn't score roles the

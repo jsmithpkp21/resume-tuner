@@ -2161,6 +2161,43 @@ def summarize_profile_for_role(
 _FIT_ASSESSMENT_NOT_PROVIDED: object = object()
 
 
+def _fit_assessment_will_be_consumed(args: argparse.Namespace) -> bool:
+    """Return True when at least one downstream stage will read fit_assessment.
+
+    Used by ``run_pipeline`` to skip the LLM round-trip entirely when no
+    consumer can use the result (PR #278 review). Consumers:
+
+    - ``_resolve_fit_narrative`` reads it whenever fit-narrative mode is
+      not ``off`` and ``--cover-letter`` isn't suppressing auto-mode.
+    - ``apply_experience_compression`` reads ``per_experience_scores`` only
+      in ``auto`` mode (``top-N`` uses recency ordering, ``all`` is a no-op).
+
+    The check is intentionally conservative: when in doubt we still compute
+    so other LLM-stage gates can short-circuit cheaply.
+    """
+    fit_mode = str(getattr(args, "fit_narrative", "auto") or "auto").strip().lower()
+    if fit_mode not in _FIT_NARRATIVE_MODES:
+        fit_mode = "auto"
+    cover_letter_enabled = bool(getattr(args, "cover_letter", False))
+    narrative_will_consume = fit_mode == "on" or (
+        fit_mode == "auto" and not cover_letter_enabled
+    )
+
+    exp_mode = (
+        str(
+            getattr(args, "experience_mode", _EXPERIENCE_MODE_AUTO)
+            or _EXPERIENCE_MODE_AUTO
+        )
+        .strip()
+        .lower()
+    )
+    # auto-mode is the only experience-mode that reads per_experience_scores;
+    # top-N orders by existing recency and all is a no-op.
+    compression_will_consume = exp_mode == _EXPERIENCE_MODE_AUTO
+
+    return narrative_will_consume or compression_will_consume
+
+
 def _resolve_fit_narrative(
     args: argparse.Namespace,
     resume: ResumeIR,
@@ -2292,19 +2329,22 @@ def apply_experience_compression(
         )
         mode = _EXPERIENCE_MODE_AUTO
 
+    # Always start from a clean "full" baseline so stale compression markers
+    # from a prior pass / programmatic caller don't leak through. Without
+    # this reset, an auto/top-N run that decides nothing should compress
+    # would silently keep pre-existing "compressed" markers (PR #278 review).
+    resume = _force_all_full(resume)
+
     if not _has_substantive_jd_context(resume):
         # No JD signal -> safe default is full mode regardless of flag.
-        # Reset any pre-existing compression so multi-pass / programmatic
-        # callers don't see stale "compressed" markers.
         logger.info(
             "apply_experience_compression: no-context fallback forces 'all' mode"
         )
-        return _force_all_full(resume)
+        return resume
 
     if mode == _EXPERIENCE_MODE_ALL:
-        # Same reset for all-mode: the contract is "every experience full",
-        # which must override anything an earlier pass set.
-        return _force_all_full(resume)
+        # all-mode contract is "every experience full" — reset already happened.
+        return resume
 
     in_window = list(resume.experiences)
     if not in_window:
@@ -4673,7 +4713,21 @@ def run_pipeline(args: argparse.Namespace) -> int:
         # cache makes most repeat calls cheap, but exception paths return
         # None and would re-issue a full LLM request on the second lookup).
         fit_baseline = _baseline_resume_for_fit_assessment(baseline_resume)
-        fit_assessment = compute_fit_assessment(fit_baseline)
+        # Skip the LLM round-trip entirely when no consumer downstream will
+        # read the result (e.g. --fit-narrative off + --experience-mode all,
+        # or --fit-narrative auto + --cover-letter + --experience-mode all).
+        # PR #278 review: avoids latency/cost when neither stage uses scores.
+        if _fit_assessment_will_be_consumed(args):
+            fit_assessment = compute_fit_assessment(fit_baseline)
+        else:
+            logger.info(
+                "fit_assessment skipped: no downstream consumer "
+                "(--fit-narrative=%s, --experience-mode=%s, --cover-letter=%s)",
+                getattr(args, "fit_narrative", "auto"),
+                getattr(args, "experience_mode", _EXPERIENCE_MODE_AUTO),
+                bool(getattr(args, "cover_letter", False)),
+            )
+            fit_assessment = None
         fit_for_summary = _resolve_fit_narrative(
             args, fit_baseline, fit_assessment=fit_assessment
         )

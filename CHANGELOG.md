@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.43.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.43.2...v0.43.3) (2026-05-09)
+
+
+### Bug Fixes
+
+* **build-resume:** log actual post-trim wrap count + tighten test invariant (PR [#287](https://github.com/jsmithpkp21/resume-builder/issues/287) review-3) ([54dd254](https://github.com/jsmithpkp21/resume-builder/commit/54dd254516ba34b91fd715e4d92a2195f38f78d5))
+* **build-resume:** normalize summary punctuation before wrap-line check (PR [#287](https://github.com/jsmithpkp21/resume-builder/issues/287) review-1) ([d07ae55](https://github.com/jsmithpkp21/resume-builder/commit/d07ae552fe582d48569130e6ceb02128b01988d9))
+* **build-resume:** trim LLM summary to fit layout instead of rejecting (closes [#282](https://github.com/jsmithpkp21/resume-builder/issues/282)) ([ffb9676](https://github.com/jsmithpkp21/resume-builder/commit/ffb9676e41a2184f6a72b46d1320c94a9aa5e819))
+
+
+### Documentation
+
+* **build-resume:** replace transient PR refs with durable issue context (PR [#287](https://github.com/jsmithpkp21/resume-builder/issues/287) review-4) ([d18e118](https://github.com/jsmithpkp21/resume-builder/commit/d18e11807953c4397a6f6dcae7b7bedad6861ce1))
+
 ## [0.43.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.43.1...v0.43.2) (2026-05-09)
 
 

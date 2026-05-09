@@ -1370,8 +1370,19 @@ def test_build_body_system_prompt_appends_addendum_for_stretch() -> None:
     augmented = build_cover_letter._build_body_system_prompt(stretch=True)
     assert "HARD RULES" in augmented
     assert "STRETCH-FIT" in augmented
-    # Bridging instruction: one sentence connecting both CONTEXTS.
+    # Imperative phrasing: v12 sweep showed llama 8b dropped the bridging
+    # clause when the addendum was purely structural ("Include exactly one
+    # bridging sentence …") — the imperative restored ("Acknowledge the
+    # transition explicitly. … MUST contain exactly one bridging sentence
+    # …") recovers compliance.
+    assert "Acknowledge the transition explicitly" in augmented
     assert "exactly one bridging sentence" in augmented
+    # Persistence: rule 7 must still hold AFTER the bridging clause —
+    # gemma 9b and qwen 14b in v12 both honored the bridge sentence and
+    # then slipped "leverage my skills in Spring Boot" into a later
+    # paragraph. The addendum needs to call out the post-bridge violation
+    # explicitly.
+    assert "later in the letter" in augmented
     # De-anchored from generic "backend" targets — v10 finding: llama 8b
     # defaulted every stretch bridge to "backend service development"
     # because the v1 template's example anchored that phrase.

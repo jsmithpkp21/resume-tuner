@@ -521,7 +521,9 @@ HARD RULES — violating any of these is a failure:
 4. Write in first person, professional, direct. No "As an AI", no "large language model", no "I cannot", no "I'm sorry".
 5. Stay near `word_budget` words across all paragraphs combined (soft hint; quality matters more than exact count, but do not exceed the budget by more than 15%).
 6. If the candidate's `headline` reflects a lower level than the `target_role` (e.g., Senior Staff vs. Senior Principal), include exactly one sentence in the opening or first body paragraph framing the transition by scope/breadth/years. If headlines align, omit any gap framing entirely.
-7. NO JD-VOCABULARY MIRRORING. Do not claim experience with a technology named in the JD unless that technology appears verbatim or as a near-paraphrase in `experiences`, `selected_achievements`, or `independent_projects`. "Expertise in X" / "experience with X" / "extensive X experience" all require resume-side evidence. Transferable-principle phrases ("the X principles I've applied to Y translate to…") are allowed when X is a skill the candidate actually has.
+7. NO JD-VOCABULARY MIRRORING. Do not claim experience with a technology named in the JD unless that technology appears verbatim or as a near-paraphrase in `experiences`, `selected_achievements`, or `independent_projects`. "Expertise in X" / "experience with X" / "skills in X" / "leverage my X" / "extensive X experience" all require resume-side evidence. Transferable-principle phrases ("the X principles I've applied to Y translate to…") are allowed when X is a skill the candidate actually has.
+   BAD (resume does not show Spring Boot): "I am eager to leverage my skills in Java, Spring Boot, and microservices architecture."
+   GOOD: "The framework-architecture principles I've applied to a hardware-agnostic test platform translate to backend service development."
 
 OUTPUT — strict JSON only, exactly these three keys, no extra keys, no prose around it:
 {
@@ -542,9 +544,9 @@ Do NOT echo input fields like `word_budget` in the output. Aim for 1–3 body pa
 _BODY_SYSTEM_PROMPT_STRETCH_ADDENDUM = """
 STRETCH-FIT — `fit_assessment_rationale` names the candidate's CONTEXT and the JD's CONTEXT explicitly; use those names, do not invent a generic target like "backend development":
 
-8. Include exactly one bridging sentence in the opening or first body paragraph naming the candidate's CONTEXT and connecting it to the JD's CONTEXT. Shape (substitute; do not copy placeholders):
+8. Acknowledge the transition explicitly. The opening or first body paragraph MUST contain exactly one bridging sentence that names the candidate's CONTEXT and connects it to the JD's CONTEXT. Shape (substitute; do not copy placeholders):
    "While my background has been primarily in <candidate CONTEXT>, the <transferable principle the candidate demonstrates> I've applied to <concrete experience from `experiences`> translates directly to <JD CONTEXT>."
-9. Rule 7 still applies: frame JD-only technologies as transferable principles, never as direct experience.
+9. Rule 7 still applies. Frame JD-only technologies as transferable principles, never as direct experience — including in any sentence AFTER the bridging sentence. Do not slip in "leverage my skills in <JD-only tech>" or "experience with <JD-only tech>" later in the letter.
 10. Tone: neutral and forward-looking, not apologetic.
 """
 

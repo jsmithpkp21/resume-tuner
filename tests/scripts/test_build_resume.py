@@ -6669,9 +6669,19 @@ def test_compute_fit_assessment_prompt_calibrates_for_context_mismatch(
     assert "RUBRIC" in prompt
     # Skill-vs-context distinction is explicit.
     assert "SKILLS overlap" in prompt or "SKILLS" in prompt
-    # ICL examples cover the canonical stretch directions called out in
-    # issue #303 (SDET → Backend Dev and the reverse).
+    # Anti-hallucination guardrail must be explicit so smaller models stop
+    # crediting the candidate with JD-named skills the resume doesn't show
+    # (v10 calibration finding — gemma 9b false-positive on Spring Boot).
+    assert "ANTI-HALLUCINATION" in prompt
+    assert "verbatim" in prompt or "near-paraphrase" in prompt
+    # Rationale shape requirement so cover-letter bridging has concrete
+    # CONTEXT names to ground its template.
+    assert "RATIONALE SHAPE" in prompt
+    # ICL examples cover BOTH stretch directions AND a matched-context
+    # positive anchor — without the positive anchor, calibration leans
+    # too heavily into stretch (v10 finding on BECU).
     assert "EXAMPLES" in prompt
+    assert "matched context" in prompt
     assert "SDET" in prompt
     assert "Backend Dev" in prompt
 

@@ -2517,10 +2517,16 @@ def _coerce_fit_score(raw: object) -> float | None:
 # said "consider experience depth, domain match, and seniority signals
 # together"; the v9 multi-JD run produced 0/12 stretch classifications even
 # when the candidate's primary work CONTEXT (test automation) didn't match
-# the JD's CONTEXT (production backend dev). The rubric below makes the
-# context check explicit and grounds it in 3 ICL examples drawn from real
-# stretch cases. The JSON output schema is unchanged so #271 / #272
-# consumers don't need code changes.
+# the JD's CONTEXT (production backend dev). The v10 calibration sweep
+# showed two failure modes the v1 prompt didn't catch: (a) smaller models
+# pattern-match JD vocabulary into the rationale and credit the candidate
+# with skills they have not actually applied; (b) the rationale string was
+# vague enough that downstream cover-letter bridging defaulted to generic
+# targets. The rubric below makes the context check explicit, blocks
+# JD-vocabulary hallucination, anchors with both stretch AND matched-fit
+# ICL examples, and requires the rationale to name both contexts so
+# bridging consumers can ground their language. JSON output schema is
+# unchanged so #271 / #272 consumers don't need code changes.
 _FIT_ASSESSMENT_SYSTEM_PROMPT = (
     "You assess how well a candidate's experience fits a job description. "
     "Score fit on a 0-100 scale where 100 means strongest possible fit and "
@@ -2529,7 +2535,7 @@ _FIT_ASSESSMENT_SYSTEM_PROMPT = (
     "RUBRIC:\n"
     "1. Identify the JD's primary work CONTEXT (e.g. production backend "
     "development, test automation / SDET, data engineering, frontend dev, "
-    "ML engineering, infrastructure / SRE).\n"
+    "ML engineering, infrastructure / SRE, performance engineering).\n"
     "2. Identify the candidate's primary work CONTEXT from `recent_experiences` "
     "(job_title, general_role_description, and bullets) — NOT from skill "
     "vocabulary alone.\n"
@@ -2537,12 +2543,32 @@ _FIT_ASSESSMENT_SYSTEM_PROMPT = (
     "individual SKILLS overlap. Shared technology vocabulary (e.g. Java, "
     "Python, Spring Boot) does NOT bridge a context gap on its own; the "
     "candidate must have applied those skills in the JD's context.\n"
-    "4. Consider experience depth and seniority alongside context. Use the "
+    "4. ANTI-HALLUCINATION: A skill or technology only counts toward fit when "
+    "it appears verbatim or as a near-paraphrase in `recent_experiences`. "
+    "The JD mentioning a technology is NOT evidence the candidate has used "
+    "it — only the candidate's experience entries supply that evidence. "
+    "Do NOT credit the candidate with skills the JD names but the resume "
+    'does not show. Do NOT cite JD technologies (e.g. "Strong experience '
+    "in Spring Boot\") in the rationale unless the candidate's bullets "
+    "actually mention applying them.\n"
+    "5. Consider experience depth and seniority alongside context. Use the "
     "input's candidate_current_level as additional seniority context when "
     "non-empty; otherwise judge purely from experience content. Do NOT "
     "weight job titles alone.\n"
     "\n"
+    "RATIONALE SHAPE: In `overall_rationale`, name (a) the candidate's "
+    "primary work CONTEXT and (b) the JD's primary work CONTEXT explicitly, "
+    "in that order. Downstream consumers ground bridging language in those "
+    "names; vague rationales force them to invent a target. Example shape: "
+    '"Candidate primary context: test automation / SDET; JD primary '
+    "context: production backend development — shared Java vocabulary does "
+    'not close the gap."\n'
+    "\n"
     "EXAMPLES (illustrative; apply the rubric to the actual input):\n"
+    "- SDET / test-automation engineer applying to another SDET / Test "
+    "Framework role: matched context (candidate's primary work is test "
+    "automation; JD primary work is test automation). Expected "
+    "overall_fit_score band: 70-90.\n"
     "- SDET / test-automation engineer applying to a Backend Dev role: "
     "stretch even with shared Java / Spring Boot vocabulary, because the "
     "candidate's daily work is test framework architecture, not production "

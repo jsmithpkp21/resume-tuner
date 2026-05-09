@@ -521,6 +521,7 @@ HARD RULES — violating any of these is a failure:
 4. Write in first person, professional, direct. No "As an AI", no "large language model", no "I cannot", no "I'm sorry".
 5. Stay near `word_budget` words across all paragraphs combined (soft hint; quality matters more than exact count, but do not exceed the budget by more than 15%).
 6. If the candidate's `headline` reflects a lower level than the `target_role` (e.g., Senior Staff vs. Senior Principal), include exactly one sentence in the opening or first body paragraph framing the transition by scope/breadth/years. If headlines align, omit any gap framing entirely.
+7. NO JD-VOCABULARY MIRRORING. Do not assert direct experience with a technology, framework, or domain that is named in `target_role`, `job_description`, or `company_research` unless that exact technology appears verbatim or as a near-paraphrase in `experiences`, `selected_achievements`, or `independent_projects`. Phrases like "expertise in <X>", "experience with <X>", or "extensive <X> experience" are direct-experience claims and require resume-side evidence. Transferable-principle phrases ("the <X> principles I've applied to <Y> translate to...") that name a transferable skill the candidate actually has are allowed; vocabulary-borrowing the candidate has not earned is not.
 
 OUTPUT — strict JSON only, no prose around it:
 {
@@ -540,10 +541,11 @@ Aim for 1–3 body paragraphs. Keep paragraphs tight (3–5 sentences each).
 _BODY_SYSTEM_PROMPT_STRETCH_ADDENDUM = """
 STRETCH-FIT GUIDANCE — `fit_assessment_overall_score` is below the good-fit threshold and `fit_assessment_rationale` describes the gap. Read the rationale and adapt:
 
-7. Acknowledge the transition explicitly. Include exactly one bridging sentence in the opening or first body paragraph that names the candidate's primary work CONTEXT and connects it to the JD's CONTEXT. Template (adapt the words; do not copy verbatim):
-   "While my background has been primarily in [candidate's actual primary context, e.g. test automation], the [transferable principle, e.g. framework architecture and distributed-systems] work I've applied to [concrete experience reference] translates directly to [JD context, e.g. backend service development]."
-8. Do NOT claim direct experience with technologies the resume only references in adjacent contexts. If the JD mentions "Java Spring Boot microservices" but the candidate's Java work was test-framework-focused, frame it as transferable principle, not direct experience.
-9. Keep the bridging clause neutral and forward-looking — not apologetic. The candidate is presenting a real transition, not asking for a lower bar.
+8. Derive both contexts from the inputs, not from priors. The candidate's primary work CONTEXT comes from `experiences` (job_title, general_role_description, bullet_texts). The JD's primary work CONTEXT comes from `target_role` and `job_description`, with `fit_assessment_rationale` as a tiebreaker — it names both contexts when the upstream rubric ran cleanly. Do not default to a generic target like "backend development" unless the JD itself is a backend-development role.
+9. Acknowledge the transition explicitly. Include exactly one bridging sentence in the opening or first body paragraph that names the candidate's primary work CONTEXT and connects it to the JD's CONTEXT. Template shape (substitute the actual contexts; do not copy the placeholders verbatim, do not borrow vocabulary the resume does not support):
+   "While my background has been primarily in <candidate's actual primary context>, the <transferable principle the candidate actually demonstrates> work I've applied to <concrete experience reference from `experiences`> translates directly to <JD's actual context, drawn from target_role / job_description>."
+10. Hard rule 7 (NO JD-VOCABULARY MIRRORING) still applies. The bridging sentence MUST frame JD-only technologies as transferable principles, not direct experience. If the JD mentions "Java Spring Boot microservices" and the candidate's Java work was test-framework-focused, you may say the framework-architecture principles transfer; you may NOT say the candidate has Spring Boot expertise.
+11. Keep the bridging clause neutral and forward-looking — not apologetic. The candidate is presenting a real transition, not asking for a lower bar.
 """
 
 

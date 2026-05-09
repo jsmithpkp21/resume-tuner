@@ -1265,7 +1265,9 @@ def test_cover_letter_bridging_fires_only_for_stretch_fits(
         # context, and the no-direct-experience guardrail.
         assert "STRETCH-FIT GUIDANCE" in body_prompt
         assert "While my background has been primarily in" in body_prompt
-        assert "Do NOT claim direct experience" in body_prompt
+        # Always-on hard rule blocking JD-vocabulary mirroring is reachable
+        # from the stretch path too (the addendum cross-references it).
+        assert "NO JD-VOCABULARY MIRRORING" in body_prompt
         # fit_assessment_* keys are injected only on stretch so good-fit
         # cache keys stay untouched.
         assert body_payload["fit_assessment_overall_score"] == overall_fit_score
@@ -1343,6 +1345,24 @@ def test_build_body_system_prompt_returns_base_for_good_fit() -> None:
     assert "HARD RULES" in base
 
 
+def test_build_body_system_prompt_blocks_jd_vocabulary_mirroring_always() -> None:
+    """The NO JD-VOCABULARY MIRRORING rule is always-on, not just on stretch.
+
+    The v10 calibration sweep showed the worst regression came from a
+    good-fit-classified case (gemma scored Western Union 75 because it
+    hallucinated Spring Boot expertise into the rationale): with
+    overall_fit_score >= gate the bridging addendum doesn't fire, so the
+    base prompt has to block direct-experience claims for JD-only
+    technologies on its own. Locking the rule in both prompts guards the
+    failure mode regardless of how fit_assessment classified the pairing.
+    """
+    base = build_cover_letter._build_body_system_prompt(stretch=False)
+    augmented = build_cover_letter._build_body_system_prompt(stretch=True)
+    for prompt in (base, augmented):
+        assert "NO JD-VOCABULARY MIRRORING" in prompt
+        assert "verbatim or as a near-paraphrase" in prompt
+
+
 def test_build_body_system_prompt_appends_addendum_for_stretch() -> None:
     """Unit-level: the prompt builder appends the bridging addendum for
     stretch fits and keeps the existing HARD RULES block intact so the
@@ -1351,4 +1371,9 @@ def test_build_body_system_prompt_appends_addendum_for_stretch() -> None:
     assert "HARD RULES" in augmented
     assert "STRETCH-FIT GUIDANCE" in augmented
     assert "Acknowledge the transition explicitly" in augmented
-    assert "Do NOT claim direct experience" in augmented
+    # Stretch addendum must explicitly de-anchor from generic "backend"
+    # targets — v10 finding: llama 8b defaulted every stretch bridge to
+    # "backend service development" because the v1 template's example
+    # anchored that phrase.
+    assert "Do not default to a generic target" in augmented
+    assert "Derive both contexts from the inputs" in augmented

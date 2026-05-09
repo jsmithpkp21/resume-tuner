@@ -2185,10 +2185,18 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
                 min_words,
             )
             return ""
+        # Log the *actual* post-trim wrap-line count, not the cap —
+        # `_fit_profile_summary_layout` can return fewer than the cap
+        # (e.g. dropping a long word can remove multiple wrapped lines)
+        # so reporting the cap would be misleading.
+        trimmed_line_count = len(
+            _summary_wrap_lines(trimmed, line_width=PROFILE_SUMMARY_LINE_WIDTH)
+        )
         logger.info(
             "LLM JD-tailored summary trimmed to fit layout: "
-            "%d → %d wrap lines, %d → %d words",
+            "%d → %d wrap lines (cap %d), %d → %d words",
             len(wrap_lines),
+            trimmed_line_count,
             PROFILE_SUMMARY_MAX_LINES,
             original_words,
             trimmed_words,

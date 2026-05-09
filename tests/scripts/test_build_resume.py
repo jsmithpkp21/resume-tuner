@@ -6362,10 +6362,15 @@ def test_generate_jd_tailored_summary_measures_wrap_lines_after_period_append(
             job_context=_make_job_context("Real JD body. " * 30)
         )
         out = build_resume._generate_jd_tailored_summary_via_llm(resume)
-        if not out:
-            # Either the wildly-over-budget fallback or the LLM disabled
-            # path; both leave the wrap-line invariant trivially satisfied.
-            continue
+        # All inputs are in-bounds and either fit the layout or are
+        # trim-able to fit (no input here is wildly-over-budget that
+        # would force the deterministic fallback). An empty result
+        # means a valid LLM summary was unexpectedly rejected — that
+        # is the regression this test guards against.
+        assert out, (
+            f"unexpected deterministic fallback (empty output) for "
+            f"in-bounds input {raw_summary!r}"
+        )
         wrapped = build_resume._summary_wrap_lines(
             out, line_width=build_resume.PROFILE_SUMMARY_LINE_WIDTH
         )

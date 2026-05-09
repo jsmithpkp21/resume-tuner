@@ -6943,6 +6943,65 @@ def test_jd_tailored_summary_augmented_when_fit_assessment_provided(
     assert call["user_payload"]["fit_narrative_overall_score"] == 45.0
 
 
+def test_jd_tailored_summary_omits_current_level_when_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """current_level must NOT appear in the user_payload when unset, so
+    profiles that don't supply it keep the same LLM cache key as before
+    #272 landed (PR #278 review — avoid cache-key churn / extra tokens)."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    fake = _FakeLLMClient(
+        {
+            "summary": (
+                "Senior test engineer with deep experience across distributed "
+                "payments systems, automation pipelines, observability tooling, "
+                "and CI/CD scaling for engineering teams. Delivered measurable "
+                "reliability improvements, drove test framework redesigns, and "
+                "mentored peer engineers on long-horizon test architecture and "
+                "release cadence decisions."
+            )
+        }
+    )
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+
+    resume = _resume_with_one_experience()
+    # Default profile has current_level = "" (empty).
+    assert resume.profile.current_level == ""
+    build_resume._generate_jd_tailored_summary_via_llm(resume)
+    assert fake.calls
+    assert "candidate_current_level" not in fake.calls[0]["user_payload"]
+
+
+def test_jd_tailored_summary_includes_current_level_when_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the user supplies current_level, it lands in the payload and the
+    prompt references it so the LLM can frame seniority correctly."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    fake = _FakeLLMClient(
+        {
+            "summary": (
+                "Senior test engineer with deep experience across distributed "
+                "payments systems, automation pipelines, observability tooling, "
+                "and CI/CD scaling for engineering teams. Delivered measurable "
+                "reliability improvements, drove test framework redesigns, and "
+                "mentored peer engineers on long-horizon test architecture and "
+                "release cadence decisions."
+            )
+        }
+    )
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+
+    base = _resume_with_one_experience()
+    profile = dataclasses.replace(base.profile, current_level="Senior Staff Engineer")
+    resume = dataclasses.replace(base, profile=profile)
+    build_resume._generate_jd_tailored_summary_via_llm(resume)
+    assert fake.calls
+    call = fake.calls[0]
+    assert call["user_payload"]["candidate_current_level"] == "Senior Staff Engineer"
+    assert "candidate_current_level" in call["system_prompt"]
+
+
 def test_jd_tailored_summary_unchanged_when_no_fit_assessment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

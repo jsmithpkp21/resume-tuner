@@ -2585,7 +2585,6 @@ def _generate_jd_tailored_summary_via_llm(
     user_payload: dict[str, object] = {
         "candidate_name": resume.profile.name,
         "candidate_baseline_summary": (resume.profile.summary or "").strip(),
-        "candidate_current_level": (resume.profile.current_level or "").strip(),
         "target_company": resume.target_company or "",
         "target_role": resume.target_role or "",
         "top_skills": top_skills,
@@ -2595,6 +2594,12 @@ def _generate_jd_tailored_summary_via_llm(
         "max_words": max_words,
     }
 
+    # Only include current_level when set, so profiles that don't supply it
+    # have an unchanged cache key vs. pre-#272 (no spurious cache misses).
+    current_level = (resume.profile.current_level or "").strip()
+    if current_level:
+        user_payload["candidate_current_level"] = current_level
+
     base_prompt = (
         "You write the opening summary paragraph of a resume "
         "tailored to a specific job description. Output exactly "
@@ -2602,11 +2607,12 @@ def _generate_jd_tailored_summary_via_llm(
         "summarising how the candidate's actual experience and "
         "skills fit the target role at the target company. Use "
         "concrete details from recent_experiences and top_skills "
-        "when relevant; do NOT invent achievements. Preserve "
-        "acronym casing (SDET, QA, CI/CD, REST, SQL). Do NOT "
-        "include the candidate's name, the company name, or the "
-        "literal target role in the output. Reply with JSON "
-        'only: {"summary": "<paragraph>"}.'
+        "when relevant; if candidate_current_level is provided, "
+        "frame the summary at that seniority. Do NOT invent "
+        "achievements. Preserve acronym casing (SDET, QA, CI/CD, "
+        "REST, SQL). Do NOT include the candidate's name, the "
+        "company name, or the literal target role in the output. "
+        'Reply with JSON only: {"summary": "<paragraph>"}.'
     )
     if fit_assessment is not None:
         user_payload["fit_narrative_rationale"] = fit_assessment.overall_rationale or ""

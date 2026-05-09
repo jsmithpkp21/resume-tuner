@@ -7134,6 +7134,136 @@ def test_resolve_fit_narrative_payload_reflects_caller_resume(
 # current_level profile.toml integration --------------------------------------
 
 
+def test_load_experiences_rejects_empty_id(tmp_path: Path) -> None:
+    """experience_db.toml must reject empty ids — apply_experience_compression
+    tracks experiences by id and an empty/duplicate id would silently bucket
+    multiple roles together (PR #278 review)."""
+    db = tmp_path / "experience_db.toml"
+    db.write_text(
+        """
+[[experience]]
+id = ""
+job_title = "Senior SDET"
+company = "ExampleCo"
+start_date = "2020-01"
+end_date = "present"
+general_role_description = "Test platform engineering."
+related_skills = ["Python"]
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="non-empty id"):
+        build_resume.load_experiences(db)
+
+
+def test_load_experiences_rejects_duplicate_ids(tmp_path: Path) -> None:
+    db = tmp_path / "experience_db.toml"
+    db.write_text(
+        """
+[[experience]]
+id = "exp-1"
+job_title = "Senior SDET"
+company = "ExampleCo"
+start_date = "2020-01"
+end_date = "present"
+general_role_description = "Test platform engineering."
+related_skills = ["Python"]
+
+[[experience]]
+id = "exp-1"
+job_title = "Senior SDET"
+company = "OtherCo"
+start_date = "2018-01"
+end_date = "2019-12"
+general_role_description = "Test platform engineering."
+related_skills = ["Python"]
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="must be unique"):
+        build_resume.load_experiences(db)
+
+
+def test_resolve_fit_narrative_accepts_precomputed_assessment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pipeline computes fit_assessment once and feeds the resolver, so the
+    resolver must NOT call compute_fit_assessment again when an assessment
+    is supplied (PR #278 review — avoid double LLM round-trips on exception
+    paths)."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+
+    def fail_if_called(_resume: Any) -> Any:
+        raise AssertionError(
+            "compute_fit_assessment must not run when assessment is precomputed"
+        )
+
+    monkeypatch.setattr("scripts.build_resume.compute_fit_assessment", fail_if_called)
+
+    expected = build_resume.FitAssessment(
+        overall_fit_score=42.0,
+        overall_rationale="domain mismatch",
+        per_experience_scores=(),
+    )
+    result = build_resume._resolve_fit_narrative(
+        _ns(), _resume_with_one_experience(), fit_assessment=expected
+    )
+    assert result is expected
+
+
+def test_resolve_fit_narrative_back_compat_computes_when_not_provided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Existing callers that don't pass fit_assessment still trigger an
+    internal compute_fit_assessment call (back-compat)."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+
+    expected = build_resume.FitAssessment(
+        overall_fit_score=42.0,
+        overall_rationale="domain mismatch",
+        per_experience_scores=(),
+    )
+    monkeypatch.setattr(
+        "scripts.build_resume.compute_fit_assessment", lambda _resume: expected
+    )
+    result = build_resume._resolve_fit_narrative(_ns(), _resume_with_one_experience())
+    assert result is expected
+
+
+def test_render_html_compressed_experience_omits_role_summary_and_related(
+    tmp_path: Path,
+) -> None:
+    """HTML render must mirror markdown's compressed-mode behavior: title
+    + dates + single bullet only, with role-summary and related-skills
+    blocks suppressed (PR #278 review)."""
+    base = _resume_with_one_experience()
+    compressed_exp = dataclasses.replace(base.experiences[0], compression="compressed")
+    resume = dataclasses.replace(base, experiences=(compressed_exp,))
+    output = tmp_path / "resume.html"
+    build_resume.render_html(resume, output)
+    content = output.read_text(encoding="utf-8")
+    assert "Senior SDET" in content
+    assert "Built CI pipelines." in content
+    # Compressed: role-summary and related-skills paragraphs must NOT render.
+    assert 'class="role-summary"' not in content
+    assert 'class="related-skills"' not in content
+    # Exactly one bullet, not two.
+    assert content.count("<li>") == 1
+
+
+def test_render_html_full_experience_keeps_role_summary_and_related(
+    tmp_path: Path,
+) -> None:
+    """Sanity counterpart: full-mode HTML still renders role-summary and
+    related-skills."""
+    resume = _resume_with_one_experience()
+    output = tmp_path / "resume.html"
+    build_resume.render_html(resume, output)
+    content = output.read_text(encoding="utf-8")
+    assert 'class="role-summary"' in content
+    assert "Test platform engineering." in content
+
+
 def test_load_profile_accepts_optional_current_level(tmp_path: Path) -> None:
     profile_path = tmp_path / "profile.toml"
     profile_path.write_text(

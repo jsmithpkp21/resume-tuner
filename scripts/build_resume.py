@@ -809,6 +809,7 @@ def load_experiences(path: Path) -> tuple[Experience, ...]:
         raise ValueError("experience_db.toml must contain [[experience]] entries")
 
     experiences: list[Experience] = []
+    seen_experience_ids: set[str] = set()
     for item in raw_experiences:
         if not isinstance(item, dict):
             raise ValueError("Each [[experience]] entry must be a table")
@@ -844,9 +845,24 @@ def load_experiences(path: Path) -> tuple[Experience, ...]:
                 )
             )
 
+        experience_id = str(item.get("id", "")).strip()
+        # apply_experience_compression and other render-time helpers track
+        # experiences by id; empty / duplicate ids would silently bucket
+        # multiple roles together. Fail loud at load instead.
+        if not experience_id:
+            raise ValueError(
+                "experience_db.toml [[experience]] entries must have a non-empty id; "
+                f"missing id near job_title={item.get('job_title', '')!r}"
+            )
+        if experience_id in seen_experience_ids:
+            raise ValueError(
+                "experience_db.toml [[experience]] ids must be unique; "
+                f"duplicate id={experience_id!r}"
+            )
+        seen_experience_ids.add(experience_id)
         experiences.append(
             Experience(
-                id=str(item.get("id", "")),
+                id=experience_id,
                 job_title=str(item.get("job_title", "")),
                 company=str(item.get("company", "")),
                 start_date=role_start_date,
@@ -2139,8 +2155,17 @@ def summarize_profile_for_role(
     return dc_replace(resume, profile=updated_profile)
 
 
+# Sentinel for "fit_assessment not provided" so callers can pass an explicit
+# None (meaning the LLM call already returned None) without colliding with
+# the back-compat default that triggers internal computation.
+_FIT_ASSESSMENT_NOT_PROVIDED: object = object()
+
+
 def _resolve_fit_narrative(
-    args: argparse.Namespace, resume: ResumeIR
+    args: argparse.Namespace,
+    resume: ResumeIR,
+    *,
+    fit_assessment: FitAssessment | None | object = _FIT_ASSESSMENT_NOT_PROVIDED,
 ) -> FitAssessment | None:
     """Decide whether the fit-narrative summary augmentation should fire (#272).
 
@@ -2177,7 +2202,14 @@ def _resolve_fit_narrative(
     if not _has_substantive_jd_context(resume):
         logger.info("fit_narrative skipped: JD context below threshold")
         return None
-    assessment = compute_fit_assessment(resume)
+    # Accept a precomputed assessment so run_pipeline can compute it once
+    # and feed both this resolver and apply_experience_compression without
+    # paying for two LLMClient lookups (PR #278 review). Fall back to
+    # computing internally for callers that don't supply one (back-compat).
+    if fit_assessment is _FIT_ASSESSMENT_NOT_PROVIDED:
+        assessment = compute_fit_assessment(resume)
+    else:
+        assessment = fit_assessment  # type: ignore[assignment]
     if assessment is None:
         logger.info("fit_narrative skipped: fit_assessment returned None")
         return None
@@ -4635,19 +4667,26 @@ def run_pipeline(args: argparse.Namespace) -> int:
         # the #272 narrative gate may decide *not* to augment the summary
         # even when an assessment exists (off-mode, score above gate,
         # cover-letter), while #271's compression always wants the per-
-        # experience scores when they're available. Decoupling them here
-        # keeps both surfaces honest. The internal _resolve_fit_narrative
-        # call also calls compute_fit_assessment but hits the LLMClient
-        # cache, so the second lookup is essentially free.
+        # experience scores when they're available. Pass the precomputed
+        # assessment into the resolver explicitly to avoid a redundant
+        # compute_fit_assessment call (PR #278 review — the LLMClient
+        # cache makes most repeat calls cheap, but exception paths return
+        # None and would re-issue a full LLM request on the second lookup).
         fit_baseline = _baseline_resume_for_fit_assessment(baseline_resume)
         fit_assessment = compute_fit_assessment(fit_baseline)
-        fit_for_summary = _resolve_fit_narrative(args, fit_baseline)
+        fit_for_summary = _resolve_fit_narrative(
+            args, fit_baseline, fit_assessment=fit_assessment
+        )
         resume = summarize_profile_for_role(resume, fit_assessment=fit_for_summary)
         # Mark low-fit experiences as compressed (#271) — render-level switch
-        # only; chronology is preserved. Runs after summary so the layout
-        # check sees the final summary + skills budget. Pass the underlying
-        # assessment (not fit_for_summary) so compression sees per-
-        # experience scores even when the narrative gate skipped firing.
+        # only; chronology is preserved. Runs after summary so any
+        # downstream stages see the experience.compression markers, not
+        # because the layout estimator measures the rendered summary text:
+        # _compute_bullet_line_budget reserves PROFILE_SUMMARY_MAX_LINES
+        # and _SKILLS_TARGET_LINES_MAX as upper bounds regardless of the
+        # actual generated content. Pass the underlying assessment (not
+        # fit_for_summary) so compression sees per-experience scores even
+        # when the narrative gate skipped firing.
         resume = apply_experience_compression(
             args, resume, fit_assessment=fit_assessment
         )

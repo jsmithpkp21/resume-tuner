@@ -2090,6 +2090,11 @@ def _resolve_fit_narrative(
 ) -> FitAssessment | None:
     """Decide whether the fit-narrative summary augmentation should fire (#272).
 
+    Callers should pass the **pre-pipeline baseline resume** (not the trimmed
+    view) so the LLM scores against the candidate's full canonical bullet set;
+    #271's per-experience compression decision will also rely on the untrimmed
+    signal once it lands.
+
     Returns the cached :class:`FitAssessment` payload when firing (so the
     caller can pass the rationale into the prompt and log it). Returns
     ``None`` when skipping for any reason: explicit ``--fit-narrative off``,
@@ -4331,7 +4336,11 @@ def run_pipeline(args: argparse.Namespace) -> int:
         resume = _apply_display_experience_selection(resume)
         resume = summarize_for_role(resume)
         resume = select_skills(resume, top_n=_resolve_top_skills_cap(args))
-        fit_assessment = _resolve_fit_narrative(args, resume)
+        # Resolve the fit assessment against the pre-pipeline baseline so the
+        # LLM scores the candidate's full canonical bullet set rather than
+        # the post-trim view. #271's per-experience compression decision will
+        # also need the untrimmed signal.
+        fit_assessment = _resolve_fit_narrative(args, baseline_resume)
         resume = summarize_profile_for_role(resume, fit_assessment=fit_assessment)
 
     resume_dir = args.output_dir / RESUME_OUTPUT_SUBDIR

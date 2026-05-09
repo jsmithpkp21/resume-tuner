@@ -6974,6 +6974,53 @@ def test_jd_tailored_summary_unchanged_when_no_fit_assessment(
     assert "fit_narrative_overall_score" not in call["user_payload"]
 
 
+def test_resolve_fit_narrative_payload_reflects_caller_resume(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression for PR #278 review: the LLM payload's bullets reflect
+    whatever resume the caller passes. The pipeline call site is expected
+    to pass the pre-pipeline ``baseline_resume`` so the LLM sees the
+    candidate's full canonical bullet set, not the post-trim view.
+
+    Demonstrates the contract by calling against (a) a synthetic post-trim
+    view with empty bullets and (b) the baseline with full bullets, and
+    confirming the LLM payload differs as expected.
+    """
+    fake = _FakeLLMClient(
+        {
+            "overall_fit_score": 30,
+            "overall_rationale": "stretch",
+            "per_experience_scores": [
+                {"experience_id": "exp-1", "fit_score": 40, "rationale": "ok"},
+            ],
+        }
+    )
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+
+    baseline = _resume_with_one_experience()
+    trimmed = dataclasses.replace(
+        baseline,
+        experiences=tuple(
+            dataclasses.replace(exp, bullets=()) for exp in baseline.experiences
+        ),
+    )
+
+    # Calling against the trimmed view: empty bullets reach the LLM.
+    build_resume._resolve_fit_narrative(_ns(), trimmed)
+    assert fake.calls
+    trimmed_payload: Any = fake.calls[-1]["user_payload"]["experiences"]
+    assert isinstance(trimmed_payload, list) and trimmed_payload
+    assert trimmed_payload[0]["bullets"] == []
+
+    # Calling against the baseline: full bullet set reaches the LLM —
+    # this is what the pipeline call site does post-fix.
+    build_resume._resolve_fit_narrative(_ns(), baseline)
+    baseline_payload: Any = fake.calls[-1]["user_payload"]["experiences"]
+    assert isinstance(baseline_payload, list) and baseline_payload
+    assert baseline_payload[0]["bullets"] == ["Built CI pipelines."]
+
+
 # current_level profile.toml integration --------------------------------------
 
 

@@ -2301,10 +2301,13 @@ def apply_experience_compression(
     #   first — the correct worst-first direction. (PR #278 review.)
     indexed = list(enumerate(in_window))
     if top_n is not None:
-        # _prepare_display_experiences already orders by relevance; assume
-        # the input is already in that order. Compression candidates are
-        # everything beyond rank top_n, in input order.
-        candidates = list(indexed[top_n:])
+        # _prepare_display_experiences already orders by relevance descending,
+        # so the bottom of the beyond-N slice is the lowest-ranked. Reverse
+        # the slice so when the 50% cap applies we keep the *worst* of the
+        # demoted group compressed (PR #278 review). Without this we were
+        # compressing the top of the beyond-N group, leaving the truly
+        # weakest matches uncompressed.
+        candidates = list(reversed(indexed[top_n:]))
     elif fit_assessment is None:
         # Deterministic fallback: lowest-ranked first.
         candidates = list(reversed(indexed))

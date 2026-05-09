@@ -7279,12 +7279,17 @@ def test_apply_experience_compression_top_n_marks_beyond_rank() -> None:
 
 def test_apply_experience_compression_top_n_respects_50pct_cap() -> None:
     resume = _resume_with_n_experiences(4)
-    # top-1 would compress 3 of 4, but the 50% cap (= 2) stops at 2.
+    # top-1 would compress 3 of 4 (exp-2..exp-4), but the 50% cap (= 2)
+    # stops at 2. The cap must compress the *worst* of the demoted group —
+    # exp-3 and exp-4 — not the top of beyond-N (PR #278 review). exp-2
+    # stays full because it's the most relevant of the demoted group.
     result = build_resume.apply_experience_compression(
         _experience_mode_args("top-1"), resume, fit_assessment=None
     )
-    compressed = [exp for exp in result.experiences if exp.compression == "compressed"]
-    assert len(compressed) == 2
+    compressed_ids = {
+        exp.id for exp in result.experiences if exp.compression == "compressed"
+    }
+    assert compressed_ids == {"exp-3", "exp-4"}
 
 
 def test_apply_experience_compression_all_resets_pre_existing_compressed() -> None:

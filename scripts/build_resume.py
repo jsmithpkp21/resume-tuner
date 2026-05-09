@@ -2371,7 +2371,15 @@ def apply_experience_compression(
     #   reverse of input order. Since _prepare_display_experiences already
     #   orders by relevance descending, reversing gives lowest-relevance
     #   first — the correct worst-first direction. (PR #278 review.)
-    indexed = list(enumerate(in_window))
+    #
+    # Bullet-less experiences can't satisfy the compressed-mode contract
+    # ("title — date_range plus the single highest-relevance bullet"). Their
+    # general_role_description in full mode IS the only signal they carry,
+    # so compressing them to title+dates would drop that signal entirely.
+    # Exclude them from the candidate set; they always stay full. The 50%
+    # cap remains based on len(in_window) since the cap is about visible
+    # rendered roles, not just bullet-bearing ones (PR #278 review).
+    indexed = [(idx, exp) for idx, exp in enumerate(in_window) if exp.bullets]
     if top_n is not None:
         # _prepare_display_experiences already orders by relevance descending,
         # so the bottom of the beyond-N slice is the lowest-ranked. Reverse
@@ -4022,10 +4030,16 @@ def render_html(
         )
         lines.append(title_line)
         if not compressed:
-            lines.append(
-                f'<p class="role-summary">'
-                f"{_html_escape(exp.general_role_description)}</p>"
-            )
+            # Suppress the role-summary <p> entirely when the description
+            # is empty/whitespace so an empty paragraph doesn't render
+            # (and so the bullet-line budget — which gives empty descriptions
+            # zero cost since round-11 — matches what the renderer actually
+            # emits). PR #278 review.
+            if exp.general_role_description.strip():
+                lines.append(
+                    f'<p class="role-summary">'
+                    f"{_html_escape(exp.general_role_description)}</p>"
+                )
             lines.append(related_html)
         if visible_bullets:
             lines.extend(["<ul>", bullets_html, "</ul>"])
@@ -4229,10 +4243,13 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
                 f"### {exp.job_title} | {exp.company}",
                 f"{exp.start_date} - {exp.end_date}",
                 "",
-                exp.general_role_description,
-                "",
             ]
         )
+        # Match the budget's "empty description costs 0 lines" credit (round-11)
+        # by skipping the description block in markdown when blank, mirroring
+        # the same suppression in render_html. PR #278 review.
+        if exp.general_role_description.strip():
+            lines.extend([exp.general_role_description, ""])
         if exp.related_skills:
             lines.extend(
                 [

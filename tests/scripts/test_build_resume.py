@@ -7459,6 +7459,76 @@ def test_apply_experience_compression_no_context_resets_pre_existing_compressed(
     assert all(exp.compression == "full" for exp in result.experiences)
 
 
+def test_render_html_skips_empty_role_summary_paragraph(tmp_path: Path) -> None:
+    """Full-mode render must NOT emit `<p class="role-summary"></p>` when
+    the description is empty/whitespace — otherwise the renderer disagrees
+    with `_compute_bullet_line_budget`'s round-11 zero-cost credit and
+    auto-compression would under-budget vs the actual layout
+    (PR #278 review)."""
+    base = _resume_with_one_experience()
+    cleared = dataclasses.replace(
+        base,
+        experiences=tuple(
+            dataclasses.replace(exp, general_role_description="")
+            for exp in base.experiences
+        ),
+    )
+    output = tmp_path / "resume.html"
+    build_resume.render_html(cleared, output)
+    content = output.read_text(encoding="utf-8")
+    assert 'class="role-summary"' not in content
+
+
+def test_render_markdown_skips_empty_role_summary_block(tmp_path: Path) -> None:
+    """Same suppression in markdown so both renderers stay consistent
+    with the budget (PR #278 review)."""
+    base = _resume_with_one_experience()
+    cleared = dataclasses.replace(
+        base,
+        experiences=tuple(
+            dataclasses.replace(exp, general_role_description="")
+            for exp in base.experiences
+        ),
+    )
+    output = tmp_path / "resume.md"
+    build_resume.render_markdown(cleared, output)
+    content = output.read_text(encoding="utf-8")
+    # No empty-paragraph block (would surface as a stray blank line between
+    # the date line and either related-skills or the first bullet).
+    # Easiest invariant: the rendered text never contains a "  \n\n\n"
+    # pattern from a blank-then-blank-then-blank sequence at the role spot.
+    assert "Test platform engineering." not in content  # description is empty
+    # The bullet must still render so the experience block isn't a stub.
+    assert "Built CI pipelines." in content
+
+
+def test_apply_experience_compression_skips_bulletless_experiences() -> None:
+    """An experience with no bullets cannot satisfy the compressed-mode
+    contract (single highest-relevance bullet). The stage must keep such
+    experiences in full mode regardless of flag (PR #278 review)."""
+    base = _resume_with_n_experiences(3)
+    bulletless = build_resume.Experience(
+        id="exp-empty",
+        job_title="Brief Engagement",
+        company="ExampleCo",
+        start_date="2019-01",
+        end_date="2019-06",
+        general_role_description="One-line role description.",
+        related_skills=("Python",),
+        bullets=(),  # no bullets — cannot honor the compressed-mode contract
+    )
+    resume = dataclasses.replace(base, experiences=base.experiences + (bulletless,))
+    # top-1 → max_compressible = 2; without the filter, exp-empty would
+    # be one of the candidates and could be marked compressed. With the
+    # filter, exp-empty is excluded; the next-worst bullet-bearing
+    # experience compresses instead.
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("top-1"), resume, fit_assessment=None
+    )
+    by_id = {exp.id: exp for exp in result.experiences}
+    assert by_id["exp-empty"].compression == "full"
+
+
 def test_compute_bullet_line_budget_credits_empty_role_summary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

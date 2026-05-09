@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.44.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.44.0...v0.44.1) (2026-05-09)
+
+
+### Bug Fixes
+
+* **build_resume:** address PR [#301](https://github.com/jsmithpkp21/resume-builder/issues/301) review nits ([ac277b1](https://github.com/jsmithpkp21/resume-builder/commit/ac277b19e981a715d1621f0fa5e5c11fef888107))
+* **build_resume:** reuse `indexed` in top-N candidate construction ([383ebcc](https://github.com/jsmithpkp21/resume-builder/commit/383ebcc7b45290d9dd66dd96cf5bc2b155c46f3e))
+* **build_resume:** top-N boundary against visible roles + DESIGN doc ([d098b88](https://github.com/jsmithpkp21/resume-builder/commit/d098b88d7ba14b8cc3bf553face40d701ab8a93c))
+
 ## [0.44.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.43.5...v0.44.0) (2026-05-09)
 
 

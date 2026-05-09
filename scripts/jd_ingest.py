@@ -994,13 +994,17 @@ def _fetch_via_playwright(url: str) -> FetchedPage | None:
 def _fetch_static_job_page_metadata(url: str) -> FetchedPage:
     """Static (urllib) fetch of a JD page.
 
-    Always returns a FetchedPage — failures are encoded as
-    ``status="fetch_failed"`` with a structured ``notes`` tag so callers
-    can decide whether to fall through to the Playwright path. Never
-    returns early on size limits or read exceptions; the orchestration
-    layer (``_fetch_job_page_metadata``) handles fallthrough so JS-
-    rendered hosts on the allowlist still get Playwright tried even when
-    static fails outright.
+    Always returns a FetchedPage and never raises — every failure mode
+    (Content-Length too large, response body too large, urllib raises
+    during open/read) is encoded as ``status="fetch_failed"`` with a
+    structured ``notes`` tag (e.g. ``"fetch_failed:ResponseTooLarge"``,
+    ``"fetch_failed:URLError"``).
+
+    The orchestration layer (``_fetch_job_page_metadata``) inspects the
+    returned status / description / host to decide whether to invoke
+    the Playwright fallthrough — so even when this function returns a
+    fetch_failed result, JS-rendered hosts on the allowlist still get
+    Playwright tried.
     """
     request = Request(url, headers={"User-Agent": _FETCH_USER_AGENT})
     opener = build_opener(_ValidatingRedirectHandler())

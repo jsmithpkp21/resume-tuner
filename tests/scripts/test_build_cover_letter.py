@@ -1165,7 +1165,7 @@ def _patch_compute_fit_assessment(
 @pytest.mark.parametrize(
     "overall_fit_score,expects_bridging",
     [
-        # Below the shared narrative gate (60) → stretch → bridging required.
+        # Below the shared narrative gate → stretch → bridging required.
         (35.0, True),
         # Above the gate → good fit → keep current enthusiastic-fit tone.
         (80.0, False),
@@ -1263,7 +1263,7 @@ def test_cover_letter_bridging_fires_only_for_stretch_fits(
     if expects_bridging:
         # Stretch-fit guidance must be present and reference bridging,
         # context, and the no-direct-experience guardrail.
-        assert "STRETCH-FIT GUIDANCE" in body_prompt
+        assert "STRETCH-FIT" in body_prompt
         assert "While my background has been primarily in" in body_prompt
         # Always-on hard rule blocking JD-vocabulary mirroring is reachable
         # from the stretch path too (the addendum cross-references it).
@@ -1273,7 +1273,7 @@ def test_cover_letter_bridging_fires_only_for_stretch_fits(
         assert body_payload["fit_assessment_overall_score"] == overall_fit_score
         assert body_payload["fit_assessment_rationale"]
     else:
-        assert "STRETCH-FIT GUIDANCE" not in body_prompt
+        assert "STRETCH-FIT" not in body_prompt
         assert "fit_assessment_overall_score" not in body_payload
         assert "fit_assessment_rationale" not in body_payload
 
@@ -1333,7 +1333,7 @@ def test_cover_letter_no_bridging_when_fit_assessment_unavailable(
     )
     assert rc == build_cover_letter.EXIT_SUCCESS
     assert body_prompts
-    assert "STRETCH-FIT GUIDANCE" not in body_prompts[0]
+    assert "STRETCH-FIT" not in body_prompts[0]
     assert "fit_assessment_overall_score" not in captured["body_payload"]
     assert "fit_assessment_rationale" not in captured["body_payload"]
 
@@ -1341,7 +1341,7 @@ def test_cover_letter_no_bridging_when_fit_assessment_unavailable(
 def test_build_body_system_prompt_returns_base_for_good_fit() -> None:
     """Unit-level: the prompt builder is unchanged for good fits."""
     base = build_cover_letter._build_body_system_prompt(stretch=False)
-    assert "STRETCH-FIT GUIDANCE" not in base
+    assert "STRETCH-FIT" not in base
     assert "HARD RULES" in base
 
 
@@ -1369,11 +1369,10 @@ def test_build_body_system_prompt_appends_addendum_for_stretch() -> None:
     LLM still sees both layers of guidance."""
     augmented = build_cover_letter._build_body_system_prompt(stretch=True)
     assert "HARD RULES" in augmented
-    assert "STRETCH-FIT GUIDANCE" in augmented
-    assert "Acknowledge the transition explicitly" in augmented
-    # Stretch addendum must explicitly de-anchor from generic "backend"
-    # targets — v10 finding: llama 8b defaulted every stretch bridge to
-    # "backend service development" because the v1 template's example
-    # anchored that phrase.
-    assert "Do not default to a generic target" in augmented
-    assert "Derive both contexts from the inputs" in augmented
+    assert "STRETCH-FIT" in augmented
+    # Bridging instruction: one sentence connecting both CONTEXTS.
+    assert "exactly one bridging sentence" in augmented
+    # De-anchored from generic "backend" targets — v10 finding: llama 8b
+    # defaulted every stretch bridge to "backend service development"
+    # because the v1 template's example anchored that phrase.
+    assert "do not invent a generic target" in augmented

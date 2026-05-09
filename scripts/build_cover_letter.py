@@ -521,31 +521,31 @@ HARD RULES — violating any of these is a failure:
 4. Write in first person, professional, direct. No "As an AI", no "large language model", no "I cannot", no "I'm sorry".
 5. Stay near `word_budget` words across all paragraphs combined (soft hint; quality matters more than exact count, but do not exceed the budget by more than 15%).
 6. If the candidate's `headline` reflects a lower level than the `target_role` (e.g., Senior Staff vs. Senior Principal), include exactly one sentence in the opening or first body paragraph framing the transition by scope/breadth/years. If headlines align, omit any gap framing entirely.
-7. NO JD-VOCABULARY MIRRORING. Do not assert direct experience with a technology, framework, or domain that is named in `target_role`, `job_description`, or `company_research` unless that exact technology appears verbatim or as a near-paraphrase in `experiences`, `selected_achievements`, or `independent_projects`. Phrases like "expertise in <X>", "experience with <X>", or "extensive <X> experience" are direct-experience claims and require resume-side evidence. Transferable-principle phrases ("the <X> principles I've applied to <Y> translate to...") that name a transferable skill the candidate actually has are allowed; vocabulary-borrowing the candidate has not earned is not.
+7. NO JD-VOCABULARY MIRRORING. Do not claim experience with a technology named in the JD unless that technology appears verbatim or as a near-paraphrase in `experiences`, `selected_achievements`, or `independent_projects`. "Expertise in X" / "experience with X" / "extensive X experience" all require resume-side evidence. Transferable-principle phrases ("the X principles I've applied to Y translate to…") are allowed when X is a skill the candidate actually has.
 
-OUTPUT — strict JSON only, no prose around it:
+OUTPUT — strict JSON only, exactly these three keys, no extra keys, no prose around it:
 {
   "opening": "<one paragraph: hook + role/company + (optional) one-sentence level-gap framing>",
   "body_paragraphs": ["<paragraph 1>", "<paragraph 2>", ...],
   "closing_paragraph": "<one short paragraph: call to action, thanks>"
 }
 
-Aim for 1–3 body paragraphs. Keep paragraphs tight (3–5 sentences each).
+Do NOT echo input fields like `word_budget` in the output. Aim for 1–3 body paragraphs, 3–5 sentences each.
 """
 
 
 # Bridging guidance for stretch fits (#303). Appended to the base prompt only
 # when the shared fit_assessment classifies the candidate-to-JD pairing as a
-# stretch (overall_fit_score < _FIT_NARRATIVE_GATE_SCORE). The good-fit path
-# keeps the existing enthusiastic-fit tone unchanged.
+# stretch (overall_fit_score < _FIT_NARRATIVE_GATE_SCORE). Kept terse so
+# gemma 9b doesn't drop output fields when the prompt grows long (v11
+# regression). The good-fit path keeps the existing enthusiastic-fit tone.
 _BODY_SYSTEM_PROMPT_STRETCH_ADDENDUM = """
-STRETCH-FIT GUIDANCE — `fit_assessment_overall_score` is below the good-fit threshold and `fit_assessment_rationale` describes the gap. Read the rationale and adapt:
+STRETCH-FIT — `fit_assessment_rationale` names the candidate's CONTEXT and the JD's CONTEXT explicitly; use those names, do not invent a generic target like "backend development":
 
-8. Derive both contexts from the inputs, not from priors. The candidate's primary work CONTEXT comes from `experiences` (job_title, general_role_description, bullet_texts). The JD's primary work CONTEXT comes from `target_role` and `job_description`, with `fit_assessment_rationale` as a tiebreaker — it names both contexts when the upstream rubric ran cleanly. Do not default to a generic target like "backend development" unless the JD itself is a backend-development role.
-9. Acknowledge the transition explicitly. Include exactly one bridging sentence in the opening or first body paragraph that names the candidate's primary work CONTEXT and connects it to the JD's CONTEXT. Template shape (substitute the actual contexts; do not copy the placeholders verbatim, do not borrow vocabulary the resume does not support):
-   "While my background has been primarily in <candidate's actual primary context>, the <transferable principle the candidate actually demonstrates> work I've applied to <concrete experience reference from `experiences`> translates directly to <JD's actual context, drawn from target_role / job_description>."
-10. Hard rule 7 (NO JD-VOCABULARY MIRRORING) still applies. The bridging sentence MUST frame JD-only technologies as transferable principles, not direct experience. If the JD mentions "Java Spring Boot microservices" and the candidate's Java work was test-framework-focused, you may say the framework-architecture principles transfer; you may NOT say the candidate has Spring Boot expertise.
-11. Keep the bridging clause neutral and forward-looking — not apologetic. The candidate is presenting a real transition, not asking for a lower bar.
+8. Include exactly one bridging sentence in the opening or first body paragraph naming the candidate's CONTEXT and connecting it to the JD's CONTEXT. Shape (substitute; do not copy placeholders):
+   "While my background has been primarily in <candidate CONTEXT>, the <transferable principle the candidate demonstrates> I've applied to <concrete experience from `experiences`> translates directly to <JD CONTEXT>."
+9. Rule 7 still applies: frame JD-only technologies as transferable principles, never as direct experience.
+10. Tone: neutral and forward-looking, not apologetic.
 """
 
 

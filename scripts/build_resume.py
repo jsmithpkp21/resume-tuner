@@ -142,9 +142,14 @@ _LLM_SUMMARY_MIN_WORDS = 30
 
 # fit_assessment thresholds (#272). Score is on a 0-100 scale where higher
 # means stronger fit. Below the gate, --fit-narrative auto-mode fires the
-# fit-narrative augmentation; tunable later if real-JD calibration shows the
-# 60 cut is too tight or too loose.
-_FIT_NARRATIVE_GATE_SCORE = 60
+# fit-narrative augmentation. Bumped from 60 → 65 in #303 v3 because the
+# v11 calibration sweep found gemma 9b returning exactly 60 for clear
+# stretch cases ("shared Java vocabulary does not close the gap" — itself
+# a stretch rationale). Score 60 sat exactly on the strict-less-than gate
+# and skipped bridging, letting the cover letter mirror JD vocabulary
+# unchecked. 65 captures that boundary case while still leaving a clear
+# 65-100 good-fit band anchored by the prompt's positive ICL example.
+_FIT_NARRATIVE_GATE_SCORE = 65
 
 LLM_ENABLED_ENV = "RESUME_BUILDER_LLM_ENABLED"
 LLM_FIXTURE_ENV = "RESUME_BUILDER_LLM_FIXTURE"

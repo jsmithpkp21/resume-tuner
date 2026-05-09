@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.43.0...v0.43.1) (2026-05-09)
+
+
+### Bug Fixes
+
+* **document-export:** cap snake_case slug length to prevent OSError on file write (closes [#280](https://github.com/jsmithpkp21/resume-builder/issues/280)) ([ea574e6](https://github.com/jsmithpkp21/resume-builder/commit/ea574e6bd8ee39970318f79c14d9dae262ecbf1a))
+
 ## [0.43.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.42.0...v0.43.0) (2026-05-08)
 
 

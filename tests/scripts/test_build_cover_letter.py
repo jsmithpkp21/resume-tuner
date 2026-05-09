@@ -109,6 +109,25 @@ def _default_fit_assessment_response(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _default_audit_response(payload: dict[str, Any]) -> dict[str, Any]:
+    """No-op audit response for the post-draft validator (#303 v4).
+
+    Issued to test handlers that don't supply a cover_letter_audit branch
+    so existing cover-letter tests stay untouched. Returns `violations:
+    []` and echoes the input body verbatim, matching the contract for
+    "draft is clean — no rewrites needed".
+    """
+    body = payload.get("body") or {}
+    return {
+        "violations": [],
+        "corrected_body": {
+            "opening": body.get("opening", ""),
+            "body_paragraphs": list(body.get("body_paragraphs", []) or []),
+            "closing_paragraph": body.get("closing_paragraph", ""),
+        },
+    }
+
+
 def _patch_llm(
     monkeypatch: pytest.MonkeyPatch,
     handler: Callable[[str, dict[str, Any]], dict[str, Any]],
@@ -120,10 +139,11 @@ def _patch_llm(
     ``handler(namespace, user_payload)`` returns the dict the LLM would
     produce. ``counter`` is incremented per call when supplied. Pre-#303
     handlers raise ``AssertionError`` for unknown namespaces; when the
-    unknown namespace is the shared ``fit_assessment`` call (added by
-    #303) we transparently substitute a neutral good-fit response so
-    pre-existing tests don't have to add a branch. Tests that want to
-    assert stretch behavior should handle ``"fit_assessment"`` directly.
+    unknown namespace is one of the #303 background calls
+    (``fit_assessment`` or the post-draft ``cover_letter_audit``) we
+    transparently substitute a neutral default so pre-existing tests
+    don't have to add branches. Tests that want to assert stretch or
+    audit-rewrite behavior should handle those namespaces directly.
     """
 
     def fake(
@@ -140,6 +160,8 @@ def _patch_llm(
         except AssertionError:
             if namespace == "fit_assessment":
                 return _default_fit_assessment_response(user_payload)
+            if namespace == build_cover_letter.AUDIT_NAMESPACE:
+                return _default_audit_response(user_payload)
             raise
 
     monkeypatch.setattr(
@@ -1387,3 +1409,214 @@ def test_build_body_system_prompt_appends_addendum_for_stretch() -> None:
     # defaulted every stretch bridge to "backend service development"
     # because the v1 template's example anchored that phrase.
     assert "do not invent a generic target" in augmented
+
+
+# ---------------------------------------------------------------------------
+# Post-draft audit pass (#303 v4)
+# ---------------------------------------------------------------------------
+
+
+def test_collect_candidate_known_skills_dedupes_case_insensitive() -> None:
+    """The allow-list (#303 v4) flattens experience.related_skills + every
+    bullet.skills entry, dedupes case-insensitively, and preserves the
+    first-seen casing so the audit prompt sees one canonical token per
+    skill. Sort is case-insensitive ("Pytest" < "Python" because 'e' < 'h')."""
+    from scripts.build_resume import Bullet, Experience
+
+    experiences = (
+        Experience(
+            id="exp-1",
+            job_title="Lead",
+            company="Co",
+            start_date="2018-01",
+            end_date="present",
+            general_role_description="",
+            related_skills=("Python", "Pytest", "CI/CD"),
+            bullets=(
+                Bullet(
+                    id="b1",
+                    text="Built tests.",
+                    skills=("python", "Java"),  # python collides with Python
+                    impact_type="",
+                    domain="",
+                ),
+            ),
+        ),
+        Experience(
+            id="exp-2",
+            job_title="SDET",
+            company="Co",
+            start_date="2015-01",
+            end_date="2017-12",
+            general_role_description="",
+            related_skills=("Java", " "),  # whitespace dropped
+            bullets=(),
+        ),
+    )
+
+    skills = build_cover_letter._collect_candidate_known_skills(experiences)
+    assert skills == ["CI/CD", "Java", "Pytest", "Python"]
+
+
+def test_audit_rewrites_unfounded_claim_and_records_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #303 v4: the post-draft audit pass replaces direct-experience
+    claims for technologies outside `candidate_known_skills` with the
+    rewritten phrasing supplied by the validator, and surfaces a note so
+    the run summary makes the rewrite auditable. The body LLM still uses
+    the v3.1 prompt (which v12 showed gemma 9b can't reliably enforce
+    rule 7 on its own); the audit fills the gap.
+    """
+    profile_path, experience_path, jd_path = _write_inputs(tmp_path)
+    _enable_fixture_mode(monkeypatch)
+
+    captured_payloads: dict[str, dict[str, Any]] = {}
+
+    def handler(namespace: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if namespace == build_cover_letter.ADDRESSEE_NAMESPACE:
+            return {"hiring_manager_name": None, "confidence": 0.0}
+        if namespace == build_cover_letter.BODY_NAMESPACE:
+            captured_payloads["body"] = payload
+            return {
+                "opening": (
+                    "I am proficient in Java and have experience with "
+                    "Spring Boot microservices."
+                ),
+                "body_paragraphs": [
+                    "My Python automation work scales well across teams."
+                ],
+                "closing_paragraph": "Thank you for considering my application.",
+            }
+        if namespace == build_cover_letter.AUDIT_NAMESPACE:
+            captured_payloads["audit"] = payload
+            return {
+                "violations": [
+                    {
+                        "original_phrase": (
+                            "have experience with Spring Boot microservices"
+                        ),
+                        "claimed_tech": "Spring Boot",
+                        "rewritten_phrase": (
+                            "the framework-architecture principles I've applied "
+                            "translate to Spring Boot service development"
+                        ),
+                    }
+                ],
+                "corrected_body": {
+                    "opening": (
+                        "I am proficient in Java and the framework-architecture "
+                        "principles I've applied translate to Spring Boot service "
+                        "development."
+                    ),
+                    "body_paragraphs": [
+                        "My Python automation work scales well across teams."
+                    ],
+                    "closing_paragraph": ("Thank you for considering my application."),
+                },
+            }
+        raise AssertionError(f"unexpected namespace {namespace}")
+
+    _patch_llm(monkeypatch, handler)
+
+    out_dir = tmp_path / "out"
+    rc, stdout = _run_cli(
+        monkeypatch,
+        [
+            "--profile",
+            str(profile_path),
+            "--experience-db",
+            str(experience_path),
+            "--job-text-file",
+            str(jd_path),
+            "--company",
+            "Graphcore",
+            "--output-dir",
+            str(out_dir),
+            "--outputs",
+            "md",
+        ],
+    )
+    assert rc == build_cover_letter.EXIT_SUCCESS
+
+    # Audit got the candidate_known_skills allow-list and the body verbatim.
+    audit_payload = captured_payloads["audit"]
+    assert "candidate_known_skills" in audit_payload
+    assert any(
+        s.casefold() == "python" for s in audit_payload["candidate_known_skills"]
+    )
+    # Spring Boot is NOT in the candidate's known skills — the violation is
+    # legitimate.
+    assert not any(
+        "spring boot" in s.casefold() for s in audit_payload["candidate_known_skills"]
+    )
+    assert audit_payload["body"]["opening"].startswith("I am proficient in Java")
+
+    # The rendered MD reflects the audit's corrected_body, not the original
+    # draft.
+    md_text = (out_dir / "graphcore_cover_letter.md").read_text("utf-8")
+    assert "framework-architecture principles" in md_text
+    assert "have experience with Spring Boot" not in md_text
+
+    # Audit notes are surfaced in the JSON summary printed to stdout —
+    # informational, but separate from `warnings` so they don't flip the
+    # exit code.
+    summary = json.loads(stdout)
+    assert summary["audit_notes"]
+    assert any("Spring Boot" in note for note in summary["audit_notes"])
+    assert summary["warnings"] == []
+
+
+def test_audit_falls_back_to_original_body_on_validator_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the audit LLM call raises or returns malformed output, the
+    pipeline keeps the original draft and emits no audit notes — the
+    validator must be purely additive (fix-or-no-op), never
+    body-blanking."""
+    profile_path, experience_path, jd_path = _write_inputs(tmp_path)
+    _enable_fixture_mode(monkeypatch)
+
+    def handler(namespace: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if namespace == build_cover_letter.ADDRESSEE_NAMESPACE:
+            return {"hiring_manager_name": None, "confidence": 0.0}
+        if namespace == build_cover_letter.BODY_NAMESPACE:
+            return _good_body()
+        if namespace == build_cover_letter.AUDIT_NAMESPACE:
+            # Malformed: corrected_body is missing closing_paragraph.
+            return {
+                "violations": [],
+                "corrected_body": {
+                    "opening": "Replaced opening that should NOT reach the file.",
+                    "body_paragraphs": [],
+                    "closing_paragraph": "",
+                },
+            }
+        raise AssertionError(f"unexpected namespace {namespace}")
+
+    _patch_llm(monkeypatch, handler)
+
+    out_dir = tmp_path / "out"
+    rc, _ = _run_cli(
+        monkeypatch,
+        [
+            "--profile",
+            str(profile_path),
+            "--experience-db",
+            str(experience_path),
+            "--job-text-file",
+            str(jd_path),
+            "--company",
+            "Graphcore",
+            "--output-dir",
+            str(out_dir),
+            "--outputs",
+            "md",
+        ],
+    )
+    assert rc == build_cover_letter.EXIT_SUCCESS
+    md_text = (out_dir / "graphcore_cover_letter.md").read_text("utf-8")
+    # Original opening retained; malformed audit response did not blank
+    # the body.
+    assert "Replaced opening that should NOT reach the file." not in md_text
+    assert "I am applying for the Senior Principal" in md_text

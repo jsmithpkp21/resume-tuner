@@ -123,6 +123,7 @@ MAX_BULLETS_PER_EXPERIENCE = 8
 
 ADDRESSEE_NAMESPACE = "cover_letter_addressee"
 BODY_NAMESPACE = "cover_letter_body"
+AUDIT_NAMESPACE = "cover_letter_audit"
 
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1
@@ -512,6 +513,141 @@ def _draft_body(
     )
 
 
+def _collect_candidate_known_skills(experiences: tuple[Experience, ...]) -> list[str]:
+    """Flatten the candidate's actually-applied skills into a sorted list (#303 v4).
+
+    Sources: every ``experience.related_skills`` entry plus every
+    ``bullet.skills`` entry across in-window experiences. Used by the
+    post-draft audit pass below to ground the "claim experience only with
+    technologies in this list" rule in concrete data — the v4 attempt to
+    surface this list inside the body-draft user_payload broke schema
+    reliability across all three test models, so the list now flows only
+    into the audit prompt where it has a tighter, single-purpose home.
+    """
+    seen: dict[str, str] = {}  # case-insensitive dedupe; preserve first casing
+    for exp in experiences:
+        for skill in exp.related_skills:
+            normalized = skill.strip()
+            if not normalized:
+                continue
+            seen.setdefault(normalized.casefold(), normalized)
+        for bullet in exp.bullets[:MAX_BULLETS_PER_EXPERIENCE]:
+            for skill in bullet.skills:
+                normalized = skill.strip()
+                if not normalized:
+                    continue
+                seen.setdefault(normalized.casefold(), normalized)
+    return sorted(seen.values(), key=str.casefold)
+
+
+_AUDIT_SYSTEM_PROMPT = """You audit a cover letter draft for unfounded skill claims and rewrite any offending sentences in place.
+
+INPUTS:
+- `body`: the draft (`opening`, `body_paragraphs[]`, `closing_paragraph`).
+- `candidate_known_skills`: every technology the candidate has actually applied. Match case-insensitively.
+
+A VIOLATION is a phrase in `body` that asserts the candidate has direct experience with a technology X where X is NOT in `candidate_known_skills`. Direct-experience phrasings include: "experience with X", "expertise in X", "proficient in X", "skills in X", "leverage my X", "extensive X experience", "X experience", or "build/develop/design <Y> using X" when X is presented as the candidate's tool. Transferable-principle phrases ("X principles I've applied to Y translate to Z", "my Y work translates to X service development") are NOT violations because X is framed as a target, not a candidate skill.
+
+For each violation, REWRITE the sentence so X is framed as a target/JD context, preserving surrounding sentences. Keep the corrected text close to the original in length and meaning; do NOT introduce new facts. Do NOT remove or rewrite sentences that have no violation.
+
+OUTPUT — strict JSON only, no prose around it:
+{
+  "violations": [
+    {"original_phrase": "<exact sub-phrase from body>", "claimed_tech": "<X>", "rewritten_phrase": "<the corrected sub-phrase>"}
+  ],
+  "corrected_body": {
+    "opening": "<corrected opening>",
+    "body_paragraphs": ["<corrected paragraph 1>", "..."],
+    "closing_paragraph": "<corrected closing>"
+  }
+}
+
+If the draft has no violations, return `violations: []` and `corrected_body` equal to the input body verbatim.
+"""
+
+
+def _audit_and_correct_body(
+    *,
+    client: LLMClient,
+    body: CoverLetterBody,
+    candidate_known_skills: list[str],
+) -> tuple[CoverLetterBody, list[str]]:
+    """Post-draft validator pass for #303.
+
+    The body-draft prompt was tuned across v1-v3.1 to maximize bridging-
+    clause compliance without breaking JSON output; v4 confirmed that
+    pushing more rules / payload fields into the draft prompt regresses
+    output schema reliability across all three test models. Instead, this
+    second LLM call audits the *finished* draft against an explicit
+    skill allow-list and rewrites direct-experience claims for
+    technologies the resume does not show.
+
+    Falls back to the input body on any validator failure (network,
+    JSON-decode, malformed corrected_body shape) so the audit is purely
+    additive — it can fix slips, never make things worse. Returns
+    ``(body, warnings)`` where ``warnings`` lists each violation the
+    audit caught for surfacing in the run summary.
+    """
+    payload: dict[str, Any] = {
+        "candidate_known_skills": candidate_known_skills,
+        "body": {
+            "opening": body.opening,
+            "body_paragraphs": list(body.body_paragraphs),
+            "closing_paragraph": body.closing_paragraph,
+        },
+    }
+    try:
+        result = client.complete_json(
+            namespace=AUDIT_NAMESPACE,
+            system_prompt=_AUDIT_SYSTEM_PROMPT,
+            user_payload=payload,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.info("cover_letter_audit skipped: %s", exc)
+        return body, []
+
+    raw_violations = result.get("violations", [])
+    warnings: list[str] = []
+    if isinstance(raw_violations, list):
+        for v in raw_violations:
+            if not isinstance(v, dict):
+                continue
+            tech = str(v.get("claimed_tech", "")).strip()
+            phrase = str(v.get("original_phrase", "")).strip()
+            if tech or phrase:
+                warnings.append(
+                    f"Audit rewrote unfounded claim ({tech or 'unknown tech'}): "
+                    f"{phrase!r}"
+                )
+
+    corrected = result.get("corrected_body")
+    if not isinstance(corrected, dict):
+        return body, warnings
+    new_opening = str(corrected.get("opening", "")).strip()
+    new_paragraphs_raw = corrected.get("body_paragraphs", [])
+    if not isinstance(new_paragraphs_raw, list):
+        return body, warnings
+    new_paragraphs = tuple(str(p).strip() for p in new_paragraphs_raw if str(p).strip())
+    new_closing = str(corrected.get("closing_paragraph", "")).strip()
+    if not new_opening or not new_paragraphs or not new_closing:
+        # Validator returned an incomplete corrected body — fall back to
+        # the original draft so a buggy audit can never blank the letter.
+        logger.info(
+            "cover_letter_audit returned incomplete corrected_body; "
+            "keeping original draft"
+        )
+        return body, warnings
+
+    return (
+        CoverLetterBody(
+            opening=new_opening,
+            body_paragraphs=new_paragraphs,
+            closing_paragraph=new_closing,
+        ),
+        warnings,
+    )
+
+
 _BODY_SYSTEM_PROMPT_BASE = """You draft a professional cover letter body for a software engineering role.
 
 HARD RULES — violating any of these is a failure:
@@ -699,6 +835,19 @@ def run_pipeline_collecting_paths(
         fit_assessment=fit_assessment,
     )
 
+    # Post-draft validator pass (#303). Catches direct-experience claims
+    # for technologies outside the candidate_known_skills allow-list and
+    # rewrites them as transferable-principle framing. The validator is
+    # a separate LLM call so the body-draft prompt stays at its
+    # v3.1-tuned size — pushing the allow-list into the draft payload
+    # broke JSON output reliability across all three test models in v4.
+    candidate_known_skills = _collect_candidate_known_skills(experiences)
+    body, audit_warnings = _audit_and_correct_body(
+        client=client,
+        body=body,
+        candidate_known_skills=candidate_known_skills,
+    )
+
     ir = compose_cover_letter(
         profile=profile,
         addressee=addressee,
@@ -719,6 +868,10 @@ def run_pipeline_collecting_paths(
         "word_budget": args.word_budget,
         "outputs": [str(p) for p in written],
         "warnings": warnings,
+        # Audit notes are informational records of in-place rewrites; kept
+        # separate from `warnings` so they do not flip the exit code (the
+        # body was already corrected by the time we get here).
+        "audit_notes": list(audit_warnings),
     }
     print(json.dumps(summary, indent=2, sort_keys=True))
 

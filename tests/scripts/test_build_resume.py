@@ -6287,13 +6287,22 @@ def test_generate_jd_tailored_summary_falls_back_when_trim_drops_below_floor(
     back so the deterministic generator produces a complete summary.
     """
     monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
-    # Construct a summary so long-token-heavy that trimming to ≤ 6 lines
-    # at width 115 leaves fewer than _LLM_SUMMARY_MIN_WORDS words. Each
-    # "extremelylongtoken" is 18 chars; 6 * 115 = 690 visible chars; with
-    # spaces, ~36 tokens fit. _LLM_SUMMARY_MIN_WORDS is 30 — we want the
-    # final trimmed budget to be below 30, so use very long tokens that
-    # bring the per-line word count further down.
-    summary = " ".join(["extremelylongextrasuperlongtoken"] * 110)
+    # Construct a summary whose tokens are long enough that trimming to
+    # ≤ PROFILE_SUMMARY_MAX_LINES wrapped lines drops the word count
+    # below `_LLM_SUMMARY_MIN_WORDS`. Per-line capacity at width 115:
+    # roughly `(line_width + 1) // (token_len + 1)` tokens (the `+1`
+    # accounts for the inter-token space), so the 6-line trimmed budget
+    # is ~6 * (115 + 1) / (len(token) + 1) tokens. With a 32-char token
+    # that's ~6 * 116 / 33 ≈ 21 tokens — well below the 30-word floor,
+    # forcing the fallback path.
+    token = "extremelylongextrasuperlongtoken"  # 32 chars
+    assert (
+        build_resume.PROFILE_SUMMARY_MAX_LINES
+        * (build_resume.PROFILE_SUMMARY_LINE_WIDTH + 1)
+        // (len(token) + 1)
+        < build_resume._LLM_SUMMARY_MIN_WORDS
+    ), "test scaffolding bug: trim budget must be below the min-words floor"
+    summary = " ".join([token] * 110)
     _install_fake_llm(monkeypatch, payload={"summary": summary})
     resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
 

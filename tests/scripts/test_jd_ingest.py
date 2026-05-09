@@ -396,6 +396,127 @@ def test_html_to_text_normalizes(raw: str, expected: str) -> None:
     assert _html_to_text(raw) == expected
 
 
+# --- Issue #293: strip non-prose tag content (style / script / noscript) ----
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        # Bare style block contributes nothing.
+        ("<style>.x{color:red}</style>", ""),
+        # Bare script block contributes nothing.
+        ("<script>alert(1)</script>", ""),
+        # Bare noscript block contributes nothing.
+        ("<noscript>fallback</noscript>", ""),
+        # Style block with attributes (typical: type="text/css").
+        ('<style type="text/css">body{margin:0}</style>', ""),
+        # Script with attributes (typical: src/type/async).
+        ('<script src="/x.js"></script>', ""),
+        # Inline CSS rules with the noisy patterns from WU's Angular bundle —
+        # smoke test for the actual real-world repro shape from issue #293.
+        (
+            "<style>[uib-typeahead-popup].dropdown-menu{display:block;}"
+            ".uib-time input{width:50px;}</style>",
+            "",
+        ),
+        # Mixed: real prose, style in the middle, more prose. Block-paragraph
+        # behavior preserved across the elided style block (the bare `<p>`
+        # form produces a single `\n` between paragraphs — the double-`\n`
+        # form needs `<div><p>` stacking, which isn't on the skip-block
+        # path here).
+        ("<p>before</p><style>x{}</style><p>after</p>", "before\nafter"),
+        # Same with `<div><p>` wrapping: skip-block elision must NOT break
+        # the existing double-`\n` paragraph-separator behavior.
+        (
+            "<div><p>A</p></div><style>x{}</style><div><p>B</p></div>",
+            "A\n\nB",
+        ),
+        # Case-insensitive tag names — Playwright sometimes round-trips
+        # uppercase tag names depending on the source document.
+        ("<STYLE>x{}</STYLE><p>kept</p>", "kept"),
+        ("<Script>js</Script><p>kept</p>", "kept"),
+        # Multiple skip tags in series: each contributes nothing, prose between
+        # them is preserved.
+        (
+            "<p>A</p><style>1</style><script>2</script><noscript>3</noscript><p>B</p>",
+            "A\nB",
+        ),
+    ],
+)
+def test_html_to_text_strips_non_prose_tag_content(raw: str, expected: str) -> None:
+    """Issue #293: <style> / <script> / <noscript> contents must not leak
+    into the extracted JD prose. Pre-fix the shared `_PlainTextHTMLParser`
+    treated their text as data, so JS-rendered pages with large inline
+    stylesheets (notably `careers.westernunion.com`) had their description
+    excerpt dominated by CSS rules, leaving the LLM-tailoring stage with
+    little JD signal to work with.
+    """
+    assert _html_to_text(raw) == expected
+
+
+def test_html_to_text_resumes_after_skip_block_closes() -> None:
+    """Regression guard: the skip-depth counter must reach 0 cleanly so a
+    `<p>` after `</style>` still triggers a paragraph break. Without
+    correct bookkeeping, prose AFTER a skip block could be silently
+    swallowed or emitted without its leading newline.
+    """
+    raw = "first<style>noise</style><p>second</p>"
+    assert _html_to_text(raw) == "first\nsecond"
+
+
+# --- Issue #293 carve-out: JSON-LD scripts are KEPT, not stripped ---
+
+
+@pytest.mark.parametrize(
+    "raw, expected_substring",
+    [
+        # JSON-LD with the canonical type attribute is kept verbatim. This
+        # is the WHOLE reason BECU's Workday page produces a tailored
+        # summary — the JD body lives inside this script block, not in
+        # the surrounding HTML.
+        (
+            '<script type="application/ld+json">'
+            '{"@context":"https://schema.org/","@type":"JobPosting",'
+            '"title":"Staff SDET","hiringOrganization":{"name":"BECU"}}'
+            "</script>",
+            "Staff SDET",
+        ),
+        # Case-insensitive on the `type` attribute name and value, since
+        # browsers tolerate either casing.
+        (
+            '<SCRIPT TYPE="APPLICATION/LD+JSON">'
+            '{"title":"Engineer","name":"Acme"}</SCRIPT>',
+            "Engineer",
+        ),
+        # JSON-LD alongside regular noisy script: the LD+JSON survives,
+        # the JS code does not.
+        (
+            "<script>tracking_pixel(1)</script>"
+            '<script type="application/ld+json">{"title":"Job"}</script>',
+            '"title":"Job"',
+        ),
+    ],
+)
+def test_html_to_text_keeps_json_ld_scripts(raw: str, expected_substring: str) -> None:
+    """Issue #293: `<script type="application/ld+json">` carries
+    structured JD-schema data on Workday, Lever, and other structured-
+    data boards — that's the actual JD body. The strip-script
+    behavior must NOT include JSON-LD or BECU's Workday case regresses
+    to deterministic fallback (description goes empty after extraction).
+    """
+    out = _html_to_text(raw)
+    assert expected_substring in out
+
+
+def test_html_to_text_strips_non_json_ld_scripts() -> None:
+    """Negative case: regular `<script>` tags (no `type` or default
+    `text/javascript`) are still stripped. Only JSON-LD is carved out.
+    """
+    assert _html_to_text("<script>alert(1)</script>") == ""
+    assert _html_to_text('<script type="text/javascript">x()</script>') == ""
+    assert _html_to_text('<script type="module">import x</script>') == ""
+
+
 def test_try_board_api_fetch_dispatches_to_greenhouse(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

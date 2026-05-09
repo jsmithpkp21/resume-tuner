@@ -705,28 +705,98 @@ def _extract_company_from_text_blob(text: str) -> str:
     return ""
 
 
+# Tags whose inner text content is page-rendering machinery, never JD
+# prose: their contents are CSS rules, JS source code, or fallback
+# markup that the user-visible browser hides. Skipping them prevents
+# the LLM-tailoring stage from being drowned in inline-stylesheet
+# noise on JS-rendered pages (issue #293). Tracked via a per-tag
+# counter so technically-malformed nested cases (rare but defensive)
+# still bottom out correctly.
+#
+# Exception: `<script type="application/ld+json">` blocks carry
+# structured JSON-LD job-schema data (the primary JD source on Workday
+# and many other JS-rendered boards). Those are kept — see
+# `_is_kept_script` below.
+_NON_PROSE_TAGS: frozenset[str] = frozenset({"style", "script", "noscript"})
+
+# Script `type` attribute values whose payload is JD-relevant data,
+# NOT runnable JavaScript. Compared case-insensitively. Currently
+# limited to JSON-LD (RFC 7159 / schema.org) since that's the format
+# Workday and most structured-data-emitting boards use; extend
+# conservatively (e.g. `application/json`) only if a real consumer
+# needs it.
+_KEPT_SCRIPT_TYPES: frozenset[str] = frozenset({"application/ld+json"})
+
+
+def _is_kept_script(attrs: list[tuple[str, str | None]]) -> bool:
+    """True when a `<script>` element should be treated as data, not code.
+
+    Inspects the `type` attribute (case-insensitive). Returns False for
+    the no-attribute case (default `text/javascript`) and any attr
+    value not in `_KEPT_SCRIPT_TYPES`.
+    """
+    for key, value in attrs:
+        if (
+            key.lower() == "type"
+            and (value or "").strip().lower() in _KEPT_SCRIPT_TYPES
+        ):
+            return True
+    return False
+
+
 class _PlainTextHTMLParser(HTMLParser):
     """Strip HTML tags, collect plain text. Used to render API-returned
-    HTML (Greenhouse \"content\", Workable \"description\") into the
-    plain-text shape the rest of the pipeline expects.
+    HTML (Greenhouse \"content\", Workable \"description\") and
+    Playwright-rendered pages into the plain-text shape the rest of
+    the pipeline expects.
+
+    Drops the contents of `<style>`, `<script>` (except JSON-LD), and
+    `<noscript>` blocks entirely — these are never JD prose and their
+    inline content (CSS rules, JS source) blew up the description
+    excerpt on JS-rendered pages. See #293. JSON-LD scripts are kept
+    because Workday and other structured-data boards embed the JD body
+    there.
     """
 
     def __init__(self) -> None:
         super().__init__()
         self._chunks: list[str] = []
+        # Per-tag depth counter; non-zero ⇒ skip data emission.
+        self._skip_depth: dict[str, int] = {tag: 0 for tag in _NON_PROSE_TAGS}
+
+    def _in_skip_block(self) -> bool:
+        return any(depth > 0 for depth in self._skip_depth.values())
 
     def handle_data(self, data: str) -> None:
+        if self._in_skip_block():
+            return
         self._chunks.append(data)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag.lower() in {"br", "p", "li", "div", "tr", "h1", "h2", "h3", "h4"}:
+        lower = tag.lower()
+        if lower in _NON_PROSE_TAGS:
+            # JSON-LD scripts carry structured JD data — keep them.
+            if lower == "script" and _is_kept_script(attrs):
+                return
+            self._skip_depth[lower] += 1
+            return
+        if lower in {"br", "p", "li", "div", "tr", "h1", "h2", "h3", "h4"}:
             self._chunks.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        lower = tag.lower()
+        if lower in _NON_PROSE_TAGS and self._skip_depth[lower] > 0:
+            self._skip_depth[lower] -= 1
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         # Route self-closing tags (e.g. <br/>, <br />) through the same
         # break-inserting logic as their open-tag form. Without this,
         # XHTML-style line breaks would be silently dropped, concatenating
-        # text that should land on separate lines.
+        # text that should land on separate lines. Self-closing
+        # script/style/noscript are technically invalid HTML5 but harmless
+        # here — they'd carry no content to skip.
+        if tag.lower() in _NON_PROSE_TAGS:
+            return
         self.handle_starttag(tag, attrs)
 
     @property

@@ -2391,9 +2391,14 @@ def apply_experience_compression(
         # bottom of the beyond-N slice is the lowest-ranked. Reverse so when
         # the 50% cap applies we keep the *worst* of the demoted group
         # compressed (PR #278 review).
-        beyond_n = list(enumerate(in_window))[top_n:]
         candidates = list(
-            reversed([(idx, exp) for idx, exp in beyond_n if exp.bullets])
+            reversed(
+                [
+                    (idx, exp)
+                    for idx, exp in enumerate(in_window[top_n:], start=top_n)
+                    if exp.bullets
+                ]
+            )
         )
     elif fit_assessment is None:
         # Deterministic fallback: lowest-ranked first.

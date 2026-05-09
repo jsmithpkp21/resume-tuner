@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.45.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.44.1...v0.45.0) (2026-05-09)
+
+
+### Features
+
+* **cover-letter+fit:** explicit bridging for stretch fits ([#303](https://github.com/jsmithpkp21/resume-builder/issues/303)) ([2f2eefd](https://github.com/jsmithpkp21/resume-builder/commit/2f2eefd971d10bc914bbf2792a4e79c397811d1c))
+* **cover-letter:** post-draft audit pass blocks JD-vocabulary mirroring ([#303](https://github.com/jsmithpkp21/resume-builder/issues/303)) ([17b1d55](https://github.com/jsmithpkp21/resume-builder/commit/17b1d5584d425b7d01e10d7cd9bbbd7d26a79d95))
+
+
+### Bug Fixes
+
+* **cover-letter+fit:** address PR [#305](https://github.com/jsmithpkp21/resume-builder/issues/305) review nits ([2da431a](https://github.com/jsmithpkp21/resume-builder/commit/2da431aa4ea915a9cf343c887d84af60aebb1c6b))
+* **cover-letter+fit:** v2 calibration — anti-hallucination + de-anchored bridging ([b979bf6](https://github.com/jsmithpkp21/resume-builder/commit/b979bf69a2992db083f051bb47fadeeb8feb69cb))
+* **cover-letter+fit:** v3 — bump gate to 65, tighten prompts ([#303](https://github.com/jsmithpkp21/resume-builder/issues/303)) ([ab3fba6](https://github.com/jsmithpkp21/resume-builder/commit/ab3fba6ddd7c8344270c2319c9782b1138dae5ae))
+* **cover-letter:** v3.1 — restore imperative phrasing + post-bridge guard ([#303](https://github.com/jsmithpkp21/resume-builder/issues/303)) ([f530333](https://github.com/jsmithpkp21/resume-builder/commit/f530333e57d926050989faa5811f40cb62b9a7aa))
+
 ## [0.44.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.44.0...v0.44.1) (2026-05-09)
 
 

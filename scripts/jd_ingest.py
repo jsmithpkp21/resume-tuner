@@ -780,6 +780,15 @@ class _PlainTextHTMLParser(HTMLParser):
                 return
             self._skip_depth[lower] += 1
             return
+        # Suppress break-tag newlines while inside a skip block. The text
+        # inside the skipped block is already dropped via handle_data; its
+        # structural breaks are also part of the skipped layout, not the
+        # surrounding prose. Without this guard,
+        # ``<noscript><p>fallback</p></noscript>`` would emit a stray
+        # ``\n`` between adjacent paragraphs even though the fallback
+        # text itself was suppressed.
+        if self._in_skip_block():
+            return
         if lower in {"br", "p", "li", "div", "tr", "h1", "h2", "h3", "h4"}:
             self._chunks.append("\n")
 

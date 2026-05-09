@@ -464,6 +464,41 @@ def test_html_to_text_resumes_after_skip_block_closes() -> None:
     assert _html_to_text(raw) == "first\nsecond"
 
 
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        # PR #294 review: bare nested block inside <noscript> must NOT
+        # emit a stray newline. Pre-fix the inner `<p>` triggered
+        # handle_starttag → newline append even though its text was
+        # correctly suppressed by handle_data.
+        ("<noscript><p>fallback</p></noscript>", ""),
+        # The same noscript wrapped between real paragraphs: surrounding
+        # prose must keep its single-`\n` separator without an extra
+        # blank line injected by the inner <p>.
+        (
+            "<p>before</p><noscript><p>fallback</p></noscript><p>after</p>",
+            "before\nafter",
+        ),
+        # Self-closing block tag (`<br/>` style) inside a skip block —
+        # handle_startendtag delegates to handle_starttag, so the same
+        # guard must apply.
+        ("<style>x<br/>y</style><p>kept</p>", "kept"),
+        # Multiple nested block tags inside a skipped block: zero of
+        # them should contribute newlines.
+        ("<noscript><div><p>a</p><br/><p>b</p></div></noscript>", ""),
+    ],
+)
+def test_html_to_text_skip_block_suppresses_inner_break_tags(
+    raw: str, expected: str
+) -> None:
+    """Issue #293 / PR #294 review: structural break-tag newlines (`<br>`,
+    `<p>`, `<div>`, etc.) inside a skipped block must not leak into the
+    output. The skipped block is supposed to contribute nothing — text
+    AND breaks alike.
+    """
+    assert _html_to_text(raw) == expected
+
+
 # --- Issue #293 carve-out: JSON-LD scripts are KEPT, not stripped ---
 
 

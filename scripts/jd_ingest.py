@@ -991,13 +991,17 @@ def _fetch_via_playwright(url: str) -> FetchedPage | None:
     )
 
 
-def _fetch_job_page_metadata(url: str) -> FetchedPage:
-    fixture_path = os.getenv(_JOB_PAGE_FIXTURE_ENV, "").strip()
-    if fixture_path:
-        return _fetch_job_page_metadata_from_fixture(Path(fixture_path))
-    api_result = _try_board_api_fetch(url)
-    if api_result is not None:
-        return api_result
+def _fetch_static_job_page_metadata(url: str) -> FetchedPage:
+    """Static (urllib) fetch of a JD page.
+
+    Always returns a FetchedPage — failures are encoded as
+    ``status="fetch_failed"`` with a structured ``notes`` tag so callers
+    can decide whether to fall through to the Playwright path. Never
+    returns early on size limits or read exceptions; the orchestration
+    layer (``_fetch_job_page_metadata``) handles fallthrough so JS-
+    rendered hosts on the allowlist still get Playwright tried even when
+    static fails outright.
+    """
     request = Request(url, headers={"User-Agent": _FETCH_USER_AGENT})
     opener = build_opener(_ValidatingRedirectHandler())
     try:
@@ -1038,17 +1042,31 @@ def _fetch_job_page_metadata(url: str) -> FetchedPage:
     parser = _MetadataParser()
     parser.feed(html_text)
     parser.close()
-    static_result = FetchedPage(
+    return FetchedPage(
         status="fetched",
         title=parser.title,
         description=parser.description,
         notes=(),
     )
+
+
+def _fetch_job_page_metadata(url: str) -> FetchedPage:
+    fixture_path = os.getenv(_JOB_PAGE_FIXTURE_ENV, "").strip()
+    if fixture_path:
+        return _fetch_job_page_metadata_from_fixture(Path(fixture_path))
+    api_result = _try_board_api_fetch(url)
+    if api_result is not None:
+        return api_result
+    static_result = _fetch_static_job_page_metadata(url)
     # JS-rendered fallback: when the user has opted into Playwright AND
     # either the host is in our curated allowlist or the static fetch
-    # came back near-empty, retry via headless Chromium and prefer that
-    # result if it produced non-empty content. Static result still wins
-    # on any Playwright failure.
+    # came back near-empty (including outright `fetch_failed`), retry
+    # via headless Chromium and prefer that result if it produced
+    # non-empty content. Static result still wins on any Playwright
+    # failure. Issue #281: prior implementation early-returned on
+    # static-fetch failures (ResponseTooLarge / ContentTooLarge / read
+    # exceptions) without trying Playwright, even for allowlisted JS-
+    # rendered hosts where Playwright is the only viable path.
     if _playwright_enabled() and _should_use_playwright(url, static_result):
         pw_result = _fetch_via_playwright(url)
         if pw_result is not None and pw_result.description.strip():

@@ -1117,3 +1117,105 @@ def test_fetch_job_page_metadata_falls_back_to_static_when_playwright_returns_no
     # Static result preserved when Playwright returns None.
     assert result.notes == ()
     assert result.title == "Static Title"
+
+
+# --- Issue #281: static-fetch failures must fall through to Playwright -----
+
+
+@pytest.mark.parametrize(
+    "static_failure_notes, label",
+    [
+        (("fetch_failed:ResponseTooLarge",), "response_too_large"),
+        (("fetch_failed:ContentTooLarge",), "content_too_large_header"),
+        (("fetch_failed:URLError",), "static_exception"),
+    ],
+)
+def test_fetch_job_page_metadata_falls_through_to_playwright_on_static_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    static_failure_notes: tuple[str, ...],
+    label: str,
+) -> None:
+    """Issue #281: when the static fetch fails outright, Playwright must
+    still be tried for allowlisted JS-rendered hosts.
+
+    Pre-fix the static-fetch failure paths (ResponseTooLarge,
+    ContentTooLarge, exception) early-returned a `fetch_failed`
+    FetchedPage and never invoked the Playwright fallback. This was
+    the root cause of v4's `careers.westernunion.com` cases all going
+    deterministic — the host's bundled Angular SPA exceeds 256 KB on
+    static fetch, so the body-too-large path fired and Playwright
+    never ran despite the host being on `_JS_RENDERED_EXACT_HOSTS`.
+    """
+    monkeypatch.delenv("RESUME_BUILDER_JOB_PAGE_FIXTURE", raising=False)
+    monkeypatch.setenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", "1")
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+    monkeypatch.setattr("scripts.jd_ingest._try_board_api_fetch", lambda _u: None)
+
+    static_failure = FetchedPage(
+        status="fetch_failed",
+        title="",
+        description="",
+        notes=static_failure_notes,
+    )
+    monkeypatch.setattr(
+        "scripts.jd_ingest._fetch_static_job_page_metadata",
+        lambda _u: static_failure,
+    )
+
+    pw_result = FetchedPage(
+        status="fetched",
+        title="WU Staff SWE",
+        description="Real JD body recovered via headless browser. " * 8,
+        notes=("source:playwright",),
+    )
+    captured: dict[str, str] = {}
+
+    def fake_pw(url: str) -> FetchedPage:
+        captured["url"] = url
+        return pw_result
+
+    monkeypatch.setattr("scripts.jd_ingest._fetch_via_playwright", fake_pw)
+    from scripts.jd_ingest import _fetch_job_page_metadata
+
+    url = "https://careers.westernunion.com/job-details/12345/staff-engineer/"
+    result = _fetch_job_page_metadata(url)
+    assert result is pw_result, f"failed for {label}: got {result!r}"
+    assert captured["url"] == url
+
+
+def test_fetch_job_page_metadata_returns_static_failure_when_playwright_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #281 negative case: with Playwright disabled, static failure
+    is returned as-is. The fix only adds a fallthrough when Playwright is
+    actually available; default behavior for callers who haven't opted in
+    must remain unchanged.
+    """
+    monkeypatch.delenv("RESUME_BUILDER_JOB_PAGE_FIXTURE", raising=False)
+    monkeypatch.delenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", raising=False)
+    monkeypatch.setattr("scripts.jd_ingest._try_board_api_fetch", lambda _u: None)
+
+    static_failure = FetchedPage(
+        status="fetch_failed",
+        title="",
+        description="",
+        notes=("fetch_failed:ResponseTooLarge",),
+    )
+    monkeypatch.setattr(
+        "scripts.jd_ingest._fetch_static_job_page_metadata",
+        lambda _u: static_failure,
+    )
+
+    def _should_not_be_called(_url: str) -> FetchedPage | None:
+        raise AssertionError("_fetch_via_playwright must not run when env disabled")
+
+    monkeypatch.setattr(
+        "scripts.jd_ingest._fetch_via_playwright", _should_not_be_called
+    )
+    from scripts.jd_ingest import _fetch_job_page_metadata
+
+    result = _fetch_job_page_metadata(
+        "https://careers.westernunion.com/job-details/12345/staff-engineer/"
+    )
+    assert result.status == "fetch_failed"
+    assert result.notes == ("fetch_failed:ResponseTooLarge",)

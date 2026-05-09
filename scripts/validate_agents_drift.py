@@ -106,6 +106,14 @@ INVARIANTS: tuple[Invariant, ...] = (
         re.compile(r"Files to Read Before Editing Core Logic", re.IGNORECASE),
         "Files to Read Before Editing Core Logic section",
     ),
+    Invariant(
+        "makefile_local_hook",
+        # Negative lookahead prevents `Makefile.local.example`, `Makefile.local-foo`,
+        # or any extended token from satisfying the invariant when the actual
+        # `Makefile.local` reference has been removed.
+        re.compile(r"-include\s+Makefile\.local(?![\w.-])"),
+        "Makefile.local consumer-extension hook reference",
+    ),
 )
 
 

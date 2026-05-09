@@ -24,6 +24,12 @@ pytest -q tests/scripts/test_consumer_contract.py
 - When both files exist, apply `AGENTS.md` first, then apply `AGENTS_LOCAL.md` as additive/override guidance.
 - Never add `AGENTS_LOCAL.md` to the tooling source repo root `.tooling-sync-manifest.toml`; the tooling repo's copy is authoritative and consumers must not edit theirs, so local guidance must remain outside managed sync to avoid drift churn.
 
+## Adding consumer-specific make targets (`Makefile.local`)
+- The synced `Makefile` ends with `-include Makefile.local`. The leading `-` means make tolerates the file's absence, so this is a no-op when no local targets exist.
+- `Makefile.local` is consumer-owned. Use it for repo-specific targets that wrap consumer-only scripts or data and have no place in the shared tooling Makefile. Consumers may check it in or list it in `.gitignore`, per repo preference.
+- `Makefile.local` MUST NOT be added to `.tooling-sync-manifest.toml`. Listing it would let tooling sync overwrite consumer targets and would also surface every consumer-side edit as a `make drift-check` failure — defeating the entire reason this hook exists.
+- Editing the synced tooling `Makefile` directly in a consumer repo to add consumer-only targets remains forbidden by `make drift-check`; `Makefile.local` is the only sanctioned extension point.
+
 ## Path-Scoped Instructions (`.github/instructions/*.instructions.md`)
 - Files under `.github/instructions/` use frontmatter `applyTo:` globs to surface narrower guidance when the agent edits a matching path. They restate (not replace) rules already in `AGENTS.md`, so the agent re-reads critical invariants when deep in a sensitive file.
 - Current scoped files: `scripts.instructions.md` (security invariants for `scripts/sync_tooling.sh`), `workflows.instructions.md` (action pin and lock contract for `.github/workflows/*.yml`).

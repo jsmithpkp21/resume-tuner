@@ -625,3 +625,10 @@ precommit-fix-docker: docker-up
 
 check-docker: docker-up
 	$(DOCKER_RUN) "cd /repo && source /opt/venv/bin/activate && ruff check . --fix && ruff format . && mypy . && pytest -q && pre-commit run check-yaml --all-files && pre-commit run check-toml --all-files && pre-commit run check-json --all-files && python3 scripts/validate_version_sync.py --root . && python3 scripts/validate_env_file.py --root . && python3 scripts/validate_workflow_action_pins.py --root . && python3 scripts/validate_dev_tool_pins.py --root . && python3 scripts/validate_agents_drift.py --root ."
+
+# Consumer-specific make targets live in Makefile.local. The file is
+# consumer-owned and intentionally NOT in .tooling-sync-manifest.toml, so
+# tooling sync neither overwrites it nor flags it as drift. The leading `-`
+# makes its absence a no-op. See AGENTS.md "Adding consumer-specific make
+# targets" for the full convention.
+-include Makefile.local

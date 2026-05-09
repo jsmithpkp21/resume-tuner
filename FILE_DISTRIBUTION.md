@@ -41,6 +41,7 @@ The lock records **what is currently managed in that consumer**.
 - `.pyproject.meta.toml`
 - `tooling.toml`
 - `AGENTS_LOCAL.md` (optional local overrides/additions layered after `AGENTS.md`)
+- `Makefile.local` (optional consumer-specific make targets loaded via `-include` from the synced `Makefile`)
 - `docs/REFERENCE/IMPROVEMENTS.md` (consumer-local backlog/notes; explicitly not managed)
 - `README.md`
 - `CHANGELOG.md`

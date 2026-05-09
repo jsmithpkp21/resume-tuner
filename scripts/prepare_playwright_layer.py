@@ -63,11 +63,13 @@ def read_requirements(path: str = "requirements.txt") -> list[str]:
 
 
 # PEP 440 version specifiers we strip when extracting a package name from
-# a requirement spec. Order matters for the longer-prefix-first rule
-# (`==` must be tried before `=`, `>=` before `>`, etc.). Direct
+# a requirement spec. Order matters for the longer-prefix-first rule:
+# `===` must be tried before `==`, `>=` before `>`, and `<=` before `<`,
+# so a spec like `pkg>=1.0` splits on `>=` rather than `>`. Direct
 # references via `@` (PEP 508) are handled separately because they're a
 # URL/path delimiter rather than a version specifier.
 _PEP440_SPECIFIERS: tuple[str, ...] = (
+    "===",
     "==",
     ">=",
     "<=",
@@ -85,7 +87,7 @@ def _normalize_requirement_name(spec: str) -> str:
     - PEP 508 environment markers (everything after `;`)
     - extras brackets (`pkg[extra1,extra2]` → `pkg`)
     - PEP 508 direct references (`pkg @ file:///...` → `pkg`)
-    - any PEP 440 version specifier (`==`, `>=`, `<=`, `~=`, `!=`, `>`, `<`)
+    - any PEP 440 version specifier (`===`, `==`, `>=`, `<=`, `~=`, `!=`, `>`, `<`)
 
     Used by both `verify_requirements_installed()` and
     `PlaywrightEnvBuilder.prepare_requirements()` so the two paths stay

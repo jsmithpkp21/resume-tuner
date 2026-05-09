@@ -18,6 +18,13 @@
 - Apply `AGENTS.md` first, then `AGENTS_LOCAL.md` when present.
 - Keep `AGENTS_LOCAL.md` out of the source-of-truth manifest in the tooling source repo root `.tooling-sync-manifest.toml`; the tooling repo's copy is authoritative and consumers must not edit theirs, and they only track applied sync state in `.tooling-sync-manifest.lock`, so local guidance stays outside managed sync and is never overwritten.
 
+## Adding consumer-specific make targets (`Makefile.local`)
+
+- The synced `Makefile` ends with `-include Makefile.local`. The leading `-` makes its absence a no-op, so this hook costs nothing when unused.
+- `Makefile.local` is consumer-owned. Use it for repo-specific targets that wrap consumer-only scripts or data and have no place in the shared tooling Makefile. Consumers may check it in or list it in `.gitignore`, per repo preference.
+- `Makefile.local` MUST NOT be added to `.tooling-sync-manifest.toml`. Listing it would let tooling sync overwrite consumer targets and would also surface every consumer-side edit as a `make drift-check` failure — defeating the entire reason this hook exists.
+- Editing the synced tooling `Makefile` directly in a consumer repo to add consumer-only targets remains forbidden by `make drift-check`; `Makefile.local` is the only sanctioned extension point.
+
 ## Path-Scoped Instructions (`.github/instructions/*.instructions.md`)
 
 - Files under `.github/instructions/` use frontmatter `applyTo:` globs to surface narrower guidance when editing matching paths. They restate (not replace) rules already in this file, so critical invariants stay in front of the agent when it is deep in a sensitive file.

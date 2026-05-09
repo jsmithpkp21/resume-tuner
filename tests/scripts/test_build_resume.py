@@ -6634,6 +6634,48 @@ def test_compute_fit_assessment_happy_path(monkeypatch: pytest.MonkeyPatch) -> N
     assert fake.calls and fake.calls[0]["namespace"] == "fit_assessment"
 
 
+def test_compute_fit_assessment_prompt_calibrates_for_context_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #303 calibration: the fit_assessment system prompt must spell
+    out the context-vs-skill rubric and ground it in ICL examples so a
+    test-automation candidate applying to a backend-dev JD scores as a
+    stretch even when the resume shares Java / Spring vocabulary with the
+    JD. Locking the rubric language in the prompt keeps the calibration
+    from silently regressing during future prompt edits.
+    """
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    fake = _FakeLLMClient(
+        {
+            "overall_fit_score": 35,
+            "overall_rationale": "context mismatch",
+            "per_experience_scores": [
+                {
+                    "experience_id": "exp-1",
+                    "fit_score": 35,
+                    "rationale": "shared skills, different context",
+                },
+            ],
+        }
+    )
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+
+    build_resume.compute_fit_assessment(_resume_with_one_experience())
+
+    assert fake.calls
+    prompt = fake.calls[0]["system_prompt"]
+    # Rubric: identify and compare CONTEXTS (not just skills).
+    assert "CONTEXT" in prompt
+    assert "RUBRIC" in prompt
+    # Skill-vs-context distinction is explicit.
+    assert "SKILLS overlap" in prompt or "SKILLS" in prompt
+    # ICL examples cover the canonical stretch directions called out in
+    # issue #303 (SDET → Backend Dev and the reverse).
+    assert "EXAMPLES" in prompt
+    assert "SDET" in prompt
+    assert "Backend Dev" in prompt
+
+
 def test_compute_fit_assessment_rejects_out_of_range_overall_score(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

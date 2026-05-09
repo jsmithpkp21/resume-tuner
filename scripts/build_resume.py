@@ -2513,6 +2513,58 @@ def _coerce_fit_score(raw: object) -> float | None:
     return value
 
 
+# Calibrated for context-vs-skill mismatch (#303). Pre-#303 the prompt only
+# said "consider experience depth, domain match, and seniority signals
+# together"; the v9 multi-JD run produced 0/12 stretch classifications even
+# when the candidate's primary work CONTEXT (test automation) didn't match
+# the JD's CONTEXT (production backend dev). The rubric below makes the
+# context check explicit and grounds it in 3 ICL examples drawn from real
+# stretch cases. The JSON output schema is unchanged so #271 / #272
+# consumers don't need code changes.
+_FIT_ASSESSMENT_SYSTEM_PROMPT = (
+    "You assess how well a candidate's experience fits a job description. "
+    "Score fit on a 0-100 scale where 100 means strongest possible fit and "
+    "0 means no relevant signal.\n"
+    "\n"
+    "RUBRIC:\n"
+    "1. Identify the JD's primary work CONTEXT (e.g. production backend "
+    "development, test automation / SDET, data engineering, frontend dev, "
+    "ML engineering, infrastructure / SRE).\n"
+    "2. Identify the candidate's primary work CONTEXT from `recent_experiences` "
+    "(job_title, general_role_description, and bullets) — NOT from skill "
+    "vocabulary alone.\n"
+    "3. When the two CONTEXTS differ, score as a stretch / low fit even when "
+    "individual SKILLS overlap. Shared technology vocabulary (e.g. Java, "
+    "Python, Spring Boot) does NOT bridge a context gap on its own; the "
+    "candidate must have applied those skills in the JD's context.\n"
+    "4. Consider experience depth and seniority alongside context. Use the "
+    "input's candidate_current_level as additional seniority context when "
+    "non-empty; otherwise judge purely from experience content. Do NOT "
+    "weight job titles alone.\n"
+    "\n"
+    "EXAMPLES (illustrative; apply the rubric to the actual input):\n"
+    "- SDET / test-automation engineer applying to a Backend Dev role: "
+    "stretch even with shared Java / Spring Boot vocabulary, because the "
+    "candidate's daily work is test framework architecture, not production "
+    "service development. Expected overall_fit_score band: 30-50.\n"
+    "- Backend Dev applying to a SDET / Test Framework role: also a stretch "
+    "in the other direction — the candidate has shipped production code but "
+    "has not owned test-framework architecture as primary work. Expected "
+    "overall_fit_score band: 30-50.\n"
+    "- Data engineer applying to a Frontend Dev role: stretch despite both "
+    "being software engineering — the day-to-day toolchain and product "
+    "surface are different. Expected overall_fit_score band: 20-40.\n"
+    "\n"
+    "Reply with JSON only matching this schema: "
+    '{"overall_fit_score": <0-100 number>, '
+    '"overall_rationale": "<short string>", '
+    '"per_experience_scores": [{"experience_id": "<id from input>", '
+    '"fit_score": <0-100 number>, "rationale": "<short string>"}]}. '
+    "Include one entry per input experience using the exact experience_id "
+    "values from the input."
+)
+
+
 def compute_fit_assessment(resume: ResumeIR) -> FitAssessment | None:
     """Run the shared fit_assessment LLM call (#272).
 
@@ -2576,23 +2628,7 @@ def compute_fit_assessment(resume: ResumeIR) -> FitAssessment | None:
         client = LLMClient.from_env()
         response = client.complete_json(
             namespace="fit_assessment",
-            system_prompt=(
-                "You assess how well a candidate's experience fits a job "
-                "description. Score fit on a 0-100 scale where 100 means "
-                "strongest possible fit and 0 means no relevant signal. "
-                "Consider experience depth, domain match, and seniority "
-                "signals together; do NOT weight job titles alone. Use "
-                "the input's candidate_current_level as additional "
-                "seniority context when it is non-empty; otherwise judge "
-                "fit purely from experience content. Reply with JSON only "
-                "matching this schema: "
-                '{"overall_fit_score": <0-100 number>, '
-                '"overall_rationale": "<short string>", '
-                '"per_experience_scores": [{"experience_id": "<id from input>", '
-                '"fit_score": <0-100 number>, "rationale": "<short string>"}]}. '
-                "Include one entry per input experience using the exact "
-                "experience_id values from the input."
-            ),
+            system_prompt=_FIT_ASSESSMENT_SYSTEM_PROMPT,
             user_payload=user_payload,
         )
     except Exception as exc:  # noqa: BLE001

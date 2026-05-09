@@ -85,6 +85,30 @@ def _write_inputs(
     return profile_path, experience_path, jd_path
 
 
+def _default_fit_assessment_response(payload: dict[str, Any]) -> dict[str, Any]:
+    """Neutral good-fit response for the shared fit_assessment call (#303).
+
+    Issued to test handlers that don't supply a fit_assessment branch so
+    cover-letter tests written before #303 keep working. Score 75 keeps
+    the cover-letter body on the good-fit branch (no bridging addendum)
+    so assertions about the existing prompt content remain valid.
+    """
+    experiences = payload.get("experiences") or []
+    return {
+        "overall_fit_score": 75,
+        "overall_rationale": "default test response",
+        "per_experience_scores": [
+            {
+                "experience_id": entry.get("experience_id", ""),
+                "fit_score": 75,
+                "rationale": "default test response",
+            }
+            for entry in experiences
+            if isinstance(entry, dict) and entry.get("experience_id")
+        ],
+    }
+
+
 def _patch_llm(
     monkeypatch: pytest.MonkeyPatch,
     handler: Callable[[str, dict[str, Any]], dict[str, Any]],
@@ -94,7 +118,12 @@ def _patch_llm(
     """Patch ``LLMClient.complete_json`` to dispatch on namespace.
 
     ``handler(namespace, user_payload)`` returns the dict the LLM would
-    produce. ``counter`` is incremented per call when supplied.
+    produce. ``counter`` is incremented per call when supplied. Pre-#303
+    handlers raise ``AssertionError`` for unknown namespaces; when the
+    unknown namespace is the shared ``fit_assessment`` call (added by
+    #303) we transparently substitute a neutral good-fit response so
+    pre-existing tests don't have to add a branch. Tests that want to
+    assert stretch behavior should handle ``"fit_assessment"`` directly.
     """
 
     def fake(
@@ -106,7 +135,12 @@ def _patch_llm(
     ) -> dict[str, Any]:
         if counter is not None:
             counter[namespace] = counter.get(namespace, 0) + 1
-        return handler(namespace, user_payload)
+        try:
+            return handler(namespace, user_payload)
+        except AssertionError:
+            if namespace == "fit_assessment":
+                return _default_fit_assessment_response(user_payload)
+            raise
 
     monkeypatch.setattr(
         "scripts.build_cover_letter.LLMClient.complete_json", fake, raising=True
@@ -1066,3 +1100,255 @@ def test_word_budget_rejects_non_positive_int(
 def test_word_budget_accepts_positive_int(good_value: str) -> None:
     ns = build_cover_letter.parse_args(["--word-budget", good_value])
     assert ns.word_budget == int(good_value)
+
+
+# ---------------------------------------------------------------------------
+# Cover-letter bridging language for stretch fits (issue #303)
+# ---------------------------------------------------------------------------
+
+
+# Pad the sample JD past _MIN_JD_DESCRIPTION_CHARS (200) so
+# _has_substantive_jd_context returns True and compute_fit_assessment
+# actually fires under fixture mode.
+_STRETCH_JD_TEXT = """\
+Senior Backend Software Engineer at Western Union
+
+We are building Java Spring Boot microservices and an Angular micro-frontend.
+You will own production backend service development end to end: API design,
+performance tuning, deployment, on-call rotation, incident response, and
+the partner integrations that keep our payments rail running. We are a
+backend-first team; test ownership lives elsewhere.
+
+Responsibilities:
+- Build and ship production Spring Boot services to handle payment flows.
+- Drive API contract design with the integrations team.
+- Participate in on-call rotation and incident response.
+"""
+
+
+def _patch_compute_fit_assessment(
+    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any] | None
+) -> None:
+    """Force ``build_resume.compute_fit_assessment`` to return a fixed value.
+
+    Bypasses the LLM call entirely so bridging-language tests don't depend
+    on JD-content thresholds or the rubric prompt; we just want to assert
+    how the cover-letter body draft reacts to a known assessment payload.
+    """
+    from scripts import build_resume as _br
+
+    fake: Callable[[Any], _br.FitAssessment | None]
+    if response is None:
+        fake = lambda _resume: None  # noqa: E731
+    else:
+        fake_assessment = _br.FitAssessment(
+            overall_fit_score=float(response["overall_fit_score"]),
+            overall_rationale=response.get("overall_rationale", ""),
+            per_experience_scores=tuple(
+                _br.FitExperienceScore(
+                    experience_id=entry["experience_id"],
+                    fit_score=float(entry.get("fit_score", 0)),
+                    rationale=entry.get("rationale", ""),
+                )
+                for entry in response.get("per_experience_scores", [])
+            ),
+        )
+        fake = lambda _resume: fake_assessment  # noqa: E731
+
+    # Patch the symbol re-exported into build_cover_letter so the cover-letter
+    # pipeline picks up the fake without touching build_resume's own callers.
+    monkeypatch.setattr(
+        "scripts.build_cover_letter.compute_fit_assessment", fake, raising=True
+    )
+
+
+@pytest.mark.parametrize(
+    "overall_fit_score,expects_bridging",
+    [
+        # Below the shared narrative gate (60) → stretch → bridging required.
+        (35.0, True),
+        # Above the gate → good fit → keep current enthusiastic-fit tone.
+        (80.0, False),
+    ],
+)
+def test_cover_letter_bridging_fires_only_for_stretch_fits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    overall_fit_score: float,
+    expects_bridging: bool,
+) -> None:
+    """Issue #303: the cover-letter body prompt must inject bridging
+    instructions only when fit_assessment classifies the candidate-to-JD
+    pairing as a stretch (overall_fit_score < _FIT_NARRATIVE_GATE_SCORE).
+    Good-fit calls keep the existing prompt verbatim so the enthusiastic
+    tone and cache key are unchanged.
+    """
+    profile_path, experience_path, _ = _write_inputs(tmp_path, jd_text=_STRETCH_JD_TEXT)
+    jd_path = tmp_path / "jd.txt"
+    jd_path.write_text(_STRETCH_JD_TEXT, encoding="utf-8")
+    _enable_fixture_mode(monkeypatch)
+
+    _patch_compute_fit_assessment(
+        monkeypatch,
+        {
+            "overall_fit_score": overall_fit_score,
+            "overall_rationale": "test-automation context applying to backend dev",
+            "per_experience_scores": [
+                {
+                    "experience_id": "exp_acme_lead_2018",
+                    "fit_score": overall_fit_score,
+                    "rationale": "shared Java vocabulary, different daily context",
+                },
+            ],
+        },
+    )
+
+    captured: dict[str, Any] = {}
+
+    def handler(namespace: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if namespace == build_cover_letter.BODY_NAMESPACE:
+            # The wrapper installed by _patch_llm passes the system prompt
+            # via a separate argument; we capture the user_payload here and
+            # rely on _capture_body_system_prompt for the prompt itself.
+            captured["body_payload"] = payload
+            return _good_body()
+        if namespace == build_cover_letter.ADDRESSEE_NAMESPACE:
+            return {"hiring_manager_name": None, "confidence": 0.0}
+        raise AssertionError(f"unexpected namespace {namespace}")
+
+    body_prompts: list[str] = []
+
+    def fake_complete_json(
+        self: Any,
+        *,
+        namespace: str,
+        system_prompt: str,
+        user_payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        if namespace == build_cover_letter.BODY_NAMESPACE:
+            body_prompts.append(system_prompt)
+        return handler(namespace, user_payload)
+
+    monkeypatch.setattr(
+        "scripts.build_cover_letter.LLMClient.complete_json",
+        fake_complete_json,
+        raising=True,
+    )
+
+    rc, _ = _run_cli(
+        monkeypatch,
+        [
+            "--profile",
+            str(profile_path),
+            "--experience-db",
+            str(experience_path),
+            "--job-text-file",
+            str(jd_path),
+            "--company",
+            "Western Union",
+            "--target-role",
+            "Senior Backend Software Engineer",
+            "--output-dir",
+            str(tmp_path / "out"),
+            "--outputs",
+            "md",
+        ],
+    )
+    assert rc == build_cover_letter.EXIT_SUCCESS
+
+    assert body_prompts, "cover-letter body LLM call did not fire"
+    body_prompt = body_prompts[0]
+    body_payload = captured["body_payload"]
+
+    if expects_bridging:
+        # Stretch-fit guidance must be present and reference bridging,
+        # context, and the no-direct-experience guardrail.
+        assert "STRETCH-FIT GUIDANCE" in body_prompt
+        assert "While my background has been primarily in" in body_prompt
+        assert "Do NOT claim direct experience" in body_prompt
+        # fit_assessment_* keys are injected only on stretch so good-fit
+        # cache keys stay untouched.
+        assert body_payload["fit_assessment_overall_score"] == overall_fit_score
+        assert body_payload["fit_assessment_rationale"]
+    else:
+        assert "STRETCH-FIT GUIDANCE" not in body_prompt
+        assert "fit_assessment_overall_score" not in body_payload
+        assert "fit_assessment_rationale" not in body_payload
+
+
+def test_cover_letter_no_bridging_when_fit_assessment_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When compute_fit_assessment returns None (LLM disabled / thin JD /
+    malformed response), the cover-letter body keeps the existing prompt
+    unchanged — no bridging addendum, no fit_assessment_* payload keys.
+    """
+    profile_path, experience_path, jd_path = _write_inputs(tmp_path)
+    _enable_fixture_mode(monkeypatch)
+
+    _patch_compute_fit_assessment(monkeypatch, None)
+
+    captured: dict[str, Any] = {}
+    body_prompts: list[str] = []
+
+    def fake_complete_json(
+        self: Any,
+        *,
+        namespace: str,
+        system_prompt: str,
+        user_payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        if namespace == build_cover_letter.BODY_NAMESPACE:
+            body_prompts.append(system_prompt)
+            captured["body_payload"] = user_payload
+            return _good_body()
+        if namespace == build_cover_letter.ADDRESSEE_NAMESPACE:
+            return {"hiring_manager_name": None, "confidence": 0.0}
+        raise AssertionError(f"unexpected namespace {namespace}")
+
+    monkeypatch.setattr(
+        "scripts.build_cover_letter.LLMClient.complete_json",
+        fake_complete_json,
+        raising=True,
+    )
+
+    rc, _ = _run_cli(
+        monkeypatch,
+        [
+            "--profile",
+            str(profile_path),
+            "--experience-db",
+            str(experience_path),
+            "--job-text-file",
+            str(jd_path),
+            "--company",
+            "Graphcore",
+            "--output-dir",
+            str(tmp_path / "out"),
+            "--outputs",
+            "md",
+        ],
+    )
+    assert rc == build_cover_letter.EXIT_SUCCESS
+    assert body_prompts
+    assert "STRETCH-FIT GUIDANCE" not in body_prompts[0]
+    assert "fit_assessment_overall_score" not in captured["body_payload"]
+    assert "fit_assessment_rationale" not in captured["body_payload"]
+
+
+def test_build_body_system_prompt_returns_base_for_good_fit() -> None:
+    """Unit-level: the prompt builder is unchanged for good fits."""
+    base = build_cover_letter._build_body_system_prompt(stretch=False)
+    assert "STRETCH-FIT GUIDANCE" not in base
+    assert "HARD RULES" in base
+
+
+def test_build_body_system_prompt_appends_addendum_for_stretch() -> None:
+    """Unit-level: the prompt builder appends the bridging addendum for
+    stretch fits and keeps the existing HARD RULES block intact so the
+    LLM still sees both layers of guidance."""
+    augmented = build_cover_letter._build_body_system_prompt(stretch=True)
+    assert "HARD RULES" in augmented
+    assert "STRETCH-FIT GUIDANCE" in augmented
+    assert "Acknowledge the transition explicitly" in augmented
+    assert "Do NOT claim direct experience" in augmented

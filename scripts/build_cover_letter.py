@@ -32,12 +32,17 @@ from typing import Any
 if __package__ in {None, ""}:
     from _runtime_guard import assert_not_blocked_runtime_input
     from build_resume import (
+        _FIT_NARRATIVE_GATE_SCORE,
         DEFAULT_EXPERIENCE_DB,
         DEFAULT_PROFILE,
         LLM_ENABLED_ENV,
         LLM_FIXTURE_ENV,
         Experience,
+        FitAssessment,
         Profile,
+        ResumeIR,
+        _baseline_resume_for_fit_assessment,
+        compute_fit_assessment,
         load_experiences,
         load_independent_projects,
         load_profile,
@@ -67,12 +72,17 @@ if __package__ in {None, ""}:
 else:
     from scripts._runtime_guard import assert_not_blocked_runtime_input
     from scripts.build_resume import (
+        _FIT_NARRATIVE_GATE_SCORE,
         DEFAULT_EXPERIENCE_DB,
         DEFAULT_PROFILE,
         LLM_ENABLED_ENV,
         LLM_FIXTURE_ENV,
         Experience,
+        FitAssessment,
         Profile,
+        ResumeIR,
+        _baseline_resume_for_fit_assessment,
+        compute_fit_assessment,
         load_experiences,
         load_independent_projects,
         load_profile,
@@ -387,6 +397,52 @@ def _experience_summary(experiences: tuple[Experience, ...]) -> list[dict[str, A
     return out
 
 
+def _compute_cover_letter_fit_assessment(
+    *,
+    profile: Profile,
+    experiences: tuple[Experience, ...],
+    jd: _ResolvedJD,
+    company_name: str,
+    target_role: str,
+) -> FitAssessment | None:
+    """Compute the shared fit_assessment from cover-letter inputs (#303).
+
+    Constructs a minimal :class:`ResumeIR` shell and delegates to
+    ``build_resume.compute_fit_assessment`` so the calibrated rubric and the
+    LLM cache namespace stay in lockstep with the resume side. When the
+    orchestrated ``--cover-letter`` path runs, ``build_resume.run_pipeline``
+    has already issued the same call against an equivalent payload, so this
+    is a cache hit. Standalone CLI users pay one round-trip.
+
+    Returns ``None`` whenever the upstream check returns None — same gating
+    semantics (LLM disabled, JD context thin, malformed response).
+    """
+    if jd.job_context is None:
+        return None
+    resume_shell = ResumeIR(
+        profile=profile,
+        target_role=target_role,
+        target_company=company_name,
+        display_headline="",
+        job_context=jd.job_context,
+        experiences=experiences,
+        skills_by_category={},
+    )
+    # Mirror build_resume.run_pipeline's recency-window filter so the cached
+    # payload matches when --cover-letter is invoked through the resume.
+    return compute_fit_assessment(_baseline_resume_for_fit_assessment(resume_shell))
+
+
+def _is_stretch_fit(fit_assessment: FitAssessment | None) -> bool:
+    """A fit_assessment is treated as 'stretch' when the overall score is
+    below the shared narrative gate (#303). Reusing the same threshold as
+    --fit-narrative auto keeps the resume summary and cover-letter body in
+    agreement on what counts as a stretch."""
+    if fit_assessment is None:
+        return False
+    return bool(fit_assessment.overall_fit_score < _FIT_NARRATIVE_GATE_SCORE)
+
+
 def _draft_body(
     *,
     client: LLMClient,
@@ -399,6 +455,7 @@ def _draft_body(
     independent_projects: tuple[Any, ...],
     independent_projects_visible: bool,
     word_budget: int,
+    fit_assessment: FitAssessment | None,
 ) -> CoverLetterBody:
     company_research = None
     if jd.job_context and jd.job_context.company_research:
@@ -423,7 +480,14 @@ def _draft_body(
         ),
         "word_budget": word_budget,
     }
-    system_prompt = _BODY_SYSTEM_PROMPT
+    stretch = _is_stretch_fit(fit_assessment)
+    if stretch and fit_assessment is not None:
+        # Only inject the fit_assessment_* keys for stretch cases so good-fit
+        # calls keep the same cache key as before #303 landed (parallel to
+        # the jd_tailored_summary path's "only when augmenting" pattern).
+        payload["fit_assessment_overall_score"] = fit_assessment.overall_fit_score
+        payload["fit_assessment_rationale"] = fit_assessment.overall_rationale
+    system_prompt = _build_body_system_prompt(stretch=stretch)
     result = client.complete_json(
         namespace=BODY_NAMESPACE,
         system_prompt=system_prompt,
@@ -448,7 +512,7 @@ def _draft_body(
     )
 
 
-_BODY_SYSTEM_PROMPT = """You draft a professional cover letter body for a software engineering role.
+_BODY_SYSTEM_PROMPT_BASE = """You draft a professional cover letter body for a software engineering role.
 
 HARD RULES — violating any of these is a failure:
 1. Use only facts present in the user payload. Do not invent metrics, team sizes, dollar amounts, percentages, dates, or achievements that are not supplied.
@@ -467,6 +531,34 @@ OUTPUT — strict JSON only, no prose around it:
 
 Aim for 1–3 body paragraphs. Keep paragraphs tight (3–5 sentences each).
 """
+
+
+# Bridging guidance for stretch fits (#303). Appended to the base prompt only
+# when the shared fit_assessment classifies the candidate-to-JD pairing as a
+# stretch (overall_fit_score < _FIT_NARRATIVE_GATE_SCORE). The good-fit path
+# keeps the existing enthusiastic-fit tone unchanged.
+_BODY_SYSTEM_PROMPT_STRETCH_ADDENDUM = """
+STRETCH-FIT GUIDANCE — `fit_assessment_overall_score` is below the good-fit threshold and `fit_assessment_rationale` describes the gap. Read the rationale and adapt:
+
+7. Acknowledge the transition explicitly. Include exactly one bridging sentence in the opening or first body paragraph that names the candidate's primary work CONTEXT and connects it to the JD's CONTEXT. Template (adapt the words; do not copy verbatim):
+   "While my background has been primarily in [candidate's actual primary context, e.g. test automation], the [transferable principle, e.g. framework architecture and distributed-systems] work I've applied to [concrete experience reference] translates directly to [JD context, e.g. backend service development]."
+8. Do NOT claim direct experience with technologies the resume only references in adjacent contexts. If the JD mentions "Java Spring Boot microservices" but the candidate's Java work was test-framework-focused, frame it as transferable principle, not direct experience.
+9. Keep the bridging clause neutral and forward-looking — not apologetic. The candidate is presenting a real transition, not asking for a lower bar.
+"""
+
+
+def _build_body_system_prompt(*, stretch: bool) -> str:
+    """Compose the cover-letter body system prompt.
+
+    When ``stretch`` is True the bridging-guidance addendum is appended so
+    the LLM produces an explicit transition clause and refuses to assert
+    direct experience with technologies the candidate only touched in an
+    adjacent context (#303). Good-fit calls keep the existing prompt verbatim
+    so cache keys and behavior for non-stretch JDs are unchanged.
+    """
+    if not stretch:
+        return _BODY_SYSTEM_PROMPT_BASE
+    return _BODY_SYSTEM_PROMPT_BASE + _BODY_SYSTEM_PROMPT_STRETCH_ADDENDUM
 
 
 def _emit_outputs(
@@ -581,6 +673,14 @@ def run_pipeline_collecting_paths(
         fallback=preferences.addressee_fallback,
     )
 
+    fit_assessment = _compute_cover_letter_fit_assessment(
+        profile=profile,
+        experiences=experiences,
+        jd=jd,
+        company_name=company,
+        target_role=target_role,
+    )
+
     body = _draft_body(
         client=client,
         profile=profile,
@@ -592,6 +692,7 @@ def run_pipeline_collecting_paths(
         independent_projects=independent_projects,
         independent_projects_visible=ip_visible,
         word_budget=args.word_budget,
+        fit_assessment=fit_assessment,
     )
 
     ir = compose_cover_letter(

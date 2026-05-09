@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.44.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.43.5...v0.44.0) (2026-05-09)
+
+
+### Features
+
+* **build_resume:** compressed-mode rendering for low-fit experiences ([#271](https://github.com/jsmithpkp21/resume-builder/issues/271)) ([2bbe517](https://github.com/jsmithpkp21/resume-builder/commit/2bbe517c2cf74375644e8fd27c6f0b912a19bbf2))
+* **build_resume:** fit-narrative augmentation gated by --fit-narrative ([dd22b25](https://github.com/jsmithpkp21/resume-builder/commit/dd22b258416478405f4388a356001b488c67166d))
+
+
+### Bug Fixes
+
+* **build_resume:** address PR [#278](https://github.com/jsmithpkp21/resume-builder/issues/278) Copilot review ([5a823aa](https://github.com/jsmithpkp21/resume-builder/commit/5a823aab189ddd193ba03ac4dc2e3957051af5f4))
+* **build_resume:** address PR [#278](https://github.com/jsmithpkp21/resume-builder/issues/278) round-2 review ([19b3ab0](https://github.com/jsmithpkp21/resume-builder/commit/19b3ab08bcf11fedb1d1258d3c1220cf17aace37))
+* **build_resume:** address PR [#278](https://github.com/jsmithpkp21/resume-builder/issues/278) round-5 review ([b6f316f](https://github.com/jsmithpkp21/resume-builder/commit/b6f316fdc538bf32f7d77dddf9a4c43845223b22))
+* **build_resume:** address PR [#278](https://github.com/jsmithpkp21/resume-builder/issues/278) round-8 review (4 fixes) ([1936627](https://github.com/jsmithpkp21/resume-builder/commit/193662714b86ebdb9c486b5527fe47aebd34c3af))
+* **build_resume:** align renderers with budget; skip bulletless from compression ([14fabd1](https://github.com/jsmithpkp21/resume-builder/commit/14fabd10caf196d88cff2498b465f2c821782705))
+* **build_resume:** preserve LLM cache key when current_level unset ([9bbfa5e](https://github.com/jsmithpkp21/resume-builder/commit/9bbfa5e7f6e58b81aae6ca9ee8e638c855c66949))
+* **build_resume:** reset stale compression + skip unused fit_assessment ([2b4a422](https://github.com/jsmithpkp21/resume-builder/commit/2b4a42259d277adf774b6fc131fb14174d6d1480))
+* **build_resume:** score fit_assessment against baseline resume ([#278](https://github.com/jsmithpkp21/resume-builder/issues/278) review) ([9b17a57](https://github.com/jsmithpkp21/resume-builder/commit/9b17a5700750ab16382f02c4e4b6fd13a7b88e9e))
+* **build_resume:** skip role-summary cost when description is empty ([3aa86dd](https://github.com/jsmithpkp21/resume-builder/commit/3aa86ddcf897f7a91bc4e73861665c3b95f1caa2))
+* **build_resume:** tighten fit_assessment scope + budget credit ([5388089](https://github.com/jsmithpkp21/resume-builder/commit/5388089d53d5e443d9ba38ce810b649b196d4d3f))
+* **build_resume:** top-N cap compresses worst-of-demoted, not top ([725043d](https://github.com/jsmithpkp21/resume-builder/commit/725043d31d0b49daa037ea68f871c5e643b7787d))
+
+
+### Documentation
+
+* **build_resume:** changed %% to % in comment ([1952b9e](https://github.com/jsmithpkp21/resume-builder/commit/1952b9ebab264ce9e337c6d76c70572cd278ac26))
+
 ## [0.43.5](https://github.com/jsmithpkp21/resume-builder/compare/v0.43.4...v0.43.5) (2026-05-09)
 
 

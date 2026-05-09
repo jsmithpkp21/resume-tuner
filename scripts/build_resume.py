@@ -238,6 +238,11 @@ class Experience:
     general_role_description: str
     related_skills: tuple[str, ...]
     bullets: tuple[Bullet, ...]
+    # Render level; default keeps current behavior unchanged. When set to
+    # "compressed", the renderer emits only the title + date_range + the
+    # single highest-relevance bullet (issue #271). Compression never drops
+    # the experience entirely — chronology is preserved.
+    compression: str = "full"
 
 
 @dataclass(frozen=True)
@@ -269,6 +274,38 @@ DEFAULT_OUTPUTS = ("pdf", "docx")
 _TOP_SKILLS_CAP_HARD_MAX = 60
 
 _FIT_NARRATIVE_MODES = ("auto", "on", "off")
+
+_EXPERIENCE_MODE_AUTO = "auto"
+_EXPERIENCE_MODE_ALL = "all"
+_EXPERIENCE_MODE_TOP_N_PREFIX = "top-"
+_EXPERIENCE_TOP_N_PATTERN = re.compile(r"^top-(\d+)$")
+
+
+def _parse_experience_mode(value: str) -> str:
+    """argparse type for --experience-mode.
+
+    Accepts ``auto``, ``all``, or ``top-N`` (with N a positive integer).
+    The string is canonicalized to lower-case; the literal returned is what
+    downstream code compares against (e.g. ``"top-5"``).
+    """
+    normalized = value.strip().lower()
+    if normalized in {_EXPERIENCE_MODE_AUTO, _EXPERIENCE_MODE_ALL}:
+        return normalized
+    match = _EXPERIENCE_TOP_N_PATTERN.match(normalized)
+    if match is not None and int(match.group(1)) >= 1:
+        return normalized
+    raise argparse.ArgumentTypeError(
+        f"--experience-mode must be 'auto', 'all', or 'top-N' with N >= 1; "
+        f"got {value!r}"
+    )
+
+
+def _experience_mode_top_n(mode: str) -> int | None:
+    """Extract N from ``top-N`` modes; returns None for non-top-N modes."""
+    match = _EXPERIENCE_TOP_N_PATTERN.match(mode)
+    if match is None:
+        return None
+    return int(match.group(1))
 
 
 def _parse_fit_narrative_mode(value: str) -> str:
@@ -547,6 +584,23 @@ def parse_args() -> argparse.Namespace:
             "is enabled or LLM stages are disabled. 'on' forces fire; "
             "'off' suppresses entirely. See DESIGN.md \"Fit narrative\" "
             "for the gate semantics."
+        ),
+    )
+    advanced.add_argument(
+        "--experience-mode",
+        type=_parse_experience_mode,
+        default="auto",
+        metavar="auto|all|top-N",
+        help=(
+            "How experience compression is applied to low-fit roles. "
+            "'auto' (default) is layout-driven: experiences render in full "
+            "until the page overflows, then lowest-fit experiences "
+            "(per fit_assessment) compress one at a time, capped at 50%% "
+            "of in-window experiences. 'all' forces every experience full. "
+            "'top-N' (e.g. top-5) renders the top N by relevance + recency "
+            "in full and compresses the rest, also subject to the 50%% cap. "
+            "Experiences are never dropped — chronology is preserved. "
+            'See DESIGN.md "Experience compression".'
         ),
     )
     return parser.parse_args()
@@ -2144,6 +2198,134 @@ def _resolve_fit_narrative(
     return assessment
 
 
+_COMPRESSION_PCT_CAP = 0.5  # ≥50% in-window experiences cannot all compress
+
+
+def apply_experience_compression(
+    args: argparse.Namespace,
+    resume: ResumeIR,
+    *,
+    fit_assessment: FitAssessment | None,
+) -> ResumeIR:
+    """Mark experiences as ``"compressed"`` per ``--experience-mode`` (#271).
+
+    Compression is purely a render-level switch: experiences are *never*
+    dropped (chronology is preserved). Only ``experience.compression`` is
+    flipped from ``"full"`` to ``"compressed"``; the renderer reads this to
+    emit `title — date_range` plus the single highest-relevance bullet.
+
+    Modes:
+
+    - ``all`` — no-op (every experience renders in full).
+    - ``top-N`` — top N by the existing ``_prepare_display_experiences``
+      sort key (recency × bullet-confidence) render full; the rest are
+      marked compressed, subject to the 50% cap.
+    - ``auto`` — layout-driven. If the current bullet line count exceeds
+      the budget computed by ``_compute_bullet_line_budget``, compress
+      lowest-``fit_score`` experience (by ``fit_assessment``) first, repeat
+      until under budget or the 50% cap is hit. When ``fit_assessment`` is
+      None, falls back to ``top-N`` ordering with N = remaining-uncompressed
+      cap.
+
+    No-context fallback: when ``job_context`` is missing or below the
+    substantive-content threshold, force ``all`` regardless of flag.
+    """
+    raw_mode = getattr(args, "experience_mode", _EXPERIENCE_MODE_AUTO)
+    mode = str(raw_mode or _EXPERIENCE_MODE_AUTO).strip().lower()
+    # Defensive fallback: invalid programmatic values become 'auto'.
+    if mode not in {_EXPERIENCE_MODE_AUTO, _EXPERIENCE_MODE_ALL} and (
+        _experience_mode_top_n(mode) is None
+    ):
+        logger.info(
+            "apply_experience_compression coerced unexpected mode %r to 'auto'",
+            raw_mode,
+        )
+        mode = _EXPERIENCE_MODE_AUTO
+
+    if not _has_substantive_jd_context(resume):
+        # No JD signal -> safe default is full mode regardless of flag.
+        logger.info(
+            "apply_experience_compression: no-context fallback forces 'all' mode"
+        )
+        return resume
+
+    if mode == _EXPERIENCE_MODE_ALL:
+        return resume
+
+    in_window = list(resume.experiences)
+    if not in_window:
+        return resume
+
+    # 50% cap: integer floor — at most floor(N/2) of N experiences compressed.
+    max_compressible = int(len(in_window) * _COMPRESSION_PCT_CAP)
+    if max_compressible == 0:
+        return resume
+
+    top_n = _experience_mode_top_n(mode)
+    score_by_id: dict[str, float] = {}
+    if fit_assessment is not None:
+        score_by_id = {
+            entry.experience_id: entry.fit_score
+            for entry in fit_assessment.per_experience_scores
+        }
+
+    # Sort experiences by *worst-first* compression candidate ordering.
+    # - top-N: rank by existing _prepare_display_experiences key (descending);
+    #   experiences beyond rank N go first.
+    # - auto: rank by fit_score ascending (lowest goes first); fall back to
+    #   the deterministic ranking when fit_assessment is missing.
+    indexed = list(enumerate(in_window))
+    if top_n is not None:
+        # _prepare_display_experiences already orders by relevance; assume
+        # the input is already in that order. Compression candidates are
+        # everything beyond rank top_n, in input order.
+        candidates = [(idx, exp) for idx, exp in indexed[top_n:]]
+    else:
+        # auto: lowest fit_score first; experiences without scores sort to
+        # the *back* (treated as neutral mid-relevance fit).
+        def _auto_key(item: tuple[int, Experience]) -> tuple[float, int]:
+            idx, exp = item
+            score = score_by_id.get(exp.id, 50.0)
+            return (score, idx)
+
+        candidates = sorted(indexed, key=_auto_key)
+
+    if mode == _EXPERIENCE_MODE_AUTO:
+        # Layout overflow check: compress only as needed.
+        budget = _compute_bullet_line_budget(resume)
+        current = _estimate_total_bullet_lines([list(exp.bullets) for exp in in_window])
+        if current <= budget:
+            return resume
+        compressed_ids: set[str] = set()
+        for _idx, exp in candidates:
+            if len(compressed_ids) >= max_compressible:
+                break
+            compressed_ids.add(exp.id)
+            # Compressed experiences contribute the wrap-line cost of one
+            # bullet (the first bullet in the trimmed/ranked order, which is
+            # what the renderer will emit).
+            simulated = []
+            for _cand_idx, cand_exp in indexed:
+                bullets = list(cand_exp.bullets)
+                if cand_exp.id in compressed_ids and bullets:
+                    bullets = bullets[:1]
+                simulated.append(bullets)
+            if _estimate_total_bullet_lines(simulated) <= budget:
+                break
+    else:
+        # top-N: compress everything beyond rank N up to the 50% cap.
+        compressed_ids = {exp.id for _, exp in candidates[:max_compressible]}
+
+    if not compressed_ids:
+        return resume
+
+    new_experiences = tuple(
+        dc_replace(exp, compression="compressed") if exp.id in compressed_ids else exp
+        for exp in in_window
+    )
+    return dc_replace(resume, experiences=new_experiences)
+
+
 def _has_substantive_jd_context(resume: ResumeIR) -> bool:
     """True when the JD description has enough content for a tailored summary.
 
@@ -3635,15 +3817,26 @@ def render_html(
     company_blocks = _company_block_ranges(resume.experiences)
 
     for exp_index, exp in enumerate(resume.experiences):
+        compressed = exp.compression == "compressed"
+        if compressed:
+            # Compressed render: title + dates + single highest-relevance bullet
+            # (#271). Skip role-summary and related-skills paragraphs so the
+            # entry shrinks while preserving chronology.
+            visible_bullets = exp.bullets[:1]
+        else:
+            visible_bullets = exp.bullets
         bullets_html = "\n".join(
-            f"<li>{_html_escape(bullet.text)}</li>" for bullet in exp.bullets
+            f"<li>{_html_escape(bullet.text)}</li>" for bullet in visible_bullets
         )
-        related = ", ".join(_html_escape(skill) for skill in exp.related_skills)
-        related_html = (
-            f'<p class="related-skills"><strong>Related skills:</strong> {related}</p>'
-            if related
-            else ""
-        )
+        if compressed:
+            related_html = ""
+        else:
+            related = ", ".join(_html_escape(skill) for skill in exp.related_skills)
+            related_html = (
+                f'<p class="related-skills"><strong>Related skills:</strong> {related}</p>'
+                if related
+                else ""
+            )
         company_header_html = ""
         if exp_index in company_blocks:
             start_index, end_index = company_blocks[exp_index]
@@ -3663,23 +3856,20 @@ def render_html(
         lines = ['<section class="experience-item">']
         if company_header_html:
             lines.append(company_header_html)
-        lines.extend(
-            [
-                (
-                    f'<h3 class="job-title-line">{_html_escape(exp.job_title)}'
-                    f"<span>{_html_escape(role_date_range)}</span></h3>"
-                ),
-                (
-                    f'<p class="role-summary">'
-                    f"{_html_escape(exp.general_role_description)}</p>"
-                ),
-                related_html,
-                "<ul>",
-                bullets_html,
-                "</ul>",
-                "</section>",
-            ]
+        title_line = (
+            f'<h3 class="job-title-line">{_html_escape(exp.job_title)}'
+            f"<span>{_html_escape(role_date_range)}</span></h3>"
         )
+        lines.append(title_line)
+        if not compressed:
+            lines.append(
+                f'<p class="role-summary">'
+                f"{_html_escape(exp.general_role_description)}</p>"
+            )
+            lines.append(related_html)
+        if visible_bullets:
+            lines.extend(["<ul>", bullets_html, "</ul>"])
+        lines.append("</section>")
         experiences_html.append("\n".join(lines))
 
     skills_html: list[str] = []
@@ -3858,6 +4048,22 @@ def render_markdown(resume: ResumeIR, output_path: Path) -> None:
     lines.extend(["", "## Professional Experience", ""])
 
     for exp in resume.experiences:
+        compressed = exp.compression == "compressed"
+        if compressed:
+            # Compressed render: title + dates + single highest-relevance bullet.
+            # Skip role-summary and related-skills lines so the entry shrinks
+            # to the minimum visible signal while preserving chronology (#271).
+            lines.extend(
+                [
+                    f"### {exp.job_title} | {exp.company}",
+                    f"{exp.start_date} - {exp.end_date}",
+                    "",
+                ]
+            )
+            if exp.bullets:
+                lines.append(f"- {exp.bullets[0].text}")
+            lines.append("")
+            continue
         lines.extend(
             [
                 f"### {exp.job_title} | {exp.company}",
@@ -4004,6 +4210,7 @@ def write_text_snapshot(resume: ResumeIR, output_path: Path) -> None:
             [
                 f"- {exp.job_title} | {exp.company}",
                 f"  date_range: {exp.start_date} - {exp.end_date}",
+                f"  compression: {exp.compression}",
                 f"  role_summary: {exp.general_role_description}",
                 f"  related_skills: {', '.join(exp.related_skills)}",
             ]
@@ -4338,10 +4545,16 @@ def run_pipeline(args: argparse.Namespace) -> int:
         resume = select_skills(resume, top_n=_resolve_top_skills_cap(args))
         # Resolve the fit assessment against the pre-pipeline baseline so the
         # LLM scores the candidate's full canonical bullet set rather than
-        # the post-trim view. #271's per-experience compression decision will
-        # also need the untrimmed signal.
+        # the post-trim view. #271's per-experience compression also reads
+        # this same payload (no second LLM call).
         fit_assessment = _resolve_fit_narrative(args, baseline_resume)
         resume = summarize_profile_for_role(resume, fit_assessment=fit_assessment)
+        # Mark low-fit experiences as compressed (#271) — render-level switch
+        # only; chronology is preserved. Runs after summary so the layout
+        # check sees the final summary + skills budget.
+        resume = apply_experience_compression(
+            args, resume, fit_assessment=fit_assessment
+        )
 
     resume_dir = args.output_dir / RESUME_OUTPUT_SUBDIR
     resume_dir.mkdir(parents=True, exist_ok=True)

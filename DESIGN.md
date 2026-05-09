@@ -127,6 +127,17 @@ AI must follow these rules when selecting skills, categories, bullets, and exper
 - When firing, the augmented prompt asks the LLM to weave a single short fit-narrative clause into the summary **within the same word and line budget** (`PROFILE_SUMMARY_MAX_WORDS = 112`, `PROFILE_SUMMARY_MAX_LINES = 6`). The existing wrap-line and word-count guardrails in `_generate_jd_tailored_summary_via_llm` still apply; if the augmented response overflows, the same reject-and-fall-back logic recovers a deterministic summary.
 - Optional `current_level` field in `[profile]` table (e.g. `"Senior Staff Engineer"`) is forwarded to the prompt as additional seniority context. Unset is the default — the LLM judges fit purely from experience content. The prompt language is domain-agnostic so the same stage works for non-tech roles.
 
+### Experience compression
+- Low-fit experiences may render in **compressed** mode (`title — date_range` plus the single highest-relevance bullet) instead of **full** mode (title, dates, role summary, related skills, full bullet allocation). Driven by `apply_experience_compression` (`scripts/build_resume.py`) reading `experience.compression`.
+- **Core principle:** experiences are *never dropped* — only switched between full ↔ compressed, so chronology stays intact (recruiters question gaps).
+- **Hard cap:** at most 50% of in-window experiences can compress. If a mode would compress more than half, compression stops at the cap and the existing overflow handling (`--allow-overflow-pdf`) takes over.
+- `--experience-mode auto|all|top-N` (default `auto`):
+  - `all` — every experience renders full (today's behavior).
+  - `top-N` — top N by the existing `_prepare_display_experiences` recency × bullet-confidence ranking render full; the rest mark compressed (subject to the 50% cap).
+  - `auto` — layout-driven. Runs full-mode estimate first; if the bullet-line count exceeds `_compute_bullet_line_budget`, compresses lowest-`fit_score` experience (from #272's `per_experience_scores`) one at a time until the estimate fits or the 50% cap is hit. Most resumes fit cleanly in full mode, so auto rarely fires; per-JD differentiation at the experience level mostly emerges only when other content (longer summary, fit-narrative, larger skills cap) pushes layout over budget.
+- **No-context fallback:** when `job_context` is missing or below `_MIN_JD_DESCRIPTION_CHARS`, force `all` regardless of flag — without JD signal there's no basis for picking which experiences to compress.
+- Compressed mode in the renderers (`render_markdown`, `render_html`) skips role summary and related-skills lines and emits only the first bullet (the highest-relevance after `trim_for_role` ordering, or canonical order when LLM is disabled).
+
 ### Experience Selection
 9. Include only experiences with an end date within **15 years**.
 10. Order experiences by **relevance + recency**.

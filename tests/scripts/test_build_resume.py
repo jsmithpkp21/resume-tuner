@@ -7067,3 +7067,213 @@ summary = ""
 
     profile = build_resume.load_profile(profile_path)
     assert profile.current_level == ""
+
+
+# ---------------------------------------------------------------------------
+# --experience-mode CLI validation + apply_experience_compression (issue #271)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_experience_mode_accepts_canonical_values() -> None:
+    assert build_resume._parse_experience_mode("auto") == "auto"
+    assert build_resume._parse_experience_mode("all") == "all"
+    assert build_resume._parse_experience_mode("top-5") == "top-5"
+    assert build_resume._parse_experience_mode("Top-12") == "top-12"
+
+
+def test_parse_experience_mode_rejects_garbage() -> None:
+    with pytest.raises(argparse.ArgumentTypeError, match="must be"):
+        build_resume._parse_experience_mode("top-0")
+    with pytest.raises(argparse.ArgumentTypeError, match="must be"):
+        build_resume._parse_experience_mode("top-N")
+    with pytest.raises(argparse.ArgumentTypeError, match="must be"):
+        build_resume._parse_experience_mode("nonsense")
+
+
+def test_experience_mode_top_n_extracts_int() -> None:
+    assert build_resume._experience_mode_top_n("top-5") == 5
+    assert build_resume._experience_mode_top_n("top-12") == 12
+    assert build_resume._experience_mode_top_n("auto") is None
+    assert build_resume._experience_mode_top_n("all") is None
+
+
+def _resume_with_n_experiences(n: int) -> build_resume.ResumeIR:
+    """Build a resume with n distinct experience entries against a substantive JD."""
+    base = _resume_with_one_experience()
+    experiences = []
+    for i in range(n):
+        exp = build_resume.Experience(
+            id=f"exp-{i + 1}",
+            job_title=f"Senior SDET {i + 1}",
+            company="ExampleCo",
+            start_date="2020-01",
+            end_date="present",
+            general_role_description="Test platform engineering.",
+            related_skills=("Python",),
+            bullets=(
+                build_resume.Bullet(
+                    id=f"b-{i + 1}-1",
+                    text=f"Bullet text {i + 1}.A.",
+                    skills=("Python",),
+                    impact_type="",
+                    domain="",
+                ),
+                build_resume.Bullet(
+                    id=f"b-{i + 1}-2",
+                    text=f"Bullet text {i + 1}.B.",
+                    skills=("Python",),
+                    impact_type="",
+                    domain="",
+                ),
+            ),
+        )
+        experiences.append(exp)
+    return dataclasses.replace(base, experiences=tuple(experiences))
+
+
+def _experience_mode_args(mode: str) -> argparse.Namespace:
+    return argparse.Namespace(experience_mode=mode)
+
+
+def test_apply_experience_compression_all_mode_is_noop() -> None:
+    resume = _resume_with_n_experiences(4)
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("all"), resume, fit_assessment=None
+    )
+    assert result is resume
+    assert all(exp.compression == "full" for exp in result.experiences)
+
+
+def test_apply_experience_compression_no_context_forces_all() -> None:
+    base = _resume_with_n_experiences(4)
+    # Drop JD context below the substantive-content threshold.
+    thin = dataclasses.replace(base, job_context=_make_job_context(""))
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("top-1"), thin, fit_assessment=None
+    )
+    # No-context fallback forces 'all' regardless of flag.
+    assert all(exp.compression == "full" for exp in result.experiences)
+
+
+def test_apply_experience_compression_top_n_marks_beyond_rank() -> None:
+    resume = _resume_with_n_experiences(4)
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("top-2"), resume, fit_assessment=None
+    )
+    # First 2 stay full; remaining 2 compressed (within the 50% cap).
+    assert result.experiences[0].compression == "full"
+    assert result.experiences[1].compression == "full"
+    assert result.experiences[2].compression == "compressed"
+    assert result.experiences[3].compression == "compressed"
+
+
+def test_apply_experience_compression_top_n_respects_50pct_cap() -> None:
+    resume = _resume_with_n_experiences(4)
+    # top-1 would compress 3 of 4, but the 50% cap (= 2) stops at 2.
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("top-1"), resume, fit_assessment=None
+    )
+    compressed = [exp for exp in result.experiences if exp.compression == "compressed"]
+    assert len(compressed) == 2
+
+
+def test_apply_experience_compression_top_n_floor_zero_is_noop() -> None:
+    """1 experience -> 50% cap floors to 0 -> nothing compresses."""
+    resume = _resume_with_n_experiences(1)
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("top-0"),  # bypasses CLI validator (programmatic)
+        resume,
+        fit_assessment=None,
+    )
+    assert all(exp.compression == "full" for exp in result.experiences)
+
+
+def test_apply_experience_compression_auto_below_budget_no_op() -> None:
+    """When the layout budget already accommodates every experience, auto
+    mode does not compress anything (PR #278 / #271 spec)."""
+    resume = _resume_with_n_experiences(2)  # small input, well under budget
+    fit_assessment = build_resume.FitAssessment(
+        overall_fit_score=30.0,
+        overall_rationale="stretch",
+        per_experience_scores=(
+            build_resume.FitExperienceScore(
+                experience_id="exp-1", fit_score=20.0, rationale="low"
+            ),
+            build_resume.FitExperienceScore(
+                experience_id="exp-2", fit_score=80.0, rationale="high"
+            ),
+        ),
+    )
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("auto"), resume, fit_assessment=fit_assessment
+    )
+    assert all(exp.compression == "full" for exp in result.experiences)
+
+
+def test_apply_experience_compression_auto_compresses_lowest_fit_when_overflowing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Force overflow by stubbing the budget below the simulated bullet line
+    count; auto mode must then compress the lowest-fit-score experience first."""
+    resume = _resume_with_n_experiences(4)
+    fit_assessment = build_resume.FitAssessment(
+        overall_fit_score=30.0,
+        overall_rationale="stretch",
+        per_experience_scores=(
+            build_resume.FitExperienceScore(
+                experience_id="exp-1", fit_score=90.0, rationale="strong"
+            ),
+            build_resume.FitExperienceScore(
+                experience_id="exp-2", fit_score=10.0, rationale="weak"
+            ),
+            build_resume.FitExperienceScore(
+                experience_id="exp-3", fit_score=70.0, rationale="ok"
+            ),
+            build_resume.FitExperienceScore(
+                experience_id="exp-4", fit_score=20.0, rationale="weak2"
+            ),
+        ),
+    )
+    # Force the layout budget low enough to require some compression but not
+    # so aggressive that it hits the 50% cap.
+    monkeypatch.setattr("scripts.build_resume._compute_bullet_line_budget", lambda r: 6)
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("auto"), resume, fit_assessment=fit_assessment
+    )
+    compressed_ids = {
+        exp.id for exp in result.experiences if exp.compression == "compressed"
+    }
+    # Lowest-fit (exp-2 at 10) must be the first/only compressed entry.
+    assert "exp-2" in compressed_ids
+    # And the cap is respected — never more than 50%.
+    assert len(compressed_ids) <= 2
+
+
+def test_render_markdown_compressed_experience_omits_role_summary(
+    tmp_path: Path,
+) -> None:
+    base = _resume_with_one_experience()
+    compressed_exp = dataclasses.replace(base.experiences[0], compression="compressed")
+    resume = dataclasses.replace(base, experiences=(compressed_exp,))
+    output = tmp_path / "resume.md"
+    build_resume.render_markdown(resume, output)
+    content = output.read_text(encoding="utf-8")
+    # Compressed entry: title + dates + the single highest-relevance bullet.
+    assert "Senior SDET | ExampleCo" in content
+    assert "2020-01 - present" in content
+    assert "Built CI pipelines." in content
+    # Role summary + related-skills lines must be suppressed for compressed.
+    assert "Test platform engineering." not in content
+    assert "Related skills:" not in content
+
+
+def test_render_markdown_full_experience_keeps_role_summary(
+    tmp_path: Path,
+) -> None:
+    """Sanity counterpart: when compression='full', the role summary stays."""
+    base = _resume_with_one_experience()
+    output = tmp_path / "resume.md"
+    build_resume.render_markdown(base, output)
+    content = output.read_text(encoding="utf-8")
+    assert "Test platform engineering." in content
+    assert "Related skills:" in content

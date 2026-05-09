@@ -74,7 +74,10 @@ Common vs Advanced flags:
   `--fit-narrative` (`auto|on|off`, default `auto`; in auto-mode an
   LLM-judged fit score augments the profile summary with a
   fit-narrative clause when the candidate is a stretch — see DESIGN.md
-  "Fit narrative").
+  "Fit narrative"),
+  `--experience-mode` (`auto|all|top-N`, default `auto`; controls per-
+  experience compression for low-fit roles, with chronology preserved —
+  see DESIGN.md "Experience compression").
 
 Run `python scripts/build_resume.py --help` for the authoritative list.
 

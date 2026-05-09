@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.43.4](https://github.com/jsmithpkp21/resume-builder/compare/v0.43.3...v0.43.4) (2026-05-09)
+
+
+### Bug Fixes
+
+* **jd-ingest:** strip non-prose tag content from HTML extraction (closes [#293](https://github.com/jsmithpkp21/resume-builder/issues/293), item 1) ([0d0f57d](https://github.com/jsmithpkp21/resume-builder/commit/0d0f57d7d5a229b518a626a6c75bdae8d752670d))
+* **jd-ingest:** suppress break-tag newlines inside skip blocks (PR [#294](https://github.com/jsmithpkp21/resume-builder/issues/294) review-1) ([df8fcfb](https://github.com/jsmithpkp21/resume-builder/commit/df8fcfb372193eb819a49650e15a18aa1122e76d))
+
 ## [0.43.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.43.2...v0.43.3) (2026-05-09)
 
 

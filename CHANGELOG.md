@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.43.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.43.1...v0.43.2) (2026-05-09)
+
+
+### Bug Fixes
+
+* **jd-ingest:** static-fetch failures now fall through to Playwright (closes [#281](https://github.com/jsmithpkp21/resume-builder/issues/281)) ([2ff43f9](https://github.com/jsmithpkp21/resume-builder/commit/2ff43f91ef578b1d3ffd67fce4a7a069ed161b03))
+
+
+### Documentation
+
+* **jd-ingest:** clarify _fetch_static_job_page_metadata always-returns contract (PR [#286](https://github.com/jsmithpkp21/resume-builder/issues/286) review-1) ([cd59497](https://github.com/jsmithpkp21/resume-builder/commit/cd594976249dc8bf3d2d2a62f36301d767392e73))
+
 ## [0.43.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.43.0...v0.43.1) (2026-05-09)
 
 

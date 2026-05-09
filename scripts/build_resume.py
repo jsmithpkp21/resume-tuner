@@ -2333,16 +2333,28 @@ def apply_experience_compression(
             if len(compressed_ids) >= max_compressible:
                 break
             compressed_ids.add(exp.id)
-            # Compressed experiences contribute the wrap-line cost of one
-            # bullet (the first bullet in the trimmed/ranked order, which is
-            # what the renderer will emit).
-            simulated = []
-            for _cand_idx, cand_exp in indexed:
-                bullets = list(cand_exp.bullets)
-                if cand_exp.id in compressed_ids and bullets:
-                    bullets = bullets[:1]
-                simulated.append(bullets)
-            if _estimate_total_bullet_lines(simulated) <= budget:
+            # Build a simulated resume that reflects the proposed
+            # compression: compressed experiences emit a single bullet AND
+            # omit the role-summary line, which frees non-bullet space.
+            # Rebuilding the budget from this simulated resume credits that
+            # freed space back into the bullet budget so we don't compress
+            # more experiences than necessary (PR #278 review).
+            simulated_experiences = tuple(
+                dc_replace(
+                    cand_exp,
+                    general_role_description="",
+                    bullets=cand_exp.bullets[:1],
+                )
+                if cand_exp.id in compressed_ids
+                else cand_exp
+                for cand_exp in in_window
+            )
+            simulated_resume = dc_replace(resume, experiences=simulated_experiences)
+            simulated_budget = _compute_bullet_line_budget(simulated_resume)
+            simulated_lines = _estimate_total_bullet_lines(
+                [list(exp.bullets) for exp in simulated_experiences]
+            )
+            if simulated_lines <= simulated_budget:
                 break
     else:
         # top-N: compress everything beyond rank N up to the 50% cap.
@@ -3723,6 +3735,33 @@ def _is_older_than_years(
     return month_delta > (years * 12)
 
 
+def _baseline_resume_for_fit_assessment(resume: ResumeIR) -> ResumeIR:
+    """Restrict ``resume.experiences`` to those within the recency window.
+
+    The fit_assessment LLM call should only score experiences that can
+    actually appear on the rendered resume — including out-of-window roles
+    inflates the prompt, biases the overall score with content the reader
+    never sees, and increases failure risk on long histories. The filter
+    mirrors the same recency rule ``_prepare_display_experiences`` uses,
+    but keeps every kept experience's full canonical bullet set (the LLM
+    must score against untrimmed content).
+    """
+    reference = _current_year_month()
+    in_window = []
+    for experience in resume.experiences:
+        parsed_end = _parse_year_month(experience.end_date, is_end=True)
+        if parsed_end is not None and _is_older_than_years(
+            parsed_end,
+            years=EXPERIENCE_DISPLAY_RECENCY_YEARS,
+            reference=reference,
+        ):
+            continue
+        in_window.append(experience)
+    if len(in_window) == len(resume.experiences):
+        return resume
+    return dc_replace(resume, experiences=tuple(in_window))
+
+
 def _prepare_display_experiences(resume: ResumeIR) -> tuple[Experience, ...]:
     """Filter/rank rendered experiences while preserving deterministic ordering."""
     reference = _current_year_month()
@@ -4588,16 +4627,21 @@ def run_pipeline(args: argparse.Namespace) -> int:
         resume = select_skills(resume, top_n=_resolve_top_skills_cap(args))
         # Compute the shared fit_assessment once against the pre-pipeline
         # baseline so the LLM scores the full canonical bullet set rather
-        # than the post-trim view. Both consumers below read it — but the
-        # #272 narrative gate may decide *not* to augment the summary even
-        # when an assessment exists (off-mode, score above gate, cover-
-        # letter), while #271's compression always wants the per-experience
-        # scores when they're available. Decoupling them here keeps both
-        # surfaces honest. The internal _resolve_fit_narrative call below
-        # also calls compute_fit_assessment but hits the LLMClient cache,
-        # so the second lookup is essentially free.
-        fit_assessment = compute_fit_assessment(baseline_resume)
-        fit_for_summary = _resolve_fit_narrative(args, baseline_resume)
+        # than the post-trim view. Filter to the recency-window experiences
+        # first (PR #278 review): out-of-window roles never render, so
+        # scoring them inflates the prompt, biases the overall score with
+        # content the reader can't see, and increases failure risk on long
+        # histories. Both consumers below read the same assessment — but
+        # the #272 narrative gate may decide *not* to augment the summary
+        # even when an assessment exists (off-mode, score above gate,
+        # cover-letter), while #271's compression always wants the per-
+        # experience scores when they're available. Decoupling them here
+        # keeps both surfaces honest. The internal _resolve_fit_narrative
+        # call also calls compute_fit_assessment but hits the LLMClient
+        # cache, so the second lookup is essentially free.
+        fit_baseline = _baseline_resume_for_fit_assessment(baseline_resume)
+        fit_assessment = compute_fit_assessment(fit_baseline)
+        fit_for_summary = _resolve_fit_narrative(args, fit_baseline)
         resume = summarize_profile_for_role(resume, fit_assessment=fit_for_summary)
         # Mark low-fit experiences as compressed (#271) — render-level switch
         # only; chronology is preserved. Runs after summary so the layout

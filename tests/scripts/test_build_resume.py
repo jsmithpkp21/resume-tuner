@@ -7329,6 +7329,46 @@ def test_apply_experience_compression_no_context_resets_pre_existing_compressed(
     assert all(exp.compression == "full" for exp in result.experiences)
 
 
+def test_baseline_resume_for_fit_assessment_drops_out_of_window_experiences() -> None:
+    """The fit_assessment baseline filter must drop experiences older than
+    EXPERIENCE_DISPLAY_RECENCY_YEARS so the LLM doesn't score roles the
+    reader will never see (PR #278 review)."""
+    base = _resume_with_n_experiences(2)
+    # exp-1 is "current" (start=2020, end=present); exp-2 is also "current".
+    # Add one older role that should be dropped by the recency filter.
+    older_exp = build_resume.Experience(
+        id="exp-old",
+        job_title="Junior Tester",
+        company="OldCo",
+        start_date="2000-01",
+        end_date="2002-12",  # 23+ years ago, well outside the 15-year window
+        general_role_description="Test platform engineering.",
+        related_skills=("Python",),
+        bullets=(
+            build_resume.Bullet(
+                id="b-old", text="Old bullet.", skills=(), impact_type="", domain=""
+            ),
+        ),
+    )
+    resume_with_old = dataclasses.replace(
+        base, experiences=base.experiences + (older_exp,)
+    )
+
+    filtered = build_resume._baseline_resume_for_fit_assessment(resume_with_old)
+
+    filtered_ids = {exp.id for exp in filtered.experiences}
+    assert "exp-old" not in filtered_ids
+    assert {"exp-1", "exp-2"} <= filtered_ids
+
+
+def test_baseline_resume_for_fit_assessment_returns_input_when_all_in_window() -> None:
+    """When every experience is in-window the helper returns the input
+    unchanged (avoids needless dataclass copy)."""
+    resume = _resume_with_n_experiences(3)
+    filtered = build_resume._baseline_resume_for_fit_assessment(resume)
+    assert filtered is resume
+
+
 def test_apply_experience_compression_auto_no_assessment_compresses_lowest_ranked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -7381,6 +7421,59 @@ def test_apply_experience_compression_auto_below_budget_no_op() -> None:
         _experience_mode_args("auto"), resume, fit_assessment=fit_assessment
     )
     assert all(exp.compression == "full" for exp in result.experiences)
+
+
+def test_apply_experience_compression_auto_recomputes_budget_with_compressed_simulation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Auto-mode loop recomputes the budget on a simulated resume where
+    compressed experiences have empty role descriptions, so the freed
+    layout space credits back into the bullet budget (PR #278 review)."""
+    captured: list[build_resume.ResumeIR] = []
+    real_budget = build_resume._compute_bullet_line_budget
+
+    def capture_then_real(r: build_resume.ResumeIR) -> int:
+        captured.append(r)
+        return real_budget(r)
+
+    monkeypatch.setattr(
+        "scripts.build_resume._compute_bullet_line_budget", capture_then_real
+    )
+    # Always over budget so the loop iterates and recomputes.
+    monkeypatch.setattr(
+        "scripts.build_resume._estimate_total_bullet_lines",
+        lambda _bullets_lists: 9999,
+    )
+
+    resume = _resume_with_n_experiences(4)
+    fit = build_resume.FitAssessment(
+        overall_fit_score=30.0,
+        overall_rationale="x",
+        per_experience_scores=tuple(
+            build_resume.FitExperienceScore(
+                experience_id=f"exp-{i + 1}",
+                fit_score=float(90 - i * 20),  # exp-1 high, exp-4 low
+                rationale="",
+            )
+            for i in range(4)
+        ),
+    )
+    build_resume.apply_experience_compression(
+        _experience_mode_args("auto"), resume, fit_assessment=fit
+    )
+
+    # Initial overflow check (full resume) + at least one simulated recompute.
+    assert len(captured) >= 2
+    initial_resume = captured[0]
+    assert all(exp.general_role_description for exp in initial_resume.experiences)
+    # Subsequent calls feed simulated resumes with compressed exps' role
+    # summaries cleared so the budget reflects the freed layout space.
+    later_resumes = captured[1:]
+    cleared_in_any_later = any(
+        any(exp.general_role_description == "" for exp in r.experiences)
+        for r in later_resumes
+    )
+    assert cleared_in_any_later
 
 
 def test_apply_experience_compression_auto_compresses_lowest_fit_when_overflowing(

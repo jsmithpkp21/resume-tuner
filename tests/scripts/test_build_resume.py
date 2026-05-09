@@ -6714,6 +6714,57 @@ def test_compute_fit_assessment_rejects_payload_missing_known_experience_ids(
     assert build_resume.compute_fit_assessment(_resume_with_one_experience()) is None
 
 
+def test_compute_fit_assessment_omits_current_level_when_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mirror the jd_tailored_summary cache-key fix: candidate_current_level
+    must NOT appear in the fit_assessment user_payload when unset
+    (PR #278 review — avoid cache fragmentation)."""
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    fake = _FakeLLMClient(
+        {
+            "overall_fit_score": 50,
+            "overall_rationale": "ok",
+            "per_experience_scores": [
+                {"experience_id": "exp-1", "fit_score": 50, "rationale": "ok"},
+            ],
+        }
+    )
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+
+    resume = _resume_with_one_experience()
+    assert resume.profile.current_level == ""
+    build_resume.compute_fit_assessment(resume)
+    assert fake.calls
+    assert "candidate_current_level" not in fake.calls[0]["user_payload"]
+
+
+def test_compute_fit_assessment_includes_current_level_when_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    fake = _FakeLLMClient(
+        {
+            "overall_fit_score": 50,
+            "overall_rationale": "ok",
+            "per_experience_scores": [
+                {"experience_id": "exp-1", "fit_score": 50, "rationale": "ok"},
+            ],
+        }
+    )
+    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+
+    base = _resume_with_one_experience()
+    profile = dataclasses.replace(base.profile, current_level="Senior Staff Engineer")
+    resume = dataclasses.replace(base, profile=profile)
+    build_resume.compute_fit_assessment(resume)
+    assert fake.calls
+    assert (
+        fake.calls[0]["user_payload"]["candidate_current_level"]
+        == "Senior Staff Engineer"
+    )
+
+
 def test_compute_fit_assessment_returns_none_on_llm_exception(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -7234,6 +7285,64 @@ def test_apply_experience_compression_top_n_respects_50pct_cap() -> None:
     )
     compressed = [exp for exp in result.experiences if exp.compression == "compressed"]
     assert len(compressed) == 2
+
+
+def test_apply_experience_compression_all_resets_pre_existing_compressed() -> None:
+    """all-mode contract is 'every experience full' — must override any
+    pre-existing compressed marker (PR #278 review)."""
+    base = _resume_with_n_experiences(3)
+    pre_marked = dataclasses.replace(
+        base,
+        experiences=tuple(
+            dataclasses.replace(exp, compression="compressed")
+            for exp in base.experiences
+        ),
+    )
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("all"), pre_marked, fit_assessment=None
+    )
+    assert all(exp.compression == "full" for exp in result.experiences)
+
+
+def test_apply_experience_compression_no_context_resets_pre_existing_compressed() -> (
+    None
+):
+    """No-context fallback also resets pre-existing compression so a stale
+    marker from an earlier pass doesn't reach the renderer (PR #278 review)."""
+    base = _resume_with_n_experiences(3)
+    base = dataclasses.replace(base, job_context=_make_job_context(""))
+    pre_marked = dataclasses.replace(
+        base,
+        experiences=tuple(
+            dataclasses.replace(exp, compression="compressed")
+            for exp in base.experiences
+        ),
+    )
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("top-1"), pre_marked, fit_assessment=None
+    )
+    assert all(exp.compression == "full" for exp in result.experiences)
+
+
+def test_apply_experience_compression_auto_no_assessment_compresses_lowest_ranked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """auto-mode without fit_assessment must fall back to compressing
+    lowest-ranked experiences (last in display order) first, not first
+    (which is the most relevant). PR #278 review."""
+    resume = _resume_with_n_experiences(4)
+    # Force overflow so compression actually fires.
+    monkeypatch.setattr("scripts.build_resume._compute_bullet_line_budget", lambda r: 1)
+    result = build_resume.apply_experience_compression(
+        _experience_mode_args("auto"), resume, fit_assessment=None
+    )
+    compressed_ids = {
+        exp.id for exp in result.experiences if exp.compression == "compressed"
+    }
+    # The 50% cap allows up to 2; lowest-ranked = highest indices.
+    # exp-1 (most relevant) must NOT compress; exp-4 (lowest-ranked) must.
+    assert "exp-1" not in compressed_ids
+    assert "exp-4" in compressed_ids
 
 
 def test_apply_experience_compression_top_n_floor_zero_is_noop() -> None:

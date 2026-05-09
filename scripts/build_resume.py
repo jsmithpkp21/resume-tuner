@@ -2201,6 +2201,24 @@ def _resolve_fit_narrative(
 _COMPRESSION_PCT_CAP = 0.5  # ≥50% in-window experiences cannot all compress
 
 
+def _force_all_full(resume: ResumeIR) -> ResumeIR:
+    """Reset every experience to ``compression="full"``.
+
+    Used by ``all`` and the no-context fallback so a stale ``"compressed"``
+    marker from an earlier pass doesn't survive into the rendered output.
+    Returns the input unchanged when nothing needs flipping.
+    """
+    if all(exp.compression == "full" for exp in resume.experiences):
+        return resume
+    return dc_replace(
+        resume,
+        experiences=tuple(
+            dc_replace(exp, compression="full") if exp.compression != "full" else exp
+            for exp in resume.experiences
+        ),
+    )
+
+
 def apply_experience_compression(
     args: argparse.Namespace,
     resume: ResumeIR,
@@ -2244,13 +2262,17 @@ def apply_experience_compression(
 
     if not _has_substantive_jd_context(resume):
         # No JD signal -> safe default is full mode regardless of flag.
+        # Reset any pre-existing compression so multi-pass / programmatic
+        # callers don't see stale "compressed" markers.
         logger.info(
             "apply_experience_compression: no-context fallback forces 'all' mode"
         )
-        return resume
+        return _force_all_full(resume)
 
     if mode == _EXPERIENCE_MODE_ALL:
-        return resume
+        # Same reset for all-mode: the contract is "every experience full",
+        # which must override anything an earlier pass set.
+        return _force_all_full(resume)
 
     in_window = list(resume.experiences)
     if not in_window:
@@ -2272,17 +2294,24 @@ def apply_experience_compression(
     # Sort experiences by *worst-first* compression candidate ordering.
     # - top-N: rank by existing _prepare_display_experiences key (descending);
     #   experiences beyond rank N go first.
-    # - auto: rank by fit_score ascending (lowest goes first); fall back to
-    #   the deterministic ranking when fit_assessment is missing.
+    # - auto with fit_assessment: lowest fit_score first.
+    # - auto without fit_assessment: fall back to "lowest-ranked first" using
+    #   reverse of input order. Since _prepare_display_experiences already
+    #   orders by relevance descending, reversing gives lowest-relevance
+    #   first — the correct worst-first direction. (PR #278 review.)
     indexed = list(enumerate(in_window))
     if top_n is not None:
         # _prepare_display_experiences already orders by relevance; assume
         # the input is already in that order. Compression candidates are
         # everything beyond rank top_n, in input order.
-        candidates = [(idx, exp) for idx, exp in indexed[top_n:]]
+        candidates = list(indexed[top_n:])
+    elif fit_assessment is None:
+        # Deterministic fallback: lowest-ranked first.
+        candidates = list(reversed(indexed))
     else:
-        # auto: lowest fit_score first; experiences without scores sort to
-        # the *back* (treated as neutral mid-relevance fit).
+        # auto with assessment: lowest fit_score first. Experiences missing
+        # from per_experience_scores get a neutral midpoint so they sort
+        # alongside scored experiences without crashing.
         def _auto_key(item: tuple[int, Experience]) -> tuple[float, int]:
             idx, exp = item
             score = score_by_id.get(exp.id, 50.0)
@@ -2429,12 +2458,17 @@ def compute_fit_assessment(resume: ResumeIR) -> FitAssessment | None:
 
     user_payload: dict[str, object] = {
         "candidate_summary": (resume.profile.summary or "").strip(),
-        "candidate_current_level": (resume.profile.current_level or "").strip(),
         "target_role": (resume.target_role or "").strip(),
         "target_company": (resume.target_company or "").strip(),
         "jd_excerpt": (job_context.description_excerpt or "").strip(),
         "experiences": experience_signals,
     }
+    # Mirror the jd_tailored_summary cache-key handling: only include
+    # candidate_current_level when non-empty so profiles that don't set it
+    # have an unchanged cache key.
+    current_level = (resume.profile.current_level or "").strip()
+    if current_level:
+        user_payload["candidate_current_level"] = current_level
 
     try:
         client = LLMClient.from_env()
@@ -4549,15 +4583,24 @@ def run_pipeline(args: argparse.Namespace) -> int:
         resume = _apply_display_experience_selection(resume)
         resume = summarize_for_role(resume)
         resume = select_skills(resume, top_n=_resolve_top_skills_cap(args))
-        # Resolve the fit assessment against the pre-pipeline baseline so the
-        # LLM scores the candidate's full canonical bullet set rather than
-        # the post-trim view. #271's per-experience compression also reads
-        # this same payload (no second LLM call).
-        fit_assessment = _resolve_fit_narrative(args, baseline_resume)
-        resume = summarize_profile_for_role(resume, fit_assessment=fit_assessment)
+        # Compute the shared fit_assessment once against the pre-pipeline
+        # baseline so the LLM scores the full canonical bullet set rather
+        # than the post-trim view. Both consumers below read it — but the
+        # #272 narrative gate may decide *not* to augment the summary even
+        # when an assessment exists (off-mode, score above gate, cover-
+        # letter), while #271's compression always wants the per-experience
+        # scores when they're available. Decoupling them here keeps both
+        # surfaces honest. The internal _resolve_fit_narrative call below
+        # also calls compute_fit_assessment but hits the LLMClient cache,
+        # so the second lookup is essentially free.
+        fit_assessment = compute_fit_assessment(baseline_resume)
+        fit_for_summary = _resolve_fit_narrative(args, baseline_resume)
+        resume = summarize_profile_for_role(resume, fit_assessment=fit_for_summary)
         # Mark low-fit experiences as compressed (#271) — render-level switch
         # only; chronology is preserved. Runs after summary so the layout
-        # check sees the final summary + skills budget.
+        # check sees the final summary + skills budget. Pass the underlying
+        # assessment (not fit_for_summary) so compression sees per-
+        # experience scores even when the narrative gate skipped firing.
         resume = apply_experience_compression(
             args, resume, fit_assessment=fit_assessment
         )

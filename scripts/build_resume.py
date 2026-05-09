@@ -2140,13 +2140,13 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
         )
         return ""
 
-    # Normalize terminal punctuation BEFORE measuring wrap lines —
-    # PR #287 review: appending a period after the wrap check could
-    # push a borderline summary from 6 → 7 lines (the period adds a
-    # char to the last word which might no longer fit on the line at
-    # PROFILE_SUMMARY_LINE_WIDTH). Strip trailing list separators
-    # first so an LLM response ending with `,` or `:` doesn't produce
-    # `,.` / `:.` once the period is appended.
+    # Normalize terminal punctuation BEFORE measuring wrap lines: if
+    # we appended the period after the wrap check, the period would
+    # add a char to the last word which might no longer fit on the
+    # line at PROFILE_SUMMARY_LINE_WIDTH and push a borderline summary
+    # from 6 → 7 lines. Strip trailing list separators first so an
+    # LLM response ending with `,` or `:` doesn't produce `,.` / `:.`
+    # once the period is appended.
     candidate = candidate.rstrip(" ,;:")
     if not candidate:
         return ""

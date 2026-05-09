@@ -6329,11 +6329,13 @@ def test_generate_jd_tailored_summary_falls_back_when_trim_drops_below_floor(
 def test_generate_jd_tailored_summary_measures_wrap_lines_after_period_append(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """PR #287 review: wrap-line check must run on the post-normalization
-    candidate (rstripped + terminal period appended), not the raw LLM
-    response. Pre-fix the period was added AFTER the wrap-line check, so
-    a borderline summary that wrapped to exactly 6 lines could become
-    7 lines once the period was appended — silently violating
+    """Wrap-line invariant for the LLM JD-tailored summary path.
+
+    The wrap-line check must run on the post-normalization candidate
+    (rstripped + terminal period appended), not on the raw LLM
+    response. If the period were added AFTER the wrap-line check, a
+    borderline summary that wrapped to exactly 6 lines could become 7
+    lines once the period was appended — silently violating
     PROFILE_SUMMARY_MAX_LINES.
 
     Constructing the exact byte boundary is brittle (depends on

@@ -36,6 +36,18 @@ else:
 _JOB_PAGE_FIXTURE_ENV = "RESUME_BUILDER_JOB_PAGE_FIXTURE"
 _MAX_DESCRIPTION_EXCERPT = 500
 _MAX_FETCH_BYTES = 256 * 1024
+# Playwright pages legitimately exceed the static-fetch 256 KB cap —
+# modern JS-rendered boards routinely ship 1–2 MB of inline content
+# (the WU careers page is ~1.6 MB and its JobPosting JSON-LD lives
+# at ~1.36 MB offset, past the static cap). Use a higher bound here
+# so the JSON-LD JobPosting extractor can find structured-data blocks
+# that load late in the source order. Still bounded — the upper
+# limit guards against pathological pages and OOM. The text-extract
+# fallback path (`_html_to_text`) still operates on the
+# `_MAX_FETCH_BYTES`-truncated content; this larger cap only governs
+# what `_extract_jobposting_from_html` is allowed to scan.
+# Issue #293 item 2.
+_MAX_PLAYWRIGHT_HTML_BYTES = 4 * 1024 * 1024
 
 logger = logging.getLogger(__name__)
 
@@ -830,6 +842,179 @@ def _html_to_text(raw: str) -> str:
     return text
 
 
+# ---------------------------------------------------------------------------
+# Issue #293 item 2: prefer schema.org/JobPosting JSON-LD over raw HTML text
+#
+# Many JS-rendered job boards (Workday, Western Union careers, Greenhouse-
+# embedded sites, etc.) embed the JD body as a `schema.org/JobPosting`
+# JSON-LD payload inside `<script type="application/ld+json">`. When that's
+# present, parsing it directly produces a far cleaner LLM-tailoring input
+# than feeding `_html_to_text(content_html)` — that path mixes the JD with
+# page chrome (sitemap, breadcrumbs, sidebars, related-job listings),
+# burying the actual role description under noise that doesn't fit in the
+# 500-char description excerpt cap.
+
+# Regex matches the OPEN tag (with attributes) and captures the inner text
+# of any `<script type="application/ld+json">` block. Case-insensitive on
+# both the tag name and the type attribute (browsers tolerate either).
+# Whitespace-flexible around the `=` so `type = "..."` shapes still match.
+_JSON_LD_SCRIPT_PATTERN = re.compile(
+    r'<script\b[^>]*\btype\s*=\s*["\']application/ld\+json["\'][^>]*>'
+    r"(.*?)"
+    r"</script\s*>",
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def _iter_json_ld_blocks(html: str) -> list[str]:
+    """Return raw text content of each JSON-LD `<script>` in the HTML."""
+    if not html:
+        return []
+    return _JSON_LD_SCRIPT_PATTERN.findall(html)
+
+
+def _is_jobposting_type(value: Any) -> bool:
+    """schema.org `@type` may be a string or a list of strings."""
+    if isinstance(value, str):
+        return value == "JobPosting"
+    if isinstance(value, list):
+        return any(isinstance(v, str) and v == "JobPosting" for v in value)
+    return False
+
+
+def _find_jobposting(data: Any) -> dict[str, Any] | None:
+    """Walk a parsed JSON-LD structure for a JobPosting object.
+
+    Handles three common shapes:
+    - top-level `{"@type": "JobPosting", ...}`
+    - top-level `@graph` array containing the JobPosting alongside
+      WebPage / BreadcrumbList / etc. (Western Union shape)
+    - JobPosting nested arbitrarily deep inside `dict`/`list` containers.
+
+    Returns the first matching object, or None.
+    """
+    if isinstance(data, dict):
+        if _is_jobposting_type(data.get("@type")):
+            return data
+        for value in data.values():
+            found = _find_jobposting(value)
+            if found is not None:
+                return found
+    elif isinstance(data, list):
+        for item in data:
+            found = _find_jobposting(item)
+            if found is not None:
+                return found
+    return None
+
+
+def _jobposting_organization(posting: dict[str, Any]) -> str:
+    """Extract the hiring-org name from a JobPosting (string or dict shape)."""
+    org = posting.get("hiringOrganization")
+    if isinstance(org, dict):
+        name = org.get("name")
+        if isinstance(name, str):
+            return name.strip()
+    elif isinstance(org, str):
+        return org.strip()
+    return ""
+
+
+def _jobposting_location(posting: dict[str, Any]) -> str:
+    """Format the job location as `City, Region, Country` when available.
+
+    Tolerates `jobLocation` as dict OR list (multi-site postings — takes
+    the first), and the nested `address` shape used by Workday-style
+    JSON-LD where the location lives under `jobLocation.address`.
+    """
+    loc = posting.get("jobLocation")
+    if isinstance(loc, list):
+        loc = loc[0] if loc else None
+    if not isinstance(loc, dict):
+        return ""
+    address = loc.get("address")
+    if not isinstance(address, dict):
+        # Some boards use `jobLocation.name` as a freeform string.
+        name = loc.get("name")
+        return name.strip() if isinstance(name, str) else ""
+    parts: list[str] = []
+    for key in ("addressLocality", "addressRegion", "addressCountry"):
+        value = address.get(key)
+        if isinstance(value, str) and value.strip():
+            parts.append(value.strip())
+    return ", ".join(parts)
+
+
+def _jobposting_employment_type(posting: dict[str, Any]) -> str:
+    """`employmentType` can be a string or a list. Returns a comma-joined
+    form normalized from `FULL_TIME` to `Full Time` for prose readability.
+    """
+    et = posting.get("employmentType")
+    values: list[str]
+    if isinstance(et, str):
+        values = [et]
+    elif isinstance(et, list):
+        values = [v for v in et if isinstance(v, str)]
+    else:
+        return ""
+    cleaned = [v.replace("_", " ").strip().title() for v in values if v.strip()]
+    return ", ".join(cleaned)
+
+
+def _extract_jobposting_from_html(html: str) -> str | None:
+    """Find a `@type=JobPosting` JSON-LD block and return its prose form.
+
+    Returns a single concatenated prose string with the role's title,
+    hiring organization, location, employment type, and HTML-stripped
+    description. Returns None when no JobPosting JSON-LD is present
+    (caller falls back to `_html_to_text(html)` for raw text extraction).
+
+    Falls back to None — never raises — so a malformed JSON-LD block
+    or a missing `description` field doesn't break the surrounding
+    fetch path. The caller treats None as "use the HTML-text extract
+    instead". Issue #293 item 2.
+    """
+    if not html:
+        return None
+    for raw in _iter_json_ld_blocks(html):
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        posting = _find_jobposting(data)
+        if posting is None:
+            continue
+        # Build prose from the most-tailoring-relevant fields. The order
+        # is title → organization → location → employment-type → JD body
+        # so the LLM sees the grounding signals BEFORE the long
+        # description prose, which fits cleanly inside a 500-char excerpt
+        # cap if we ever truncate downstream.
+        parts: list[str] = []
+        title = posting.get("title")
+        if isinstance(title, str) and title.strip():
+            parts.append(f"Role: {title.strip()}")
+        org_name = _jobposting_organization(posting)
+        if org_name:
+            parts.append(f"Company: {org_name}")
+        location = _jobposting_location(posting)
+        if location:
+            parts.append(f"Location: {location}")
+        employment = _jobposting_employment_type(posting)
+        if employment:
+            parts.append(f"Employment type: {employment}")
+        description = posting.get("description")
+        if isinstance(description, str) and description.strip():
+            # description is often HTML-formatted (paragraphs, lists, bold).
+            # Strip tags via the same helper used for the API-extract path.
+            clean = _html_to_text(description)
+            if clean:
+                parts.append(clean)
+        if not parts:
+            return None
+        return "\n\n".join(parts).strip()
+    return None
+
+
 def _fetch_json_api(api_url: str) -> dict[str, Any] | None:
     """HTTP GET + JSON parse with the same security validation as page fetch.
 
@@ -1025,8 +1210,8 @@ def _playwright_fetch_html(sync_pw: Any, url: str) -> tuple[str, str] | None:
                 page.wait_for_timeout(_PLAYWRIGHT_SETTLE_MS)
                 title = page.title() or ""
                 content_html = page.content() or ""
-                if len(content_html) > _MAX_FETCH_BYTES:
-                    content_html = content_html[:_MAX_FETCH_BYTES]
+                if len(content_html) > _MAX_PLAYWRIGHT_HTML_BYTES:
+                    content_html = content_html[:_MAX_PLAYWRIGHT_HTML_BYTES]
                 return title, content_html
             finally:
                 browser.close()
@@ -1059,14 +1244,38 @@ def _fetch_via_playwright(url: str) -> FetchedPage | None:
     if raw is None:
         return None
     title, content_html = raw
-    description = _html_to_text(content_html)
+    # Prefer the schema.org/JobPosting JSON-LD payload when present —
+    # it gives clean, well-grounded role + org + description fields
+    # that fit the LLM-tailoring excerpt budget cleanly. Search the
+    # FULL content (up to _MAX_PLAYWRIGHT_HTML_BYTES) since the
+    # JobPosting block on JS-rendered boards (notably WU) frequently
+    # lives past the 256 KB static cap. Falls back to the raw HTML-text
+    # extract when no JobPosting block is found (Greenhouse-iframe
+    # pages, hand-rolled boards without structured data, etc.). Issue
+    # #293 item 2.
+    jobposting_prose = _extract_jobposting_from_html(content_html)
+    if jobposting_prose:
+        description = jobposting_prose
+        notes: tuple[str, ...] = ("source:playwright", "source:jsonld+jobposting")
+    else:
+        # Bound the text-extract path at the static-fetch budget so
+        # `_html_to_text` doesn't process megabytes of HTML when no
+        # JobPosting was found. The larger Playwright cap above only
+        # governs the JSON-LD search range.
+        text_html = (
+            content_html[:_MAX_FETCH_BYTES]
+            if len(content_html) > _MAX_FETCH_BYTES
+            else content_html
+        )
+        description = _html_to_text(text_html)
+        notes = ("source:playwright",)
     if not description.strip():
         return None
     return FetchedPage(
         status="fetched",
         title=title,
         description=description,
-        notes=("source:playwright",),
+        notes=notes,
     )
 
 

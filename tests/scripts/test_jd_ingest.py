@@ -22,6 +22,7 @@ import pytest
 from scripts.jd_ingest import (
     FetchedPage,
     _extract_company_name,
+    _extract_jobposting_from_html,
     _extract_role_from_title,
     _extract_role_hint,
     _fetch_greenhouse_via_api,
@@ -552,6 +553,283 @@ def test_html_to_text_strips_non_json_ld_scripts() -> None:
     assert _html_to_text('<script type="module">import x</script>') == ""
 
 
+# --- Issue #293 item 2: structured JobPosting JSON-LD extraction ----
+
+
+def test_extract_jobposting_returns_none_when_no_json_ld() -> None:
+    """No JSON-LD ⇒ caller falls back to `_html_to_text`."""
+    assert _extract_jobposting_from_html("<html><body>nope</body></html>") is None
+    assert _extract_jobposting_from_html("") is None
+
+
+def test_extract_jobposting_returns_none_when_no_jobposting_block() -> None:
+    """JSON-LD present but no `@type=JobPosting` object ⇒ None.
+
+    Page chrome metadata (WebPage, BreadcrumbList, Organization, etc.)
+    on its own is not actionable JD signal.
+    """
+    html = (
+        '<script type="application/ld+json">'
+        '{"@context":"https://schema.org","@type":"WebPage","name":"Careers"}'
+        "</script>"
+    )
+    assert _extract_jobposting_from_html(html) is None
+
+
+def test_extract_jobposting_returns_prose_for_top_level_block() -> None:
+    """Canonical Workday-style JSON-LD (BECU shape): JobPosting at root,
+    `description` field is HTML-formatted JD body.
+    """
+    html = (
+        '<script type="application/ld+json">'
+        "{"
+        '"@context":"https://schema.org",'
+        '"@type":"JobPosting",'
+        '"title":"Staff Software Developer Engineer in Test",'
+        '"hiringOrganization":{"@type":"Organization",'
+        '"name":"Boeing Employees\' Credit Union"},'
+        '"jobLocation":{"@type":"Place","address":{"@type":"PostalAddress",'
+        '"addressLocality":"Remote","addressRegion":"WA",'
+        '"addressCountry":"United States of America"}},'
+        '"employmentType":"FULL_TIME",'
+        '"description":"<p>Build performance test frameworks for BECU.</p>"'
+        "}"
+        "</script>"
+    )
+    out = _extract_jobposting_from_html(html)
+    assert out is not None
+    # Grounding signals all present.
+    assert "Staff Software Developer Engineer in Test" in out
+    assert "Boeing Employees' Credit Union" in out
+    assert "Remote, WA" in out
+    assert "Full Time" in out
+    # Description HTML stripped to plain prose.
+    assert "Build performance test frameworks for BECU." in out
+    assert "<p>" not in out
+
+
+def test_extract_jobposting_returns_prose_for_graph_array_shape() -> None:
+    """Western Union shape: `@graph` array containing WebPage,
+    BreadcrumbList, *and* the JobPosting (or a separate block on the
+    same page). The walker must traverse the array and find the
+    JobPosting regardless of position.
+    """
+    html = (
+        '<script type="application/ld+json">'
+        '{"@graph":[{"@type":"WebPage","name":"Page noise"},'
+        '{"@type":"BreadcrumbList","itemListElement":[]}]}'
+        "</script>"
+        '<script type="application/ld+json">'
+        "{"
+        '"@type":"JobPosting",'
+        '"title":"Staff Software Engineer",'
+        '"hiringOrganization":{"name":"Western Union"},'
+        '"jobLocation":{"address":{"addressLocality":"Austin",'
+        '"addressRegion":"TX"}},'
+        '"description":"<p>Western Union is seeking a Staff Software Engineer.</p>"'
+        "}"
+        "</script>"
+    )
+    out = _extract_jobposting_from_html(html)
+    assert out is not None
+    assert "Western Union" in out
+    assert "Austin, TX" in out
+    assert "Staff Software Engineer" in out
+    assert "Western Union is seeking a Staff Software Engineer." in out
+
+
+def test_extract_jobposting_handles_type_as_list() -> None:
+    """schema.org `@type` may be `["JobPosting", "Thing"]` per JSON-LD spec."""
+    html = (
+        '<script type="application/ld+json">'
+        '{"@type":["Thing","JobPosting"],'
+        '"title":"Engineer",'
+        '"hiringOrganization":"Acme",'
+        '"description":"role text"}'
+        "</script>"
+    )
+    out = _extract_jobposting_from_html(html)
+    assert out is not None
+    assert "Engineer" in out
+    assert "Acme" in out
+    assert "role text" in out
+
+
+def test_extract_jobposting_handles_string_hiring_organization() -> None:
+    """Some boards emit `hiringOrganization` as a plain string instead
+    of the canonical `{name, @type:Organization}` dict shape.
+    """
+    html = (
+        '<script type="application/ld+json">'
+        '{"@type":"JobPosting",'
+        '"title":"SWE",'
+        '"hiringOrganization":"Acme Corp",'
+        '"description":"text"}'
+        "</script>"
+    )
+    out = _extract_jobposting_from_html(html)
+    assert out is not None
+    assert "Acme Corp" in out
+
+
+def test_extract_jobposting_handles_jobLocation_as_list() -> None:
+    """Multi-location postings: `jobLocation` is a list. Take the first
+    location; that's the canonical site for the role.
+    """
+    html = (
+        '<script type="application/ld+json">'
+        '{"@type":"JobPosting",'
+        '"title":"SWE","hiringOrganization":"Acme",'
+        '"jobLocation":['
+        '{"address":{"addressLocality":"Austin","addressRegion":"TX"}},'
+        '{"address":{"addressLocality":"Remote"}}'
+        "],"
+        '"description":"text"}'
+        "</script>"
+    )
+    out = _extract_jobposting_from_html(html)
+    assert out is not None
+    assert "Austin, TX" in out
+
+
+def test_extract_jobposting_handles_employmentType_as_list() -> None:
+    """`employmentType` can be a list (e.g. `["FULL_TIME","CONTRACTOR"]`)."""
+    html = (
+        '<script type="application/ld+json">'
+        '{"@type":"JobPosting",'
+        '"title":"SWE","hiringOrganization":"Acme",'
+        '"employmentType":["FULL_TIME","CONTRACTOR"],'
+        '"description":"text"}'
+        "</script>"
+    )
+    out = _extract_jobposting_from_html(html)
+    assert out is not None
+    assert "Full Time" in out
+    assert "Contractor" in out
+
+
+def test_extract_jobposting_skips_malformed_json_blocks() -> None:
+    """A malformed JSON-LD block must not break parsing — try the next
+    block. Real-world repro: trailing comma in handcrafted JSON-LD.
+    """
+    html = (
+        '<script type="application/ld+json">{not json,}</script>'
+        '<script type="application/ld+json">'
+        '{"@type":"JobPosting","title":"SWE",'
+        '"hiringOrganization":"Acme","description":"text"}'
+        "</script>"
+    )
+    out = _extract_jobposting_from_html(html)
+    assert out is not None
+    assert "SWE" in out
+    assert "Acme" in out
+
+
+def test_extract_jobposting_returns_first_matching_block() -> None:
+    """Multiple JobPosting blocks (rare — page lists multiple jobs):
+    use the first. The URL is specific to one job.
+    """
+    html = (
+        '<script type="application/ld+json">'
+        '{"@type":"JobPosting","title":"First","hiringOrganization":"A",'
+        '"description":"first"}'
+        "</script>"
+        '<script type="application/ld+json">'
+        '{"@type":"JobPosting","title":"Second","hiringOrganization":"B",'
+        '"description":"second"}'
+        "</script>"
+    )
+    out = _extract_jobposting_from_html(html)
+    assert out is not None
+    assert "First" in out
+    assert "Second" not in out
+
+
+def test_extract_jobposting_returns_none_when_jobposting_has_no_useful_fields() -> None:
+    """Defensive: a JobPosting object that's structurally valid but
+    contains no actionable fields (no title, org, location, type, OR
+    description) returns None so the caller falls back.
+    """
+    html = (
+        '<script type="application/ld+json">'
+        '{"@type":"JobPosting","datePosted":"2026-01-01"}'
+        "</script>"
+    )
+    assert _extract_jobposting_from_html(html) is None
+
+
+def test_fetch_via_playwright_prefers_jobposting_jsonld(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End-to-end: when Playwright HTML contains JobPosting JSON-LD, the
+    fetched description is the structured prose (not the raw text
+    extraction), and the notes record `source:jsonld+jobposting`.
+    """
+    monkeypatch.setenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", "1")
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+
+    html_with_posting = (
+        "<html><body>"
+        '<script type="application/ld+json">'
+        '{"@type":"JobPosting","title":"Staff SWE",'
+        '"hiringOrganization":{"name":"Western Union"},'
+        '"jobLocation":{"address":{"addressLocality":"Austin","addressRegion":"TX"}},'
+        '"description":"<p>Build retail engineering platform.</p>"}'
+        "</script>"
+        "<p>Page chrome that should NOT leak through.</p>"
+        "</body></html>"
+    )
+    monkeypatch.setattr(
+        "scripts.jd_ingest._playwright_fetch_html",
+        lambda _pw, _url: ("Page Title", html_with_posting),
+    )
+
+    result = _fetch_via_playwright(
+        "https://careers.westernunion.com/job-details/123/staff-engineer/"
+    )
+    assert result is not None
+    assert "Western Union" in result.description
+    assert "Austin, TX" in result.description
+    assert "Staff SWE" in result.description
+    assert "Build retail engineering platform." in result.description
+    # Page chrome from non-JobPosting HTML is NOT in the description.
+    assert "Page chrome that should NOT leak through" not in result.description
+    # Note record signals which extraction path was used.
+    assert "source:jsonld+jobposting" in result.notes
+    assert "source:playwright" in result.notes
+
+
+def test_fetch_via_playwright_falls_back_to_html_text_when_no_jobposting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the page has no JobPosting JSON-LD (or only WebPage chrome),
+    the fetcher falls back to `_html_to_text` and the notes do NOT
+    include the jsonld marker — preserves backwards compatibility for
+    pages without structured data (Greenhouse iframes, hand-rolled
+    boards).
+    """
+    monkeypatch.setenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", "1")
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+
+    html_without_posting = (
+        "<html><body>"
+        "<h1>Senior Software Engineer</h1>"
+        "<p>Plain HTML JD body, no JSON-LD here.</p>"
+        "</body></html>"
+    )
+    monkeypatch.setattr(
+        "scripts.jd_ingest._playwright_fetch_html",
+        lambda _pw, _url: ("title", html_without_posting),
+    )
+
+    result = _fetch_via_playwright("https://example.com/job/123")
+    assert result is not None
+    assert "Senior Software Engineer" in result.description
+    assert "Plain HTML JD body" in result.description
+    assert "source:jsonld+jobposting" not in result.notes
+    assert "source:playwright" in result.notes
+
+
 def test_try_board_api_fetch_dispatches_to_greenhouse(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1033,12 +1311,27 @@ def test_playwright_fetch_html_passes_user_agent_and_settle_window() -> None:
 
 
 def test_playwright_fetch_html_truncates_oversize_content() -> None:
-    big = "<p>" + ("X" * (256 * 1024 + 100)) + "</p>"
+    """Issue #293 item 2: Playwright now uses the larger
+    _MAX_PLAYWRIGHT_HTML_BYTES cap (4 MB) instead of the 256 KB static
+    cap, so JS-rendered boards with late-loaded JSON-LD JobPosting
+    blocks (e.g. WU careers at ~1.4 MB offset) can be searched. The
+    bound is still enforced — pages exceeding 4 MB are clipped — but
+    the threshold is high enough that real boards aren't affected.
+    """
+    from scripts.jd_ingest import _MAX_PLAYWRIGHT_HTML_BYTES
+
+    big = "<p>" + ("X" * (_MAX_PLAYWRIGHT_HTML_BYTES + 100)) + "</p>"
     fake_sync, _browser, _chromium = _make_fake_sync_playwright(title="t", content=big)
     out = _playwright_fetch_html(fake_sync, "https://example.com/job/1")
     assert out is not None
     _title, html = out
-    assert len(html) == 256 * 1024  # _MAX_FETCH_BYTES
+    assert len(html) == _MAX_PLAYWRIGHT_HTML_BYTES
+    # Content under the cap is returned unmodified.
+    smaller = "<p>" + ("X" * 1024) + "</p>"
+    fake_sync2, _b2, _c2 = _make_fake_sync_playwright(title="t", content=smaller)
+    out2 = _playwright_fetch_html(fake_sync2, "https://example.com/job/2")
+    assert out2 is not None
+    assert len(out2[1]) == len(smaller)
 
 
 def test_playwright_fetch_html_returns_none_on_browser_failure() -> None:

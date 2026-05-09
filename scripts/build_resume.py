@@ -2140,22 +2140,46 @@ def _generate_jd_tailored_summary_via_llm(resume: ResumeIR) -> str:
         )
         return ""
 
-    # Reject summaries that won't fit the PDF layout's 6-line profile-
-    # summary slot. _fit_profile_summary_layout on the deterministic path
-    # *trims* to fit; here we'd rather REJECT and fall back so the caller
-    # gets a guaranteed-good deterministic summary instead of silently
-    # dropping the LLM's tail clauses. The wrap must use the same width
-    # constant the deterministic path uses (PROFILE_SUMMARY_LINE_WIDTH,
-    # not the default SUMMARY_LINE_WIDTH that's calibrated for the
-    # narrower experience-bullet layout).
+    # If the LLM summary doesn't fit the 6-line profile-summary slot,
+    # trim it the same way the deterministic path does
+    # (_fit_profile_summary_layout pops trailing words / drops incomplete
+    # tail clauses while preserving sentence boundaries). Issue #282:
+    # the prior policy was to REJECT and fall back to deterministic, on
+    # the theory that a trimmed LLM summary might silently drop key
+    # tailoring clauses. In practice that meant a 1-line overflow lost
+    # 100% of the LLM's tailoring (e.g. v4 llama::becu produced 7 lines
+    # over a 6-line cap → full deterministic fallback). Trimming retains
+    # most of the tailoring and is still better than a generic
+    # deterministic boilerplate. The wrap uses PROFILE_SUMMARY_LINE_WIDTH
+    # (115) — the same width constant the deterministic path uses, NOT
+    # the default SUMMARY_LINE_WIDTH (72) that's calibrated for the
+    # narrower experience-bullet layout.
     wrap_lines = _summary_wrap_lines(candidate, line_width=PROFILE_SUMMARY_LINE_WIDTH)
     if len(wrap_lines) > PROFILE_SUMMARY_MAX_LINES:
+        original_words = len(candidate.split())
+        trimmed = _fit_profile_summary_layout(candidate)
+        trimmed_words = len(trimmed.split()) if trimmed else 0
+        if trimmed_words < min_words:
+            # Trimming chewed too much — the LLM was wildly over-budget,
+            # not just a small overflow. Fall back to deterministic.
+            logger.info(
+                "LLM JD-tailored summary rejected: %d wrap lines exceeds %d, "
+                "trimmed to %d words below floor %d",
+                len(wrap_lines),
+                PROFILE_SUMMARY_MAX_LINES,
+                trimmed_words,
+                min_words,
+            )
+            return ""
         logger.info(
-            "LLM JD-tailored summary rejected: %d wrap lines exceeds %d",
+            "LLM JD-tailored summary trimmed to fit layout: "
+            "%d → %d wrap lines, %d → %d words",
             len(wrap_lines),
             PROFILE_SUMMARY_MAX_LINES,
+            original_words,
+            trimmed_words,
         )
-        return ""
+        candidate = trimmed
 
     # Strip trailing list separators before adding the terminal period —
     # otherwise an LLM response that ends with ',' or ':' produces ",."

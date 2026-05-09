@@ -6223,19 +6223,21 @@ def test_generate_jd_tailored_summary_rejects_out_of_bounds_word_count(
     assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
 
 
-def test_generate_jd_tailored_summary_rejects_layout_overflow(
+def test_generate_jd_tailored_summary_trims_layout_overflow_to_fit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Word-count in bounds but wrap_lines > PROFILE_SUMMARY_MAX_LINES => reject.
+    """Word-count in bounds but wrap_lines > 6 => trim instead of reject.
 
-    Issue #256 round-1 review — the LLM path was missing the layout-cap
-    check that the deterministic generator enforces via
-    _fit_profile_summary_layout. A summary that's word-count-valid but
-    won't fit 6 wrap lines (at PROFILE_SUMMARY_LINE_WIDTH=115, the same
-    width _fit_profile_summary_layout uses) must be rejected so the
-    caller falls back to the deterministic (layout-fitted) generator
-    instead of silently producing PDF that overflows the 6-line
-    profile-summary slot.
+    Issue #282 (policy change): the LLM path previously REJECTED any
+    summary that didn't fit the 6-line profile-summary slot, falling
+    back to the fully-deterministic generator. In the v4 multi-JD run
+    this turned a small (1-line) overflow on llama::becu into a 100%
+    loss of LLM tailoring — the deterministic boilerplate is generic.
+    The deterministic generator already trims-to-fit via
+    `_fit_profile_summary_layout`; the LLM path now applies the same
+    trimmer, retaining most of the LLM tailoring. The pre-#282 reject
+    behavior is preserved only when trimming chews below the
+    `_LLM_SUMMARY_MIN_WORDS` sanity floor (separate test below).
     """
     monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
     summary = _build_layout_overflow_summary(100)  # 100 long tokens
@@ -6258,7 +6260,61 @@ def test_generate_jd_tailored_summary_rejects_layout_overflow(
         > build_resume.PROFILE_SUMMARY_MAX_LINES
     )
 
-    assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
+    out = build_resume._generate_jd_tailored_summary_via_llm(resume)
+
+    # Now the function returns trimmed-but-tailored output rather than "".
+    assert out, "expected trimmed LLM summary, got empty (deterministic fallback)"
+    assert out.endswith((".", "?", "!"))
+    # Trimmed output must fit the 6-line layout cap at the profile width.
+    out_lines = build_resume._summary_wrap_lines(
+        out, line_width=build_resume.PROFILE_SUMMARY_LINE_WIDTH
+    )
+    assert len(out_lines) <= build_resume.PROFILE_SUMMARY_MAX_LINES
+    # And must still be above the LLM-specific min-words floor.
+    assert len(out.split()) >= build_resume._LLM_SUMMARY_MIN_WORDS
+
+
+def test_generate_jd_tailored_summary_falls_back_when_trim_drops_below_floor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the LLM is wildly over-budget and the trimmer would chew the
+    summary below `_LLM_SUMMARY_MIN_WORDS`, fall back to deterministic.
+
+    Issue #282 sanity floor: trimming a small (1-2 line) overflow is
+    an obvious win, but if the LLM produced a 12-line summary that
+    needs to lose ~70 words to fit 6 lines, the trimmed remainder is
+    likely too short to be a useful summary on its own. Better to fall
+    back so the deterministic generator produces a complete summary.
+    """
+    monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
+    # Construct a summary so long-token-heavy that trimming to ≤ 6 lines
+    # at width 115 leaves fewer than _LLM_SUMMARY_MIN_WORDS words. Each
+    # "extremelylongtoken" is 18 chars; 6 * 115 = 690 visible chars; with
+    # spaces, ~36 tokens fit. _LLM_SUMMARY_MIN_WORDS is 30 — we want the
+    # final trimmed budget to be below 30, so use very long tokens that
+    # bring the per-line word count further down.
+    summary = " ".join(["extremelylongextrasuperlongtoken"] * 110)
+    _install_fake_llm(monkeypatch, payload={"summary": summary})
+    resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
+
+    # Sanity: 110 words is in [30, 112]; line count is well over 6.
+    assert (
+        build_resume._LLM_SUMMARY_MIN_WORDS
+        <= 110
+        <= build_resume.PROFILE_SUMMARY_MAX_WORDS
+    )
+    assert (
+        len(
+            build_resume._summary_wrap_lines(
+                summary, line_width=build_resume.PROFILE_SUMMARY_LINE_WIDTH
+            )
+        )
+        > build_resume.PROFILE_SUMMARY_MAX_LINES
+    )
+
+    out = build_resume._generate_jd_tailored_summary_via_llm(resume)
+    # Trimmer output is below the floor → fall back to deterministic ("").
+    assert out == ""
 
 
 def test_generate_jd_tailored_summary_returns_empty_when_llm_disabled(

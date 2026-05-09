@@ -595,10 +595,10 @@ def parse_args() -> argparse.Namespace:
             "How experience compression is applied to low-fit roles. "
             "'auto' (default) is layout-driven: experiences render in full "
             "until the page overflows, then lowest-fit experiences "
-            "(per fit_assessment) compress one at a time, capped at 50%% "
+            "(per fit_assessment) compress one at a time, capped at 50% "
             "of in-window experiences. 'all' forces every experience full. "
             "'top-N' (e.g. top-5) renders the top N by relevance + recency "
-            "in full and compresses the rest, also subject to the 50%% cap. "
+            "in full and compresses the rest, also subject to the 50% cap. "
             "Experiences are never dropped — chronology is preserved. "
             'See DESIGN.md "Experience compression".'
         ),

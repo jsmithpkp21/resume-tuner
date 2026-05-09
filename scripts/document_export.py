@@ -49,10 +49,32 @@ def _build_resume_module() -> Any:
 # ---------------------------------------------------------------------------
 # Output naming and staging
 # ---------------------------------------------------------------------------
+# Hard cap on the snake_case'd company slug. Real company names are <40
+# chars; anything longer is almost always an over-extraction (e.g. an LLM
+# fallback that grabbed a marketing tagline as the company name). The cap
+# also keeps the final filename — slug + `_resume.<ext>` + the staging
+# prefix added by `staging_path` — well under the ext4 / tmpfs 255-byte
+# NAME_MAX limit. Issue #280: prior unbounded slug produced a 250+ char
+# slug from JD prose and broke `.docx` export with `[Errno 36] File name
+# too long`.
+MAX_COMPANY_SLUG_CHARS = 64
+
+
 def snake_case(value: str) -> str:
     token = re.sub(r"[^a-z0-9]+", "_", value.strip().lower())
     token = token.strip("_")
-    return token or "company"
+    if not token:
+        return "company"
+    if len(token) <= MAX_COMPANY_SLUG_CHARS:
+        return token
+    # Truncate at the last `_` boundary BEFORE the cap so the slug ends on
+    # a whole word ("acme_corp" rather than "acme_co"). Falls back to a
+    # hard cut when there is no underscore inside the budget.
+    head = token[:MAX_COMPANY_SLUG_CHARS]
+    last_underscore = head.rfind("_")
+    if last_underscore > 0:
+        head = head[:last_underscore]
+    return head.rstrip("_") or token[:MAX_COMPANY_SLUG_CHARS].rstrip("_")
 
 
 def canonical_export_filename(

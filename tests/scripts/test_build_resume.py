@@ -691,6 +691,111 @@ def test_independent_projects_processed_mode_respects_visibility_flag(
     assert int(included_snapshot["independent_projects_count"]) >= 3
 
 
+# --- #311: --for-upload + --no-cross-org + --no-selected-achievements ---
+
+_CROSS_ORG_HEADING_HTML = "<h2>Cross-Org Architectural Leadership</h2>"
+_CROSS_ORG_HEADING_MD = "## Cross-Org Architectural Leadership"
+_SELECTED_HEADING_HTML = "<h2>Selected Achievements</h2>"
+_SELECTED_HEADING_MD = "## Selected Achievements"
+
+
+def _render_with(tmp_path: Path, *flags: str) -> tuple[str, str]:
+    """Run the CLI with optional flag list and return (html, md) of the raw artifact."""
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+    output_dir = tmp_path / "out"
+    result = _run_build_resume_cli(
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        profile_path=profile_path,
+        output_dir=output_dir,
+        extra_args=tuple(flags),
+    )
+    assert result.returncode == 0, result.stderr
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(
+        encoding="utf-8"
+    )
+    md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(
+        encoding="utf-8"
+    )
+    return html_text, md_text
+
+
+def test_for_upload_flags_default_off_renders_both_narrative_sections(
+    tmp_path: Path,
+) -> None:
+    """Sanity baseline: with no new flags, both sections render."""
+    html_text, md_text = _render_with(tmp_path)
+    assert _CROSS_ORG_HEADING_HTML in html_text
+    assert _CROSS_ORG_HEADING_MD in md_text
+    assert _SELECTED_HEADING_HTML in html_text
+    assert _SELECTED_HEADING_MD in md_text
+
+
+def test_for_upload_suppresses_both_narrative_sections(tmp_path: Path) -> None:
+    """--for-upload is sugar for --no-cross-org + --no-selected-achievements."""
+    html_text, md_text = _render_with(tmp_path, "--for-upload")
+    assert _CROSS_ORG_HEADING_HTML not in html_text
+    assert _CROSS_ORG_HEADING_MD not in md_text
+    assert _SELECTED_HEADING_HTML not in html_text
+    assert _SELECTED_HEADING_MD not in md_text
+
+
+def test_no_cross_org_suppresses_only_cross_org(tmp_path: Path) -> None:
+    """Granular flag isolates suppression to its named section."""
+    html_text, md_text = _render_with(tmp_path, "--no-cross-org")
+    assert _CROSS_ORG_HEADING_HTML not in html_text
+    assert _CROSS_ORG_HEADING_MD not in md_text
+    assert _SELECTED_HEADING_HTML in html_text
+    assert _SELECTED_HEADING_MD in md_text
+
+
+def test_no_selected_achievements_suppresses_only_selected_achievements(
+    tmp_path: Path,
+) -> None:
+    """Granular flag isolates suppression to its named section."""
+    html_text, md_text = _render_with(tmp_path, "--no-selected-achievements")
+    assert _SELECTED_HEADING_HTML not in html_text
+    assert _SELECTED_HEADING_MD not in md_text
+    assert _CROSS_ORG_HEADING_HTML in html_text
+    assert _CROSS_ORG_HEADING_MD in md_text
+
+
+def test_run_pipeline_tolerates_namespace_without_for_upload_flags(
+    tmp_path: Path,
+) -> None:
+    """Programmatic callers that build a Namespace by hand must not break — the
+    defensive getattr in run_pipeline should fall back to the CLI default
+    (no suppression) when for_upload/no_cross_org/no_selected_achievements
+    are absent from the Namespace."""
+    import argparse
+
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+    output_dir = tmp_path / "out"
+
+    # No for_upload / no_cross_org / no_selected_achievements on this Namespace, intentionally.
+    pipeline_args = argparse.Namespace(
+        profile=profile_path,
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        skills_matrix=REPO_ROOT / "data" / "skills" / "skills_matrix.csv",
+        job_url="",
+        job_text_file=None,
+        target_role="Staff Software Engineer",
+        output_dir=output_dir,
+        processing_mode="raw",
+        outputs=("html", "md"),
+        template="modern",
+    )
+    rc = build_resume.run_pipeline(pipeline_args)
+    assert rc == 0
+    html_text = (output_dir / "resumes" / "latest_resume_raw.html").read_text(
+        encoding="utf-8"
+    )
+    # Default behavior: both narrative sections render.
+    assert _CROSS_ORG_HEADING_HTML in html_text
+    assert _SELECTED_HEADING_HTML in html_text
+
+
 def test_independent_projects_url_normalization_and_safety(tmp_path: Path) -> None:
     """Loader prepends https:// to bare domains and rejects unsafe schemes."""
     items = """

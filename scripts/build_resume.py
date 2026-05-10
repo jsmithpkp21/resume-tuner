@@ -496,6 +496,21 @@ def parse_args() -> argparse.Namespace:
             "var = '0' does not disable an explicit --require-jd-context flag)."
         ),
     )
+    common.add_argument(
+        "--for-upload",
+        dest="for_upload",
+        action="store_true",
+        default=False,
+        help=(
+            "Render an upload-friendly variant: omits the Cross-Org "
+            "Architectural Leadership and Selected Achievements sections. "
+            "ATS resume parsers handle the standard sections (Experience, "
+            "Education, Skills) cleanly but garble or drop custom narrative "
+            "sections, which degrades the auto-filled application fields. "
+            "Sugar for --no-cross-org + --no-selected-achievements; the "
+            "source data is unchanged, only the rendered output."
+        ),
+    )
 
     advanced.add_argument(
         "--profile",
@@ -551,6 +566,26 @@ def parse_args() -> argparse.Namespace:
             "Render the [independent_projects] section even when "
             'visibility="private" in experience_db.toml. Lets the user preview '
             "rendered output without flipping the canonical visibility flag."
+        ),
+    )
+    advanced.add_argument(
+        "--no-cross-org",
+        dest="no_cross_org",
+        action="store_true",
+        default=False,
+        help=(
+            "Suppress the Cross-Org Architectural Leadership section in the "
+            "rendered resume. Implied by --for-upload."
+        ),
+    )
+    advanced.add_argument(
+        "--no-selected-achievements",
+        dest="no_selected_achievements",
+        action="store_true",
+        default=False,
+        help=(
+            "Suppress the Selected Achievements section in the rendered "
+            "resume. Implied by --for-upload."
         ),
     )
     advanced.add_argument(
@@ -4780,6 +4815,19 @@ def run_pipeline(args: argparse.Namespace) -> int:
         and not include_private_projects
     ):
         resume = dc_replace(resume, independent_projects=())
+
+    # ATS-upload variant (#311): some ATS resume parsers handle the standard
+    # sections (Experience, Education, Skills) cleanly but garble or drop
+    # custom narrative sections, which degrades auto-filled application
+    # fields. --for-upload is the user-facing knob; the granular flags exist
+    # for fine control. Applied here (alongside the visibility filter) so the
+    # suppressed sections do not consume layout budget in
+    # _compute_bullet_line_budget() and cannot influence trim/selection.
+    for_upload = getattr(args, "for_upload", False)
+    if for_upload or getattr(args, "no_cross_org", False):
+        resume = dc_replace(resume, cross_org_architectural_leadership=())
+    if for_upload or getattr(args, "no_selected_achievements", False):
+        resume = dc_replace(resume, selected_achievements=())
 
     # Snapshot the assembled-but-pre-pipeline resume so the decision report can
     # diff it against the final resume (rejected bullets, skill-category moves).

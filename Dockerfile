@@ -83,6 +83,15 @@ RUN pip install -r requirements.txt -r requirements-dev.txt
 # we reuse it rather than failing the build. `USER` is set numerically so
 # the container runs as the requested UID:GID even when no `app` row was
 # added to /etc/passwd.
+#
+# The `getent group "${HOST_GID}"` / `getent passwd "${HOST_UID}"` guards
+# below are GID/UID-aware on glibc: numeric keys go through getgrgid(3)/
+# getpwuid(3) (per `man getent`), not getgrnam(3)/getpwnam(3). So the
+# guard correctly short-circuits groupadd/useradd when the host GID/UID
+# already collides with a base-image entry (e.g. Debian dialout=GID 20),
+# rather than mistakenly attempting a name-only lookup that would miss
+# the collision and let groupadd/useradd fail with "GID already exists".
+#
 # Defense-in-depth (issue #349): validate HOST_UID/HOST_GID are numeric
 # before any shell consumer uses them, and quote every expansion below.
 # `scripts/docker_build.sh` and the `update-docker` make target already

@@ -63,6 +63,48 @@ set of dev-tool dependencies used by `make setup`/`make verify` checks.
   consumer ends up with consumer-specific content. See the next section for the
   exhaustive list.
 
+## Canonical Doc Locations
+
+This section grounds the Distribution Plan above with a concrete per-category
+map. For the machine-readable list, see `.tooling-sync-manifest.toml`; this
+section enumerates *categories* and the rule that keeps them from drifting.
+
+### Category map
+
+| Category | Canonical location | Source | Notes |
+|----------|--------------------|--------|-------|
+| Repo-wide conventions | Repo root | Synced from tooling | `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `DOCKER.md`, `MANIFESTO.md`, `CODING_STANDARDS.md`, `FILE_DISTRIBUTION.md` |
+| Reference / runbook docs | `docs/REFERENCE/` | Synced from tooling | Every `docs/REFERENCE/*.md` entry currently in `.tooling-sync-manifest.toml` (see manifest for the live list) |
+| Consumer identity docs | Repo root | Consumer-owned, never synced | `README.md`, `CHANGELOG.md` |
+| Local agent overrides | Repo root | Consumer-owned, never synced | `AGENTS_LOCAL.md` (optional; layered after the synced `AGENTS.md`) |
+| Local notes (exception) | `docs/REFERENCE/IMPROVEMENTS.md` | Consumer-local | Explicitly excluded from the manifest; preserved even if it appears in a prior lock (see "Managed File Lifecycle" below) |
+
+### No duplicates rule
+
+**A synced doc must live in exactly one of {repo root, `docs/REFERENCE/`}.** If
+`FOO.md` is in the manifest at the repo root, do not also keep a
+`docs/REFERENCE/FOO.md` copy — the shadow will silently drift from the
+canonical synced version and confuse readers. The same applies in reverse: a
+manifest entry under `docs/REFERENCE/` should not have a root-level shadow.
+
+`make drift-check` does **not** catch this. Drift-check only verifies that
+manifest-listed files match their lock hashes; a stale shadow that isn't in
+the manifest is invisible to it. Catching shadows is a manual review concern
+when adding or moving docs.
+
+### Where does a new doc go?
+
+- **Shared across the repo family** (process, conventions, runbooks): add it
+  to this tooling repo. Repo-wide invariants (`AGENTS.md`-style) go at the
+  root; everything else goes under `docs/REFERENCE/`. Add the path to
+  `.tooling-sync-manifest.toml` so it reaches consumers.
+- **Consumer-specific** (a single repo's status, backlog, or app-specific
+  notes): keep it in the consumer under `docs/REFERENCE/`, do not add it to
+  the manifest, and note its repo-local scope in a place future maintainers
+  will look (typically a `CONTEXT_LOCAL.md` or similar consumer-owned doc).
+- **Personal scratchpad / temporary notes**: outside the repo, or in a
+  consumer-owned, git-ignored file. Not in either canonical location.
+
 ## What `make drift-check` Actually Validates
 
 `make drift-check` is a *consumer-side* check, not a tooling-source comparison.

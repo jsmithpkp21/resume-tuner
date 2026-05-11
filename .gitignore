@@ -34,6 +34,8 @@ sandbox/
 data/review/
 # Personal profile data (single-file model; copy data/profile/profile.example.toml to seed)
 data/profile/profile.toml
+# Personal job-application research artifacts (recording-protocol notes, answer bank, screening Qs)
+data/applications/
 # Legacy explicit entries kept for readability while migrating review outputs to sandbox
 data/review/packets/
 # Visual diff working files (regenerated each run)

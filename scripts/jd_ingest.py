@@ -864,6 +864,11 @@ def _normalize_plain_text(text: str) -> str:
     parser, which would silently consume literal ``<...>`` runs (e.g.
     ``<Company>`` placeholder or ``a < b`` prose without spaces).
 
+    Leading/trailing whitespace is stripped — Playwright
+    `text_content()` typically returns text with surrounding whitespace
+    from indentation in the source, and both ingest paths want a
+    trimmed description. PR #313 review round 3.
+
     NBSP (\\xa0) is included in the whitespace class because HTMLParser
     preserves it when ``&nbsp;`` is decoded; runs of NBSP would
     otherwise leave odd spacing in the extracted JD body.
@@ -872,7 +877,7 @@ def _normalize_plain_text(text: str) -> str:
         return ""
     out = re.sub(r"[ \t\xa0]+", " ", text)
     out = re.sub(r"\n{3,}", "\n\n", out)
-    return out
+    return out.strip()
 
 
 def _html_to_text(raw: str) -> str:
@@ -1224,7 +1229,11 @@ def _resolve_host_body_selector(host: str) -> str | None:
 
     Issue #298.
     """
-    host = (host or "").lower().split(":", maxsplit=1)[0]
+    # Caller passes `urlparse(url).hostname`, which is already
+    # lowercased and port-stripped. We don't split on ':' here —
+    # IPv6 hostnames (e.g. '2001:db8::1') would be truncated to the
+    # first segment by such a split. PR #313 review round 3.
+    host = (host or "").lower()
     if not host:
         return None
     selector = _HOST_BODY_SELECTORS.get(host)

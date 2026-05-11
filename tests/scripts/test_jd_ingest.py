@@ -1794,6 +1794,24 @@ def test_resolve_host_body_selector_picks_longest_matching_family_suffix(
     assert _resolve_host_body_selector("board.jobs.example.com") == "div.specific"
 
 
+def test_resolve_host_body_selector_does_not_truncate_ipv6_hosts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`urlparse(url).hostname` for an IPv6 URL returns the address
+    without brackets, e.g. ``'2001:db8::1'``. The previous defensive
+    ``host.split(':', 1)[0]`` would have truncated this to ``'2001'``.
+    PR #313 review round 3.
+    """
+    monkeypatch.setattr(
+        "scripts.jd_ingest._HOST_BODY_SELECTORS",
+        {"2001:db8::1": "div.jd-body"},
+    )
+    monkeypatch.setattr("scripts.jd_ingest._HOST_BODY_SELECTOR_FAMILIES", {})
+    # The exact-host map lookup only works if the colons in the IPv6
+    # address were preserved through normalization.
+    assert _resolve_host_body_selector("2001:db8::1") == "div.jd-body"
+
+
 def test_fetch_via_playwright_uses_host_body_selector_when_no_jsonld(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1849,6 +1867,30 @@ def test_fetch_via_playwright_host_body_selector_preserves_literal_angle_bracket
     assert "a < b" in result.description
     assert "in formula." in result.description
     assert "source:host-selector:radarfirst.com" in result.notes
+
+
+def test_fetch_via_playwright_host_body_selector_strips_surrounding_whitespace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Playwright `text_content()` often returns text with surrounding
+    whitespace from source-indentation. The selector path must produce
+    a trimmed `description` — both for consistency with the HTML path
+    and so the description-excerpt budget downstream gets useful chars
+    instead of leading whitespace. PR #313 review round 3.
+    """
+    monkeypatch.setenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", "1")
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+    # Realistic shape: surrounding whitespace + interior newlines.
+    snippet = "\n\n    Staff Backend Engineer\n\n    Build the platform.\n  \n"
+    monkeypatch.setattr(
+        "scripts.jd_ingest._playwright_fetch_html",
+        lambda _sync, _url: ("title", "<html><body/></html>", snippet),
+    )
+    result = _fetch_via_playwright("https://radarfirst.com/?gh_jid=123")
+    assert result is not None
+    assert result.description == result.description.strip()
+    assert result.description.startswith("Staff Backend Engineer")
+    assert result.description.endswith("Build the platform.")
 
 
 def test_fetch_via_playwright_prefers_jsonld_over_host_body_selector(

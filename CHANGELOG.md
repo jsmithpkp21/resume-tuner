@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.47.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.47.0...v0.47.1) (2026-05-11)
+
+
+### Bug Fixes
+
+* **scripts:** address PR [#324](https://github.com/jsmithpkp21/resume-builder/issues/324) review round 1 ([d16817a](https://github.com/jsmithpkp21/resume-builder/commit/d16817ada9cc609e5c132a8ced65dcbad1972126))
+* **scripts:** address PR [#324](https://github.com/jsmithpkp21/resume-builder/issues/324) review round 2 — wrapper namespace copy + doc refs ([c47030c](https://github.com/jsmithpkp21/resume-builder/commit/c47030c857d5daaba0fec92859dbf8d647e42861))
+* **scripts:** address PR [#324](https://github.com/jsmithpkp21/resume-builder/issues/324) review round 3 — call run() directly instead of runpy ([a507532](https://github.com/jsmithpkp21/resume-builder/commit/a507532ba5ec8138d4102b68c12db1ad54a29ae6))
+
 ## [0.47.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.46.0...v0.47.0) (2026-05-11)
 
 

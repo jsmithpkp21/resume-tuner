@@ -21,8 +21,8 @@ from urllib.request import Request
 
 import pytest
 
-from scripts import build_resume, jd_ingest
-from scripts.build_resume import (
+from resume_builder import build_resume, jd_ingest
+from resume_builder.build_resume import (
     PROFILE_SUMMARY_MAX_LINES,
     PROFILE_SUMMARY_MAX_WORDS,
     PROFILE_SUMMARY_MIN_RATIO,
@@ -46,8 +46,8 @@ from scripts.build_resume import (
     trim_by_rules,
     trim_for_role,
 )
-from scripts.jd_ingest import FetchedPage, ingest_job_context
-from scripts.measure_skills_lines import (
+from resume_builder.jd_ingest import FetchedPage, ingest_job_context
+from resume_builder.measure_skills_lines import (
     TARGET_LINES_MAX,
     TARGET_LINES_MIN,
     load_font_pair,
@@ -2362,7 +2362,7 @@ def test_ingest_job_context_allows_dns_lookup_failure_non_strict_mode(
             notes=(),
         )
 
-    monkeypatch.setattr("scripts.jd_ingest.socket.getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr("resume_builder.jd_ingest.socket.getaddrinfo", fake_getaddrinfo)
     context = ingest_job_context("https://jobs.example.com/123", fetcher=fake_fetcher)
     assert context.fetch_status == "fetched"
 
@@ -2504,25 +2504,25 @@ def test_ingest_job_context_rejects_link_local_ipv6_zone_id() -> None:
 
 
 def test_infer_source_rejects_linkedin_lookalike_domain() -> None:
-    from scripts.jd_ingest import _infer_source
+    from resume_builder.jd_ingest import _infer_source
 
     assert _infer_source("linkedin.com.evil.com") == "company-site"
 
 
 def test_infer_source_accepts_linkedin_subdomain() -> None:
-    from scripts.jd_ingest import _infer_source
+    from resume_builder.jd_ingest import _infer_source
 
     assert _infer_source("www.linkedin.com") == "linkedin"
 
 
 def test_normalize_linkedin_slug_rejects_company_url() -> None:
-    from scripts.build_resume import _normalize_linkedin_slug
+    from resume_builder.build_resume import _normalize_linkedin_slug
 
     assert _normalize_linkedin_slug("https://www.linkedin.com/company/foo") == ""
 
 
 def test_normalize_linkedin_slug_accepts_in_url() -> None:
-    from scripts.build_resume import _normalize_linkedin_slug
+    from resume_builder.build_resume import _normalize_linkedin_slug
 
     assert (
         _normalize_linkedin_slug(
@@ -2533,13 +2533,13 @@ def test_normalize_linkedin_slug_accepts_in_url() -> None:
 
 
 def test_normalize_github_username_rejects_gist_host() -> None:
-    from scripts.build_resume import _normalize_github_username
+    from resume_builder.build_resume import _normalize_github_username
 
     assert _normalize_github_username("https://gist.github.com/user") == ""
 
 
 def test_normalize_github_username_accepts_github_com() -> None:
-    from scripts.build_resume import _normalize_github_username
+    from resume_builder.build_resume import _normalize_github_username
 
     assert _normalize_github_username("https://github.com/jsmithpkp21") == "jsmithpkp21"
 
@@ -2634,7 +2634,9 @@ def test_trim_for_role_ranks_and_reorders_by_score(
             bullet_ids[4]: 0.70,
         }
 
-    monkeypatch.setattr("scripts.build_resume._score_bullet_relevance", fake_scores)
+    monkeypatch.setattr(
+        "resume_builder.build_resume._score_bullet_relevance", fake_scores
+    )
 
     trimmed = trim_for_role(resume)
 
@@ -2662,7 +2664,7 @@ def test_trim_for_role_logs_full_score_map_before_ranking(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
-    caplog.set_level(logging.DEBUG, logger="scripts.build_resume")
+    caplog.set_level(logging.DEBUG, logger="resume_builder.build_resume")
 
     profile = load_profile(PROFILE)
     experiences = load_experiences(
@@ -2690,7 +2692,9 @@ def test_trim_for_role_logs_full_score_map_before_ranking(
             for index, bullet in enumerate(experience.bullets)
         }
 
-    monkeypatch.setattr("scripts.build_resume._score_bullet_relevance", fake_scores)
+    monkeypatch.setattr(
+        "resume_builder.build_resume._score_bullet_relevance", fake_scores
+    )
 
     trim_for_role(resume)
 
@@ -2726,7 +2730,9 @@ def test_trim_for_role_gracefully_falls_back_on_llm_errors(
         del client, resume, experience
         raise RuntimeError("simulated llm failure")
 
-    monkeypatch.setattr("scripts.build_resume._score_bullet_relevance", raise_on_score)
+    monkeypatch.setattr(
+        "resume_builder.build_resume._score_bullet_relevance", raise_on_score
+    )
     assert trim_for_role(resume) == resume
 
 
@@ -2753,7 +2759,9 @@ def test_trim_for_role_keeps_experience_when_scores_are_empty(
         del client, resume, experience
         return {}
 
-    monkeypatch.setattr("scripts.build_resume._score_bullet_relevance", empty_scores)
+    monkeypatch.setattr(
+        "resume_builder.build_resume._score_bullet_relevance", empty_scores
+    )
 
     trimmed = trim_for_role(resume)
     assert trimmed.experiences[0] == resume.experiences[0]
@@ -2799,7 +2807,7 @@ def test_trim_for_role_is_reproducible_in_process(
         }
 
     monkeypatch.setattr(
-        "scripts.build_resume._score_bullet_relevance", deterministic_scores
+        "resume_builder.build_resume._score_bullet_relevance", deterministic_scores
     )
 
     first_ids = [
@@ -2833,8 +2841,8 @@ from pathlib import Path
 sys.path.insert(0, {str(REPO_ROOT)!r})
 os.environ["RESUME_BUILDER_LLM_ENABLED"] = "1"
 
-import scripts.build_resume as br
-from scripts import jd_ingest
+import resume_builder.build_resume as br
+from resume_builder import jd_ingest
 
 
 def _scores(*, client, resume, experience):
@@ -2916,7 +2924,7 @@ def test_enrich_data_adds_metadata_without_changing_bullets(
         }
 
     monkeypatch.setattr(
-        "scripts.build_resume._enrich_experience_bullets", fake_enrichment
+        "resume_builder.build_resume._enrich_experience_bullets", fake_enrichment
     )
 
     enriched = enrich_data(resume)
@@ -2953,7 +2961,7 @@ def test_enrich_data_gracefully_falls_back_on_llm_errors(
         raise RuntimeError("simulated llm failure")
 
     monkeypatch.setattr(
-        "scripts.build_resume._enrich_experience_bullets", raise_on_enrich
+        "resume_builder.build_resume._enrich_experience_bullets", raise_on_enrich
     )
     assert enrich_data(resume) == resume
 
@@ -3908,9 +3916,12 @@ def test_summarize_profile_for_role_truncates_summary_at_max_words(
     with terminal punctuation, and (c) no double-punctuation artefact.
     """
     max_words = 20
-    monkeypatch.setattr("scripts.build_resume.PROFILE_SUMMARY_MAX_WORDS", max_words)
     monkeypatch.setattr(
-        "scripts.build_resume.PROFILE_SUMMARY_MIN_RATIO", PROFILE_SUMMARY_MIN_RATIO
+        "resume_builder.build_resume.PROFILE_SUMMARY_MAX_WORDS", max_words
+    )
+    monkeypatch.setattr(
+        "resume_builder.build_resume.PROFILE_SUMMARY_MIN_RATIO",
+        PROFILE_SUMMARY_MIN_RATIO,
     )
 
     profile = load_profile(PROFILE)
@@ -3953,7 +3964,9 @@ def test_generate_profile_summary_avoids_double_punctuation(
 ) -> None:
     """Verify truncation keeps single terminal punctuation when a token already has it."""
     max_words = 15
-    monkeypatch.setattr("scripts.build_resume.PROFILE_SUMMARY_MAX_WORDS", max_words)
+    monkeypatch.setattr(
+        "resume_builder.build_resume.PROFILE_SUMMARY_MAX_WORDS", max_words
+    )
 
     profile = load_profile(PROFILE)
     experiences = load_experiences(
@@ -3990,8 +4003,8 @@ def test_generate_profile_summary_avoids_double_punctuation(
 def test_generate_profile_summary_clamps_min_words_to_max(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("scripts.build_resume.PROFILE_SUMMARY_MAX_WORDS", 10)
-    monkeypatch.setattr("scripts.build_resume.PROFILE_SUMMARY_MIN_RATIO", 1.5)
+    monkeypatch.setattr("resume_builder.build_resume.PROFILE_SUMMARY_MAX_WORDS", 10)
+    monkeypatch.setattr("resume_builder.build_resume.PROFILE_SUMMARY_MIN_RATIO", 1.5)
 
     profile = load_profile(PROFILE)
     experiences = load_experiences(
@@ -4086,7 +4099,9 @@ def _assert_llm_stage_skips_empty_job_context_signals(
     def fail_if_called(*_args: Any, **_kwargs: Any) -> Any:
         raise AssertionError(f"{stage_name} should not initialize LLMClient")
 
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", fail_if_called)
+    monkeypatch.setattr(
+        "resume_builder.build_resume.LLMClient.from_env", fail_if_called
+    )
 
     result = stage(resume)
 
@@ -4156,7 +4171,7 @@ def test_enrich_data_runs_when_target_role_signal_exists(
     )
 
     monkeypatch.setattr(
-        "scripts.build_resume.LLMClient.from_env",
+        "resume_builder.build_resume.LLMClient.from_env",
         lambda *_args, **_kwargs: object(),
     )
 
@@ -4168,7 +4183,9 @@ def test_enrich_data_runs_when_target_role_signal_exists(
         del client, resume, experience
         return {first_bullet_id: {"confidence": 0.88, "tags": ["sdet"]}}
 
-    monkeypatch.setattr("scripts.build_resume._enrich_experience_bullets", fake_enrich)
+    monkeypatch.setattr(
+        "resume_builder.build_resume._enrich_experience_bullets", fake_enrich
+    )
 
     enriched = enrich_data(resume)
 
@@ -4208,7 +4225,7 @@ def test_enrich_data_runs_when_job_context_role_hint_exists(
     )
 
     monkeypatch.setattr(
-        "scripts.build_resume.LLMClient.from_env",
+        "resume_builder.build_resume.LLMClient.from_env",
         lambda *_args, **_kwargs: object(),
     )
 
@@ -4220,7 +4237,9 @@ def test_enrich_data_runs_when_job_context_role_hint_exists(
         del client, resume, experience
         return {first_bullet_id: {"confidence": 0.77, "tags": ["sdet"]}}
 
-    monkeypatch.setattr("scripts.build_resume._enrich_experience_bullets", fake_enrich)
+    monkeypatch.setattr(
+        "resume_builder.build_resume._enrich_experience_bullets", fake_enrich
+    )
 
     enriched = enrich_data(resume)
 
@@ -4261,7 +4280,7 @@ def test_transform_for_role_rewrites_bullet_text(
         return {first_bullet_id: rewritten_text}
 
     monkeypatch.setattr(
-        "scripts.build_resume._rewrite_experience_bullets", fake_rewrite
+        "resume_builder.build_resume._rewrite_experience_bullets", fake_rewrite
     )
 
     transformed = transform_for_role(resume)
@@ -4299,7 +4318,7 @@ def test_transform_for_role_preserves_bullet_count_and_ids(
         return {bullet.id: f"Reframed: {bullet.text}" for bullet in experience.bullets}
 
     monkeypatch.setattr(
-        "scripts.build_resume._rewrite_experience_bullets", fake_rewrite
+        "resume_builder.build_resume._rewrite_experience_bullets", fake_rewrite
     )
 
     transformed = transform_for_role(resume)
@@ -4345,7 +4364,7 @@ def test_transform_for_role_keeps_original_when_rewrite_is_empty(
         return {bullet.id: "   " for bullet in experience.bullets}
 
     monkeypatch.setattr(
-        "scripts.build_resume._rewrite_experience_bullets", fake_rewrite_empty
+        "resume_builder.build_resume._rewrite_experience_bullets", fake_rewrite_empty
     )
 
     transformed = transform_for_role(resume)
@@ -4386,7 +4405,7 @@ def test_transform_for_role_gracefully_falls_back_on_llm_errors(
         raise RuntimeError("simulated llm failure")
 
     monkeypatch.setattr(
-        "scripts.build_resume._rewrite_experience_bullets", raise_on_rewrite
+        "resume_builder.build_resume._rewrite_experience_bullets", raise_on_rewrite
     )
     assert transform_for_role(resume) == resume
 
@@ -4419,7 +4438,7 @@ def test_transform_for_role_normalizes_sentence_start_casing(
         return {first_bullet.id: lowered}
 
     monkeypatch.setattr(
-        "scripts.build_resume._rewrite_experience_bullets", fake_rewrite
+        "resume_builder.build_resume._rewrite_experience_bullets", fake_rewrite
     )
 
     transformed = transform_for_role(resume)
@@ -4456,7 +4475,7 @@ def test_transform_for_role_rejects_generic_hype_rewrites(
         return {first_bullet.id: hype}
 
     monkeypatch.setattr(
-        "scripts.build_resume._rewrite_experience_bullets", fake_rewrite
+        "resume_builder.build_resume._rewrite_experience_bullets", fake_rewrite
     )
 
     transformed = transform_for_role(resume)
@@ -5640,8 +5659,8 @@ def test_extract_company_via_llm_returns_llm_payload(
 ) -> None:
     """Unit-level: _extract_company_via_llm returns whatever the LLM payload
     says for the `company` field, with a stubbed LLMClient."""
-    from scripts.build_resume import _extract_company_via_llm
-    from scripts.jd_ingest import JobContext
+    from resume_builder.build_resume import _extract_company_via_llm
+    from resume_builder.jd_ingest import JobContext
 
     class _FakeClient:
         @classmethod
@@ -5741,7 +5760,7 @@ def test_ats_extraction_picks_company_from_greenhouse_path() -> None:
     NOT the netloc's first label (which is "job-boards")."""
     from urllib.parse import urlparse
 
-    from scripts.jd_ingest import _extract_company_name, _infer_source
+    from resume_builder.jd_ingest import _extract_company_name, _infer_source
 
     parsed = urlparse(
         "https://job-boards.greenhouse.io/elitetechnology/jobs/5206489008"
@@ -5764,7 +5783,7 @@ def test_ats_extraction_handles_lever_workday_ashby_bamboohr() -> None:
     """Common ATS host shapes resolve to the correct company slug."""
     from urllib.parse import urlparse
 
-    from scripts.jd_ingest import _extract_company_name, _infer_source
+    from resume_builder.jd_ingest import _extract_company_name, _infer_source
 
     cases = [
         ("https://jobs.lever.co/acme/abc-123", "acme"),
@@ -5792,7 +5811,7 @@ def test_company_site_extraction_unchanged_for_direct_career_pages() -> None:
     """Direct company career pages still use netloc's first label."""
     from urllib.parse import urlparse
 
-    from scripts.jd_ingest import _extract_company_name, _infer_source
+    from resume_builder.jd_ingest import _extract_company_name, _infer_source
 
     parsed = urlparse("https://anthropic.com/careers/job-12")
     source = _infer_source(parsed.netloc)
@@ -6570,7 +6589,9 @@ def test_generate_jd_tailored_summary_returns_empty_when_llm_disabled(
             "LLMClient.from_env should not be called when LLM is disabled"
         )
 
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", fail_if_called)
+    monkeypatch.setattr(
+        "resume_builder.build_resume.LLMClient.from_env", fail_if_called
+    )
     resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
     assert build_resume._generate_jd_tailored_summary_via_llm(resume) == ""
 
@@ -6647,7 +6668,9 @@ def test_summarize_profile_for_role_skips_llm_when_disabled(
     def fail_if_called() -> Any:
         raise AssertionError("LLMClient.from_env should not be called")
 
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", fail_if_called)
+    monkeypatch.setattr(
+        "resume_builder.build_resume.LLMClient.from_env", fail_if_called
+    )
     resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
 
     build_resume.summarize_profile_for_role(resume)
@@ -6662,7 +6685,9 @@ def test_summarize_profile_for_role_skips_llm_when_jd_context_thin(
     def fail_if_called() -> Any:
         raise AssertionError("LLMClient.from_env should not be called")
 
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", fail_if_called)
+    monkeypatch.setattr(
+        "resume_builder.build_resume.LLMClient.from_env", fail_if_called
+    )
     resume = _minimal_resume_ir(
         job_context=_make_job_context("A" * 100)  # under 200-char threshold
     )
@@ -6786,7 +6811,7 @@ def test_compute_fit_assessment_happy_path(monkeypatch: pytest.MonkeyPatch) -> N
             ],
         }
     )
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+    monkeypatch.setattr("resume_builder.build_resume.LLMClient.from_env", lambda: fake)
 
     assessment = build_resume.compute_fit_assessment(_resume_with_one_experience())
 
@@ -6824,7 +6849,7 @@ def test_compute_fit_assessment_prompt_calibrates_for_context_mismatch(
             ],
         }
     )
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+    monkeypatch.setattr("resume_builder.build_resume.LLMClient.from_env", lambda: fake)
 
     build_resume.compute_fit_assessment(_resume_with_one_experience())
 
@@ -6863,7 +6888,7 @@ def test_compute_fit_assessment_rejects_out_of_range_overall_score(
             "per_experience_scores": [],
         }
     )
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+    monkeypatch.setattr("resume_builder.build_resume.LLMClient.from_env", lambda: fake)
 
     assert build_resume.compute_fit_assessment(_resume_with_one_experience()) is None
 
@@ -6903,7 +6928,7 @@ def test_compute_fit_assessment_drops_unknown_experience_ids(
             ],
         }
     )
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+    monkeypatch.setattr("resume_builder.build_resume.LLMClient.from_env", lambda: fake)
 
     assessment = build_resume.compute_fit_assessment(_resume_with_one_experience())
 
@@ -6927,7 +6952,7 @@ def test_compute_fit_assessment_rejects_payload_missing_known_experience_ids(
             "per_experience_scores": [],  # exp-1 is known but absent
         }
     )
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+    monkeypatch.setattr("resume_builder.build_resume.LLMClient.from_env", lambda: fake)
 
     assert build_resume.compute_fit_assessment(_resume_with_one_experience()) is None
 
@@ -6948,7 +6973,7 @@ def test_compute_fit_assessment_omits_current_level_when_empty(
             ],
         }
     )
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+    monkeypatch.setattr("resume_builder.build_resume.LLMClient.from_env", lambda: fake)
 
     resume = _resume_with_one_experience()
     assert resume.profile.current_level == ""
@@ -6970,7 +6995,7 @@ def test_compute_fit_assessment_includes_current_level_when_set(
             ],
         }
     )
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+    monkeypatch.setattr("resume_builder.build_resume.LLMClient.from_env", lambda: fake)
 
     base = _resume_with_one_experience()
     profile = dataclasses.replace(base.profile, current_level="Senior Staff Engineer")
@@ -6993,7 +7018,7 @@ def test_compute_fit_assessment_returns_none_on_llm_exception(
             raise RuntimeError("boom")
 
     monkeypatch.setattr(
-        "scripts.build_resume.LLMClient.from_env", lambda: _BoomClient()
+        "resume_builder.build_resume.LLMClient.from_env", lambda: _BoomClient()
     )
 
     assert build_resume.compute_fit_assessment(_resume_with_one_experience()) is None
@@ -7018,8 +7043,10 @@ def test_resolve_fit_narrative_off_short_circuits(
     def fail_if_called(_resume: Any) -> Any:
         raise AssertionError("compute_fit_assessment should not be called")
 
-    monkeypatch.setattr("scripts.build_resume.compute_fit_assessment", fail_if_called)
-    caplog.set_level(logging.INFO, logger="scripts.build_resume")
+    monkeypatch.setattr(
+        "resume_builder.build_resume.compute_fit_assessment", fail_if_called
+    )
+    caplog.set_level(logging.INFO, logger="resume_builder.build_resume")
     assert (
         build_resume._resolve_fit_narrative(
             _ns(fit_narrative="off"), _resume_with_one_experience()
@@ -7044,7 +7071,9 @@ def test_resolve_fit_narrative_normalizes_uppercase_mode(
     def fail_if_called(_resume: Any) -> Any:
         raise AssertionError("compute_fit_assessment should not be called")
 
-    monkeypatch.setattr("scripts.build_resume.compute_fit_assessment", fail_if_called)
+    monkeypatch.setattr(
+        "resume_builder.build_resume.compute_fit_assessment", fail_if_called
+    )
     assert (
         build_resume._resolve_fit_narrative(
             _ns(fit_narrative="OFF"), _resume_with_one_experience()
@@ -7063,7 +7092,9 @@ def test_resolve_fit_narrative_coerces_unknown_mode_to_auto(
     def fail_if_called(_resume: Any) -> Any:
         raise AssertionError("auto-mode + cover-letter must skip the LLM call")
 
-    monkeypatch.setattr("scripts.build_resume.compute_fit_assessment", fail_if_called)
+    monkeypatch.setattr(
+        "resume_builder.build_resume.compute_fit_assessment", fail_if_called
+    )
     # Auto-mode skips when cover_letter is set; using cover_letter=True lets
     # us confirm the unknown 'bogus' value was coerced into auto's behavior.
     result = build_resume._resolve_fit_narrative(
@@ -7081,7 +7112,9 @@ def test_resolve_fit_narrative_auto_defers_to_cover_letter(
     def fail_if_called(_resume: Any) -> Any:
         raise AssertionError("cover-letter path must skip the LLM call")
 
-    monkeypatch.setattr("scripts.build_resume.compute_fit_assessment", fail_if_called)
+    monkeypatch.setattr(
+        "resume_builder.build_resume.compute_fit_assessment", fail_if_called
+    )
     assert (
         build_resume._resolve_fit_narrative(
             _ns(fit_narrative="auto", cover_letter=True),
@@ -7117,7 +7150,7 @@ def test_resolve_fit_narrative_auto_skips_when_score_at_or_above_gate(
 ) -> None:
     monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
     monkeypatch.setattr(
-        "scripts.build_resume.compute_fit_assessment",
+        "resume_builder.build_resume.compute_fit_assessment",
         lambda _resume: build_resume.FitAssessment(
             overall_fit_score=75.0,
             overall_rationale="strong fit",
@@ -7140,7 +7173,7 @@ def test_resolve_fit_narrative_auto_fires_below_gate(
         per_experience_scores=(),
     )
     monkeypatch.setattr(
-        "scripts.build_resume.compute_fit_assessment", lambda _resume: expected
+        "resume_builder.build_resume.compute_fit_assessment", lambda _resume: expected
     )
     result = build_resume._resolve_fit_narrative(_ns(), _resume_with_one_experience())
     assert result is expected
@@ -7156,7 +7189,7 @@ def test_resolve_fit_narrative_on_bypasses_score_gate(
         per_experience_scores=(),
     )
     monkeypatch.setattr(
-        "scripts.build_resume.compute_fit_assessment", lambda _resume: expected
+        "resume_builder.build_resume.compute_fit_assessment", lambda _resume: expected
     )
     result = build_resume._resolve_fit_narrative(
         _ns(fit_narrative="on"), _resume_with_one_experience()
@@ -7186,7 +7219,7 @@ def test_jd_tailored_summary_augmented_when_fit_assessment_provided(
             )
         }
     )
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+    monkeypatch.setattr("resume_builder.build_resume.LLMClient.from_env", lambda: fake)
 
     assessment = build_resume.FitAssessment(
         overall_fit_score=45.0,
@@ -7231,7 +7264,7 @@ def test_jd_tailored_summary_omits_current_level_when_empty(
             )
         }
     )
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+    monkeypatch.setattr("resume_builder.build_resume.LLMClient.from_env", lambda: fake)
 
     resume = _resume_with_one_experience()
     # Default profile has current_level = "" (empty).
@@ -7259,7 +7292,7 @@ def test_jd_tailored_summary_includes_current_level_when_set(
             )
         }
     )
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+    monkeypatch.setattr("resume_builder.build_resume.LLMClient.from_env", lambda: fake)
 
     base = _resume_with_one_experience()
     profile = dataclasses.replace(base.profile, current_level="Senior Staff Engineer")
@@ -7288,7 +7321,7 @@ def test_jd_tailored_summary_unchanged_when_no_fit_assessment(
             )
         }
     )
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+    monkeypatch.setattr("resume_builder.build_resume.LLMClient.from_env", lambda: fake)
 
     result = build_resume._generate_jd_tailored_summary_via_llm(
         _resume_with_one_experience()
@@ -7324,7 +7357,7 @@ def test_resolve_fit_narrative_payload_reflects_caller_resume(
         }
     )
     monkeypatch.setenv("RESUME_BUILDER_LLM_ENABLED", "1")
-    monkeypatch.setattr("scripts.build_resume.LLMClient.from_env", lambda: fake)
+    monkeypatch.setattr("resume_builder.build_resume.LLMClient.from_env", lambda: fake)
 
     baseline = _resume_with_one_experience()
     trimmed = dataclasses.replace(
@@ -7416,7 +7449,9 @@ def test_resolve_fit_narrative_accepts_precomputed_assessment(
             "compute_fit_assessment must not run when assessment is precomputed"
         )
 
-    monkeypatch.setattr("scripts.build_resume.compute_fit_assessment", fail_if_called)
+    monkeypatch.setattr(
+        "resume_builder.build_resume.compute_fit_assessment", fail_if_called
+    )
 
     expected = build_resume.FitAssessment(
         overall_fit_score=42.0,
@@ -7442,7 +7477,7 @@ def test_resolve_fit_narrative_back_compat_computes_when_not_provided(
         per_experience_scores=(),
     )
     monkeypatch.setattr(
-        "scripts.build_resume.compute_fit_assessment", lambda _resume: expected
+        "resume_builder.build_resume.compute_fit_assessment", lambda _resume: expected
     )
     result = build_resume._resolve_fit_narrative(_ns(), _resume_with_one_experience())
     assert result is expected
@@ -7812,7 +7847,7 @@ def test_compute_bullet_line_budget_credits_empty_role_summary(
     cap clamps both budgets to the same value when there's plenty of
     headroom).
     """
-    monkeypatch.setattr("scripts.build_resume.DEFAULT_MAX_BULLET_LINES", 10_000)
+    monkeypatch.setattr("resume_builder.build_resume.DEFAULT_MAX_BULLET_LINES", 10_000)
     base = _resume_with_n_experiences(2)
     cleared = dataclasses.replace(
         base,
@@ -7963,7 +7998,9 @@ def test_apply_experience_compression_auto_no_assessment_compresses_lowest_ranke
     (which is the most relevant). PR #278 review."""
     resume = _resume_with_n_experiences(4)
     # Force overflow so compression actually fires.
-    monkeypatch.setattr("scripts.build_resume._compute_bullet_line_budget", lambda r: 1)
+    monkeypatch.setattr(
+        "resume_builder.build_resume._compute_bullet_line_budget", lambda r: 1
+    )
     result = build_resume.apply_experience_compression(
         _experience_mode_args("auto"), resume, fit_assessment=None
     )
@@ -8023,11 +8060,11 @@ def test_apply_experience_compression_auto_recomputes_budget_with_compressed_sim
         return real_budget(r)
 
     monkeypatch.setattr(
-        "scripts.build_resume._compute_bullet_line_budget", capture_then_real
+        "resume_builder.build_resume._compute_bullet_line_budget", capture_then_real
     )
     # Always over budget so the loop iterates and recomputes.
     monkeypatch.setattr(
-        "scripts.build_resume._estimate_total_bullet_lines",
+        "resume_builder.build_resume._estimate_total_bullet_lines",
         lambda _bullets_lists: 9999,
     )
 
@@ -8088,7 +8125,9 @@ def test_apply_experience_compression_auto_compresses_lowest_fit_when_overflowin
     )
     # Force the layout budget low enough to require some compression but not
     # so aggressive that it hits the 50% cap.
-    monkeypatch.setattr("scripts.build_resume._compute_bullet_line_budget", lambda r: 6)
+    monkeypatch.setattr(
+        "resume_builder.build_resume._compute_bullet_line_budget", lambda r: 6
+    )
     result = build_resume.apply_experience_compression(
         _experience_mode_args("auto"), resume, fit_assessment=fit_assessment
     )

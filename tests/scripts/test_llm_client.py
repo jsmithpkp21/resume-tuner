@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.llm_client import (
+from resume_builder.llm_client import (
     _DEFAULT_TIMEOUT_SECONDS,
     LLMClient,
     _parse_timeout_env,

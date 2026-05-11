@@ -10,8 +10,11 @@ from pathlib import Path
 
 import pytest
 
-from scripts.generate_review_packet import read_experiences, read_skills
-from scripts.validate_experience_data import load_experience_db, load_skills_matrix
+from resume_builder.generate_review_packet import read_experiences, read_skills
+from resume_builder.validate_experience_data import (
+    load_experience_db,
+    load_skills_matrix,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CANONICAL_EXPERIENCE_DB = REPO_ROOT / "data" / "experience" / "experience_db.toml"

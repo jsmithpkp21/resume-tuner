@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from scripts.resume_templates import (
+from resume_builder.resume_templates import (
     DefaultTemplate,
     ModernTemplate,
     ResumeTemplate,

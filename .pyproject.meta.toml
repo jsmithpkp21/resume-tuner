@@ -30,3 +30,16 @@ authors = [
 exclude = [
     "^sandbox/",
 ]
+
+# Runtime modules live under src/resume_builder/ per issue #41. Override
+# both pytest's pythonpath and setuptools' package discovery so the package
+# is importable both for tests (`from resume_builder.build_resume import …`)
+# and for installable builds (`pip install -e .`).
+[tool.pytest.ini_options]
+pythonpath = [
+    ".",
+    "src",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

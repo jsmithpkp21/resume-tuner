@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.check_canonical_coverage import (
+from resume_builder.check_canonical_coverage import (
     build_report,
     evaluate_hard_gates,
     load_experience_db,

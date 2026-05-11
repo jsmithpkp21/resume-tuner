@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from scripts import (
+from resume_builder import (
     build_cover_letter,
     cover_letter_export,
     document_export,
@@ -165,7 +165,7 @@ def _patch_llm(
             raise
 
     monkeypatch.setattr(
-        "scripts.build_cover_letter.LLMClient.complete_json", fake, raising=True
+        "resume_builder.build_cover_letter.LLMClient.complete_json", fake, raising=True
     )
 
 
@@ -466,7 +466,7 @@ def test_confidence_threshold_gate(
             notes=(),
         )
 
-    monkeypatch.setattr("scripts.jd_ingest._fetch_job_page_metadata", fake_fetch)
+    monkeypatch.setattr("resume_builder.jd_ingest._fetch_job_page_metadata", fake_fetch)
 
     def handler(namespace: str, payload: dict[str, Any]) -> dict[str, Any]:
         if namespace == build_cover_letter.ADDRESSEE_NAMESPACE:
@@ -511,7 +511,7 @@ def test_substring_safety_gate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
             notes=(),
         )
 
-    monkeypatch.setattr("scripts.jd_ingest._fetch_job_page_metadata", fake_fetch)
+    monkeypatch.setattr("resume_builder.jd_ingest._fetch_job_page_metadata", fake_fetch)
 
     def handler(namespace: str, payload: dict[str, Any]) -> dict[str, Any]:
         if namespace == build_cover_letter.ADDRESSEE_NAMESPACE:
@@ -742,7 +742,7 @@ def test_word_budget_overrun_warns(
 
 
 def test_page_limit_strict_raises_on_overflow() -> None:
-    from scripts.cover_letter_template import (
+    from resume_builder.cover_letter_template import (
         CoverLetterBody,
         CoverLetterPreferences,
         compose_cover_letter,
@@ -782,7 +782,7 @@ def test_page_limit_strict_raises_on_overflow() -> None:
 
 
 def test_format_date_portable_day_format() -> None:
-    from scripts.cover_letter_template import format_date
+    from resume_builder.cover_letter_template import format_date
 
     assert format_date(date(2026, 1, 2)) == "January 2, 2026"
 
@@ -878,17 +878,17 @@ def test_canonical_filename_kind_kwarg() -> None:
 def test_cover_letter_module_invokes_run_pipeline_collecting_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """scripts.cover_letter.generate_cover_letter delegates to the v1 pipeline.
+    """resume_builder.cover_letter.generate_cover_letter delegates to the v1 pipeline.
 
     Replacement for the prior ``--with-cover-letter`` orchestrator tests
     after PR #223 was reconciled with main's ``--cover-letter`` surface
     (issue #229): the resume-orchestrated path now goes through
-    ``scripts.cover_letter.generate_cover_letter`` -> ``scripts.build_cover_letter.run_pipeline_collecting_paths``.
+    ``resume_builder.cover_letter.generate_cover_letter`` -> ``resume_builder.build_cover_letter.run_pipeline_collecting_paths``.
     """
     if __package__ in {None, ""}:
-        from scripts import cover_letter
+        from resume_builder import cover_letter
     else:
-        from scripts import cover_letter  # noqa: F401  -- kept for symmetry
+        from resume_builder import cover_letter  # noqa: F401  -- kept for symmetry
 
     captured: dict[str, argparse.Namespace] = {}
 
@@ -897,7 +897,7 @@ def test_cover_letter_module_invokes_run_pipeline_collecting_paths(
         return ([ns.output_dir / "graphcore_cover_letter.pdf"], [])
 
     monkeypatch.setattr(
-        "scripts.build_cover_letter.run_pipeline_collecting_paths",
+        "resume_builder.build_cover_letter.run_pipeline_collecting_paths",
         fake_run,
         raising=True,
     )
@@ -939,7 +939,7 @@ def test_outputs_filter_propagates_to_cover_letter(
     honors the same --outputs filter as the resume — passing
     ('pdf',) here must not produce docx/md/html cover-letter files.
     """
-    from scripts import cover_letter
+    from resume_builder import cover_letter
 
     captured: dict[str, argparse.Namespace] = {}
 
@@ -948,7 +948,7 @@ def test_outputs_filter_propagates_to_cover_letter(
         return ([ns.output_dir / "graphcore_cover_letter.pdf"], [])
 
     monkeypatch.setattr(
-        "scripts.build_cover_letter.run_pipeline_collecting_paths",
+        "resume_builder.build_cover_letter.run_pipeline_collecting_paths",
         fake_run,
         raising=True,
     )
@@ -984,7 +984,7 @@ def test_outputs_empty_tuple_passes_through_not_defaulted(
     artifacts get the same behavior as the standalone CLI rather than
     silently rehydrating defaults.
     """
-    from scripts import cover_letter
+    from resume_builder import cover_letter
 
     captured: dict[str, argparse.Namespace] = {}
 
@@ -993,7 +993,7 @@ def test_outputs_empty_tuple_passes_through_not_defaulted(
         return ([], [])
 
     monkeypatch.setattr(
-        "scripts.build_cover_letter.run_pipeline_collecting_paths",
+        "resume_builder.build_cover_letter.run_pipeline_collecting_paths",
         fake_run,
         raising=True,
     )
@@ -1027,7 +1027,7 @@ def test_outputs_str_input_raises_typeerror(tmp_path: Path) -> None:
     `"pdf" in outputs`) would emit zero artifacts. Callers must parse
     comma-separated input upstream — same contract as the CLIs.
     """
-    from scripts import cover_letter
+    from resume_builder import cover_letter
 
     resume_args = argparse.Namespace(
         profile=tmp_path / "profile.toml",
@@ -1054,7 +1054,7 @@ def test_outputs_default_when_resume_omits_outputs(
 ) -> None:
     """When the resume Namespace has no `outputs` attr, fall back to the
     cover-letter default (pdf, docx) so older callers still work."""
-    from scripts import cover_letter
+    from resume_builder import cover_letter
 
     captured: dict[str, argparse.Namespace] = {}
 
@@ -1063,7 +1063,7 @@ def test_outputs_default_when_resume_omits_outputs(
         return ([], [])
 
     monkeypatch.setattr(
-        "scripts.build_cover_letter.run_pipeline_collecting_paths",
+        "resume_builder.build_cover_letter.run_pipeline_collecting_paths",
         fake_run,
         raising=True,
     )
@@ -1157,7 +1157,7 @@ def _patch_compute_fit_assessment(
     on JD-content thresholds or the rubric prompt; we just want to assert
     how the cover-letter body draft reacts to a known assessment payload.
     """
-    from scripts import build_resume as _br
+    from resume_builder import build_resume as _br
 
     fake: Callable[[Any], _br.FitAssessment | None]
     if response is None:
@@ -1180,7 +1180,7 @@ def _patch_compute_fit_assessment(
     # Patch the symbol re-exported into build_cover_letter so the cover-letter
     # pipeline picks up the fake without touching build_resume's own callers.
     monkeypatch.setattr(
-        "scripts.build_cover_letter.compute_fit_assessment", fake, raising=True
+        "resume_builder.build_cover_letter.compute_fit_assessment", fake, raising=True
     )
 
 
@@ -1252,7 +1252,7 @@ def test_cover_letter_bridging_fires_only_for_stretch_fits(
         return handler(namespace, user_payload)
 
     monkeypatch.setattr(
-        "scripts.build_cover_letter.LLMClient.complete_json",
+        "resume_builder.build_cover_letter.LLMClient.complete_json",
         fake_complete_json,
         raising=True,
     )
@@ -1331,7 +1331,7 @@ def test_cover_letter_no_bridging_when_fit_assessment_unavailable(
         raise AssertionError(f"unexpected namespace {namespace}")
 
     monkeypatch.setattr(
-        "scripts.build_cover_letter.LLMClient.complete_json",
+        "resume_builder.build_cover_letter.LLMClient.complete_json",
         fake_complete_json,
         raising=True,
     )
@@ -1421,7 +1421,7 @@ def test_collect_candidate_known_skills_dedupes_case_insensitive() -> None:
     bullet.skills entry, dedupes case-insensitively, and preserves the
     first-seen casing so the audit prompt sees one canonical token per
     skill. Sort is case-insensitive ("Pytest" < "Python" because 'e' < 'h')."""
-    from scripts.build_resume import Bullet, Experience
+    from resume_builder.build_resume import Bullet, Experience
 
     experiences = (
         Experience(

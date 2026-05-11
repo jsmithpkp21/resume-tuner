@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.document_export import (
+from resume_builder.document_export import (
     MAX_COMPANY_SLUG_CHARS,
     canonical_export_filename,
     snake_case,

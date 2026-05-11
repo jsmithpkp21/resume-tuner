@@ -8,8 +8,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from scripts import select_skills as select_skills_module
-from scripts.select_skills import (
+from resume_builder import select_skills as select_skills_module
+from resume_builder.select_skills import (
     MIN_CATEGORY_VISIBLE_SKILLS,
     MIN_SKILLS_PER_CATEGORY,
     TARGET_CATEGORY_MAX,
@@ -242,7 +242,15 @@ def test_load_measure_backend_falls_back_on_import_error(
     ) -> object:
         if name == "measure_skills_lines":
             raise ImportError("simulated Pillow import failure")
-        if name == "scripts" and "measure_skills_lines" in fromlist:
+        # Catch every variant Python uses to load measure_skills_lines:
+        #   - `import scripts.measure_skills_lines` → name="scripts"
+        #   - `from scripts import measure_skills_lines` → name="scripts", fromlist
+        #   - `from . import measure_skills_lines` (from inside resume_builder,
+        #     after #41 refactor) → name="" or name="resume_builder" with
+        #     fromlist=("measure_skills_lines",) and level=1
+        if "measure_skills_lines" in fromlist and (
+            name in {"scripts", "resume_builder", ""}
+        ):
             raise ImportError("simulated Pillow import failure")
         return original_import(name, globals, locals, fromlist, level)
 

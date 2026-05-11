@@ -10,7 +10,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from scripts import build_resume, document_export, export_resume_documents
+from resume_builder import build_resume, document_export, export_resume_documents
 
 
 def test_run_generates_docx_and_pdf_from_same_markdown(
@@ -1964,7 +1964,7 @@ def test_default_template_company_line_has_top_margin() -> None:
     company name does not sit flush against the previous role's last bullet.
     Tolerant of the underlying serialization: accepts either the `margin:`
     shorthand or an explicit `margin-top:` declaration, in `pt` or `px`."""
-    from scripts.resume_templates import get_template
+    from resume_builder.resume_templates import get_template
 
     def extract_top_margin_pt(css: str) -> float | None:
         body_match = re.search(r"\.company-line\s*\{([^}]*)\}", css)

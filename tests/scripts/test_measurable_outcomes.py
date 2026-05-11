@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from scripts.measurable_outcomes import has_measurable_outcome
+from resume_builder.measurable_outcomes import has_measurable_outcome
 
 
 def test_has_measurable_outcome_accepts_percent_and_multiplier_patterns() -> None:

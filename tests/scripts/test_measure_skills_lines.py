@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.measure_skills_lines import (
+from resume_builder.measure_skills_lines import (
     SKILLS_SEPARATOR,
     TARGET_LINES_MAX,
     KernTable,
@@ -596,7 +596,7 @@ class TestFontStrictMode:
     def test_load_font_pair_strict_raises_when_calibri_missing(self) -> None:
         """require_calibri=True must raise FileNotFoundError when Calibri is absent."""
         with patch(
-            "scripts.measure_skills_lines._find_calibri_path", return_value=None
+            "resume_builder.measure_skills_lines._find_calibri_path", return_value=None
         ):
             with pytest.raises(FileNotFoundError, match="Calibri font not found"):
                 load_font_pair(require_calibri=True)
@@ -604,7 +604,7 @@ class TestFontStrictMode:
     def test_load_font_pair_fallback_succeeds_without_calibri(self) -> None:
         """require_calibri=False must return a non-Calibri font when Calibri is absent."""
         with patch(
-            "scripts.measure_skills_lines._find_calibri_path", return_value=None
+            "resume_builder.measure_skills_lines._find_calibri_path", return_value=None
         ):
             with patch.dict(os.environ, {"RESUME_FONT_STRICT": "0"}):
                 font_reg, font_bold, font_name = load_font_pair(require_calibri=False)
@@ -615,7 +615,7 @@ class TestFontStrictMode:
     def test_env_var_font_strict_triggers_require_calibri(self) -> None:
         """RESUME_FONT_STRICT=1 env var must behave identically to require_calibri=True."""
         with patch(
-            "scripts.measure_skills_lines._find_calibri_path", return_value=None
+            "resume_builder.measure_skills_lines._find_calibri_path", return_value=None
         ):
             with patch.dict(os.environ, {"RESUME_FONT_STRICT": "1"}):
                 with pytest.raises(FileNotFoundError, match="Calibri font not found"):
@@ -624,7 +624,7 @@ class TestFontStrictMode:
     def test_env_var_font_strict_zero_does_not_force_require(self) -> None:
         """RESUME_FONT_STRICT=0 (or unset) must not force strict mode."""
         with patch(
-            "scripts.measure_skills_lines._find_calibri_path", return_value=None
+            "resume_builder.measure_skills_lines._find_calibri_path", return_value=None
         ):
             with patch.dict(os.environ, {"RESUME_FONT_STRICT": "0"}):
                 font_reg, font_bold, font_name = load_font_pair(require_calibri=False)

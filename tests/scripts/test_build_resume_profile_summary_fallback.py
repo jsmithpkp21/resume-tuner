@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from scripts import build_resume
-from scripts.build_resume import assemble_baseline_resume, load_profile
+from resume_builder import build_resume
+from resume_builder.build_resume import assemble_baseline_resume, load_profile
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 # data/profile/profile.toml is per-contributor runtime input (gitignored).

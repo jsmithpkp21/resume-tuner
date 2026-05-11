@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from scripts.measurable_outcomes import has_measurable_outcome
-from scripts.validate_experience_data import (
+from resume_builder.measurable_outcomes import has_measurable_outcome
+from resume_builder.validate_experience_data import (
     load_skills_matrix,
     validate_experience_data,
 )

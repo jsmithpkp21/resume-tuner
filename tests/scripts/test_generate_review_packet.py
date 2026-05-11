@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.generate_review_packet import (
+from resume_builder.generate_review_packet import (
     bullet_skill_text_mismatch_skills,
     parse_note_reason_codes,
     read_csv_rows,

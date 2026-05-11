@@ -15,7 +15,7 @@ MARKDOWN_LINT_TIMEOUT_SECONDS ?= 120
 # See docs/REFERENCE/adr/0001-local-tooling-runtime-policy.md invariant (1).
 MARKDOWNLINT_VERSION ?= 0.47.0
 
-.PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper pr-epic docker-up docker-down docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
+.PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check tooling-toml-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper pr-epic docker-up docker-down docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
 
 env:
 	scripts/create_env.sh
@@ -524,6 +524,19 @@ agents-drift-check:
 		fi; \
 		"$$PYTHON_CMD" scripts/validate_agents_drift.py --root .'
 
+tooling-toml-check:
+	bash -lc 'ENV_ACTIVATE=$(ENV_PATH)/bin/activate; \
+		if [ -f "$$ENV_ACTIVATE" ]; then \
+			. "$$ENV_ACTIVATE"; \
+			PYTHON_CMD=python3; \
+		elif command -v python3 >/dev/null 2>&1; then \
+			PYTHON_CMD=python3; \
+		else \
+			echo "tooling-toml-check: python3 not found. Please install python3 or create a virtualenv at $(ENV_PATH)."; \
+			exit 1; \
+		fi; \
+		"$$PYTHON_CMD" scripts/validate_tooling_toml_drift.py --root .'
+
 version-check: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_version_sync.py --root ."
 
@@ -611,6 +624,7 @@ check: env
 	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_workflow_action_pins.py --root ."
 	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_dev_tool_pins.py --root ."
 	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_agents_drift.py --root ."
+	@bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/validate_tooling_toml_drift.py --root ."
 	@echo ""
 	@echo "========================================="
 	@echo "  ✅ All checks passed!"
@@ -635,7 +649,7 @@ precommit-fix-docker: docker-up
 	$(DOCKER_RUN) "cd /repo && source /opt/venv/bin/activate && pre-commit run --all-files"
 
 check-docker: docker-up
-	$(DOCKER_RUN) "cd /repo && source /opt/venv/bin/activate && ruff check . --fix && ruff format . && mypy . && pytest -q && pre-commit run check-yaml --all-files && pre-commit run check-toml --all-files && pre-commit run check-json --all-files && python3 scripts/validate_version_sync.py --root . && python3 scripts/validate_env_file.py --root . && python3 scripts/validate_workflow_action_pins.py --root . && python3 scripts/validate_dev_tool_pins.py --root . && python3 scripts/validate_agents_drift.py --root ."
+	$(DOCKER_RUN) "cd /repo && source /opt/venv/bin/activate && ruff check . --fix && ruff format . && mypy . && pytest -q && pre-commit run check-yaml --all-files && pre-commit run check-toml --all-files && pre-commit run check-json --all-files && python3 scripts/validate_version_sync.py --root . && python3 scripts/validate_env_file.py --root . && python3 scripts/validate_workflow_action_pins.py --root . && python3 scripts/validate_dev_tool_pins.py --root . && python3 scripts/validate_agents_drift.py --root . && python3 scripts/validate_tooling_toml_drift.py --root ."
 
 # Consumer-specific make targets live in Makefile.local. The file is
 # consumer-owned and intentionally NOT in .tooling-sync-manifest.toml, so

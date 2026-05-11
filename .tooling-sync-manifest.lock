@@ -4,7 +4,7 @@
       "sha256": "ac1ba68ad3d1e1cc5863378e67d61d911e82316163bc59a56de08d4ade3a99cb"
     },
     ".github/copilot-instructions.md": {
-      "sha256": "87181442e026b8d83f5acbbb92ee14e419013d0c91427de2b8b9350c4dcfe7ba"
+      "sha256": "b531d216105a8c38b07993e397c010ee35d9c588e0ccc987c64d83d87db18dc8"
     },
     ".github/dev-tool-pin-lock.json": {
       "sha256": "ec73d4350dc8e786efeacea313382227194c602b457b469eb13bd359a618e1f0"
@@ -46,7 +46,7 @@
       "sha256": "685f55f5dc1993f49ea4b68d8b35ddda207def419bd980d3b0f549ec77cc887e"
     },
     "AGENTS.md": {
-      "sha256": "0419f7a6894b3c6c4d4352d64e1af2152d69791db57351ddccf6d1e9decf4565"
+      "sha256": "54aedadeeee155d31b004c9a080c854aa79bc7b8539a6cfc5cf592edf9334ea9"
     },
     "CLAUDE.md": {
       "sha256": "6a676ef88e9f075ae313d16e15d68d3359e958418535974399008654a1666548"
@@ -64,13 +64,13 @@
       "sha256": "5b02418b376eff328c356422d07816fd84a4e3de71f90fac84b63117b47fdb11"
     },
     "FILE_DISTRIBUTION.md": {
-      "sha256": "49f943ad265a2f742674a9dd121bd1b33d2157da8f0271aefb4a6a7353f15c23"
+      "sha256": "16a2a2052af2e80802f9cec6f785f2f5bceebfb871e5636d956051bb92f1c782"
     },
     "MANIFESTO.md": {
       "sha256": "90441f19e84cb77a9f4302d50dd3e9178011f8d1e2e20df43775838711589783"
     },
     "Makefile": {
-      "sha256": "41cc93c2a41adece1a7908e9402b20e8b4737af17c3367debabf16fa9a651dd3"
+      "sha256": "5e96f0e6e9e2a184c06c42b29a31bdb06a1128dcca7de72fcf58389c2f16fee7"
     },
     "commitlint.config.mjs": {
       "sha256": "ae0ebfa1b37453c8e29eff7c5af0b8eec5dc73f373298288cf7d79692b76daea"
@@ -240,6 +240,9 @@
     "scripts/validate_sync_drift.py": {
       "sha256": "31a800374b8baa45a923f519a3b5fe56a6901286e181229a5894c4ebe1550d90"
     },
+    "scripts/validate_tooling_toml_drift.py": {
+      "sha256": "7a9102e82cab707260d66b97e888e9ba2340d827833adab8b413754033d69adb"
+    },
     "scripts/validate_version_sync.py": {
       "sha256": "567d9342b86591234a59bbdfc7397f9a11d0e2c02b38c2e3a04de14f83b9c9b0"
     },
@@ -259,9 +262,9 @@
       "sha256": "428d00d9550fcd46deea5255bcce2ef96f23131ba58d0be5f148a476a0ce19d9"
     }
   },
-  "generated_at_utc": "2026-05-10T02:25:02Z",
-  "requested_ref": "v1.28.4",
-  "resolved_ref": "b7240b1bd7fd9dfa502b53068c460189b23d8ad2",
+  "generated_at_utc": "2026-05-11T02:46:20Z",
+  "requested_ref": "v1.29.2",
+  "resolved_ref": "adf5191bdd4d5f8f640cbd227117fbb162396656",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

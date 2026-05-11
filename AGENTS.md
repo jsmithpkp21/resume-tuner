@@ -50,7 +50,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 ## Critical Workflows (Use These Targets)
 - Local bootstrap: `make setup`.
 - Daily quality loop: `make lint`, `make test`, `make check`.
-- Contract checks before release/sync: `make drift-check`, `make version-check`, `make action-pin-check`, `make docs-check`, `make agents-drift-check`.
+- Contract checks before release/sync: `make drift-check`, `make version-check`, `make action-pin-check`, `make docs-check`, `make agents-drift-check`, `make tooling-toml-check`.
 - Validate sync behavior after manifest/script edits: run `tests/scripts/test_sync_tooling_regressions.py` (tooling source repo; not present in consumers).
 - Docker parity path: `make docker-up` then run normal make targets inside container.
 
@@ -107,6 +107,18 @@ This policy applies whether the consumer change is a doc, a workflow tweak, a Ma
 - For every review thread (including resolved/outdated), post a short status update when work is done so audit history is explicit.
 - If a review item is deferred or needs clarification, add a PR-thread comment stating why, open a follow-up issue, and include the issue link in that thread.
 - If a deferred item is picked up later, add a follow-up thread comment linking both the issue and the fixing PR/commit.
+
+## Accepted Patterns / Do Not Flag
+
+Patterns the project has consciously accepted. Reviewers (human or automated, including GitHub Copilot's PR reviewer) should NOT re-flag these. The default project rule is "write no comments unless the WHY is non-obvious", so accepted-pattern rationales live here rather than as inline justification comments that rot.
+
+Entry format (one bullet per pattern):
+
+- *Pattern title* — one-line rationale. (Origin: PR #N review.)
+
+Add an entry when a PR review reaches consensus that a flagged pattern is fine as-is and is likely to be re-flagged on future edits. See `docs/REFERENCE/ACCEPTED_PATTERNS.md` for the full convention (what qualifies, what doesn't, how to retire stale entries). Path-narrow patterns may instead live in the matching `.github/instructions/<area>.instructions.md` file via its `applyTo:` glob.
+
+- *Long, unwrapped markdown prose lines in `AGENTS.md` / `.github/copilot-instructions.md`* — markdownlint MD013 (line-length) is disabled project-wide in `.markdownlint.yaml`, and surrounding paragraphs in both files are routinely 200–700 chars on a single line; wrapping new prose to ~80 cols would diverge from the established file convention. (Origin: PR #377 review.)
 
 ## WSL Path Handling (Windows + WSL Workspace)
 This workspace runs on WSL (Ubuntu) but is opened from a Windows JetBrains editor.

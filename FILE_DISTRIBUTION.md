@@ -202,4 +202,5 @@ changing the script that controls future sync behavior.
 - `scripts/sync_tooling.sh` — implementation of sync + stale-file handling
 - `scripts/validate_sync_drift.py` — managed-file drift validator
 - `scripts/validate_agents_drift.py` — AGENTS.md / `.github/copilot-instructions.md` invariant drift validator
+- `scripts/validate_tooling_toml_drift.py` — asserts `tooling.toml`'s `version` matches `.tooling-sync-manifest.lock`'s `requested_ref` (catches the case where a sync bumps the lock but forgets to bump the consumer's `tooling.toml` pin)
 - `scripts/validate_dev_tool_pins.py` + `.github/dev-tool-pin-lock.json` — single-source-of-truth registry and validator for dev-tool version pins (commitlint, ruff, mypy, markdownlint-cli)

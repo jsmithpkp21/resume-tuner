@@ -699,8 +699,14 @@ _SELECTED_HEADING_HTML = "<h2>Selected Achievements</h2>"
 _SELECTED_HEADING_MD = "## Selected Achievements"
 
 
-def _render_with(tmp_path: Path, *flags: str) -> tuple[str, str]:
-    """Run the CLI with optional flag list and return (html, md) of the raw artifact."""
+def _render_with(tmp_path: Path, *flags: str) -> tuple[str, str, dict[str, Any]]:
+    """Run CLI with optional flags and return (html, md, ir_snapshot) for the raw artifact.
+
+    Returning the snapshot too lets tests lock in the "all generated artifacts"
+    contract: when the flags are set, the IR snapshot's
+    cross_org_architectural_leadership_count / selected_achievements_count
+    must drop to 0 — not just the rendered HTML/MD section headings.
+    """
     profile_path = tmp_path / "profile.toml"
     profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
     output_dir = tmp_path / "out"
@@ -717,47 +723,64 @@ def _render_with(tmp_path: Path, *flags: str) -> tuple[str, str]:
     md_text = (output_dir / "resumes" / "latest_resume_raw.md").read_text(
         encoding="utf-8"
     )
-    return html_text, md_text
+    snapshot = json.loads(
+        (output_dir / "resumes" / "latest_resume_raw_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    return html_text, md_text, snapshot
 
 
 def test_for_upload_flags_default_off_renders_both_narrative_sections(
     tmp_path: Path,
 ) -> None:
-    """Sanity baseline: with no new flags, both sections render."""
-    html_text, md_text = _render_with(tmp_path)
+    """Sanity baseline: with no new flags, both sections render and snapshot counts are non-zero."""
+    html_text, md_text, snapshot = _render_with(tmp_path)
     assert _CROSS_ORG_HEADING_HTML in html_text
     assert _CROSS_ORG_HEADING_MD in md_text
     assert _SELECTED_HEADING_HTML in html_text
     assert _SELECTED_HEADING_MD in md_text
+    assert int(snapshot["cross_org_architectural_leadership_count"]) > 0
+    assert int(snapshot["selected_achievements_count"]) > 0
 
 
 def test_for_upload_suppresses_both_narrative_sections(tmp_path: Path) -> None:
-    """--for-upload is sugar for --no-cross-org + --no-selected-achievements."""
-    html_text, md_text = _render_with(tmp_path, "--for-upload")
+    """--for-upload is sugar for --no-cross-org + --no-selected-achievements,
+    and the suppression is reflected in the IR snapshot too — locking in the
+    'all generated artifacts' contract from the CLI help text."""
+    html_text, md_text, snapshot = _render_with(tmp_path, "--for-upload")
     assert _CROSS_ORG_HEADING_HTML not in html_text
     assert _CROSS_ORG_HEADING_MD not in md_text
     assert _SELECTED_HEADING_HTML not in html_text
     assert _SELECTED_HEADING_MD not in md_text
+    assert int(snapshot["cross_org_architectural_leadership_count"]) == 0
+    assert int(snapshot["selected_achievements_count"]) == 0
 
 
 def test_no_cross_org_suppresses_only_cross_org(tmp_path: Path) -> None:
-    """Granular flag isolates suppression to its named section."""
-    html_text, md_text = _render_with(tmp_path, "--no-cross-org")
+    """Granular flag isolates suppression to its named section in both render
+    and snapshot."""
+    html_text, md_text, snapshot = _render_with(tmp_path, "--no-cross-org")
     assert _CROSS_ORG_HEADING_HTML not in html_text
     assert _CROSS_ORG_HEADING_MD not in md_text
     assert _SELECTED_HEADING_HTML in html_text
     assert _SELECTED_HEADING_MD in md_text
+    assert int(snapshot["cross_org_architectural_leadership_count"]) == 0
+    assert int(snapshot["selected_achievements_count"]) > 0
 
 
 def test_no_selected_achievements_suppresses_only_selected_achievements(
     tmp_path: Path,
 ) -> None:
-    """Granular flag isolates suppression to its named section."""
-    html_text, md_text = _render_with(tmp_path, "--no-selected-achievements")
+    """Granular flag isolates suppression to its named section in both render
+    and snapshot."""
+    html_text, md_text, snapshot = _render_with(tmp_path, "--no-selected-achievements")
     assert _SELECTED_HEADING_HTML not in html_text
     assert _SELECTED_HEADING_MD not in md_text
     assert _CROSS_ORG_HEADING_HTML in html_text
     assert _CROSS_ORG_HEADING_MD in md_text
+    assert int(snapshot["selected_achievements_count"]) == 0
+    assert int(snapshot["cross_org_architectural_leadership_count"]) > 0
 
 
 def test_run_pipeline_tolerates_namespace_without_for_upload_flags(

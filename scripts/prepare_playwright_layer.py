@@ -10,6 +10,7 @@ Run from the repo root. It is safe to run repeatedly (idempotent).
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import tomllib
@@ -79,15 +80,33 @@ _PEP440_SPECIFIERS: tuple[str, ...] = (
     "<",
 )
 
+# Matches runs of `-`, `_`, or `.` for PEP 503 name canonicalization. pip
+# freeze typically emits hyphenated distribution names (e.g. `mypy-extensions`)
+# while requirements files often use underscores or dots (`mypy_extensions`,
+# `zope.interface`); PEP 503 declares these equivalent, so we collapse any
+# run to a single `-` before comparing.
+_PEP503_NAME_RUN = re.compile(r"[-_.]+")
+
+
+def _canonicalize_name(name: str) -> str:
+    """Apply PEP 503 name normalization: collapse `[-_.]+` to `-` and lowercase.
+
+    https://peps.python.org/pep-0503/#normalized-names
+    """
+    return _PEP503_NAME_RUN.sub("-", name).strip("-").lower()
+
 
 def _normalize_requirement_name(spec: str) -> str:
-    """Return the canonical lowercase package name from a requirement spec.
+    """Return the PEP 503 canonical package name from a requirement spec.
 
     Strips:
     - PEP 508 environment markers (everything after `;`)
     - extras brackets (`pkg[extra1,extra2]` → `pkg`)
     - PEP 508 direct references (`pkg @ file:///...` → `pkg`)
     - any PEP 440 version specifier (`===`, `==`, `>=`, `<=`, `~=`, `!=`, `>`, `<`)
+
+    Then applies PEP 503 normalization so `mypy_extensions`, `mypy.extensions`,
+    and `mypy-extensions` all compare equal to whatever pip freeze emits.
 
     Used by both `verify_requirements_installed()` and
     `PlaywrightEnvBuilder.prepare_requirements()` so the two paths stay
@@ -102,20 +121,22 @@ def _normalize_requirement_name(spec: str) -> str:
         if sep in name:
             name = name.split(sep, 1)[0]
             break
-    return name.strip().lower()
+    return _canonicalize_name(name.strip())
 
 
 def get_installed_packages(
     python_executable: str = sys.executable, timeout: int = 30
 ) -> set[str]:
-    """Return a set of installed package names (lowercased) via `pip freeze`.
+    """Return a set of PEP 503 canonical installed package names via `pip freeze`.
 
     Args:
         python_executable: Python interpreter to query.
         timeout: Timeout in seconds for the pip command.
 
     Returns:
-        Set of installed package names (lowercase).
+        Set of installed package names, PEP 503 normalized (lowercase, `[-_.]+`
+        collapsed to `-`). Matches the form produced by
+        `_normalize_requirement_name()` so set membership is reliable.
 
     Raises:
         OSError: If pip command fails or times out.
@@ -141,13 +162,14 @@ def get_installed_packages(
     packages: set[str] = set()
     for line in result.stdout.splitlines():
         if "==" in line:
-            name: str = line.split("==", 1)[0].lower()
+            name: str = line.split("==", 1)[0]
         elif "@" in line:
-            name = line.split("@", 1)[0].strip().lower()
+            name = line.split("@", 1)[0]
         else:
-            name = line.split("=", 1)[0].split(">=", 1)[0].strip().lower()
-        if name:
-            packages.add(name)
+            name = line.split("=", 1)[0].split(">=", 1)[0]
+        canonical = _canonicalize_name(name.strip())
+        if canonical:
+            packages.add(canonical)
     return packages
 
 

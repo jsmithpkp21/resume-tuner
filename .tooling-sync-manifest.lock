@@ -78,6 +78,9 @@
     "docker-compose.yml": {
       "sha256": "06b9128e6e127dae340dd09cfb0a26b53f64560b1fa558f137ca5c968e8b9489"
     },
+    "docs/REFERENCE/ACCEPTED_PATTERNS.md": {
+      "sha256": "be2f12d447546214c84d92377c2c7d7686c0259cbdfd1337d983dc3c69fe2d0c"
+    },
     "docs/REFERENCE/AUDIT_COMPLETE.md": {
       "sha256": "0279c1a94c179a7c63323423710c06f56039e56b8287b96fc393716c4cec1801"
     },
@@ -208,7 +211,7 @@
       "sha256": "27a02125de071f7fd002075f953b69a7ec4db8bf10ae9a1959f7c46b2a75d47c"
     },
     "scripts/prepare_playwright_layer.py": {
-      "sha256": "ce58829ecc654424722671fc220221f75708f270bc680ac2cf077da8f4076efa"
+      "sha256": "979a5cb948f4d25c00f5c0c1ec294fd6e46bea0c3a6b4bd7e4f1770c36810a5d"
     },
     "scripts/run_commitlint.sh": {
       "sha256": "a25904e3072f97096545c6c1b0456ab442928f7878d15a1ccf6b459e04fbc338"
@@ -253,7 +256,7 @@
       "sha256": "fa448cb402c6de47fef5aa2e28e68b4d05caea878e7513cfb31243206a7d1b9f"
     },
     "tests/scripts/test_consumer_contract.py": {
-      "sha256": "fd655eb71fd557432e6de4ff556a92a373f4256df0d91d0469a129762ce1c5ed"
+      "sha256": "7855275df6672fa07ea542ea83b7643ff15d302c6a7df5359529f9e14c2572d7"
     },
     "tests/workflows/test_action_runtime_compatibility.py": {
       "sha256": "eac4b80328394dacc977662feaf2f59062fde36d33d5ab7976ffd9be407413f0"
@@ -262,9 +265,9 @@
       "sha256": "428d00d9550fcd46deea5255bcce2ef96f23131ba58d0be5f148a476a0ce19d9"
     }
   },
-  "generated_at_utc": "2026-05-11T02:46:20Z",
-  "requested_ref": "v1.29.2",
-  "resolved_ref": "adf5191bdd4d5f8f640cbd227117fbb162396656",
+  "generated_at_utc": "2026-05-11T19:03:14Z",
+  "requested_ref": "v1.29.4",
+  "resolved_ref": "b27cdfb88201ca53cc6e39a1b95508b2b4f5de49",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

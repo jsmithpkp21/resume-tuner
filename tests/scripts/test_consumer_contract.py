@@ -162,6 +162,49 @@ def _run_drift_validator(root: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _run_tooling_toml_drift_validator(
+    root: Path,
+) -> subprocess.CompletedProcess[str]:
+    """Run validate_tooling_toml_drift.py against the given root directory."""
+    return subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "validate_tooling_toml_drift.py"),
+            "--root",
+            str(root),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+
+def _write_tooling_toml_with_version(consumer: Path, version: str) -> None:
+    """Write a tooling.toml with the given top-level version pin."""
+    (consumer / "tooling.toml").write_text(
+        f'version = "{version}"\nrepo = "https://example.invalid/tooling"\n\n'
+        '[tooling]\npip = "24.3.1"\n\n'
+        '[python]\nversion = "3.11.14"\npath = "/usr/bin/python3"\n',
+        encoding="utf-8",
+    )
+
+
+def _write_lock_with_requested_ref(consumer: Path, requested_ref: str) -> None:
+    """Write a minimal .tooling-sync-manifest.lock with the given requested_ref."""
+    payload = {
+        "schema_version": 1,
+        "generated_at_utc": "2026-03-16T00:00:00Z",
+        "requested_ref": requested_ref,
+        "resolved_ref": None,
+        "source_mode": "filesystem",
+        "files": {},
+    }
+    (consumer / ".tooling-sync-manifest.lock").write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 def _sha256_text(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
@@ -367,6 +410,118 @@ def test_consumer_drift_check_enforces_remediation_message(tmp_path: Path) -> No
 
     assert drift_result.returncode != 0
     assert "remediation" in drift_result.stdout.lower()
+
+
+# ---------------------------------------------------------------------------
+# Tooling-toml drift enforcement (validate_tooling_toml_drift.py)
+# ---------------------------------------------------------------------------
+
+
+def test_consumer_tooling_toml_drift_skips_when_lock_missing(tmp_path: Path) -> None:
+    """Contract: validator exits 0 (skip) when lock is absent (pre-first-sync)."""
+    consumer = _make_resume_builder_consumer(tmp_path)
+    _write_tooling_toml_with_version(consumer, "v1.29.2")
+    # No lock file.
+
+    result = _run_tooling_toml_drift_validator(consumer)
+
+    assert result.returncode == 0, (
+        f"expected skip exit 0 when lock missing; stdout={result.stdout} stderr={result.stderr}"
+    )
+    assert "skipping" in result.stdout.lower()
+
+
+def test_consumer_tooling_toml_drift_skips_when_tooling_toml_missing(
+    tmp_path: Path,
+) -> None:
+    """Contract: validator exits 0 (skip) when tooling.toml is absent (consumer opts out)."""
+    consumer = _make_resume_builder_consumer(tmp_path)
+    (consumer / "tooling.toml").unlink()
+    _write_lock_with_requested_ref(consumer, "v1.29.2")
+
+    result = _run_tooling_toml_drift_validator(consumer)
+
+    assert result.returncode == 0, (
+        f"expected skip exit 0 when tooling.toml missing; stdout={result.stdout} stderr={result.stderr}"
+    )
+    assert "skipping" in result.stdout.lower()
+
+
+def test_consumer_tooling_toml_drift_passes_when_version_matches(
+    tmp_path: Path,
+) -> None:
+    """Contract: validator exits 0 with OK message when version == requested_ref."""
+    consumer = _make_resume_builder_consumer(tmp_path)
+    _write_tooling_toml_with_version(consumer, "v1.29.2")
+    _write_lock_with_requested_ref(consumer, "v1.29.2")
+
+    result = _run_tooling_toml_drift_validator(consumer)
+
+    assert result.returncode == 0, (
+        f"expected exit 0 on match; stdout={result.stdout} stderr={result.stderr}"
+    )
+    assert "OK:" in result.stdout
+    assert "v1.29.2" in result.stdout
+
+
+def test_consumer_tooling_toml_drift_fails_on_version_mismatch(
+    tmp_path: Path,
+) -> None:
+    """Contract: validator exits 1 with DRIFT + remediation when versions differ."""
+    consumer = _make_resume_builder_consumer(tmp_path)
+    _write_tooling_toml_with_version(consumer, "v1.28.4")
+    _write_lock_with_requested_ref(consumer, "v1.29.2")
+
+    result = _run_tooling_toml_drift_validator(consumer)
+
+    assert result.returncode == 1, (
+        f"expected exit 1 on version mismatch; got {result.returncode}; "
+        f"stdout={result.stdout} stderr={result.stderr}"
+    )
+    combined = result.stdout + result.stderr
+    assert "DRIFT:" in combined
+    assert "Remediation:" in combined
+
+
+def test_consumer_tooling_toml_drift_fails_on_malformed_tooling_toml(
+    tmp_path: Path,
+) -> None:
+    """Contract: validator exits 2 with MALFORMED when tooling.toml lacks version."""
+    consumer = _make_resume_builder_consumer(tmp_path)
+    # tooling.toml without top-level version field (parses but is invalid for the validator)
+    (consumer / "tooling.toml").write_text(
+        '[tooling]\npip = "24.3.1"\n',
+        encoding="utf-8",
+    )
+    _write_lock_with_requested_ref(consumer, "v1.29.2")
+
+    result = _run_tooling_toml_drift_validator(consumer)
+
+    assert result.returncode == 2, (
+        f"expected exit 2 on malformed input; got {result.returncode}; "
+        f"stdout={result.stdout} stderr={result.stderr}"
+    )
+    assert "MALFORMED" in result.stderr
+
+
+def test_consumer_tooling_toml_drift_fails_on_tooling_toml_symlink(
+    tmp_path: Path,
+) -> None:
+    """Contract: validator exits 2 (SECURITY) when tooling.toml is a symlink."""
+    consumer = _make_resume_builder_consumer(tmp_path)
+    _write_lock_with_requested_ref(consumer, "v1.29.2")
+    # Replace tooling.toml with a symlink (broken or otherwise).
+    tooling_toml = consumer / "tooling.toml"
+    tooling_toml.unlink()
+    tooling_toml.symlink_to(tmp_path / "does-not-exist")
+
+    result = _run_tooling_toml_drift_validator(consumer)
+
+    assert result.returncode == 2, (
+        f"expected exit 2 on symlink; got {result.returncode}; "
+        f"stdout={result.stdout} stderr={result.stderr}"
+    )
+    assert "SECURITY" in result.stderr
 
 
 # ---------------------------------------------------------------------------

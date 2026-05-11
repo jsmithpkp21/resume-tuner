@@ -507,8 +507,10 @@ def parse_args() -> argparse.Namespace:
             "ATS resume parsers handle the standard sections (Experience, "
             "Education, Skills) cleanly but garble or drop custom narrative "
             "sections, which degrades the auto-filled application fields. "
-            "Sugar for --no-cross-org + --no-selected-achievements; the "
-            "source data is unchanged, only the rendered output."
+            "Sugar for --no-cross-org + --no-selected-achievements. The "
+            "source data (experience_db.toml) is unchanged; suppression "
+            "applies to all generated artifacts for this run — rendered "
+            "HTML/MD/PDF/DOCX, IR snapshot, and decision report."
         ),
     )
 
@@ -574,8 +576,10 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help=(
-            "Suppress the Cross-Org Architectural Leadership section in the "
-            "rendered resume. Implied by --for-upload."
+            "Suppress the Cross-Org Architectural Leadership section in all "
+            "generated artifacts for this run (rendered output, IR snapshot, "
+            "decision report). Source experience_db.toml is unchanged. "
+            "Implied by --for-upload."
         ),
     )
     advanced.add_argument(
@@ -584,8 +588,10 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help=(
-            "Suppress the Selected Achievements section in the rendered "
-            "resume. Implied by --for-upload."
+            "Suppress the Selected Achievements section in all generated "
+            "artifacts for this run (rendered output, IR snapshot, decision "
+            "report). Source experience_db.toml is unchanged. Implied by "
+            "--for-upload."
         ),
     )
     advanced.add_argument(

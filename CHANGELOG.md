@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.46.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.45.0...v0.46.0) (2026-05-11)
+
+
+### Features
+
+* **build_resume:** add --for-upload + granular flags to suppress narrative sections (closes [#311](https://github.com/jsmithpkp21/resume-builder/issues/311)) ([086fcf2](https://github.com/jsmithpkp21/resume-builder/commit/086fcf20ccd59ea6fd1aee27f2688cee3fa87d06))
+
+
+### Documentation
+
+* **build_resume:** clarify --for-upload help text per PR [#312](https://github.com/jsmithpkp21/resume-builder/issues/312) review ([81b745d](https://github.com/jsmithpkp21/resume-builder/commit/81b745de4224de7511ea90e261a9bcba97bc3c31))
+* **build_resume:** tighten --for-upload help and add snapshot assertions (PR [#312](https://github.com/jsmithpkp21/resume-builder/issues/312) round 2) ([ae9c73f](https://github.com/jsmithpkp21/resume-builder/commit/ae9c73fe6bca04708dcd7a90b9086b9fa05f6112))
+
 ## [0.45.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.44.1...v0.45.0) (2026-05-09)
 
 

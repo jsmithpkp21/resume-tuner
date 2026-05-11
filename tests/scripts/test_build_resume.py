@@ -819,6 +819,44 @@ def test_run_pipeline_tolerates_namespace_without_for_upload_flags(
     assert _SELECTED_HEADING_HTML in html_text
 
 
+def test_for_upload_processed_mode_suppresses_in_all_artifacts(
+    tmp_path: Path,
+) -> None:
+    """Processed-mode coverage: --for-upload is the typical use (processed is the
+    default mode). Verifies headings absent from processed-mode HTML/MD AND
+    counts drop to 0 in latest_resume_processed_ir_snapshot.json — the path
+    where _compute_bullet_line_budget() actually consults the resume IR and
+    where the freed layout budget can shift bullet/skill selection."""
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    output_dir = tmp_path / "out"
+    result = _run_build_resume_cli(
+        experience_db=REPO_ROOT / "data" / "experience" / "experience_db.toml",
+        profile_path=profile_path,
+        output_dir=output_dir,
+        extra_args=("--processing-mode", "processed", "--for-upload"),
+    )
+    assert result.returncode == 0, result.stderr
+    html_text = (output_dir / "resumes" / "latest_resume_processed.html").read_text(
+        encoding="utf-8"
+    )
+    md_text = (output_dir / "resumes" / "latest_resume_processed.md").read_text(
+        encoding="utf-8"
+    )
+    snapshot = json.loads(
+        (output_dir / "resumes" / "latest_resume_processed_ir_snapshot.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert _CROSS_ORG_HEADING_HTML not in html_text
+    assert _CROSS_ORG_HEADING_MD not in md_text
+    assert _SELECTED_HEADING_HTML not in html_text
+    assert _SELECTED_HEADING_MD not in md_text
+    assert int(snapshot["cross_org_architectural_leadership_count"]) == 0
+    assert int(snapshot["selected_achievements_count"]) == 0
+
+
 def test_independent_projects_url_normalization_and_safety(tmp_path: Path) -> None:
     """Loader prepends https:// to bare domains and rejects unsafe schemes."""
     items = """

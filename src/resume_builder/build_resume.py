@@ -3593,7 +3593,7 @@ def _compute_bullet_line_budget(resume: ResumeIR) -> int:
         section_header_pt += PDF_H2_PT
 
     # Budget runs BEFORE select_skills, which packs the skills section to the
-    # TARGET_LINES_MIN..TARGET_LINES_MAX range from scripts/select_skills.py.
+    # TARGET_LINES_MIN..TARGET_LINES_MAX range from resume_builder/select_skills.py.
     # Use TARGET_LINES_MAX as the upper bound rather than measuring the
     # un-packed pre-stage skills (which is roughly 2-3x larger and inflates
     # non_bullet_pt by ~150-220pt).

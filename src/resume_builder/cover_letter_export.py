@@ -1,7 +1,7 @@
 """DOCX + PDF renderers for cover letters.
 
 These are intentionally separate from the resume renderers in
-``scripts/document_export.py``. Cover letters are paragraph-shaped:
+``resume_builder.document_export``. Cover letters are paragraph-shaped:
 no section dividers, no bullets, no right-aligned date stops, no
 post-layout content trimming. Reusing the resume renderer would
 produce a mis-styled letter (h2 borders, bullet glyphs, etc.).

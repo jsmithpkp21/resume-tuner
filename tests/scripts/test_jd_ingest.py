@@ -34,6 +34,7 @@ from scripts.jd_ingest import (
     _infer_source,
     _playwright_enabled,
     _playwright_fetch_html,
+    _resolve_host_body_selector,
     _should_use_playwright,
     _try_board_api_fetch,
 )
@@ -781,7 +782,7 @@ def test_fetch_via_playwright_prefers_jobposting_jsonld(
     )
     monkeypatch.setattr(
         "scripts.jd_ingest._playwright_fetch_html",
-        lambda _pw, _url: ("Page Title", html_with_posting),
+        lambda _pw, _url: ("Page Title", html_with_posting, None),
     )
 
     result = _fetch_via_playwright(
@@ -819,7 +820,7 @@ def test_fetch_via_playwright_falls_back_to_html_text_when_no_jobposting(
     )
     monkeypatch.setattr(
         "scripts.jd_ingest._playwright_fetch_html",
-        lambda _pw, _url: ("title", html_without_posting),
+        lambda _pw, _url: ("title", html_without_posting, None),
     )
 
     result = _fetch_via_playwright("https://example.com/job/123")
@@ -1219,12 +1220,61 @@ def test_should_use_playwright_decision(
 # --- _playwright_fetch_html with a fake sync_playwright -------------------
 
 
+class _FakeLocator:
+    """Minimal stand-in for a Playwright Locator / FrameLocator chain.
+
+    Supports the surface ``_extract_via_host_body_selector`` exercises:
+    ``page.locator(sel).text_content(timeout=…)`` and
+    ``page.frame_locator(frame_sel).locator(inner_sel).text_content(…)``.
+    Tests configure the per-selector return via the parent ``_FakePage``.
+    """
+
+    def __init__(self, page: _FakePage, *, frame_target: str | None = None) -> None:
+        self._page = page
+        self._frame_target = frame_target
+
+    def locator(self, sel: str) -> _FakeLocator:
+        # When chained off a frame_locator, record the (frame, inner)
+        # pair so tests can assert the iframe path was taken.
+        if self._frame_target is not None:
+            self._page.frame_locator_calls.append((self._frame_target, sel))
+            self._page._pending_lookup = ("frame", self._frame_target, sel)
+        else:
+            self._page._pending_lookup = ("page", sel)
+        return self
+
+    def text_content(self, timeout: int | None = None) -> str | None:
+        self._page.text_content_calls.append(timeout)
+        lookup = self._page._pending_lookup
+        if lookup is None:
+            return None
+        key: tuple[str, ...]
+        if lookup[0] == "frame":
+            key = ("frame", lookup[1], lookup[2])
+        else:
+            key = ("page", lookup[1])
+        result = self._page.text_content_map.get(key, self._page.default_text_content)
+        if isinstance(result, BaseException):
+            raise result
+        return result
+
+
 class _FakePage:
     def __init__(self, *, title: str, content: str) -> None:
         self._title = title
         self._content = content
         self.goto_calls: list[tuple[str, dict[str, object]]] = []
         self.wait_calls: list[int] = []
+        # Per-selector text_content mapping for the issue #298 selector
+        # path. Keys are either ``("page", sel)`` or
+        # ``("frame", frame_sel, inner_sel)``; missing keys fall back to
+        # ``default_text_content``. A BaseException value is raised
+        # (used to exercise the graceful-failure branch).
+        self.text_content_map: dict[tuple[str, ...], str | None | BaseException] = {}
+        self.default_text_content: str | None = None
+        self.text_content_calls: list[int | None] = []
+        self.frame_locator_calls: list[tuple[str, str]] = []
+        self._pending_lookup: tuple[str, ...] | None = None
 
     def goto(self, url: str, **kwargs: object) -> None:
         self.goto_calls.append((url, kwargs))
@@ -1237,6 +1287,13 @@ class _FakePage:
 
     def content(self) -> str:
         return self._content
+
+    def locator(self, sel: str) -> _FakeLocator:
+        loc = _FakeLocator(self)
+        return loc.locator(sel)
+
+    def frame_locator(self, frame_sel: str) -> _FakeLocator:
+        return _FakeLocator(self, frame_target=frame_sel)
 
 
 class _FakeBrowser:
@@ -1299,7 +1356,9 @@ def test_playwright_fetch_html_returns_title_and_content() -> None:
         title="Staff SDET", content="<p>JD body</p>"
     )
     out = _playwright_fetch_html(fake_sync, "https://example.com/job/1")
-    assert out == ("Staff SDET", "<p>JD body</p>")
+    # Body snippet slot is None when no host selector is configured for
+    # the URL's host. Issue #298.
+    assert out == ("Staff SDET", "<p>JD body</p>", None)
 
 
 def test_playwright_fetch_html_passes_user_agent_and_settle_window() -> None:
@@ -1324,7 +1383,7 @@ def test_playwright_fetch_html_truncates_oversize_content() -> None:
     fake_sync, _browser, _chromium = _make_fake_sync_playwright(title="t", content=big)
     out = _playwright_fetch_html(fake_sync, "https://example.com/job/1")
     assert out is not None
-    _title, html = out
+    _title, html, _body = out
     assert len(html) == _MAX_PLAYWRIGHT_HTML_BYTES
     # Content under the cap is returned unmodified.
     smaller = "<p>" + ("X" * 1024) + "</p>"
@@ -1377,7 +1436,7 @@ def test_fetch_via_playwright_wraps_html_into_fetched_page(
     monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
     monkeypatch.setattr(
         "scripts.jd_ingest._playwright_fetch_html",
-        lambda _sync, _url: ("Staff SDET", "<p>JD body here.</p>"),
+        lambda _sync, _url: ("Staff SDET", "<p>JD body here.</p>", None),
     )
     out = _fetch_via_playwright("https://example.com/job/1")
     assert out is not None
@@ -1404,7 +1463,7 @@ def test_fetch_via_playwright_returns_none_when_html_strips_to_empty(
     monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
     monkeypatch.setattr(
         "scripts.jd_ingest._playwright_fetch_html",
-        lambda _sync, _url: ("title", "<p></p><div>   </div>"),
+        lambda _sync, _url: ("title", "<p></p><div>   </div>", None),
     )
     assert _fetch_via_playwright("https://example.com/job/1") is None
 
@@ -1668,3 +1727,205 @@ def test_fetch_job_page_metadata_returns_static_failure_when_playwright_disabled
     )
     assert result.status == "fetch_failed"
     assert result.notes == ("fetch_failed:ResponseTooLarge",)
+
+
+# --- Issue #298: per-host JD body selectors ------------------------------
+
+
+def test_resolve_host_body_selector_exact_match_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "scripts.jd_ingest._HOST_BODY_SELECTORS",
+        {"radarfirst.com": "iframe#grnhse_iframe >> #content"},
+    )
+    monkeypatch.setattr("scripts.jd_ingest._HOST_BODY_SELECTOR_FAMILIES", {})
+    assert (
+        _resolve_host_body_selector("radarfirst.com")
+        == "iframe#grnhse_iframe >> #content"
+    )
+
+
+def test_resolve_host_body_selector_family_suffix_matches_subdomain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("scripts.jd_ingest._HOST_BODY_SELECTORS", {})
+    monkeypatch.setattr(
+        "scripts.jd_ingest._HOST_BODY_SELECTOR_FAMILIES",
+        {"example.com": "div.jd-body"},
+    )
+    assert _resolve_host_body_selector("board.example.com") == "div.jd-body"
+    assert _resolve_host_body_selector("example.com") == "div.jd-body"
+
+
+def test_resolve_host_body_selector_returns_none_when_no_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("scripts.jd_ingest._HOST_BODY_SELECTORS", {})
+    monkeypatch.setattr("scripts.jd_ingest._HOST_BODY_SELECTOR_FAMILIES", {})
+    assert _resolve_host_body_selector("anywhere.example") is None
+    assert _resolve_host_body_selector("") is None
+
+
+def test_fetch_via_playwright_uses_host_body_selector_when_no_jsonld(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Selector path runs ONLY when JSON-LD JobPosting is absent. Notes
+    record `source:host-selector:<host>` for observability. Issue #298.
+    """
+    monkeypatch.setenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", "1")
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+    monkeypatch.setattr(
+        "scripts.jd_ingest._playwright_fetch_html",
+        lambda _sync, _url: (
+            "RadarFirst Careers",
+            "<html><body><p>page chrome no jsonld here</p></body></html>",
+            "Staff Backend Engineer\n\nBuild the platform.",
+        ),
+    )
+    result = _fetch_via_playwright("https://radarfirst.com/?gh_jid=123")
+    assert result is not None
+    assert "Staff Backend Engineer" in result.description
+    assert "Build the platform." in result.description
+    # Page chrome from the surrounding HTML must NOT leak through —
+    # the selector snippet is the sole grounding source.
+    assert "page chrome" not in result.description
+    assert "source:playwright" in result.notes
+    assert "source:host-selector:radarfirst.com" in result.notes
+    assert "source:jsonld+jobposting" not in result.notes
+
+
+def test_fetch_via_playwright_prefers_jsonld_over_host_body_selector(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """JSON-LD JobPosting still wins even when a body snippet is
+    available — preserves the v7 12/12 LLM-tailored matrix. Issue #298.
+    """
+    monkeypatch.setenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", "1")
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+    html_with_posting = (
+        "<html><body>"
+        '<script type="application/ld+json">'
+        '{"@type":"JobPosting","title":"Staff Backend Engineer",'
+        '"hiringOrganization":{"name":"RadarFirst"},'
+        '"description":"<p>JSON-LD prose wins.</p>"}'
+        "</script></body></html>"
+    )
+    monkeypatch.setattr(
+        "scripts.jd_ingest._playwright_fetch_html",
+        lambda _sync, _url: (
+            "title",
+            html_with_posting,
+            "selector snippet should be ignored",
+        ),
+    )
+    result = _fetch_via_playwright("https://radarfirst.com/?gh_jid=123")
+    assert result is not None
+    assert "JSON-LD prose wins." in result.description
+    assert "selector snippet should be ignored" not in result.description
+    assert "source:jsonld+jobposting" in result.notes
+    assert "source:host-selector:radarfirst.com" not in result.notes
+
+
+def test_fetch_via_playwright_falls_back_to_html_text_when_selector_misses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Selector returned None (page redesigned / element absent): the
+    fetcher falls back to `_html_to_text(content_html)` without raising
+    and without emitting the host-selector note. Issue #298.
+    """
+    monkeypatch.setenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", "1")
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+    monkeypatch.setattr(
+        "scripts.jd_ingest._playwright_fetch_html",
+        lambda _sync, _url: (
+            "title",
+            "<html><body><p>Plain HTML fallback prose.</p></body></html>",
+            None,
+        ),
+    )
+    result = _fetch_via_playwright("https://radarfirst.com/?gh_jid=123")
+    assert result is not None
+    assert "Plain HTML fallback prose." in result.description
+    assert "source:playwright" in result.notes
+    assert all("host-selector" not in n for n in result.notes)
+    assert "source:jsonld+jobposting" not in result.notes
+
+
+def test_playwright_fetch_html_uses_iframe_chained_selector(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`iframe X >> Y` selector form routes through `frame_locator(X)
+    .locator(Y).text_content()`. Issue #298.
+    """
+    monkeypatch.setattr(
+        "scripts.jd_ingest._HOST_BODY_SELECTORS",
+        {"example.com": "iframe#grnhse_iframe >> #content"},
+    )
+    monkeypatch.setattr("scripts.jd_ingest._HOST_BODY_SELECTOR_FAMILIES", {})
+
+    fake_sync, browser, _chromium = _make_fake_sync_playwright(
+        title="t", content="<html><body><iframe id='grnhse_iframe'/></body></html>"
+    )
+    # Configure the frame-traversed selector to return real JD text.
+    page = browser._page
+    page.text_content_map[("frame", "iframe#grnhse_iframe", "#content")] = (
+        "Senior Backend Engineer — owns ingestion pipelines."
+    )
+
+    out = _playwright_fetch_html(fake_sync, "https://example.com/jobs/1")
+    assert out is not None
+    _title, _html, body_snippet = out
+    assert body_snippet == "Senior Backend Engineer — owns ingestion pipelines."
+    # frame_locator was called with the iframe selector AND the inner
+    # locator was called with the post-`>>` selector.
+    assert page.frame_locator_calls == [("iframe#grnhse_iframe", "#content")]
+
+
+def test_playwright_fetch_html_uses_plain_page_selector_without_iframe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No `iframe` segment -> `page.locator(...).text_content()`. Issue #298."""
+    monkeypatch.setattr(
+        "scripts.jd_ingest._HOST_BODY_SELECTORS",
+        {"example.com": "div.jd-body"},
+    )
+    monkeypatch.setattr("scripts.jd_ingest._HOST_BODY_SELECTOR_FAMILIES", {})
+
+    fake_sync, browser, _chromium = _make_fake_sync_playwright(
+        title="t", content="<html><body><div class='jd-body'>JD</div></body></html>"
+    )
+    page = browser._page
+    page.text_content_map[("page", "div.jd-body")] = "Plain page selector text."
+
+    out = _playwright_fetch_html(fake_sync, "https://example.com/jobs/1")
+    assert out is not None
+    _title, _html, body_snippet = out
+    assert body_snippet == "Plain page selector text."
+    # No frame traversal occurred.
+    assert page.frame_locator_calls == []
+
+
+def test_playwright_fetch_html_selector_failure_yields_none_snippet(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Selector raises (e.g. timeout, element absent): the body_snippet
+    slot is None and `_playwright_fetch_html` still returns the (title,
+    html, None) 3-tuple — never re-raises. Issue #298.
+    """
+    monkeypatch.setattr(
+        "scripts.jd_ingest._HOST_BODY_SELECTORS",
+        {"example.com": "div.jd-body"},
+    )
+    monkeypatch.setattr("scripts.jd_ingest._HOST_BODY_SELECTOR_FAMILIES", {})
+
+    fake_sync, browser, _chromium = _make_fake_sync_playwright(
+        title="t", content="<html><body><p>JD</p></body></html>"
+    )
+    page = browser._page
+    page.text_content_map[("page", "div.jd-body")] = TimeoutError("selector timed out")
+
+    out = _playwright_fetch_html(fake_sync, "https://example.com/jobs/1")
+    assert out is not None
+    _title, _html, body_snippet = out
+    assert body_snippet is None

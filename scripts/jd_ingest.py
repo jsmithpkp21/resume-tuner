@@ -75,6 +75,35 @@ _JS_RENDERED_HOST_FAMILIES: tuple[str, ...] = (
 # lives on a vanity hostname.
 _JS_RENDERED_EXACT_HOSTS: tuple[str, ...] = ("careers.westernunion.com",)
 
+# Per-host CSS/Playwright selectors used as a JD-body fallback when the
+# parent page has no @type=JobPosting JSON-LD block. Tried AFTER
+# `_extract_jobposting_from_html` returns None and BEFORE the
+# `_html_to_text(content_html)` whole-page text extract. Issue #298 /
+# parent issue #293 item 3.
+#
+# Value format: a Playwright selector chain, optionally using `>>` to
+# cross a single iframe boundary. The first `iframe...` segment (if any)
+# is fed to `page.frame_locator()`; everything after `>>` is the inner
+# selector inside that frame. Without an iframe segment, the value is a
+# plain `page.locator()` selector.
+#
+# Examples (illustrative — see _HOST_BODY_SELECTORS / _FAMILIES below
+# for the actual entries):
+#   "iframe#grnhse_iframe >> #content"  -> frame_locator("iframe#grnhse_iframe").locator("#content")
+#   "div.jd-body"                       -> page.locator("div.jd-body")
+#
+# Both maps start empty: per-host selectors are a maintenance burden
+# (boards redesign their UIs), so entries are added only when a real JD
+# host demonstrably needs the path. The wiring is in place so adding a
+# host is a one-line change with no further plumbing.
+_HOST_BODY_SELECTORS: dict[str, str] = {}
+_HOST_BODY_SELECTOR_FAMILIES: dict[str, str] = {}
+# Timeout for the selector / iframe text-extract calls. Short — the
+# Playwright settle window has already run, so the element should exist
+# or it never will. Keeping this tight prevents a missing selector from
+# inflating overall fetch latency.
+_HOST_BODY_SELECTOR_TIMEOUT_MS = 2000
+
 _PLAYWRIGHT_ENABLED_ENV = "RESUME_BUILDER_ENABLE_PLAYWRIGHT"
 _PLAYWRIGHT_TIMEOUT_SECONDS = 15.0
 # When the static fetch comes back below this many chars, retry via
@@ -1167,6 +1196,60 @@ def _host_needs_javascript_render(host: str) -> bool:
     )
 
 
+def _resolve_host_body_selector(host: str) -> str | None:
+    """Look up a per-host JD-body selector, exact then family suffix.
+
+    Returns ``None`` when no entry matches — callers fall through to the
+    raw HTML-text extract. Mirrors the resolution order in
+    ``_host_needs_javascript_render``: exact-host map first, then host
+    family suffixes (so ``board-page.example.com`` can match a
+    ``example.com`` family entry). Issue #298.
+    """
+    host = (host or "").lower().split(":", maxsplit=1)[0]
+    if not host:
+        return None
+    selector = _HOST_BODY_SELECTORS.get(host)
+    if selector:
+        return selector
+    for family, family_selector in _HOST_BODY_SELECTOR_FAMILIES.items():
+        if host == family or host.endswith("." + family):
+            return family_selector
+    return None
+
+
+def _extract_via_host_body_selector(page: Any, selector: str) -> str | None:
+    """Pull JD-body text from the live Playwright ``page`` via ``selector``.
+
+    Splits ``selector`` once on ``>>``; when the left segment starts with
+    ``iframe`` it's treated as a frame target (``page.frame_locator``)
+    and the right segment is the in-frame inner selector. Without an
+    iframe segment the value is a plain ``page.locator`` selector.
+
+    Returns ``None`` (never raises) when the element is absent, the
+    iframe never resolved, or the underlying call times out — the
+    caller's HTML-text fallback handles that case. Issue #298.
+    """
+    try:
+        parts = [p.strip() for p in selector.split(">>", maxsplit=1)]
+        if len(parts) == 2 and parts[0].lower().startswith("iframe"):
+            frame_sel, inner_sel = parts
+            text = (
+                page.frame_locator(frame_sel)
+                .locator(inner_sel)
+                .text_content(timeout=_HOST_BODY_SELECTOR_TIMEOUT_MS)
+            )
+        else:
+            text = page.locator(selector).text_content(
+                timeout=_HOST_BODY_SELECTOR_TIMEOUT_MS
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Host-body selector %r failed: %s", selector, exc, exc_info=True)
+        return None
+    if not isinstance(text, str) or not text.strip():
+        return None
+    return text
+
+
 def _should_use_playwright(url: str, static_result: FetchedPage) -> bool:
     """Decide whether to retry a fetch via the Playwright path.
 
@@ -1186,15 +1269,26 @@ def _should_use_playwright(url: str, static_result: FetchedPage) -> bool:
     return len(static_result.description or "") < _PLAYWRIGHT_RETRY_THRESHOLD_CHARS
 
 
-def _playwright_fetch_html(sync_pw: Any, url: str) -> tuple[str, str] | None:
-    """Inner orchestration: launch Chromium, navigate, return (title, html).
+def _playwright_fetch_html(
+    sync_pw: Any, url: str
+) -> tuple[str, str, str | None] | None:
+    """Inner orchestration: launch Chromium, navigate, return (title, html, body_snippet).
 
     Separated from the public _fetch_via_playwright wrapper so the
     browser-dance logic can be tested without exercising the wrapper's
     URL validation + result construction. ``sync_pw`` is the
     ``playwright.sync_api.sync_playwright`` callable, injected so tests
     can substitute a fake.
+
+    The third tuple element is the per-host body-selector text snippet
+    (extracted while the page is still live), or ``None`` when no
+    selector is configured for the host, when the selector failed to
+    resolve, or when the resolved text was whitespace-only. The caller
+    decides whether to use the snippet — it's preferred only when the
+    JSON-LD JobPosting path also misses. Issue #298.
     """
+    parsed_host = (urlparse(url).hostname or "").lower()
+    selector = _resolve_host_body_selector(parsed_host)
     try:
         with sync_pw() as pw:
             browser = pw.chromium.launch(headless=True)
@@ -1212,7 +1306,10 @@ def _playwright_fetch_html(sync_pw: Any, url: str) -> tuple[str, str] | None:
                 content_html = page.content() or ""
                 if len(content_html) > _MAX_PLAYWRIGHT_HTML_BYTES:
                     content_html = content_html[:_MAX_PLAYWRIGHT_HTML_BYTES]
-                return title, content_html
+                body_snippet: str | None = None
+                if selector:
+                    body_snippet = _extract_via_host_body_selector(page, selector)
+                return title, content_html, body_snippet
             finally:
                 browser.close()
     except Exception as exc:  # noqa: BLE001
@@ -1243,20 +1340,27 @@ def _fetch_via_playwright(url: str) -> FetchedPage | None:
     raw = _playwright_fetch_html(sync_pw, url)
     if raw is None:
         return None
-    title, content_html = raw
-    # Prefer the schema.org/JobPosting JSON-LD payload when present —
-    # it gives clean, well-grounded role + org + description fields
-    # that fit the LLM-tailoring excerpt budget cleanly. Search the
-    # FULL content (up to _MAX_PLAYWRIGHT_HTML_BYTES) since the
-    # JobPosting block on JS-rendered boards (notably WU) frequently
-    # lives past the 256 KB static cap. Falls back to the raw HTML-text
-    # extract when no JobPosting block is found (Greenhouse-iframe
-    # pages, hand-rolled boards without structured data, etc.). Issue
-    # #293 item 2.
+    title, content_html, body_snippet = raw
+    # Decision order:
+    # 1. schema.org/JobPosting JSON-LD when present — cleanest, well-
+    #    grounded role + org + description (#293 item 2 / #296).
+    # 2. Curated per-host body-selector snippet (issue #298 / #293 item
+    #    3) — only consulted when the parent page has no JobPosting
+    #    JSON-LD; covers iframe-embedded boards and hand-rolled ATS UIs.
+    # 3. Whole-page `_html_to_text` fallback — last-resort grounding
+    #    from raw HTML.
+    # The JSON-LD search runs over the FULL content (up to
+    # _MAX_PLAYWRIGHT_HTML_BYTES) since the JobPosting block on
+    # JS-rendered boards (notably WU) frequently lives past the 256 KB
+    # static cap.
     jobposting_prose = _extract_jobposting_from_html(content_html)
     if jobposting_prose:
         description = jobposting_prose
         notes: tuple[str, ...] = ("source:playwright", "source:jsonld+jobposting")
+    elif body_snippet:
+        host = (urlparse(url).hostname or "").lower()
+        description = _html_to_text(body_snippet)
+        notes = ("source:playwright", f"source:host-selector:{host}")
     else:
         # Bound the text-extract path at the static-fetch budget so
         # `_html_to_text` doesn't process megabytes of HTML when no

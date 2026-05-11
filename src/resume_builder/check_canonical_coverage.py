@@ -12,11 +12,13 @@ worksheet archive. The hard gates draw from two sources:
   ``missing_general_role_description`` gate is therefore a new invariant
   introduced by this script that fail-closes on emptiness of the
   corresponding ``general_role_description`` TOML field.
-- ``scripts/validate_experience_data.py``: already errors when bullet
+- ``resume_builder.validate_experience_data``: already errors when bullet
   ``skills`` or experience ``related_skills`` reference values not in
   ``skills_matrix.csv``.  The ``bullet_skill_not_in_matrix`` and
   ``related_skill_not_in_matrix`` gates here run the same checks so
   canonical coverage is self-contained without invoking the validator.
+  (``scripts/validate_experience_data.py`` remains as a thin compat
+  wrapper preserving the legacy CLI invocation.)
 
 Soft signals are informational distributions.
 

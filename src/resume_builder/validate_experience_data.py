@@ -107,11 +107,11 @@ def main() -> int:
 
     if not exp_db_path.exists():
         print(f"ERROR: {exp_db_path} not found", file=sys.stderr)
-        sys.exit(1)
+        return 1
 
     if not skills_path.exists():
         print(f"ERROR: {skills_path} not found", file=sys.stderr)
-        sys.exit(1)
+        return 1
 
     print("Loading experience database...")
     exp_data = load_experience_db(exp_db_path)

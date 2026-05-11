@@ -87,8 +87,8 @@ _JS_RENDERED_EXACT_HOSTS: tuple[str, ...] = ("careers.westernunion.com",)
 # selector inside that frame. Without an iframe segment, the value is a
 # plain `page.locator()` selector.
 #
-# Examples (illustrative — see _HOST_BODY_SELECTORS / _FAMILIES below
-# for the actual entries):
+# Examples (illustrative — see _HOST_BODY_SELECTORS /
+# _HOST_BODY_SELECTOR_FAMILIES below for the actual entries):
 #   "iframe#grnhse_iframe >> #content"  -> frame_locator("iframe#grnhse_iframe").locator("#content")
 #   "div.jd-body"                       -> page.locator("div.jd-body")
 #

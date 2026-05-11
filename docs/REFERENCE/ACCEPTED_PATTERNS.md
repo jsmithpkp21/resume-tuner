@@ -105,9 +105,12 @@ not lose), update `scripts/validate_agents_drift.py` in the same PR.
 
 ---
 
-## Promotion to consumer repos
+## Distribution to consumer repos
 
-This convention currently lives only in the `tooling` source repo. Whether
-to promote it to consumer repos via sync is deferred until the pattern is
-proven here. See the "Tooling Promotion Policy (Consumer → Tooling)"
-section of `AGENTS.md` for how promotion works once that decision is made.
+This convention and its reference doc are managed files and ship to consumer
+repos via `.tooling-sync-manifest.toml`, so the same accepted-pattern
+conventions apply project-wide. Edit the entries in the tooling source repo's
+`AGENTS.md` (and this doc) — consumers receive updates on their next
+`make sync-tooling` run. Entries that are repo-specific (a pattern only
+accepted in one consumer) should live in that repo's `AGENTS_LOCAL.md`
+override file instead, since `AGENTS.md` is overwritten by sync.

@@ -93,7 +93,7 @@ def _canonicalize_name(name: str) -> str:
 
     https://peps.python.org/pep-0503/#normalized-names
     """
-    return _PEP503_NAME_RUN.sub("-", name).strip("-").lower()
+    return _PEP503_NAME_RUN.sub("-", name).lower()
 
 
 def _normalize_requirement_name(spec: str) -> str:

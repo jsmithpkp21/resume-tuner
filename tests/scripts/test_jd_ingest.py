@@ -1767,6 +1767,33 @@ def test_resolve_host_body_selector_returns_none_when_no_match(
     assert _resolve_host_body_selector("") is None
 
 
+def test_resolve_host_body_selector_picks_longest_matching_family_suffix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When multiple family suffixes match, the longest (most specific)
+    wins — regardless of dict insertion order. PR #313 review.
+    """
+    monkeypatch.setattr("scripts.jd_ingest._HOST_BODY_SELECTORS", {})
+    # Broad entry inserted FIRST, specific entry inserted SECOND: longest
+    # still wins.
+    monkeypatch.setattr(
+        "scripts.jd_ingest._HOST_BODY_SELECTOR_FAMILIES",
+        {"example.com": "div.broad", "jobs.example.com": "div.specific"},
+    )
+    assert _resolve_host_body_selector("board.jobs.example.com") == "div.specific"
+    assert _resolve_host_body_selector("jobs.example.com") == "div.specific"
+    # Host that only matches the broad entry still resolves correctly.
+    assert _resolve_host_body_selector("other.example.com") == "div.broad"
+
+    # Reverse insertion order: specific first, broad second. Result
+    # must not change.
+    monkeypatch.setattr(
+        "scripts.jd_ingest._HOST_BODY_SELECTOR_FAMILIES",
+        {"jobs.example.com": "div.specific", "example.com": "div.broad"},
+    )
+    assert _resolve_host_body_selector("board.jobs.example.com") == "div.specific"
+
+
 def test_fetch_via_playwright_uses_host_body_selector_when_no_jsonld(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1793,6 +1820,35 @@ def test_fetch_via_playwright_uses_host_body_selector_when_no_jsonld(
     assert "source:playwright" in result.notes
     assert "source:host-selector:radarfirst.com" in result.notes
     assert "source:jsonld+jobposting" not in result.notes
+
+
+def test_fetch_via_playwright_host_body_selector_preserves_literal_angle_brackets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Selector snippet is plain text already (Playwright `text_content()`).
+    Literal ``<...>`` sequences in the JD (e.g. ``<Company>`` placeholder
+    text, or ``a < b`` prose) must NOT be consumed by an HTML parser on
+    the selector path — they would silently disappear when routed
+    through `_html_to_text`. PR #313 review.
+    """
+    monkeypatch.setenv("RESUME_BUILDER_ENABLE_PLAYWRIGHT", "1")
+    monkeypatch.setattr("scripts.jd_ingest._import_sync_playwright", lambda: object())
+    snippet = "Hello from <Company>! Edge condition: a < b in formula."
+    monkeypatch.setattr(
+        "scripts.jd_ingest._playwright_fetch_html",
+        lambda _sync, _url: (
+            "title",
+            "<html><body><p>page chrome</p></body></html>",
+            snippet,
+        ),
+    )
+    result = _fetch_via_playwright("https://radarfirst.com/?gh_jid=123")
+    assert result is not None
+    # All three angle-bracket-bearing tokens survive intact:
+    assert "<Company>" in result.description
+    assert "a < b" in result.description
+    assert "in formula." in result.description
+    assert "source:host-selector:radarfirst.com" in result.notes
 
 
 def test_fetch_via_playwright_prefers_jsonld_over_host_body_selector(

@@ -854,6 +854,27 @@ class _PlainTextHTMLParser(HTMLParser):
         return _html_lib.unescape("".join(self._chunks)).strip()
 
 
+def _normalize_plain_text(text: str) -> str:
+    """Collapse whitespace runs / blank-line runs on already-plain text.
+
+    Shared tail step for both `_html_to_text` (post-parse) and the
+    issue #298 host-body-selector path (which receives Playwright
+    `text_content()` output — already plain text). Kept separate from
+    `_html_to_text` so plain-text inputs aren't fed through the HTML
+    parser, which would silently consume literal ``<...>`` runs (e.g.
+    ``<Company>`` placeholder or ``a < b`` prose without spaces).
+
+    NBSP (\\xa0) is included in the whitespace class because HTMLParser
+    preserves it when ``&nbsp;`` is decoded; runs of NBSP would
+    otherwise leave odd spacing in the extracted JD body.
+    """
+    if not text:
+        return ""
+    out = re.sub(r"[ \t\xa0]+", " ", text)
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    return out
+
+
 def _html_to_text(raw: str) -> str:
     """Convert API-returned HTML into normalized plain text."""
     if not raw:
@@ -861,14 +882,7 @@ def _html_to_text(raw: str) -> str:
     parser = _PlainTextHTMLParser()
     parser.feed(raw)
     parser.close()
-    # Collapse runs of whitespace (excluding newlines we inserted) so the
-    # downstream description-excerpt truncation gets useful content. NBSP
-    # (\xa0) is included because HTMLParser preserves the NBSP character
-    # when &nbsp; is decoded; runs of NBSP would otherwise leave odd
-    # spacing in the extracted JD body.
-    text = re.sub(r"[ \t\xa0]+", " ", parser.text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text
+    return _normalize_plain_text(parser.text)
 
 
 # ---------------------------------------------------------------------------
@@ -1200,10 +1214,15 @@ def _resolve_host_body_selector(host: str) -> str | None:
     """Look up a per-host JD-body selector, exact then family suffix.
 
     Returns ``None`` when no entry matches — callers fall through to the
-    raw HTML-text extract. Mirrors the resolution order in
-    ``_host_needs_javascript_render``: exact-host map first, then host
-    family suffixes (so ``board-page.example.com`` can match a
-    ``example.com`` family entry). Issue #298.
+    raw HTML-text extract. Resolution order:
+    1. Exact host match in ``_HOST_BODY_SELECTORS`` (mirrors
+       ``_JS_RENDERED_EXACT_HOSTS``).
+    2. Longest-suffix match across ``_HOST_BODY_SELECTOR_FAMILIES``. The
+       longest matching family wins so e.g. a ``jobs.example.com``
+       entry takes precedence over a broader ``example.com`` entry
+       regardless of dict insertion order. PR #313 review.
+
+    Issue #298.
     """
     host = (host or "").lower().split(":", maxsplit=1)[0]
     if not host:
@@ -1211,10 +1230,14 @@ def _resolve_host_body_selector(host: str) -> str | None:
     selector = _HOST_BODY_SELECTORS.get(host)
     if selector:
         return selector
-    for family, family_selector in _HOST_BODY_SELECTOR_FAMILIES.items():
+    best_family: str | None = None
+    for family in _HOST_BODY_SELECTOR_FAMILIES:
         if host == family or host.endswith("." + family):
-            return family_selector
-    return None
+            if best_family is None or len(family) > len(best_family):
+                best_family = family
+    if best_family is None:
+        return None
+    return _HOST_BODY_SELECTOR_FAMILIES[best_family]
 
 
 def _extract_via_host_body_selector(page: Any, selector: str) -> str | None:
@@ -1359,7 +1382,13 @@ def _fetch_via_playwright(url: str) -> FetchedPage | None:
         notes: tuple[str, ...] = ("source:playwright", "source:jsonld+jobposting")
     elif body_snippet:
         host = (urlparse(url).hostname or "").lower()
-        description = _html_to_text(body_snippet)
+        # body_snippet is already plain text (Playwright's
+        # `text_content()` strips tags). Normalize whitespace directly
+        # without round-tripping through the HTML parser — feeding plain
+        # text into `_html_to_text` would silently consume literal
+        # ``<...>`` runs in the JD body (e.g. ``<Company>``
+        # placeholders). PR #313 review.
+        description = _normalize_plain_text(body_snippet)
         notes = ("source:playwright", f"source:host-selector:{host}")
     else:
         # Bound the text-extract path at the static-fetch budget so

@@ -98,7 +98,9 @@ def validate_experience_data(
 
 def main() -> int:
     """Run validation."""
-    project_root = Path(__file__).parent.parent
+    # File lives at src/resume_builder/validate_experience_data.py (issue #41
+    # refactor), so the repo root is three parents up rather than two.
+    project_root = Path(__file__).resolve().parents[2]
 
     exp_db_path = project_root / "data" / "experience" / "experience_db.toml"
     skills_path = project_root / "data" / "skills" / "skills_matrix.csv"

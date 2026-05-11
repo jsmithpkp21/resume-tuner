@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Back-compat shim for DOCX/PDF resume export.
 
-The renderer logic moved to ``scripts/document_export.py`` and the unified CLI
-lives in ``scripts/build_resume.py`` (see ``--outputs``). This module remains
-as a thin wrapper so existing invocations of ``python scripts/export_resume_documents.py``
-keep working: it delegates the build to ``build_resume.run_pipeline`` (with
-``--outputs=html,md``) and then renders DOCX+PDF using the shared helpers
+The renderer logic lives in ``resume_builder.document_export`` and the unified
+CLI is ``resume_builder.build_resume`` (see ``--outputs``). This module remains
+as a thin wrapper so existing invocations of
+``python scripts/export_resume_documents.py`` (via the scripts/ compatibility
+wrapper) keep working: it delegates the build to ``build_resume.run_pipeline``
+(with ``--outputs=html,md``) and then renders DOCX+PDF using the shared helpers
 re-exported below.
 
 Full removal is tracked as a follow-up.
@@ -22,12 +23,12 @@ from . import build_resume, document_export
 # ---------------------------------------------------------------------------
 # Back-compat re-exports.
 #
-# The cross-module API in ``scripts/document_export.py`` uses public (non-
-# underscore) names. This shim keeps the old underscore-prefixed aliases
-# pointing at the public helpers so existing imports and tests that
-# monkeypatch attributes on this module (e.g. ``monkeypatch.setattr(
+# The cross-module API in ``resume_builder.document_export`` uses public
+# (non-underscore) names. This shim keeps the old underscore-prefixed
+# aliases pointing at the public helpers so existing imports and tests
+# that monkeypatch attributes on this module (e.g. ``monkeypatch.setattr(
 # export_resume_documents, "_render_docx", ...)``) keep working. New code
-# should import from ``scripts.document_export`` directly.
+# should import from ``resume_builder.document_export`` directly.
 # ---------------------------------------------------------------------------
 _SKIP_LINE_RE = document_export._SKIP_LINE_RE
 _BOLD_SPLIT_RE = document_export._BOLD_SPLIT_RE

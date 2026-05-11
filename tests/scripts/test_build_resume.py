@@ -2839,6 +2839,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, {str(REPO_ROOT)!r})
+sys.path.insert(0, {str(REPO_ROOT / "src")!r})  # #41: resume_builder lives under src/
 os.environ["RESUME_BUILDER_LLM_ENABLED"] = "1"
 
 import resume_builder.build_resume as br

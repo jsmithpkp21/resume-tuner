@@ -1,14 +1,15 @@
 """Cover-letter generation entry point used by build_resume's --cover-letter flag.
 
-Delegates to ``scripts.build_cover_letter.run_pipeline_collecting_paths``
+Delegates to ``resume_builder.build_cover_letter.run_pipeline_collecting_paths``
 (the standalone CLI's core), supplying an argparse Namespace built from
 the resume CLI's own args. Returns the list of paths actually written so
 ``build_resume`` can register them for staging output.
 
 For finer control (word budget, hiring manager override, addressee
 confidence threshold, custom output filenames), invoke
-``scripts/build_cover_letter.py`` directly instead of going through
-``build_resume.py --cover-letter``.
+``resume_builder.build_cover_letter`` directly (the
+``scripts/build_cover_letter.py`` compatibility wrapper preserves the
+``python scripts/build_cover_letter.py`` CLI entry).
 """
 
 from __future__ import annotations

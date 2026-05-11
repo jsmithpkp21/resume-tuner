@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.47.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.46.0...v0.47.0) (2026-05-11)
+
+
+### Features
+
+* **jd-ingest:** per-host JD body selectors as fallback when JSON-LD JobPosting absent ([0af5e70](https://github.com/jsmithpkp21/resume-builder/commit/0af5e70bd0a6d9c917bb936499c324b8c9201d31))
+
+
+### Bug Fixes
+
+* **jd-ingest:** address PR [#313](https://github.com/jsmithpkp21/resume-builder/issues/313) review on body-snippet normalizer + family-suffix precedence ([d57f112](https://github.com/jsmithpkp21/resume-builder/commit/d57f112af673b598db98d189e0e695839eff3941))
+* **jd-ingest:** address PR [#313](https://github.com/jsmithpkp21/resume-builder/issues/313) review round 3 — strip plain-text helper + don't truncate IPv6 hosts ([ed9a120](https://github.com/jsmithpkp21/resume-builder/commit/ed9a120c12166dbf8993c3776fe719deaab2eb27))
+
+
+### Documentation
+
+* **jd-ingest:** use full _HOST_BODY_SELECTOR_FAMILIES name in comment ([d8bd391](https://github.com/jsmithpkp21/resume-builder/commit/d8bd391d45c76e9b2d9002353e2e78a9dced1550))
+
 ## [0.46.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.45.0...v0.46.0) (2026-05-11)
 
 

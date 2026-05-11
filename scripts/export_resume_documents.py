@@ -14,6 +14,7 @@ if str(_SRC) not in _sys.path:
 
 import resume_builder.export_resume_documents as _impl  # noqa: E402
 from resume_builder.export_resume_documents import *  # noqa: E402, F401, F403
+from resume_builder.export_resume_documents import run  # noqa: E402
 
 # `import *` skips underscore-prefixed names; copy the full implementation
 # namespace so legacy callers (`from scripts.export_resume_documents import _private`) and
@@ -21,6 +22,4 @@ from resume_builder.export_resume_documents import *  # noqa: E402, F401, F403
 globals().update({k: v for k, v in vars(_impl).items() if not k.startswith("__")})
 
 if __name__ == "__main__":
-    import runpy
-
-    runpy.run_module("resume_builder.export_resume_documents", run_name="__main__")
+    raise SystemExit(run())

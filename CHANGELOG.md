@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.47.1...v0.47.2) (2026-05-11)
+
+
+### Bug Fixes
+
+* **resume_builder:** validate_experience_data.main() return + check_canonical_coverage docstring ([cc7c6dd](https://github.com/jsmithpkp21/resume-builder/commit/cc7c6dd6f4c90001d41346aecd4656953809a862))
+
 ## [0.47.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.47.0...v0.47.1) (2026-05-11)
 
 

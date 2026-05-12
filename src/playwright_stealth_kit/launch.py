@@ -28,12 +28,19 @@ and issue #323. Summary:
 from __future__ import annotations
 
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from playwright.sync_api import BrowserContext, sync_playwright
-from playwright_stealth import Stealth
+if TYPE_CHECKING:
+    from playwright.sync_api import BrowserContext
+
+# Note: `playwright` and `playwright_stealth` are imported lazily inside
+# launch_stealth_chrome() so `import playwright_stealth_kit` succeeds in
+# environments that haven't installed the optional Playwright layer
+# (e.g. fresh consumer venvs where Playwright is gated on
+# RESUME_BUILDER_ENABLE_PLAYWRIGHT). Callers that actually invoke the
+# helper get a clear ImportError pointing at the install command.
 
 DEFAULT_VIEWPORT: dict[str, int] = {"width": 1280, "height": 900}
 DEFAULT_CHANNEL: str = "chrome"
@@ -94,6 +101,18 @@ def launch_stealth_chrome(
     - Stealth is applied to every page in the context (including new
       tabs and SSO popups) — no per-page work needed by the caller.
     """
+    # Lazy imports so `import playwright_stealth_kit` succeeds in venvs
+    # without the optional Playwright layer; only fails on actual use.
+    try:
+        from playwright.sync_api import sync_playwright
+        from playwright_stealth import Stealth
+    except ImportError as e:
+        raise ImportError(
+            "playwright and/or playwright-stealth are required to call "
+            "launch_stealth_chrome(). Install: "
+            "pip install playwright playwright-stealth"
+        ) from e
+
     launch_kwargs: dict[str, Any] = {
         "user_data_dir": str(user_data_dir),
         "headless": headless,
@@ -116,7 +135,7 @@ def launch_stealth_chrome(
         try:
             yield context
         finally:
-            try:
+            # Browser may already be gone (user closed window mid-session);
+            # close failure is expected and harmless in that case.
+            with suppress(Exception):
                 context.close()
-            except Exception:  # browser may already be gone
-                pass

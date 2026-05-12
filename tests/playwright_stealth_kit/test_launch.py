@@ -22,8 +22,8 @@ from pathlib import Path
 
 import pytest
 
-playwright_stealth = pytest.importorskip("playwright_stealth")
-playwright = pytest.importorskip("playwright.sync_api")
+pytest.importorskip("playwright_stealth")
+pytest.importorskip("playwright.sync_api")
 
 
 def test_launch_helper_is_importable_and_documented() -> None:
@@ -64,8 +64,11 @@ def test_launch_stealth_chrome_actually_launches_with_stealth_applied(
     """
     import shutil
 
-    if not shutil.which("google-chrome") and not shutil.which("chromium"):
-        pytest.skip("no system Chrome/Chromium available")
+    # launch_stealth_chrome defaults to channel='chrome' (Google Chrome).
+    # `chromium` alone is not sufficient — we'd just fail at launch on a
+    # system that has chromium-but-not-chrome. Skip cleanly instead.
+    if not shutil.which("google-chrome"):
+        pytest.skip("no Google Chrome available (kit defaults to channel='chrome')")
 
     from playwright_stealth_kit import launch_stealth_chrome
 

@@ -63,6 +63,7 @@ import time
 import tomllib
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 try:
     from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -201,6 +202,11 @@ def main(argv: list[str] | None = None) -> int:
     # need it repeated for every password / verify-password field on
     # the same page. Empty until the first account match fires.
     credential_seen: set[tuple[str, str]] = set()
+    # Per-hostname cache of resolved (ats, tenant). Carries the
+    # answer from the first hook call (which may have prompted for
+    # ATS+tenant when inference failed) into later password fields
+    # on the same host, so the user isn't asked again per field.
+    host_ats_tenant_cache: dict[str, tuple[str, str]] = {}
     prompter = _TerminalPrompter()
 
     def write_decisions() -> None:
@@ -240,6 +246,12 @@ def main(argv: list[str] | None = None) -> int:
                         bank_path = (Path.cwd() / bank_path).resolve()
                     assert_not_blocked_runtime_input(bank_path)
                     ats, tenant = infer_ats_tenant(page_url)
+                    host = urlparse(page_url).hostname or ""
+                    # If inference failed but we already prompted on
+                    # this host, reuse the resolved pair instead of
+                    # asking the user again for every password label.
+                    if ats is None and tenant is None and host in host_ats_tenant_cache:
+                        ats, tenant = host_ats_tenant_cache[host]
                     cred_result = handle_credential_match(
                         ats=ats,
                         tenant=tenant,
@@ -247,6 +259,11 @@ def main(argv: list[str] | None = None) -> int:
                         prompter=prompter,
                         credentials_path=bank_path,
                     )
+                    if host:
+                        host_ats_tenant_cache[host] = (
+                            cred_result.ats,
+                            cred_result.tenant,
+                        )
                     cred_key = (cred_result.ats, cred_result.tenant)
                     if cred_key not in credential_seen:
                         credential_seen.add(cred_key)

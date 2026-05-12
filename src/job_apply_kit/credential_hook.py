@@ -93,7 +93,7 @@ def _prompt_required(
 ) -> str:
     """Prompt for a required non-empty value with up to 3 attempts.
 
-    `credential_store._normalize_key` raises `ValueError` if the
+    `credential_store.normalize_key` raises `ValueError` if the
     normalized key is empty, which would crash an interactive session
     mid-form. Re-prompt instead so the user can correct typos, and
     only raise if they keep entering empty/whitespace input.
@@ -116,12 +116,15 @@ def _prompt_required(
     prompt = initial
     for _ in range(_MAX_PROMPT_ATTEMPTS):
         raw = prompter.ask_secret(prompt) if secret else prompter.ask(prompt)
-        # Don't strip secrets — passwords can legitimately have leading /
-        # trailing whitespace and silently mangling them is worse than
-        # storing one verbatim.
-        value = raw if secret else raw.strip()
-        if value:
-            return value
+        # Empty-check both kinds via `raw.strip()` — an all-whitespace
+        # password is rejected here so it can never be recorded, then
+        # later fail validation (`username/password.strip()`) on the
+        # saved-credential path and cause a re-prompt loop.
+        # Plain values are returned stripped; secrets are returned
+        # verbatim so "  S3cret!  " is preserved (legitimate
+        # surrounding whitespace shouldn't be silently mangled).
+        if raw.strip():
+            return raw if secret else raw.strip()
         prompt = retry
     raise ValueError(
         f"Got empty {what} after {_MAX_PROMPT_ATTEMPTS} attempts; aborting session."

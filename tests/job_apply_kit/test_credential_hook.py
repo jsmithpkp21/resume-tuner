@@ -281,6 +281,48 @@ class TestEmptyPromptHandling:
         assert result.password == "real-password"
         assert result.recorded is True
 
+    def test_whitespace_only_password_retries(self, creds_path: Path) -> None:
+        # An all-whitespace password would be recorded (no strip on
+        # secrets) and then immediately fail the saved-credential
+        # validation on the next lookup, causing a re-prompt loop.
+        # Reject at prompt time. (PR #361 review round 3.)
+        prompter = FakePrompter(
+            answers=["u@example.com"],
+            secrets=["   ", "\t\n", "real-pw"],
+        )
+        result = handle_credential_match(
+            ats="workday",
+            tenant="becu",
+            page_url="",
+            prompter=prompter,
+            credentials_path=creds_path,
+        )
+        assert result.password == "real-pw"
+        # All three secret prompts fired (2 rejected + 1 accepted).
+        assert len(prompter.asked_secret) == 3
+
+    def test_password_with_surrounding_whitespace_preserved(
+        self, creds_path: Path
+    ) -> None:
+        # Whitespace AROUND a real password is meaningful (some
+        # credentials happen to have it) — don't strip on secrets.
+        prompter = FakePrompter(
+            answers=["u@example.com"],
+            secrets=["  S3cret!  "],
+        )
+        result = handle_credential_match(
+            ats="workday",
+            tenant="becu",
+            page_url="",
+            prompter=prompter,
+            credentials_path=creds_path,
+        )
+        assert result.password == "  S3cret!  "
+        # And it round-trips through credential_store unchanged.
+        entry = credential_store.lookup("workday", "becu", path=creds_path)
+        assert entry is not None
+        assert entry["password"] == "  S3cret!  "
+
 
 class TestPasswordReprSafety:
     """`CredentialResult` must not leak the password through dataclass

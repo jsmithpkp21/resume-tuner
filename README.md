@@ -216,7 +216,7 @@ else:
 
 Both ATS family and tenant arguments are normalized to lowercase slugs: punctuation and whitespace runs collapse to a single underscore, so `"Workday"` / `"workday"` / `"WORKDAY"` collide, and `"My ATS"` / `"my-ats"` / `"my_ats"` resolve to `my_ats`. Inputs that normalize to an empty string raise `ValueError`.
 
-**Display-only contract.** Integrations that detect login fields during a record/fill session (issue #319 follow-up — `record_session.py` / `fill_session.py` are not yet implemented; this PR only ships the store) MUST surface the looked-up password and let the user type it. Never autofill — the threat model in issue #333 calls out that Workday's bot-detection is triggered by automated form fills, and silent autofill into a phishing imitation form would also leak credentials.
+**Display-only contract.** Integrations that detect login fields during a record/fill session MUST surface the looked-up password and let the user type it. Never autofill — the threat model in issue #333 calls out that Workday's bot-detection is triggered by automated form fills, and silent autofill into a phishing imitation form would also leak credentials. The hook into `record_session.py` / `fill_session.py` and the `_answer_bank.toml` `[account]` pointer are tracked in **issue #341** (blocked by #319, which creates those session files).
 
 ---
 

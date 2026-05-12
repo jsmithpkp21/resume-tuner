@@ -146,17 +146,26 @@ class _TerminalPrompter:
 
 
 def _decision_summary(decisions: list[dict[str, Any]]) -> dict[str, int]:
-    """Per-bucket counts: filled / fill-error / match[decision] / skip[reason]."""
+    """Per-bucket counts for the run summary.
+
+    Buckets:
+
+      - ``filled`` / ``fill-error`` — live-mode DOM action outcomes.
+      - ``match[<decision>]`` — Match that didn't fill, bucketed by the
+        gate decision (``skip-dry-run`` / ``skip-section-gated`` /
+        ``skip-account`` / ``skip-work-experience`` / ``skip-confirm-*``).
+        Every Match entry has a ``decision`` field set by `on_snapshot`,
+        so a plain ``match`` bucket should never appear in practice.
+      - ``skip[<reason>]`` — Skip from the matcher (honeypot, no-match,
+        empty-value, unresolved-sub-key, intentional-skip).
+    """
     out: dict[str, int] = {}
     for d in decisions:
         k = d["outcome"]
         if "reason" in d:
-            # Skip entry from the matcher (honeypot, no-match, etc.).
+            # Skip entry from the matcher.
             k = f"skip[{d['reason']}]"
         elif k == "match" and "decision" in d:
-            # Dry-run or gated Match — break out by gate decision so
-            # the user sees how many fills were dropped to e.g.
-            # `skip-section-gated` vs `skip-dry-run`.
             k = f"match[{d['decision']}]"
         out[k] = out.get(k, 0) + 1
     return out
@@ -301,6 +310,13 @@ def main(argv: list[str] | None = None) -> int:
     # live-fill path needs a page reference; reading from a cell lets
     # us write once after launch without restructuring the closure.
     page_holder: list[Any] = [None]
+    # Set by the --confirm-before-fill `q` answer. Checked by the
+    # main wait_for_event loop so the session shuts down via the
+    # existing close-handling path (predictable trace + decisions
+    # flush) instead of raising KeyboardInterrupt inside a
+    # Playwright-exposed callback, where exceptions don't surface
+    # cleanly through the JS bridge.
+    quit_requested: list[bool] = [False]
     prompter = _TerminalPrompter()
 
     def write_decisions() -> None:
@@ -365,6 +381,11 @@ def main(argv: list[str] | None = None) -> int:
                 "textarea",
                 "contenteditable",
                 "combobox",
+                # `field_extractor.js` emits "textbox" for elements
+                # with `role="textbox"` (custom rich-text components,
+                # Workday's contenteditable wrappers). Same fill
+                # semantics as a plain text input.
+                "textbox",
             ):
                 # Clear first — `press_sequentially` appends to existing
                 # content, and ATS apply flows for logged-in users
@@ -431,17 +452,29 @@ def main(argv: list[str] | None = None) -> int:
             seen_keys.add(key)
             d = match(lbl, bank)
             if isinstance(d, Match):
-                # account.password_lookup_path is special: the bank
-                # value is a documentation pointer, not the actual
-                # password. Hand off to the credential hook (#341) and
-                # NEVER persist the secret to the decisions JSON.
-                if d.section == "account" and d.sub_key == "password_lookup_path":
-                    # Honor the bank's pointer so users can keep their
-                    # credentials file outside the default location.
-                    # Resolve relative paths from CWD (the typical
-                    # `cd repo-root && fill_application.py` workflow)
-                    # and re-apply the runtime-roots guard before
-                    # touching the filesystem.
+                # `decide_fill` is the single source of truth for what
+                # to do with a Match. It encodes the
+                # account.password_lookup_path → skip-account special-
+                # case, the work_experience deferral, the honeypot
+                # rail, the --live + --fill-sections gates, etc.
+                # `on_snapshot` just routes on the returned decision.
+                # Annotated `str` (not the narrower `FillDecision`
+                # literal) because the confirm-before-fill branch can
+                # overwrite the value with a runtime-only state like
+                # `"skip-confirm-no"` that's not in the literal union.
+                decision: str = decide_fill(
+                    section=d.section,
+                    sub_key=d.sub_key,
+                    skip_reason=None,
+                    live=args.live,
+                    allowed_sections=allowed_sections - skip_sections_runtime,
+                )
+
+                if decision == "skip-account":
+                    # Hand off to the credential hook (#341). The bank
+                    # value is a documentation pointer to credentials.toml;
+                    # honor relative paths from CWD and re-apply the
+                    # runtime-roots guard before any I/O.
                     bank_path = Path(d.value)
                     if not bank_path.is_absolute():
                         bank_path = (Path.cwd() / bank_path).resolve()
@@ -471,6 +504,10 @@ def main(argv: list[str] | None = None) -> int:
                         print(cred_result.message)
                     entry = {
                         "outcome": "match",
+                        # `decision` populated so `_decision_summary`
+                        # buckets these under `match[skip-account]`
+                        # uniformly with other gated matches.
+                        "decision": decision,
                         "label": lbl,
                         "type": ftype,
                         "section": d.section,
@@ -489,21 +526,6 @@ def main(argv: list[str] | None = None) -> int:
                     decisions.append(entry)
                     new += 1
                     continue
-
-                # All non-account Matches go through the live-fill gate.
-                # `decide_fill` returns one of fill / skip-dry-run /
-                # skip-section-gated / skip-work-experience / etc.
-                # Annotated `str` (not the narrower `FillDecision`
-                # literal) because the confirm-before-fill branch can
-                # overwrite the value with a runtime-only state like
-                # `"skip-confirm-no"` that's not in the literal union.
-                decision: str = decide_fill(
-                    section=d.section,
-                    sub_key=d.sub_key,
-                    skip_reason=None,
-                    live=args.live,
-                    allowed_sections=allowed_sections - skip_sections_runtime,
-                )
 
                 # Single source of truth for redaction so JSON + terminal
                 # output can never disagree (e.g. drift from a future tweak
@@ -532,7 +554,18 @@ def main(argv: list[str] | None = None) -> int:
                             decision = "skip-confirm-section"
                             break
                         if resp == "q":
-                            raise KeyboardInterrupt
+                            # Flag the main loop to exit via the
+                            # close-handling path; closing the context
+                            # here triggers the wait_for_event("close")
+                            # immediately so the user doesn't wait the
+                            # full heartbeat interval.
+                            quit_requested[0] = True
+                            decision = "skip-quit"
+                            try:
+                                page_holder[0].context.close()
+                            except Exception:
+                                pass
+                            break
                         prompt = "  please answer y / n / s / q: "
 
                 if decision == "fill":
@@ -664,10 +697,20 @@ def main(argv: list[str] | None = None) -> int:
                 print("    Drive the apply page manually; the matcher logs decisions")
             print("    in real time. Close the Chrome window when done.\n")
             while True:
+                # Check the quit flag first — it's set when the user
+                # answered "q" to a --confirm-before-fill prompt and
+                # the on_snapshot handler already triggered
+                # `context.close()`. Belt-and-braces: even if the close
+                # event fired before we entered this branch, the flag
+                # gives the loop a definitive exit signal.
+                if quit_requested[0]:
+                    break
                 try:
                     context.wait_for_event("close", timeout=CHUNK_INTERVAL_S * 1000)
                     break
                 except PlaywrightTimeoutError:
+                    if quit_requested[0]:
+                        break
                     if not flush_chunk("heartbeat"):
                         break
                     context.tracing.start_chunk()

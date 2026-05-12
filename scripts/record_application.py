@@ -34,6 +34,18 @@ Safety:
   - `--profile-dir` / `--capture-dir` are checked against the repo's
     blocked-runtime-roots policy (sandbox/, data/samples/) before any
     filesystem mkdir or write.
+
+Privacy (#351):
+  - The injected field extractor (`job_apply_kit.field_extractor.js`)
+    intentionally does NOT capture user-typed values from inputs,
+    textareas, contenteditables, or comboboxes. Capture files contain
+    only labels + structural metadata, never passwords / SSNs / OTPs.
+  - Radio + select `options` are emitted with `value` + `label` (page
+    content) but never the user's current `checked` / `selected` choice.
+  - Captures recorded *before* the #351 fix may still contain raw
+    values on disk under `--capture-dir`. Purge with `rm -rf
+    data/applications/_capture` if those captures predate this script's
+    install.
 """
 
 from __future__ import annotations

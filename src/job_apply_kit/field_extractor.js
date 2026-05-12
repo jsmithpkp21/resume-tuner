@@ -2,6 +2,20 @@
 // (including open shadow roots) to extract form-field metadata. Debounces
 // on DOM mutations so we get one snapshot per stable step. Pushes back to
 // the Python driver via window.__claudePush exposed there.
+//
+// Privacy contract (#351):
+//   - This script NEVER emits user-typed input contents (`.value`,
+//     `.innerText`) for inputs/textareas/contenteditable/comboboxes.
+//     Capture files would otherwise persist passwords, SSNs, OTPs, etc.
+//     in cleartext on disk.
+//   - For radio/select options, only `value` + `label` (form-author-
+//     supplied option metadata, visible on the page) are emitted. The
+//     user's current selection (`checked` / `selected`) is intentionally
+//     omitted — it reveals user choices on sensitive forms (EEO,
+//     veteran status, disability disclosure, etc.).
+//   - The matcher consumes only `label` + `type`; nothing in
+//     `job_apply_kit` reads user-typed contents, so this stripping is
+//     a zero-behavior-change privacy fix.
 
 (() => {
   if (window.__claudeExtractorInstalled) return;
@@ -60,10 +74,12 @@
         try {
           group = [...document.querySelectorAll(`input[type="radio"][name="${CSS.escape(el.name)}"]`)];
         } catch (_) { group = [el]; }
+        // Privacy: `value` and `label` are form-author-supplied (visible
+        // on the page); `r.checked` would reveal which option the user
+        // picked, so we omit it. See header.
         const opts = group.map((r) => ({
           value: r.value,
           label: labelOf(r),
-          checked: !!r.checked,
         }));
         fields.push({
           label: labelOf(el),
@@ -77,10 +93,12 @@
 
       let opts;
       if (el.tagName === 'SELECT') {
+        // Privacy: same posture as radio above — emit form-author option
+        // metadata (`value`, `label`) but omit `o.selected` so we don't
+        // record the user's current selection.
         opts = [...el.options].map((o) => ({
           value: o.value,
           label: o.text,
-          selected: o.selected,
         }));
       }
 
@@ -90,6 +108,9 @@
         : el.contentEditable === 'true' ? 'contenteditable'
         : type || el.getAttribute('role') || el.tagName.toLowerCase();
 
+      // Privacy: NO `value` / `innerText` capture for inputs / textareas /
+      // contenteditable / comboboxes — see header. The matcher operates on
+      // labels and structural metadata only.
       fields.push({
         label: labelOf(el),
         type: fieldType,
@@ -98,7 +119,6 @@
         autocomplete: el.autocomplete || '',
         placeholder: el.placeholder || '',
         required: !!el.required || el.getAttribute('aria-required') === 'true',
-        value: el.value !== undefined ? el.value : (el.innerText || '').slice(0, 500),
         options: opts,
       });
     }

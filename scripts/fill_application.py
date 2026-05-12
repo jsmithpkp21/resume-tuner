@@ -34,6 +34,10 @@ Privacy:
   - Pass `--show-values` to print the actual filled value (local debug only).
   - The fill-decisions JSON ALWAYS redacts values unless `--show-values`
     is set, so capture archives are safe to share.
+  - Scope: `--show-values` controls only the **answer-bank-derived**
+    display path. The injected field extractor (#351) never captures
+    user-typed input contents from the live page, so there is no
+    "show user-typed values" knob — that data simply isn't collected.
 
 Safety:
   - `--slug` is validated against `[A-Za-z0-9_-]` to prevent path-escape.

@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.48.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.47.3...v0.48.0) (2026-05-12)
+
+
+### Features
+
+* **application-submission:** per-ATS credential store with reusable / memorable passwords ([5a73380](https://github.com/jsmithpkp21/resume-builder/commit/5a73380bbe38db19e1269e631502b3a77001514b))
+
+
+### Bug Fixes
+
+* **application-submission:** address PR [#337](https://github.com/jsmithpkp21/resume-builder/issues/337) review round 1 ([aedd486](https://github.com/jsmithpkp21/resume-builder/commit/aedd486c2ff4156aed153882ee020a075682d1d8))
+
+
+### Documentation
+
+* **application-submission:** clarify credential_store normalization in README ([123b89e](https://github.com/jsmithpkp21/resume-builder/commit/123b89e12a8931623ea0dff6270ad5ca6c7c34aa))
+
 ## [0.47.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.47.2...v0.47.3) (2026-05-12)
 
 

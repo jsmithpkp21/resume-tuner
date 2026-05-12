@@ -1,2 +1,8 @@
 playwright==1.35.0
 pytest-playwright==0.7.2
+# Bot-detection mitigation (issue #323 / resume-builder family).
+# WARNING: scripts/prepare_playwright_layer.py is tooling-synced and regenerates
+# this file from a hardcoded list. The line below will be wiped on the next
+# regeneration unless the tooling repo's generator script learns about
+# playwright-stealth. Follow-up tracked in the tooling repo.
+playwright-stealth==2.0.3

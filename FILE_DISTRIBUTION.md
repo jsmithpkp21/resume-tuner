@@ -9,7 +9,7 @@ controls that lifecycle.
 ## Source of Truth
 
 Managed-file ownership is defined by two artifacts:
-- `.tooling-sync-manifest.toml` at the root of this tooling repo — declares the desired set of files that may be synced
+- [`.tooling-sync-manifest.toml`](https://github.com/jsmithpkp21/tooling/blob/main/.tooling-sync-manifest.toml) at the root of the tooling source repo — declares the desired set of files that may be synced
 - `.tooling-sync-manifest.lock` in each consumer repo — records the managed files actually applied during the most recent successful sync
 
 The manifest defines **what should be managed**.
@@ -66,8 +66,8 @@ set of dev-tool dependencies used by `make setup`/`make verify` checks.
 ## Canonical Doc Locations
 
 This section grounds the Distribution Plan above with a concrete per-category
-map. For the machine-readable list, see this **tooling source repo**'s
-`.tooling-sync-manifest.toml` (the authoritative source). In a consumer repo,
+map. For the machine-readable list, see the tooling source repo's
+[`.tooling-sync-manifest.toml`](https://github.com/jsmithpkp21/tooling/blob/main/.tooling-sync-manifest.toml) (the authoritative source). In a consumer repo,
 `.tooling-sync-manifest.lock` records what was actually applied during the
 last successful sync; the consumer-side `.tooling-sync-manifest.toml` (if
 present) is a snapshot from a prior sync and may be stale (consumers must
@@ -100,7 +100,7 @@ when adding or moving docs.
 ### Where does a new doc go?
 
 - **Shared across the repo family** (process, conventions, runbooks): add it
-  to this tooling repo. Repo-wide invariants (`AGENTS.md`-style) go at the
+  to the tooling source repo. Repo-wide invariants (`AGENTS.md`-style) go at the
   root; everything else goes under `docs/REFERENCE/`. Add the path to
   `.tooling-sync-manifest.toml` so it reaches consumers.
 - **Consumer-specific** (a single repo's status, backlog, or app-specific

@@ -229,12 +229,23 @@ def main(argv: list[str] | None = None) -> int:
                 # password. Hand off to the credential hook (#341) and
                 # NEVER persist the secret to the decisions JSON.
                 if d.section == "account" and d.sub_key == "password_lookup_path":
+                    # Honor the bank's pointer so users can keep their
+                    # credentials file outside the default location.
+                    # Resolve relative paths from CWD (the typical
+                    # `cd repo-root && fill_application.py` workflow)
+                    # and re-apply the runtime-roots guard before
+                    # touching the filesystem.
+                    bank_path = Path(d.value)
+                    if not bank_path.is_absolute():
+                        bank_path = (Path.cwd() / bank_path).resolve()
+                    assert_not_blocked_runtime_input(bank_path)
                     ats, tenant = infer_ats_tenant(page_url)
                     cred_result = handle_credential_match(
                         ats=ats,
                         tenant=tenant,
                         page_url=page_url,
                         prompter=prompter,
+                        credentials_path=bank_path,
                     )
                     cred_key = (cred_result.ats, cred_result.tenant)
                     if cred_key not in credential_seen:

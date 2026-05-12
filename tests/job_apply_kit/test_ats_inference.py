@@ -42,6 +42,24 @@ class TestWorkday:
         url = "https://myworkdayjobs.com/something"
         assert infer_ats_tenant(url) == (None, None)
 
+    def test_cluster_apex_returns_none(self) -> None:
+        # `wd1.myworkdayjobs.com` is a Workday cluster apex, not a
+        # tenant-specific URL. Without the cluster-label guard we
+        # would mis-classify it as tenant=`wd1` and write credentials
+        # under the cluster ID instead of the real tenant. (PR #361
+        # review.)
+        for cluster in ("wd1", "wd5", "wd103"):
+            url = f"https://{cluster}.myworkdayjobs.com/External/job"
+            assert infer_ats_tenant(url) == (None, None), (
+                f"cluster-apex {cluster}.myworkdayjobs.com should not "
+                f"resolve to a workday tenant"
+            )
+
+    def test_cluster_label_case_insensitive(self) -> None:
+        # Just in case Workday ever returns mixed-case in the host.
+        url = "https://WD2.myworkdayjobs.com/x"
+        assert infer_ats_tenant(url) == (None, None)
+
 
 class TestWorkable:
     """Workable apply URLs follow `apply.workable.com/<tenant>/j/<id>/`."""

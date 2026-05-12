@@ -26,7 +26,15 @@ should prompt the user for the values manually.
 
 from __future__ import annotations
 
+import re
 from urllib.parse import urlparse
+
+# Workday cluster identifiers like "wd1", "wd5", "wd103" are subdomain
+# pieces shared across many tenants — never a real tenant name. When
+# the leftmost label before the workday host suffix matches this, the
+# URL is a cluster-apex like `wd1.myworkdayjobs.com` rather than a
+# tenant-specific apply URL.
+_WORKDAY_CLUSTER_LABEL_RE = re.compile(r"^wd\d+$", re.IGNORECASE)
 
 # Hostname → ATS family suffix maps. Each tuple is matched as a
 # "host ends with .<suffix>" check, so a literal "apply.workable.com"
@@ -97,9 +105,11 @@ def infer_ats_tenant(url: str) -> tuple[str | None, str | None]:
         return (None, None)
 
     # Workday — subdomain-based tenant on the workday host suffixes.
+    # Guard against cluster-apex URLs like `wd1.myworkdayjobs.com`
+    # where the leftmost label is a Workday cluster ID, not a tenant.
     for suffix in _WORKDAY_SUFFIXES:
         tenant = _leftmost_label_before_suffix(host, suffix)
-        if tenant:
+        if tenant and not _WORKDAY_CLUSTER_LABEL_RE.match(tenant):
             return ("workday", tenant)
 
     # iCIMS — same shape, different suffix.

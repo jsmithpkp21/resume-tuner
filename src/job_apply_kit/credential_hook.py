@@ -30,7 +30,7 @@ Public API:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
@@ -61,10 +61,16 @@ class CredentialResult:
     ats: str
     tenant: str
     username: str
-    password: str
+    # `password` and `message` are both excluded from the default
+    # dataclass repr so the secret can't leak into exception tracebacks
+    # or accidental logging — the banner text in `message` interpolates
+    # the password, so it carries the same risk. Callers (tests +
+    # fill_application's banner print) access both via direct attribute
+    # lookup.
+    password: str = field(repr=False)
     displayed: bool  # saved credential was found and printed
     recorded: bool  # a new credential was prompted-for and persisted
-    message: str  # banner text the caller should print to terminal
+    message: str = field(repr=False)  # banner text the caller prints
 
 
 def _banner(*, header: str, ats: str, tenant: str, lines: list[str]) -> str:
@@ -72,6 +78,54 @@ def _banner(*, header: str, ats: str, tenant: str, lines: list[str]) -> str:
     title = f"=== {header}: {ats}.{tenant} ==="
     body = "\n".join(lines)
     return f"\n{title}\n{body}\n{'=' * len(title)}\n"
+
+
+_MAX_PROMPT_ATTEMPTS = 3
+
+
+def _prompt_required(
+    prompter: CredentialPrompter,
+    *,
+    initial: str,
+    retry: str,
+    what: str,
+    secret: bool = False,
+) -> str:
+    """Prompt for a required non-empty value with up to 3 attempts.
+
+    `credential_store._normalize_key` raises `ValueError` if the
+    normalized key is empty, which would crash an interactive session
+    mid-form. Re-prompt instead so the user can correct typos, and
+    only raise if they keep entering empty/whitespace input.
+
+    Args:
+        prompter: The prompter to call.
+        initial: Prompt text used on the first attempt.
+        retry: Shorter prompt text used on retries.
+        what: Human-readable label for the value, used in the error
+            message after exhausting retries (e.g. "ATS slug").
+        secret: When True, route through `ask_secret` (no echo).
+
+    Returns:
+        The user's non-empty response (stripped of surrounding
+        whitespace).
+
+    Raises:
+        ValueError: If the user gives empty input on all attempts.
+    """
+    prompt = initial
+    for _ in range(_MAX_PROMPT_ATTEMPTS):
+        raw = prompter.ask_secret(prompt) if secret else prompter.ask(prompt)
+        # Don't strip secrets — passwords can legitimately have leading /
+        # trailing whitespace and silently mangling them is worse than
+        # storing one verbatim.
+        value = raw if secret else raw.strip()
+        if value:
+            return value
+        prompt = retry
+    raise ValueError(
+        f"Got empty {what} after {_MAX_PROMPT_ATTEMPTS} attempts; aborting session."
+    )
 
 
 def handle_credential_match(
@@ -102,15 +156,25 @@ def handle_credential_match(
         keeping the password off any on-disk capture / decisions log.
     """
     if not ats:
-        ats = prompter.ask(
-            "Could not infer ATS family from URL. Enter ATS slug "
-            "(e.g. workday, workable, greenhouse, icims): "
-        ).strip()
+        ats = _prompt_required(
+            prompter,
+            initial=(
+                "Could not infer ATS family from URL. Enter ATS slug "
+                "(e.g. workday, workable, greenhouse, icims): "
+            ),
+            retry="  ATS slug cannot be empty. Try again: ",
+            what="ATS slug",
+        )
     if not tenant:
-        tenant = prompter.ask(
-            "Could not infer tenant from URL. Enter tenant slug "
-            "(e.g. becu, murmuration): "
-        ).strip()
+        tenant = _prompt_required(
+            prompter,
+            initial=(
+                "Could not infer tenant from URL. Enter tenant slug "
+                "(e.g. becu, murmuration): "
+            ),
+            retry="  Tenant slug cannot be empty. Try again: ",
+            what="tenant slug",
+        )
 
     entry = credential_store.lookup(ats, tenant, path=credentials_path)
     if entry is not None:
@@ -139,11 +203,20 @@ def handle_credential_match(
         )
 
     # No saved credential — prompt + record.
-    username = prompter.ask(
-        f"No saved credential for {ats}.{tenant}. Enter username/email: "
-    ).strip()
-    password = prompter.ask_secret(
-        f"Enter password for {ats}.{tenant} (will be saved to {credentials_path}): "
+    username = _prompt_required(
+        prompter,
+        initial=f"No saved credential for {ats}.{tenant}. Enter username/email: ",
+        retry="  Username cannot be empty. Try again: ",
+        what="username",
+    )
+    password = _prompt_required(
+        prompter,
+        initial=(
+            f"Enter password for {ats}.{tenant} (will be saved to {credentials_path}): "
+        ),
+        retry="  Password cannot be empty. Try again: ",
+        what="password",
+        secret=True,
     )
     credential_store.record(
         ats,

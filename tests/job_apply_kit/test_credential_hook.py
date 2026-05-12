@@ -223,6 +223,102 @@ class TestUnknownAtsTenantPath:
         assert len(prompter.asked_secret) == 1
 
 
+class TestEmptyPromptHandling:
+    """The hook re-prompts on empty user input (up to 3 attempts) and
+    raises ValueError after that, so a slip of the Enter key doesn't
+    crash mid-form via credential_store's empty-key ValueError. (PR
+    #361 review.)
+    """
+
+    def test_empty_ats_retries_then_succeeds(self, creds_path: Path) -> None:
+        # Two empty answers then a real one for the ATS, then real
+        # answers for tenant + username + password.
+        prompter = FakePrompter(
+            answers=["", "", "workday", "becu", "u@example.com"],
+            secrets=["pw"],
+        )
+        result = handle_credential_match(
+            ats=None,
+            tenant=None,
+            page_url="https://example/x",
+            prompter=prompter,
+            credentials_path=creds_path,
+        )
+        assert result.ats == "workday"
+        assert result.tenant == "becu"
+
+    def test_empty_ats_after_3_attempts_raises(self, creds_path: Path) -> None:
+        prompter = FakePrompter(
+            answers=["", "", ""],
+            secrets=[],
+        )
+        with pytest.raises(ValueError, match="empty ATS slug"):
+            handle_credential_match(
+                ats=None,
+                tenant="becu",
+                page_url="",
+                prompter=prompter,
+                credentials_path=creds_path,
+            )
+
+    def test_empty_password_retries_then_succeeds(self, creds_path: Path) -> None:
+        # The password prompt routes through ask_secret; empty inputs
+        # there also retry up to 3 times.
+        prompter = FakePrompter(
+            answers=["u@example.com"],
+            secrets=["", "real-password"],
+        )
+        result = handle_credential_match(
+            ats="workday",
+            tenant="becu",
+            page_url="https://x",
+            prompter=prompter,
+            credentials_path=creds_path,
+        )
+        assert result.password == "real-password"
+        assert result.recorded is True
+
+
+class TestPasswordReprSafety:
+    """`CredentialResult` must not leak the password through dataclass
+    repr (which would propagate it into tracebacks and accidental
+    logging). PR #361 review."""
+
+    def test_password_not_in_repr(self, creds_path: Path) -> None:
+        credential_store.record(
+            "workday", "becu", "u@x.com", "SuperSecret", path=creds_path
+        )
+        result = handle_credential_match(
+            ats="workday",
+            tenant="becu",
+            page_url="",
+            prompter=FakePrompter(answers=[], secrets=[]),
+            credentials_path=creds_path,
+        )
+        rendered = repr(result)
+        assert "SuperSecret" not in rendered, (
+            "CredentialResult repr must not contain the raw password"
+        )
+        # Other fields should still appear so the repr remains useful
+        # for debugging.
+        assert "workday" in rendered
+        assert "becu" in rendered
+
+    def test_password_still_accessible_via_attribute(self, creds_path: Path) -> None:
+        # Tests + production callers (banner formatting) still read
+        # `.password` directly. Confirm the field is present and
+        # holds the cleartext value, just not in repr.
+        credential_store.record("workday", "becu", "u@x.com", "P", path=creds_path)
+        result = handle_credential_match(
+            ats="workday",
+            tenant="becu",
+            page_url="",
+            prompter=FakePrompter(answers=[], secrets=[]),
+            credentials_path=creds_path,
+        )
+        assert result.password == "P"
+
+
 class TestMessageContent:
     """The banner string is what the caller prints; verify it contains
     the key information so the user can act on it."""

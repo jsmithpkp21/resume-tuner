@@ -176,31 +176,42 @@ def handle_credential_match(
             what="tenant slug",
         )
 
+    # Canonicalize ats / tenant to the same slug `credential_store`
+    # uses internally so the caller's dedupe key + banner placeholder
+    # match across raw-input vs inferred-input variations
+    # (e.g. user types "Workday" while inference yields "workday").
+    ats = credential_store.normalize_key(ats)
+    tenant = credential_store.normalize_key(tenant)
+
     entry = credential_store.lookup(ats, tenant, path=credentials_path)
     if entry is not None:
-        # Saved credential — display only, no record() call.
-        username = str(entry.get("username", ""))
+        # An entry exists, but the file is user-editable so its fields
+        # can be missing or blank. Treat that as a miss and fall
+        # through to the prompt-and-record flow — better to re-record
+        # a broken entry than show a useless banner.
+        username = str(entry.get("username", "")).strip()
         password = str(entry.get("password", ""))
-        message = _banner(
-            header="CREDENTIAL (saved)",
-            ats=ats,
-            tenant=tenant,
-            lines=[
-                f"username: {username}",
-                f"password: {password}",
-                "",
-                "Type the password into the live form (never autofill).",
-            ],
-        )
-        return CredentialResult(
-            ats=ats,
-            tenant=tenant,
-            username=username,
-            password=password,
-            displayed=True,
-            recorded=False,
-            message=message,
-        )
+        if username and password.strip():
+            message = _banner(
+                header="CREDENTIAL (saved)",
+                ats=ats,
+                tenant=tenant,
+                lines=[
+                    f"username: {username}",
+                    f"password: {password}",
+                    "",
+                    "Type the password into the live form (never autofill).",
+                ],
+            )
+            return CredentialResult(
+                ats=ats,
+                tenant=tenant,
+                username=username,
+                password=password,
+                displayed=True,
+                recorded=False,
+                message=message,
+            )
 
     # No saved credential — prompt + record.
     username = _prompt_required(

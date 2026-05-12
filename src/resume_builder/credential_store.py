@@ -51,7 +51,7 @@ DEFAULT_CREDENTIALS_PATH = REPO_ROOT / "data" / "applications" / "credentials.to
 _KEY_NORMALIZE_RE = re.compile(r"[^a-z0-9]+")
 
 
-def _normalize_key(value: str) -> str:
+def normalize_key(value: str) -> str:
     """Normalize an ATS or tenant identifier to a stable slug.
 
     Args:
@@ -110,8 +110,8 @@ def lookup(
             normalize to empty strings.
     """
     assert_not_blocked_runtime_input(path)
-    ats_key = _normalize_key(ats)
-    tenant_key = _normalize_key(tenant)
+    ats_key = normalize_key(ats)
+    tenant_key = normalize_key(tenant)
     data = _load(path)
     ats_section = data.get("ats")
     if not isinstance(ats_section, dict):
@@ -165,8 +165,8 @@ def record(
             file has a non-table shape that would be silently overwritten.
     """
     assert_not_blocked_runtime_input(path)
-    ats_key = _normalize_key(ats)
-    tenant_key = _normalize_key(tenant)
+    ats_key = normalize_key(ats)
+    tenant_key = normalize_key(tenant)
     entry: dict[str, Any] = {
         "username": username,
         "password": password,

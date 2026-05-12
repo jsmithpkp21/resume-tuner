@@ -196,7 +196,10 @@ class TestUnknownAtsTenantPath:
         )
 
         assert result.ats == "icims"
-        assert result.tenant == "careers-acme"
+        # credential_store.normalize_key collapses hyphens to
+        # underscores, so the canonical tenant slug is "careers_acme"
+        # even though the user typed "careers-acme". (PR #361 review 2.)
+        assert result.tenant == "careers_acme"
         assert result.recorded is True
         # First two prompts were for the unknown ats/tenant; third for
         # the username.
@@ -317,6 +320,95 @@ class TestPasswordReprSafety:
             credentials_path=creds_path,
         )
         assert result.password == "P"
+
+
+class TestNormalization:
+    """`credential_store` normalizes ats/tenant keys internally
+    (lowercase + punctuation collapsed). The hook applies the same
+    normalization to its return values so the caller's dedupe key
+    matches across raw-input vs inferred-input variations. (PR #361
+    review round 2.)
+    """
+
+    def test_user_entered_mixed_case_ats_is_canonicalized(
+        self, creds_path: Path
+    ) -> None:
+        # User types "Workday" (mixed case) while inference later
+        # would yield "workday". Result must use the canonical slug
+        # so dedupe doesn't fire twice.
+        credential_store.record("workday", "becu", "u@x.com", "P", path=creds_path)
+        result = handle_credential_match(
+            ats="Workday",
+            tenant="BECU",
+            page_url="",
+            prompter=FakePrompter(answers=[], secrets=[]),
+            credentials_path=creds_path,
+        )
+        assert result.ats == "workday"
+        assert result.tenant == "becu"
+
+    def test_punctuation_tenant_normalizes(self, creds_path: Path) -> None:
+        # `careers_acme` vs `careers-acme` — credential_store collapses
+        # both to the same slug; the hook should report the slug.
+        prompter = FakePrompter(answers=["u@x.com"], secrets=["pw"])
+        result = handle_credential_match(
+            ats="icims",
+            tenant="careers-acme",
+            page_url="",
+            prompter=prompter,
+            credentials_path=creds_path,
+        )
+        assert result.tenant == "careers_acme"
+
+
+class TestCorruptSavedEntry:
+    """The credentials file is user-editable, so saved entries can
+    have missing or empty username/password. Treat as a miss and
+    fall back to the prompt+record flow. (PR #361 review round 2.)
+    """
+
+    def test_entry_missing_password_falls_back_to_prompt(
+        self, creds_path: Path
+    ) -> None:
+        # Seed an entry with no password field at all (simulating a
+        # hand-edit that dropped the line).
+        credential_store.record("workday", "becu", "u@x.com", "P", path=creds_path)
+        # Now corrupt: rewrite with no password.
+        import tomli_w
+
+        with creds_path.open("rb") as f:
+            import tomllib
+
+            data = tomllib.load(f)
+        data["ats"]["workday"]["becu"].pop("password")
+        creds_path.write_text(tomli_w.dumps(data), encoding="utf-8")
+
+        prompter = FakePrompter(answers=["new@x.com"], secrets=["new-pw"])
+        result = handle_credential_match(
+            ats="workday",
+            tenant="becu",
+            page_url="https://becu.wd1.myworkdayjobs.com/x",
+            prompter=prompter,
+            credentials_path=creds_path,
+        )
+        # Should have prompted (not displayed the corrupt entry).
+        assert result.recorded is True
+        assert result.displayed is False
+        assert result.password == "new-pw"
+
+    def test_entry_with_blank_username_falls_back(self, creds_path: Path) -> None:
+        # Whitespace-only username — same fallback.
+        credential_store.record("workable", "co", "   ", "real-pw", path=creds_path)
+        prompter = FakePrompter(answers=["u@x.com"], secrets=["new-pw"])
+        result = handle_credential_match(
+            ats="workable",
+            tenant="co",
+            page_url="",
+            prompter=prompter,
+            credentials_path=creds_path,
+        )
+        assert result.recorded is True
+        assert result.password == "new-pw"
 
 
 class TestMessageContent:

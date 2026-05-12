@@ -36,7 +36,7 @@ class Match:
 class Skip:
     """Skip this field — explicit reason."""
 
-    reason: str  # "honeypot" | "no-match" | "empty-value"
+    reason: str  # "honeypot" | "no-match" | "empty-value" | "unresolved-sub-key"
     detail: str = ""  # extra context for logs
 
 
@@ -371,8 +371,13 @@ def match(label: str, answer_bank: dict[str, Any]) -> Decision:
                     if len(candidates) == 1:
                         sub_key = candidates[0]
                     else:
+                        # `unresolved-sub-key` (not `empty-value`) so replay
+                        # summaries point the operator at the matcher rather
+                        # than the answer bank — the bank entries may be
+                        # perfectly fillable, the matcher just doesn't know
+                        # which one to pick.
                         return Skip(
-                            reason="empty-value",
+                            reason="unresolved-sub-key",
                             detail=(
                                 f"section={section} has {len(candidates)} "
                                 "fillable keys but no resolver; add one to "
@@ -382,8 +387,12 @@ def match(label: str, answer_bank: dict[str, Any]) -> Decision:
                             else f"section={section} has no fillable keys",
                         )
                 if not sub_key:
+                    # Resolver matched the section but returned "" — its
+                    # heuristic branches didn't recognize this label. Same
+                    # "extend the matcher" remediation as the fail-closed
+                    # case above, not a bank-entry problem.
                     return Skip(
-                        reason="empty-value",
+                        reason="unresolved-sub-key",
                         detail=f"matched section={section} but no fillable sub-key for label",
                     )
                 value = data.get(sub_key)

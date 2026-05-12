@@ -4,7 +4,8 @@ Covers:
 - normalize(): trailing-punct stripping, whitespace collapsing, embedded newlines
 - is_honeypot(): substring detection against the canonical patterns
 - match(): canonical-synonym matching, sub-field heuristics, honeypot skip,
-  empty-value skip when bank entry is blank, no-match for unrecognized labels
+  empty-value skip when bank entry is blank, unresolved-sub-key skip when the
+  matcher can't pick a sub-key, no-match for unrecognized labels
 - Decision typing (Match vs Skip)
 
 The matcher is pure — no I/O, no Playwright, no captures — so these tests
@@ -467,7 +468,7 @@ class TestGenericFallbackFailsClosedWhenAmbiguous:
         }
         d = match("Custom field", bank)
         assert isinstance(d, Skip)
-        assert d.reason == "empty-value"
+        assert d.reason == "unresolved-sub-key"
         assert "no resolver" in d.detail
 
     def test_single_field_unknown_section_works(self) -> None:

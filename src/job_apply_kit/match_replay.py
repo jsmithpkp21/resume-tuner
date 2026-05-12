@@ -5,15 +5,21 @@ Walks one or more `fields-<slug>-<ts>.json` files (the output format that
 `label_matcher.match` on every distinct label seen per session, and reports
 per-session + overall match-rate stats:
 
-  - match              — answer-bank entry resolved to a non-empty value
-  - skip[honeypot]     — label matched a known anti-bot honeypot pattern
-  - skip[empty-value]  — synonym matched but the bank's value is blank/TODO
-  - skip[no-match]     — no synonym matched (structural/custom/page-chrome)
+  - match                    — answer-bank entry resolved to a non-empty value
+  - skip[honeypot]           — label matched a known anti-bot honeypot pattern
+  - skip[empty-value]        — synonym matched but the bank's value is blank/TODO
+  - skip[unresolved-sub-key] — synonym matched but the matcher couldn't pick a
+                               sub-key (resolver heuristic miss, or multi-field
+                               section with no resolver registered)
+  - skip[no-match]           — no synonym matched (structural/custom/page-chrome)
 
 Used to validate the matcher against real captures before doing anything
 live. The CLI also serves as the canonical "how confident is my answer
-bank" health check: rising no-match rate suggests synonyms missing;
-rising empty-value rate suggests TODOs in the bank that should be filled.
+bank" health check: rising `no-match` rate suggests synonyms missing;
+rising `empty-value` rate suggests TODOs in the bank that should be filled;
+rising `unresolved-sub-key` rate suggests the matcher's per-section
+resolvers in `label_matcher._SUB_KEY_RESOLVERS` need new heuristic branches
+or that a multi-field section needs its first resolver.
 
 Example:
 

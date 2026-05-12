@@ -552,6 +552,7 @@ def write_summary(
 
 def main() -> int:
     args = parse_args()
+    _assert_not_blocked_runtime_input(args.output_dir)
 
     worksheet_rows = read_csv_rows(args.worksheet)
     experiences = read_experiences(args.experience_db)

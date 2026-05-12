@@ -224,3 +224,38 @@ def test_parse_note_reason_codes_for_will_not_fix() -> None:
 
 def test_parse_note_reason_codes_ignores_non_will_not_fix() -> None:
     assert parse_note_reason_codes("rewrite", "source-lacks-quant") == ""
+
+
+def _run_cli_with_output_dir(output_dir: Path) -> subprocess.CompletedProcess[str]:
+    """Invoke generate_review_packet.py CLI with the given --output-dir."""
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), "--output-dir", str(output_dir)],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_main_rejects_output_dir_inside_sandbox() -> None:
+    """`main` rejects `--output-dir sandbox/...` before any filesystem mutation."""
+    blocked = REPO_ROOT / "sandbox" / f"review_packet_{uuid.uuid4().hex}"
+    assert not blocked.exists()
+    result = _run_cli_with_output_dir(blocked)
+    assert result.returncode != 0, result.stdout
+    assert "blocked runtime directory" in result.stderr, result.stderr
+    assert not blocked.exists(), (
+        f"output_dir {blocked} was created despite guard rejection"
+    )
+
+
+def test_main_rejects_output_dir_inside_data_samples() -> None:
+    """`main` rejects `--output-dir data/samples/...` before any filesystem mutation."""
+    blocked = REPO_ROOT / "data" / "samples" / f"review_packet_{uuid.uuid4().hex}"
+    assert not blocked.exists()
+    result = _run_cli_with_output_dir(blocked)
+    assert result.returncode != 0, result.stdout
+    assert "blocked runtime directory" in result.stderr, result.stderr
+    assert not blocked.exists(), (
+        f"output_dir {blocked} was created despite guard rejection"
+    )

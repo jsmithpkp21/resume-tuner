@@ -190,7 +190,7 @@ The template includes minimal `VERSION`, `tooling.toml`, and
 
 Many ATS account-creation flows (Workday tenants, Workable, Greenhouse, etc.) demand a fresh username + password per tenant. Re-submitting a tailored resume or uploading materials manually weeks later requires remembering that credential. The repo provides a small per-ATS credential store so users can stop re-deriving passwords on the fly. See issue #333 for the full motivation.
 
-**Location.** `data/applications/credentials.toml`. The entire `data/applications/` directory is gitignored; only `credentials.toml.example` is committed as a schema reference. The real `credentials.toml` is written with file mode 0600 — there is no encryption at rest, only filesystem permissions plus gitignore. This intentionally matches the existing `profile.local.toml` posture; encryption / OS-keychain / master-password KDF are explicit non-goals (see issue #333 "Out of scope").
+**Location.** `data/applications/credentials.toml`. The entire `data/applications/` directory is gitignored except for the committed `credentials.toml.example` template; the real `credentials.toml` stays ignored. The file is written with mode 0600 — there is no encryption at rest, only filesystem permissions plus gitignore. This intentionally matches the existing `data/profile/profile.toml` posture; encryption / OS-keychain / master-password KDF are explicit non-goals (see issue #333 "Out of scope").
 
 **Seeding.** Copy the template and edit in real values:
 

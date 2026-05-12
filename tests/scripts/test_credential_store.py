@@ -158,3 +158,30 @@ def test_default_path_under_repo_root() -> None:
     assert default.name == "credentials.toml"
     assert default.parent.name == "applications"
     assert default.parent.parent.name == "data"
+
+
+class TestRuntimeGuard:
+    """``lookup`` / ``record`` honor the shared blocked-input guard (#20)."""
+
+    def _repo_root(self) -> Path:
+        # credential_store.REPO_ROOT is the project root used by the guard.
+        return credential_store.REPO_ROOT
+
+    def test_lookup_rejects_path_inside_sandbox(self) -> None:
+        blocked = self._repo_root() / "sandbox" / "credentials.toml"
+        with pytest.raises(ValueError, match="blocked runtime directory"):
+            credential_store.lookup("workday", "becu", path=blocked)
+
+    def test_record_rejects_path_inside_sandbox(self) -> None:
+        blocked = self._repo_root() / "sandbox" / "credentials.toml"
+        with pytest.raises(ValueError, match="blocked runtime directory"):
+            credential_store.record(
+                "workday", "becu", "u@example.com", "pw", path=blocked
+            )
+
+    def test_record_rejects_path_inside_data_samples(self) -> None:
+        blocked = self._repo_root() / "data" / "samples" / "credentials.toml"
+        with pytest.raises(ValueError, match="blocked runtime directory"):
+            credential_store.record(
+                "workday", "becu", "u@example.com", "pw", path=blocked
+            )

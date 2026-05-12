@@ -15,10 +15,17 @@ password to the user, who then types it. Display-only avoids accidentally
 typing the password into a phishing imitation form (the threat model that
 motivated the issue).
 
-Security posture: the credentials file lives in ``data/applications/`` which
-is gitignored end-to-end. The file is written with mode 0600. There is no
-encryption at rest; filesystem permissions are the only barrier. This
-matches the project's existing ``profile.local.toml`` posture (see #333).
+Security posture: the credentials file lives in ``data/applications/``,
+which is gitignored except for the committed ``credentials.toml.example``
+template. The real ``credentials.toml`` is written with mode 0600. There
+is no encryption at rest; filesystem permissions and gitignore are the
+only barriers. This matches the project's existing
+``data/profile/profile.toml`` posture (see #333).
+
+The repo's runtime blocked-input guard
+(:func:`resume_builder._runtime_guard.assert_not_blocked_runtime_input`)
+is applied to the ``path`` argument so this module cannot be redirected
+to read or write inside ``sandbox/`` or ``data/samples/``.
 """
 
 from __future__ import annotations
@@ -33,6 +40,8 @@ from pathlib import Path
 from typing import Any, cast
 
 import tomli_w
+
+from ._runtime_guard import assert_not_blocked_runtime_input
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +72,11 @@ def _normalize_key(value: str) -> str:
 
 
 def _load(path: Path) -> dict[str, Any]:
-    """Load the credentials TOML, returning ``{}`` if missing."""
+    """Load the credentials TOML, returning ``{}`` if missing.
+
+    The caller is responsible for guarding ``path`` against blocked
+    runtime roots; this private helper does not re-check.
+    """
     if not path.exists():
         return {}
     with path.open("rb") as fh:
@@ -90,7 +103,13 @@ def lookup(
         Dict with the saved entry fields (``username``, ``password``,
         and any optional fields) when a credential is found, or ``None``
         when missing.
+
+    Raises:
+        ValueError: If ``path`` resolves into a blocked runtime root
+            (``sandbox/`` or ``data/samples/``), or if ``ats`` / ``tenant``
+            normalize to empty strings.
     """
+    assert_not_blocked_runtime_input(path)
     ats_key = _normalize_key(ats)
     tenant_key = _normalize_key(tenant)
     data = _load(path)
@@ -140,10 +159,12 @@ def record(
         The recorded entry as a dict.
 
     Raises:
-        ValueError: If ``ats`` or ``tenant`` normalize to empty strings,
-            or if an existing section in the file has a non-table shape
-            that would be silently overwritten.
+        ValueError: If ``path`` resolves into a blocked runtime root
+            (``sandbox/`` or ``data/samples/``); if ``ats`` or ``tenant``
+            normalize to empty strings; or if an existing section in the
+            file has a non-table shape that would be silently overwritten.
     """
+    assert_not_blocked_runtime_input(path)
     ats_key = _normalize_key(ats)
     tenant_key = _normalize_key(tenant)
     entry: dict[str, Any] = {

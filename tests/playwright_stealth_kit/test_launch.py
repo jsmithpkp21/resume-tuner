@@ -9,8 +9,10 @@ with a persistent-context Chrome launch. A live browser test requires:
   runs headed; the stealth check we care about — `navigator.webdriver` — is
   applied identically in either mode.)
 
-That makes the live test heavier than the default `make test` path, so it
-is marked `slow` (skips by default; runs explicitly via `pytest -m slow`).
+That makes the live test heavier than other tests in this module, so it is
+marked `slow` — it runs as part of the default `make test` suite, but can
+be excluded via `pytest -m 'not slow'` / `make test-fast` when iterating
+fast. CI runs `test-fast` and `test-slow` as parallel jobs.
 
 The light tests cover the public-API surface (imports + docstring contract +
 exported defaults) and DO NOT require Playwright to be installed — they
@@ -106,7 +108,14 @@ def test_launch_stealth_chrome_actually_launches_with_stealth_applied(
         page = context.pages[0] if context.pages else context.new_page()
         # Real navigation rather than about:blank — stealth's init scripts
         # don't always apply to about:blank in persistent-context+headless.
-        page.goto("https://example.com", wait_until="domcontentloaded", timeout=10000)
+        # `data:` URL keeps the navigation real (so init scripts fire) while
+        # avoiding any DNS/network dependency that would flake in firewalled
+        # CI environments.
+        page.goto(
+            "data:text/html,<html><body></body></html>",
+            wait_until="domcontentloaded",
+            timeout=10000,
+        )
         webdriver_flag = page.evaluate("() => navigator.webdriver")
         # With stealth: navigator.webdriver should be false (or undefined).
         # Without stealth: it would be true.

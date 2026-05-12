@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.50.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.50.2...v0.50.3) (2026-05-12)
+
+
+### Bug Fixes
+
+* **application-submission:** address PR [#359](https://github.com/jsmithpkp21/resume-builder/issues/359) review ([f7a8bdb](https://github.com/jsmithpkp21/resume-builder/commit/f7a8bdb91201ebb380468bbfcff63a5808131594))
+* **application-submission:** strip user-typed values from field-extractor capture ([9fd957d](https://github.com/jsmithpkp21/resume-builder/commit/9fd957d8e109c4732b6f5846b2482bf454c85e2c))
+
 ## [0.50.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.50.1...v0.50.2) (2026-05-12)
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.47.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.47.2...v0.47.3) (2026-05-12)
+
+
+### Bug Fixes
+
+* **build_resume:** handle period acronyms and bare em-dashes in LLM company cleaner ([710cf31](https://github.com/jsmithpkp21/resume-builder/commit/710cf31a19ee74fc5e6231bc153b261e5cad119d))
+* **build_resume:** truncate LLM company-name when JD prose leaks in ([bc37e82](https://github.com/jsmithpkp21/resume-builder/commit/bc37e823ce2ec9a4b6c8d89a7acc6b5f3ca0c236))
+
 ## [0.47.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.47.1...v0.47.2) (2026-05-11)
 
 

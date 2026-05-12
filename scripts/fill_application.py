@@ -38,6 +38,15 @@ Privacy:
     display path. The injected field extractor (#351) never captures
     user-typed input contents from the live page, so there is no
     "show user-typed values" knob — that data simply isn't collected.
+  - Credential-store integration (#341): when the matcher hits a
+    field in `[account]` that resolves to `password_lookup_path`,
+    the script calls `job_apply_kit.handle_credential_match` with the
+    page URL. The hook either prints the saved
+    `resume_builder.credential_store` entry for the inferred
+    `(ats, tenant)` (display-only — user types) or prompts and
+    persists a new credential. The password is **always** redacted in
+    the fill-decisions JSON (replaced with a `<credential-store:
+    ats.tenant>` placeholder) regardless of `--show-values`.
 
 Safety:
   - `--slug` is validated against `[A-Za-z0-9_-]` to prevent path-escape.
@@ -48,6 +57,7 @@ Safety:
 from __future__ import annotations
 
 import argparse
+import getpass
 import sys
 import time
 import tomllib
@@ -62,6 +72,8 @@ try:
         Match,
         Skip,
         atomic_write_json,
+        handle_credential_match,
+        infer_ats_tenant,
         match,
         sanitize_slug,
     )
@@ -91,6 +103,19 @@ def _redact(value: str) -> str:
     """Display-safe value fingerprint: never leaks contents, but still
     distinguishes different values via their length."""
     return f"<value len={len(value)}>"
+
+
+class _TerminalPrompter:
+    """Production `CredentialPrompter` — wraps `input()` and
+    `getpass.getpass()`. The credential hook in `job_apply_kit`
+    accepts any object with `ask(prompt)` / `ask_secret(prompt)`, so
+    tests inject canned-response fakes; this is the real one."""
+
+    def ask(self, prompt: str) -> str:
+        return input(prompt)
+
+    def ask_secret(self, prompt: str) -> str:
+        return getpass.getpass(prompt)
 
 
 def _decision_summary(decisions: list[dict[str, Any]]) -> dict[str, int]:
@@ -171,6 +196,12 @@ def main(argv: list[str] | None = None) -> int:
     # don't double-count fields that re-emit on every MutationObserver tick.
     decisions: list[dict[str, Any]] = []
     seen_keys: set[tuple[str, str]] = set()
+    # Per-session set of (ats, tenant) tuples we've already surfaced
+    # a credential for — once the user has seen the banner they don't
+    # need it repeated for every password / verify-password field on
+    # the same page. Empty until the first account match fires.
+    credential_seen: set[tuple[str, str]] = set()
+    prompter = _TerminalPrompter()
 
     def write_decisions() -> None:
         try:
@@ -179,6 +210,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  [warn] decisions write failed: {e}")
 
     def on_snapshot(payload: dict[str, Any]) -> None:
+        page_url = payload.get("url", "") or ""
         fields = payload.get("fields", [])
         new = 0
         for fld in fields:
@@ -192,6 +224,43 @@ def main(argv: list[str] | None = None) -> int:
             seen_keys.add(key)
             d = match(lbl, bank)
             if isinstance(d, Match):
+                # account.password_lookup_path is special: the bank
+                # value is a documentation pointer, not the actual
+                # password. Hand off to the credential hook (#341) and
+                # NEVER persist the secret to the decisions JSON.
+                if d.section == "account" and d.sub_key == "password_lookup_path":
+                    ats, tenant = infer_ats_tenant(page_url)
+                    cred_result = handle_credential_match(
+                        ats=ats,
+                        tenant=tenant,
+                        page_url=page_url,
+                        prompter=prompter,
+                    )
+                    cred_key = (cred_result.ats, cred_result.tenant)
+                    if cred_key not in credential_seen:
+                        credential_seen.add(cred_key)
+                        print(cred_result.message)
+                    entry = {
+                        "outcome": "match",
+                        "label": lbl,
+                        "type": ftype,
+                        "section": d.section,
+                        "sub_key": d.sub_key,
+                        # Hard-redact regardless of --show-values:
+                        # password belongs only on terminal + the
+                        # credentials.toml file, never the capture JSON.
+                        "value": f"<credential-store: {cred_result.ats}.{cred_result.tenant}>",
+                        "matched_synonym": d.matched_synonym,
+                    }
+                    print(
+                        f"  [would-fill]  {lbl[:55]:55s} → "
+                        f"{d.section}.{d.sub_key:25s} = "
+                        f"<credential-store: {cred_result.ats}.{cred_result.tenant}>"
+                    )
+                    decisions.append(entry)
+                    new += 1
+                    continue
+
                 # Single source of truth for redaction so JSON + terminal
                 # output can never disagree (e.g. drift from a future tweak
                 # to only one of them and accidentally leak PII to one sink).

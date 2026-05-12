@@ -24,6 +24,8 @@ See issues #319 (this scaffolding) and #315 (parent application-submission
 roadmap).
 """
 
+from .ats_inference import infer_ats_tenant
+from .credential_hook import CredentialResult, handle_credential_match
 from .field_extractor import EXTRACTOR_JS, load_extractor_js
 from .io_safety import atomic_write_json, sanitize_slug
 from .label_matcher import (
@@ -38,12 +40,15 @@ from .label_matcher import (
 from .match_replay import replay
 
 __all__ = [
+    "CredentialResult",
     "Decision",
     "EXTRACTOR_JS",
     "HONEYPOT_SUBSTRINGS",
     "Match",
     "Skip",
     "atomic_write_json",
+    "handle_credential_match",
+    "infer_ats_tenant",
     "is_honeypot",
     "load_extractor_js",
     "match",

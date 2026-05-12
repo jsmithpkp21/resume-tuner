@@ -13,6 +13,7 @@ Use these paths as the canonical input locations for AI-driven resume generation
 - Ingestion manifest: `data/manifests/starter_data_manifest.toml`
 - Sanitized resume samples: `data/samples/resumes/`
 - Sanitized cover letter samples: `data/samples/cover_letters/`
+- Per-ATS credentials (gitignored): `data/applications/credentials.toml` — copy from `credentials.toml.example`; managed by `resume_builder.credential_store`. See "Per-ATS Credentials" below.
 
 Private originals (real resumes/cover letters) should stay in `sandbox/`.
 This repo already ignores `sandbox/` in `.gitignore`.
@@ -182,6 +183,40 @@ The template includes minimal `VERSION`, `tooling.toml`, and
 `scripts/setup.sh` has synced tooling, you can run `make env` /
 `make setup` using these files. They are intentionally not overwritten by
 `sync_tooling.sh`, so you can adjust them to your project's needs.
+
+---
+
+## Per-ATS Credentials
+
+Many ATS account-creation flows (Workday tenants, Workable, Greenhouse, etc.) demand a fresh username + password per tenant. Re-submitting a tailored resume or uploading materials manually weeks later requires remembering that credential. The repo provides a small per-ATS credential store so users can stop re-deriving passwords on the fly. See issue #333 for the full motivation.
+
+**Location.** `data/applications/credentials.toml`. The entire `data/applications/` directory is gitignored; only `credentials.toml.example` is committed as a schema reference. The real `credentials.toml` is written with file mode 0600 — there is no encryption at rest, only filesystem permissions plus gitignore. This intentionally matches the existing `profile.local.toml` posture; encryption / OS-keychain / master-password KDF are explicit non-goals (see issue #333 "Out of scope").
+
+**Seeding.** Copy the template and edit in real values:
+
+```bash
+cp data/applications/credentials.toml.example data/applications/credentials.toml
+chmod 0600 data/applications/credentials.toml
+$EDITOR data/applications/credentials.toml
+```
+
+**Programmatic access.** `resume_builder.credential_store` exposes `lookup` and `record`:
+
+```python
+from resume_builder.credential_store import lookup, record
+
+entry = lookup("workday", "becu")
+if entry is None:
+    record("workday", "becu", "user@example.com", "memorable-pw",
+           tenant_url="https://becu.wd1.myworkdayjobs.com/External",
+           notes="initial record")
+else:
+    print(f"Saved password for becu: {entry['password']}")
+```
+
+Both ATS family and tenant arguments are normalized to lowercase alphanumeric slugs, so `"Workday"` / `"workday"` / `"WORKDAY"` all collide on the same entry.
+
+**Display-only contract.** Integrations that detect login fields during a record/fill session (issue #319 follow-up — `record_session.py` / `fill_session.py` are not yet implemented; this PR only ships the store) MUST surface the looked-up password and let the user type it. Never autofill — the threat model in issue #333 calls out that Workday's bot-detection is triggered by automated form fills, and silent autofill into a phishing imitation form would also leak credentials.
 
 ---
 

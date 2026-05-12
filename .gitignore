@@ -36,8 +36,12 @@ sandbox/
 data/review/
 # Personal profile data (single-file model; copy data/profile/profile.example.toml to seed)
 data/profile/profile.toml
-# Personal job-application research artifacts (recording-protocol notes, answer bank, screening Qs)
-data/applications/
+# Personal job-application research artifacts (recording-protocol notes, answer bank, screening Qs).
+# Keep the whole directory ignored by default, then re-include the specific
+# committed templates/schemas below — never commit populated credential or
+# answer-bank files (#333).
+data/applications/*
+!data/applications/credentials.toml.example
 # Legacy explicit entries kept for readability while migrating review outputs to sandbox
 data/review/packets/
 # Visual diff working files (regenerated each run)

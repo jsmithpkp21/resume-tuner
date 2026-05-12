@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.50.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.50.1...v0.50.2) (2026-05-12)
+
+
+### Bug Fixes
+
+* **application-submission:** distinguish intentional-skip from resolver-miss in matcher ([d767157](https://github.com/jsmithpkp21/resume-builder/commit/d767157b97878a37cba5a183c26004685c4d1fb8))
+
 ## [0.50.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.50.0...v0.50.1) (2026-05-12)
 
 

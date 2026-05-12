@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "resume-builder"
-version = "0.50.1"
+version = "0.50.2"
 description = "AI-driven résumé builder: relevance-scored, layout-aware, two-page PDF/DOCX output."
 authors = [
     { name = "Jonathan Smith" },

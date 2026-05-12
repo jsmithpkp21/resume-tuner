@@ -203,10 +203,11 @@ def main(argv: list[str] | None = None) -> int:
         "--live",
         action="store_true",
         help=(
-            "Actually fill matched fields (page.fill / select_option / "
-            "check) instead of dry-run logging. Honeypots, passwords, "
-            "and work_experience are never filled regardless of this "
-            "flag. Default: dry-run (Phase 3-A behavior unchanged)."
+            "Actually fill matched fields via locator.press_sequentially "
+            "/ select_option / check instead of dry-run logging. "
+            "Honeypots, passwords, and work_experience are never filled "
+            "regardless of this flag. Default: dry-run (Phase 3-A "
+            "behavior unchanged)."
         ),
     )
     parser.add_argument(
@@ -222,7 +223,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--type-delay-ms",
-        default=DEFAULT_TYPE_DELAY_MS,
+        type=parse_type_delay_range,
+        default=parse_type_delay_range(DEFAULT_TYPE_DELAY_MS),
+        # argparse calls `type=` on the user-supplied string; ValueError
+        # from `parse_type_delay_range` is converted into a clean
+        # "argument --type-delay-ms: invalid value" error automatically.
         help=(
             "Per-keystroke typing-delay jitter range in 'MIN-MAX' "
             f"format (default: {DEFAULT_TYPE_DELAY_MS}). Defends against "
@@ -239,9 +244,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    # Parse + validate --type-delay-ms early so the user sees the error
-    # before the browser launches.
-    type_delay_range = parse_type_delay_range(args.type_delay_ms)
+    # argparse already converted --type-delay-ms via parse_type_delay_range.
+    type_delay_range = args.type_delay_ms
     # Tokenize --fill-sections into a frozenset. Empty entries from
     # consecutive commas or leading/trailing commas are dropped so
     # `--fill-sections name,contact,` works.
@@ -320,7 +324,11 @@ def main(argv: list[str] | None = None) -> int:
             safe = name.replace('"', '\\"')
             candidates.append(page.locator(f'[name="{safe}"]'))
         if fid:
-            candidates.append(page.locator(f"#{fid}"))
+            # Attribute selector instead of `#id`: valid HTML ids can
+            # contain characters like `:` or `.` (common in Workday-
+            # generated markup) that `#` selectors choke on.
+            safe_id = fid.replace('"', '\\"')
+            candidates.append(page.locator(f'[id="{safe_id}"]'))
         for loc in candidates:
             try:
                 if loc.count() == 1:
@@ -357,6 +365,12 @@ def main(argv: list[str] | None = None) -> int:
                 "contenteditable",
                 "combobox",
             ):
+                # Clear first — `press_sequentially` appends to existing
+                # content, and ATS apply flows for logged-in users
+                # often pre-populate fields (cached email, prior session
+                # name). `fill("")` is the instant clear primitive; the
+                # subsequent typed input still gets per-key delay.
+                loc.fill("")
                 delay = pick_typing_delay(type_delay_range, typing_rng)
                 loc.press_sequentially(value, delay=delay)
             elif ftype == "select":
@@ -496,21 +510,29 @@ def main(argv: list[str] | None = None) -> int:
                 display_value = d.value if args.show_values else _redact(d.value)
 
                 if decision == "fill" and args.confirm_before_fill:
-                    resp = (
-                        input(
-                            f"  fill {d.section}.{d.sub_key} = "
-                            f"{display_value!r}? [y/n/s=skip-section/q=quit]: "
-                        )
-                        .strip()
-                        .lower()
+                    # Loop until the user gives one of the four
+                    # documented answers. Treating typos / empty Enter
+                    # as implicit "yes" would let a slip of the
+                    # keyboard fill a sensitive field — defeating the
+                    # whole point of --confirm-before-fill.
+                    prompt = (
+                        f"  fill {d.section}.{d.sub_key} = "
+                        f"{display_value!r}? [y/n/s=skip-section/q=quit]: "
                     )
-                    if resp == "n":
-                        decision = "skip-confirm-no"
-                    elif resp == "s":
-                        skip_sections_runtime.add(d.section)
-                        decision = "skip-confirm-section"
-                    elif resp == "q":
-                        raise KeyboardInterrupt
+                    while True:
+                        resp = input(prompt).strip().lower()
+                        if resp == "y":
+                            break
+                        if resp == "n":
+                            decision = "skip-confirm-no"
+                            break
+                        if resp == "s":
+                            skip_sections_runtime.add(d.section)
+                            decision = "skip-confirm-section"
+                            break
+                        if resp == "q":
+                            raise KeyboardInterrupt
+                        prompt = "  please answer y / n / s / q: "
 
                 if decision == "fill":
                     page = page_holder[0]
@@ -529,7 +551,10 @@ def main(argv: list[str] | None = None) -> int:
                     }
                     if err:
                         entry["error"] = err
-                    marker = "✓" if outcome_str == "filled" else "✗"
+                    # ASCII markers — matches the skip-path posture
+                    # so encoding-restricted stdouts (Windows shells,
+                    # some redirect targets) never UnicodeEncodeError.
+                    marker = "OK" if outcome_str == "filled" else "!!"
                     err_suffix = f"  [{err}]" if err else ""
                     print(
                         f"  [{outcome_str:11s}] {marker} {lbl[:50]:50s} → "

@@ -17,9 +17,10 @@ log it?" lives here so it's testable without Playwright:
 Hard safety rails encoded here (no override path):
 
   - honeypots NEVER fill
-  - `[account]` matches dispatch to the #341 credential hook (display
-    only, never autofill) — `decide_fill` returns "skip-account" to
-    flag this
+  - `account.password_lookup_path` matches (the specific pointer
+    field — not every `[account]` sub_key) dispatch to the #341
+    credential hook (display only, never autofill); `decide_fill`
+    returns "skip-account" to flag this
   - `[work_experience]` is skipped until Phase 3-C lands the
     per-role loop
 """
@@ -45,8 +46,9 @@ FillDecision = Literal[
 
 # Sections that are ALWAYS handled specially regardless of the
 # `--fill-sections` whitelist. Listed here so the gate is the
-# single source of truth.
-_HARD_SKIP_SECTIONS = {
+# single source of truth. Typed so the return-type cast below
+# doesn't need a `# type: ignore`.
+_HARD_SKIP_SECTIONS: dict[str, FillDecision] = {
     "work_experience": "skip-work-experience",
     "honeypot": "skip-honeypot",
 }
@@ -108,9 +110,7 @@ def decide_fill(
 
     # Match: apply hard-skip and credential-hook routing first.
     if section in _HARD_SKIP_SECTIONS:
-        # Cast is safe — the map is closed-ended and mypy knows the
-        # values are FillDecision literals.
-        return _HARD_SKIP_SECTIONS[section]  # type: ignore[return-value]
+        return _HARD_SKIP_SECTIONS[section]
     if section == "account" and sub_key == "password_lookup_path":
         return "skip-account"
 

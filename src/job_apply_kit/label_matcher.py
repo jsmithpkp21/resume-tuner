@@ -370,6 +370,14 @@ def match(label: str, answer_bank: dict[str, Any]) -> Decision:
                     ]
                     if len(candidates) == 1:
                         sub_key = candidates[0]
+                    elif not candidates:
+                        # Section has zero fillable keys — the bank is empty
+                        # for this section, not a matcher gap. Remediation
+                        # is "fill the bank", same as a per-key blank.
+                        return Skip(
+                            reason="empty-value",
+                            detail=f"section={section} has no fillable keys",
+                        )
                     else:
                         # `unresolved-sub-key` (not `empty-value`) so replay
                         # summaries point the operator at the matcher rather
@@ -382,9 +390,7 @@ def match(label: str, answer_bank: dict[str, Any]) -> Decision:
                                 f"section={section} has {len(candidates)} "
                                 "fillable keys but no resolver; add one to "
                                 "_SUB_KEY_RESOLVERS to disambiguate"
-                            )
-                            if candidates
-                            else f"section={section} has no fillable keys",
+                            ),
                         )
                 if not sub_key:
                     # Resolver matched the section but returned "" — its

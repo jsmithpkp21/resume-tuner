@@ -484,6 +484,49 @@ class TestGenericFallbackFailsClosedWhenAmbiguous:
         assert d.sub_key == "only_key"
 
 
+class TestUnresolvedSubKey:
+    """Skip(reason="unresolved-sub-key") covers two matcher-internal cases:
+    (a) registered resolver returned "" for this label (heuristic miss),
+    (b) multi-field section has no registered resolver (fail-closed).
+    Case (b) is covered by TestGenericFallbackFailsClosedWhenAmbiguous above;
+    this class adds the missing (a) coverage (PR #354 review).
+    """
+
+    def test_resolver_returns_empty_sub_key_triggers_unresolved(self) -> None:
+        # profile_fields' resolver only recognizes headline / pronoun /
+        # summary substrings — a "bio" label routes INTO the section
+        # (synonym match) but the resolver returns "". That's a matcher
+        # gap (extend _sub_key_for_profile_fields), not a bank-blank case.
+        bank = {
+            "profile_fields": {
+                "headline": "Staff SDET",
+                "preferred_pronouns": "they/them",
+                "summary": "Long bio summary",
+                "synonyms": ["bio"],
+            },
+        }
+        d = match("Bio", bank)
+        assert isinstance(d, Skip)
+        assert d.reason == "unresolved-sub-key"
+        assert "no fillable sub-key" in d.detail
+
+    def test_section_with_no_fillable_keys_is_empty_value(self) -> None:
+        # candidates == 0 in the generic fallback: every non-`synonyms`
+        # key is None or blank-string. That's a bank-empty case (operator
+        # should fill the bank), distinct from a matcher gap.
+        bank = {
+            "empty_section": {
+                "k1": None,
+                "k2": "",
+                "synonyms": ["empty field"],
+            },
+        }
+        d = match("Empty field", bank)
+        assert isinstance(d, Skip)
+        assert d.reason == "empty-value"
+        assert "no fillable keys" in d.detail
+
+
 class TestWholeWordMatching:
     """The matcher uses regex `\\b...\\b` boundaries on synonym → label.
 

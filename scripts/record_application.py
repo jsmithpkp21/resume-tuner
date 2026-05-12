@@ -15,7 +15,7 @@ Usage:
         [--profile-dir <path>] [--capture-dir <path>]
 
 Defaults:
-    --slug         derived from URL + timestamp if omitted
+    --slug         session-<unix-ts> if omitted
     --profile-dir  data/applications/.browser-profile (gitignored)
     --capture-dir  data/applications/_capture        (gitignored)
 
@@ -50,12 +50,19 @@ try:
     from job_apply_kit import EXTRACTOR_JS, atomic_write_json, sanitize_slug
     from playwright_stealth_kit import launch_stealth_chrome
     from resume_builder._runtime_guard import assert_not_blocked_runtime_input
-except ImportError:
-    sys.stderr.write(
-        "playwright + playwright-stealth required. Install with:\n"
-        "  pip install playwright playwright-stealth\n"
-    )
-    sys.exit(2)
+except ModuleNotFoundError as e:
+    # Only treat the optional 3rd-party deps as install-hints. Local-package
+    # ModuleNotFoundError (job_apply_kit / playwright_stealth_kit /
+    # resume_builder) means the editable install is broken — surface the
+    # real traceback instead of telling the user to "pip install playwright".
+    top = (e.name or "").split(".", 1)[0]
+    if top in {"playwright", "playwright_stealth"}:
+        sys.stderr.write(
+            f"missing {top}. Install with:\n"
+            "  pip install playwright playwright-stealth\n"
+        )
+        sys.exit(2)
+    raise
 
 
 DEFAULT_PROFILE_DIR = Path("data/applications/.browser-profile")
@@ -70,8 +77,9 @@ def main(argv: list[str] | None = None) -> int:
         "--slug",
         default=None,
         help=(
-            "output filename slug (default: session-<ts>); allowed chars: "
-            "alphanumeric, '_', '-' (must start with alphanumeric)"
+            "output filename slug (default: session-<ts>). Validation: must "
+            "start with alphanumeric, only [A-Za-z0-9_-] thereafter, max 80 "
+            "chars (sanitize_slug enforces this)."
         ),
     )
     parser.add_argument(
@@ -201,8 +209,11 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             flush_fields_final()
 
+    # The first chunk's label depends on how the session ended (heartbeat /
+    # final / interrupt / exception), so print a glob pattern instead of
+    # guessing a specific filename.
     print("\nOpen any chunk with:")
-    print(f"  npx playwright show-trace {chunk_dir}/chunk-001-heartbeat.zip")
+    print(f"  npx playwright show-trace {chunk_dir}/chunk-001-*.zip")
     return 0
 
 

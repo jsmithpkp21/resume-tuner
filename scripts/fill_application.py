@@ -63,12 +63,19 @@ try:
     )
     from playwright_stealth_kit import launch_stealth_chrome
     from resume_builder._runtime_guard import assert_not_blocked_runtime_input
-except ImportError:
-    sys.stderr.write(
-        "playwright + playwright-stealth required. Install with:\n"
-        "  pip install playwright playwright-stealth\n"
-    )
-    sys.exit(2)
+except ModuleNotFoundError as e:
+    # Only treat the optional 3rd-party deps as install-hints. Local-package
+    # ModuleNotFoundError (job_apply_kit / playwright_stealth_kit /
+    # resume_builder) means the editable install is broken — surface the
+    # real traceback instead of telling the user to "pip install playwright".
+    top = (e.name or "").split(".", 1)[0]
+    if top in {"playwright", "playwright_stealth"}:
+        sys.stderr.write(
+            f"missing {top}. Install with:\n"
+            "  pip install playwright playwright-stealth\n"
+        )
+        sys.exit(2)
+    raise
 
 
 DEFAULT_PROFILE_DIR = Path("data/applications/.browser-profile")
@@ -106,8 +113,9 @@ def main(argv: list[str] | None = None) -> int:
         "--slug",
         default=None,
         help=(
-            "output filename slug (default: session-<ts>); allowed chars: "
-            "alphanumeric, '_', '-'"
+            "output filename slug (default: session-<ts>). Validation: must "
+            "start with alphanumeric, only [A-Za-z0-9_-] thereafter, max 80 "
+            "chars (sanitize_slug enforces this)."
         ),
     )
     parser.add_argument(
@@ -180,20 +188,22 @@ def main(argv: list[str] | None = None) -> int:
             seen_keys.add(key)
             d = match(lbl, bank)
             if isinstance(d, Match):
-                stored_value = d.value if args.show_values else _redact(d.value)
-                shown_value = d.value if args.show_values else _redact(d.value)
+                # Single source of truth for redaction so JSON + terminal
+                # output can never disagree (e.g. drift from a future tweak
+                # to only one of them and accidentally leak PII to one sink).
+                display_value = d.value if args.show_values else _redact(d.value)
                 entry = {
                     "outcome": "match",
                     "label": lbl,
                     "type": ftype,
                     "section": d.section,
                     "sub_key": d.sub_key,
-                    "value": stored_value,
+                    "value": display_value,
                     "matched_synonym": d.matched_synonym,
                 }
                 print(
                     f"  [would-fill]  {lbl[:55]:55s} → "
-                    f"{d.section}.{d.sub_key:25s} = {shown_value!r}"
+                    f"{d.section}.{d.sub_key:25s} = {display_value!r}"
                 )
             else:
                 assert isinstance(d, Skip)

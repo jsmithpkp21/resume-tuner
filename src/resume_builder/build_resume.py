@@ -1964,6 +1964,63 @@ def _jd_context_required(args: argparse.Namespace) -> bool:
     return flag or env
 
 
+_LLM_COMPANY_NAME_MAX_CHARS = 40
+_LLM_COMPANY_NAME_MAX_WORDS = 5
+_LLM_COMPANY_NAME_SEPARATORS = (",", ".", ";", ":", "(", "\n")
+_LLM_COMPANY_NAME_APPOSITIVES = (
+    " you are ",
+    " we are ",
+    " is a ",
+    " is an ",
+    " is the ",
+    " – ",
+    " — ",
+)
+_LLM_COMPANY_NAME_LEADING_PREFIXES = (
+    "join us at ",
+    "join ",
+    "at ",
+    "with ",
+)
+
+
+def _clean_llm_company_name(raw: str) -> str:
+    """Trim trailing JD prose from an LLM-returned company name.
+
+    When the JD opens with the company at the start of a sentence (e.g.
+    "At Western Union, you are an Individual Contributor..."), the LLM
+    sometimes echoes the whole sentence fragment. Truncate at the first
+    sentence/clause boundary or appositive marker, strip leading
+    prepositions, and reject anything still implausibly long. See issue
+    #322 for the original repro.
+    """
+    cleaned = raw.strip()
+    if not cleaned:
+        return ""
+    lowered = cleaned.lower()
+    cut = len(cleaned)
+    for marker in _LLM_COMPANY_NAME_APPOSITIVES:
+        idx = lowered.find(marker)
+        if idx != -1 and idx < cut:
+            cut = idx
+    cleaned = cleaned[:cut].strip()
+    for separator in _LLM_COMPANY_NAME_SEPARATORS:
+        if separator in cleaned:
+            cleaned = cleaned.split(separator, 1)[0].strip()
+    lowered = cleaned.lower()
+    for prefix in _LLM_COMPANY_NAME_LEADING_PREFIXES:
+        if lowered.startswith(prefix):
+            cleaned = cleaned[len(prefix) :].strip()
+            break
+    if not cleaned:
+        return ""
+    if len(cleaned) > _LLM_COMPANY_NAME_MAX_CHARS:
+        return ""
+    if len(cleaned.split()) > _LLM_COMPANY_NAME_MAX_WORDS:
+        return ""
+    return cleaned
+
+
 def _extract_company_via_llm(job_context: JobContext) -> str:
     """Ask the LLM to extract the hiring company name from a JD when the
     deterministic ingest layer found nothing. Returns an empty string on any
@@ -1984,7 +2041,9 @@ def _extract_company_via_llm(job_context: JobContext) -> str:
             system_prompt=(
                 "You extract the hiring company name from job-description "
                 'text. Reply with JSON only: {"company": "<name>"}. If '
-                'no company is identifiable, reply with {"company": ""}.'
+                'no company is identifiable, reply with {"company": ""}. '
+                "Return the short legal/brand name only (<=5 words). Do NOT "
+                "include surrounding sentence text, role titles, or prose."
             ),
             user_payload={"text": payload_text},
         )
@@ -1994,7 +2053,7 @@ def _extract_company_via_llm(job_context: JobContext) -> str:
     company = response.get("company", "")
     if not isinstance(company, str):
         return ""
-    return company.strip()
+    return _clean_llm_company_name(company)
 
 
 def _enrich_experience_bullets(

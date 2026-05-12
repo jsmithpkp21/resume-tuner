@@ -5696,6 +5696,85 @@ def test_extract_company_via_llm_returns_llm_payload(
     assert _extract_company_via_llm(jc) == "Elite Technology"
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (
+            "Western Union, you are an Individual Contributor (IC) responsible "
+            "for the architectural integrity and technical evolution of "
+            "mission-critical systems",
+            "Western Union",
+        ),
+        ("At Acme Corp", "Acme Corp"),
+        ("Elite Technology", "Elite Technology"),
+        ("Join us at Globex", "Globex"),
+        ("Stripe is a payments infrastructure company", "Stripe"),
+        ("Acme Corp — building the future of payments", "Acme Corp"),
+        ("  Stripe.  ", "Stripe"),
+        ("", ""),
+        ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", ""),
+        ("one two three four five six", ""),
+    ],
+)
+def test_clean_llm_company_name_truncates_trailing_prose(
+    raw: str, expected: str
+) -> None:
+    """#322: post-processor strips sentence prose, leading prepositions, and
+    rejects implausibly long responses."""
+    from resume_builder.build_resume import _clean_llm_company_name
+
+    assert _clean_llm_company_name(raw) == expected
+
+
+def test_extract_company_via_llm_strips_jd_prose(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#322: when the LLM echoes the JD opening sentence, the extractor
+    returns only the leading company name."""
+    from resume_builder.build_resume import _extract_company_via_llm
+    from resume_builder.jd_ingest import JobContext
+
+    class _FakeClient:
+        @classmethod
+        def from_env(cls) -> _FakeClient:
+            return cls()
+
+        def complete_json(
+            self,
+            *,
+            namespace: str,
+            system_prompt: str,
+            user_payload: dict[str, object],
+        ) -> dict[str, Any]:
+            return {
+                "company": (
+                    "Western Union, you are an Individual Contributor (IC) "
+                    "responsible for the architectural integrity and "
+                    "technical evolution of mission-critical systems"
+                )
+            }
+
+    monkeypatch.setattr(build_resume, "LLMClient", _FakeClient)
+
+    jc = JobContext(
+        input_url="",
+        normalized_url="",
+        source="company-site",
+        role_hint="Staff Software Engineer",
+        company_name="",
+        job_id="",
+        fetch_status="rendered",
+        page_title="Staff Software Engineer",
+        description_excerpt=(
+            "At Western Union, you are an Individual Contributor (IC) "
+            "responsible for the architectural integrity..."
+        ),
+        notes=(),
+        company_research=None,
+    )
+    assert _extract_company_via_llm(jc) == "Western Union"
+
+
 def test_run_pipeline_uses_llm_company_in_output_filename(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -66,8 +66,13 @@ set of dev-tool dependencies used by `make setup`/`make verify` checks.
 ## Canonical Doc Locations
 
 This section grounds the Distribution Plan above with a concrete per-category
-map. For the machine-readable list, see `.tooling-sync-manifest.toml`; this
-section enumerates *categories* and the rule that keeps them from drifting.
+map. For the machine-readable list, see this **tooling source repo**'s
+`.tooling-sync-manifest.toml` (the authoritative source). In a consumer repo,
+`.tooling-sync-manifest.lock` records what was actually applied during the
+last successful sync; the consumer-side `.tooling-sync-manifest.toml` (if
+present) is a snapshot from a prior sync and may be stale (consumers must
+not edit it — see "Source of Truth" above). This section enumerates
+*categories* and the rule that keeps them from drifting.
 
 ### Category map
 
@@ -77,7 +82,7 @@ section enumerates *categories* and the rule that keeps them from drifting.
 | Reference / runbook docs | `docs/REFERENCE/` | Synced from tooling | Every `docs/REFERENCE/*.md` entry currently in `.tooling-sync-manifest.toml` (see manifest for the live list) |
 | Consumer identity docs | Repo root | Consumer-owned, never synced | `README.md`, `CHANGELOG.md` |
 | Local agent overrides | Repo root | Consumer-owned, never synced | `AGENTS_LOCAL.md` (optional; layered after the synced `AGENTS.md`) |
-| Local notes (exception) | `docs/REFERENCE/IMPROVEMENTS.md` | Consumer-local | Explicitly excluded from the manifest; preserved even if it appears in a prior lock (see "Managed File Lifecycle" below) |
+| Local notes (exception) | `docs/REFERENCE/IMPROVEMENTS.md` | Consumer-local | Excluded from the **tooling-source** manifest; preserved even if it appears in a prior lock (see "Managed File Lifecycle" below). Consumer-side `.tooling-sync-manifest.toml` snapshots may still list it from before its removal. |
 
 ### No duplicates rule
 

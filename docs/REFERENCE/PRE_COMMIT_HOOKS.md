@@ -321,7 +321,7 @@ git commit --no-verify -m "emergency fix"
 ## Related Documentation
 
 - **Local Tooling Runtime Policy (ADR-0001):** [`adr/0001-local-tooling-runtime-policy.md`](adr/0001-local-tooling-runtime-policy.md) — canonical decision record for the local-first / Docker-fallback resolution pattern used by this hook and `scripts/run_commitlint.sh`.
-- **Branch Protection:** `.github/BRANCH_PROTECTION.md`
+- **Branch Protection:** [`docs/REFERENCE/BRANCH_PROTECTION.md`](BRANCH_PROTECTION.md) — branch protection policy and setup notes.
 - **Contributing Guide:** `CONTRIBUTING.md`
 
 ## Change Log

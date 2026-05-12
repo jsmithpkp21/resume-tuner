@@ -24,14 +24,19 @@ import re
 from job_apply_kit import EXTRACTOR_JS
 
 
-def _strip_js_line_comments(src: str) -> str:
-    """Remove `//` line comments. The extractor uses only line-comments,
-    no `/* */` blocks. Quoted strings in this file never contain `//`,
-    so a naive line-by-line strip is safe here."""
-    return "\n".join(re.sub(r"//.*$", "", line) for line in src.splitlines())
+def _strip_js_comments(src: str) -> str:
+    """Remove `//` line comments AND `/* ... */` block comments.
+
+    The extractor uses both styles (e.g. `// ...` privacy notes and
+    `} catch (_) { /* ignore */ }` empty catch markers). Quoted strings
+    in this file never contain `//` or `/*`, so naive regex stripping
+    is safe here.
+    """
+    no_block = re.sub(r"/\*.*?\*/", "", src, flags=re.DOTALL)
+    return "\n".join(re.sub(r"//.*$", "", line) for line in no_block.splitlines())
 
 
-_CODE = _strip_js_line_comments(EXTRACTOR_JS)
+_CODE = _strip_js_comments(EXTRACTOR_JS)
 
 
 class TestExtractorDoesNotEmitUserInput:

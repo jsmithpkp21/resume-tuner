@@ -44,8 +44,8 @@ Privacy (#351):
     content) but never the user's current `checked` / `selected` choice.
   - Captures recorded *before* the #351 fix may still contain raw
     values on disk under `--capture-dir`. Purge with `rm -rf
-    data/applications/_capture` if those captures predate this script's
-    install.
+    <capture-dir>` (default: `data/applications/_capture`) if those
+    captures predate this script's install.
 """
 
 from __future__ import annotations

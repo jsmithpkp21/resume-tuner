@@ -1,19 +1,21 @@
 """Tests for playwright_stealth_kit.launch_stealth_chrome.
 
 The launch helper is a context manager that bundles `playwright_stealth.Stealth`
-with a persistent-context Chrome launch. A live browser test would require:
+with a persistent-context Chrome launch. A live browser test requires:
 
-- system Chrome installed (channel='chrome')
-- WSLg or X11 display (we run headed)
+- system Chrome installed (channel='chrome'); the test skips otherwise
 - ~5s per browser spin-up
+- `headless=True` so it can run in CI without a display server. (Real usage
+  runs headed; the stealth check we care about — `navigator.webdriver` — is
+  applied identically in either mode.)
 
-That makes full launch tests too heavy for the default `make test` path. The
-heavy live-browser test is marked `slow` so it runs when explicitly requested
-(`pytest -m slow`) and skips otherwise. Light tests cover the imports +
-public surface so a refactor that breaks the kit's API fails fast.
+That makes the live test heavier than the default `make test` path, so it
+is marked `slow` (skips by default; runs explicitly via `pytest -m slow`).
+Light tests cover the public-API surface (imports + docstring contract +
+exported defaults) so a refactor that breaks the kit's contract fails fast.
 
 The kit itself relies on `playwright_stealth` being installed; CI without
-the playwright layer installed should `importorskip`.
+the playwright layer installed `importorskip`s the whole module.
 """
 
 from __future__ import annotations

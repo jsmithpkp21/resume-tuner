@@ -15,14 +15,17 @@
 On exit (normal or exception), the context is closed best-effort; the
 Playwright manager handles its own lifecycle.
 
-Realistic expectations on what stealth fixes (and doesn't): see
-`PHASE_2_FINDINGS.md` in resume-builder's data/applications/ research dir,
-and issue #323. Summary:
+Realistic expectations on what stealth fixes (and doesn't), measured
+empirically and tracked in issue #323:
   - ✓ Sannysoft canary (the classic 20-signal grid)
   - ✓ Akamai Bot Manager (Workday tenants behind it)
   - ✓ Workable mid-flow fingerprinting (expected — untested live post-stealth)
   - ✗ Google SSO — still refuses Playwright-launched sessions. Fall back
        to email+password account creation in-session for Workday tenants.
+
+(Additional consumer-side notes — per-submission captures, ATS-specific
+quirks, etc. — live in resume-builder's local-only `data/applications/`
+research dir which is gitignored. Issue #323 is the canonical reference.)
 """
 
 from __future__ import annotations

@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.49.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.48.1...v0.49.0) (2026-05-12)
+
+
+### Features
+
+* **application-submission:** add src/playwright_stealth_kit/ sibling package (closes [#323](https://github.com/jsmithpkp21/resume-builder/issues/323)) ([51a5435](https://github.com/jsmithpkp21/resume-builder/commit/51a54357ad486ba88f2eb7205bfdb56c6b86b2a2))
+
+
+### Bug Fixes
+
+* **jd-ingest:** preserve IPv6 hosts in `_host_needs_javascript_render` ([013e5d1](https://github.com/jsmithpkp21/resume-builder/commit/013e5d1e869775d153ea76c27513f5bd481410d7))
+* **playwright_stealth_kit:** address PR [#336](https://github.com/jsmithpkp21/resume-builder/issues/336) review round 1 ([a101337](https://github.com/jsmithpkp21/resume-builder/commit/a101337702df31b215d2c0c118ec6ab66bd668ac))
+* **playwright_stealth_kit:** address PR [#336](https://github.com/jsmithpkp21/resume-builder/issues/336) review round 3 ([ac718b2](https://github.com/jsmithpkp21/resume-builder/commit/ac718b29cba1fe3748b0d0e0fd453b78d2288de9))
+* **playwright_stealth_kit:** correct slow-test docstring and drop external-network dep ([#345](https://github.com/jsmithpkp21/resume-builder/issues/345)) ([2a90919](https://github.com/jsmithpkp21/resume-builder/commit/2a90919aa3d1159ea62f36ba7681509345362050))
+
+
+### Documentation
+
+* **playwright_stealth_kit:** address PR [#336](https://github.com/jsmithpkp21/resume-builder/issues/336) review round 2 — drift on docstrings ([18576fc](https://github.com/jsmithpkp21/resume-builder/commit/18576fc609366b5d4c97e07a12f59a3e741429e6))
+
 ## [0.48.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.48.0...v0.48.1) (2026-05-12)
 
 

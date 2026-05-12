@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.50.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.50.0...v0.50.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* **application-submission:** address PR [#354](https://github.com/jsmithpkp21/resume-builder/issues/354) review ([a9c689a](https://github.com/jsmithpkp21/resume-builder/commit/a9c689aef57104a83ca821061ae2bc2369b3c98a))
+* **application-submission:** split unresolved-sub-key from empty-value in matcher ([4c34005](https://github.com/jsmithpkp21/resume-builder/commit/4c34005a8d9d8705ccbe23d243fb111ae3cc460e))
+
 ## [0.50.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.49.1...v0.50.0) (2026-05-12)
 
 

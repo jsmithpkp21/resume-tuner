@@ -50,7 +50,7 @@ DEFAULT_CHANNEL: str = "chrome"
 DEFAULT_LAUNCH_ARGS: tuple[str, ...] = (
     # Workday's "Sign in with Google" SSO opens in a popup; Playwright's
     # default popup blocker rejects it. Disable so SSO at least gets a chance
-    # (Google still fingerprints; see PHASE_2_FINDINGS.md).
+    # (Google still fingerprints — see the module docstring above and #323).
     "--disable-popup-blocking",
 )
 

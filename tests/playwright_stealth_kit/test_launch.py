@@ -11,11 +11,13 @@ with a persistent-context Chrome launch. A live browser test requires:
 
 That makes the live test heavier than the default `make test` path, so it
 is marked `slow` (skips by default; runs explicitly via `pytest -m slow`).
-Light tests cover the public-API surface (imports + docstring contract +
-exported defaults) so a refactor that breaks the kit's contract fails fast.
 
-The kit itself relies on `playwright_stealth` being installed; CI without
-the playwright layer installed `importorskip`s the whole module.
+The light tests cover the public-API surface (imports + docstring contract +
+exported defaults) and DO NOT require Playwright to be installed — they
+exercise the kit's lazy-import design (`import playwright_stealth_kit`
+succeeds without Playwright; only the helper call needs it). The slow test
+is the one that requires Playwright + Chrome and uses `importorskip` /
+`shutil.which` to skip cleanly in environments without them.
 """
 
 from __future__ import annotations
@@ -24,31 +26,46 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("playwright_stealth")
-pytest.importorskip("playwright.sync_api")
-
 
 def test_launch_helper_is_importable_and_documented() -> None:
-    """The public API surface (`launch_stealth_chrome`) is exported and documented.
+    """The public API surface (`launch_stealth_chrome`) is exported and the
+    realistic-expectations callout (stealth scope + Workday/Google SSO
+    caveats) is enforced in the docstring.
 
-    Locks the contract so a future refactor that renames or hides the helper
-    fails before any downstream consumer breaks at runtime.
+    Locks the contract so a future refactor can't rename/hide the helper or
+    silently strip the realistic-expectations callout that PR #324 / issue
+    #323 review rounds insisted on.
+
+    This test deliberately does NOT trigger the lazy Playwright imports —
+    `import playwright_stealth_kit` works in venvs without Playwright,
+    and verifying that property is part of the contract.
     """
     from playwright_stealth_kit import launch_stealth_chrome
 
     assert callable(launch_stealth_chrome)
-    # The kit's whole reason to exist — make sure the function's docstring
-    # references stealth, persistent profile, and Workday / SSO realism
-    # (so a future drive-by edit can't strip the realistic-expectations
-    # callout that PR #324 / issue #323 review rounds insisted on).
-    doc = launch_stealth_chrome.__doc__ or ""
-    assert "stealth" in doc.lower()
-    assert "persistent" in doc.lower()
+    doc = (
+        (launch_stealth_chrome.__doc__ or "")
+        + "\n"
+        + (
+            __import__("playwright_stealth_kit.launch", fromlist=["launch"]).__doc__
+            or ""
+        )
+    )
+    doc_l = doc.lower()
+    # Core capability claims:
+    assert "stealth" in doc_l
+    assert "persistent" in doc_l
+    # Realistic-expectations callout (the part Copilot kept catching as
+    # docstring drift during review):
+    assert "workday" in doc_l
+    assert "google" in doc_l, "Google SSO refusal caveat must remain in docstring"
 
 
 def test_launch_helper_exposes_defaults() -> None:
     """Kit-level constants are importable for callers that need a non-persistent
     variant (test_stealth.py) but want the same launch args + viewport defaults.
+
+    Like the docstring test, this does not trigger any Playwright import.
     """
     from playwright_stealth_kit.launch import DEFAULT_LAUNCH_ARGS, DEFAULT_VIEWPORT
 
@@ -63,8 +80,15 @@ def test_launch_stealth_chrome_actually_launches_with_stealth_applied(
     """Live test: spin up Chrome via the kit, verify navigator.webdriver is
     patched (the canonical stealth signal). Marked `slow` because it actually
     boots Chrome.
+
+    `importorskip` lives inside this test (not at module scope) so the light
+    tests above keep running in environments without the Playwright layer
+    installed — which is the default in CI.
     """
     import shutil
+
+    pytest.importorskip("playwright_stealth")
+    pytest.importorskip("playwright.sync_api")
 
     # launch_stealth_chrome defaults to channel='chrome' (Google Chrome).
     # `chromium` alone is not sufficient — we'd just fail at launch on a

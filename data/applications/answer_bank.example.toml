@@ -1,0 +1,262 @@
+# Canonical answer bank — schema template (no PII).
+#
+# Copy this to `data/applications/_answer_bank.toml` and fill in real values.
+# `_answer_bank.toml` is gitignored; this template is the committable shape.
+#
+# Each top-level table is a canonical field name. The `synonyms` list lets
+# the matcher (`job_apply_kit.label_matcher.match`) recognize variant
+# phrasings seen in the wild — exact match (after normalize()) or
+# whole-word substring containment.
+#
+# Provenance tags in the synonyms (e.g. [B], [M], [W]) mark which captured
+# session observed that phrasing. Add to these as you record new sites;
+# `python -m job_apply_kit.match_replay --bank <this> <fields-*.json>`
+# reports skip[no-match] labels worth promoting to synonyms here.
+
+# -----------------------------
+# Identity
+# -----------------------------
+
+[name]
+first       = ""        # TODO
+middle      = ""
+last        = ""        # TODO
+preferred   = ""
+synonyms    = [
+    "first name",                 # [M] Workable
+    "first name*",                # [B][W] Workday required
+    "legal first name", "given name",
+    "last name",                  # [M]
+    "last name*",                 # [B][W]
+    "legal last name", "family name", "surname",
+    "middle name", "middle initial",
+    "preferred name",             # [B] "I have a preferred name" toggle
+    "nickname", "name you go by",
+    "full name", "legal name",
+    "name*",                      # [B] Workday "Name*" (full-name)
+]
+
+[contact]
+email              = ""    # TODO
+phone_e164         = ""    # TODO  (e.g. +15125551212)
+phone_digits       = ""    # TODO  (e.g. 5125551212)
+phone_pretty       = ""    # TODO  (e.g. 512-555-1212)
+phone_country      = ""    # TODO  (e.g. "United States (+1)")
+country_phone_code = ""    # TODO  (e.g. "+1")
+synonyms = [
+    "email", "email address", "email*", "email address*",
+    "phone", "phone number", "phone number*",
+    "phone extension", "country phone code", "telephone country code",
+    "mobile", "telephone", "contact number",
+    "email or phone",             # NOTE: this is Google SSO's field, not Workday's — recognized for skip
+]
+
+[address]
+street1     = ""        # TODO (or leave blank if you'd rather not share)
+street2     = ""
+city        = ""        # TODO
+state       = ""        # TODO  (two-letter, e.g. "TX")
+state_full  = ""        # TODO  (e.g. "Texas")
+zip         = ""        # TODO
+country     = "United States"
+country_iso = "US"
+synonyms = [
+    "address", "address line 1*", "address line 1", "address line 2",
+    "street", "street address",
+    "city", "city*", "town",
+    "state", "province", "region",
+    "zip", "zip code", "postal code", "postal code*",
+    "country",
+]
+
+# -----------------------------
+# Links
+# -----------------------------
+
+[links]
+linkedin_handle = ""    # TODO  (e.g. "jane-doe")
+linkedin_url    = ""    # TODO  (e.g. "https://www.linkedin.com/in/jane-doe")
+github_url      = ""
+website_url     = ""
+synonyms = [
+    "linkedin", "linkedin url", "linkedin profile",
+    "github", "github url", "github profile",
+    "website", "personal website", "portfolio",
+    "facebook", "twitter",        # recognized so the matcher knows to leave blank, not fail
+]
+
+# -----------------------------
+# Education
+# -----------------------------
+
+[education]
+school          = ""    # TODO
+school_country  = ""
+school_state    = ""
+degree          = ""    # TODO  (e.g. "Bachelor of Science")
+degree_short    = ""    # e.g. "BS"
+field           = ""    # TODO  (e.g. "Computer Science")
+graduation_year = ""    # TODO
+gpa             = ""    # leave blank if you'd rather not share
+synonyms = [
+    "school", "school or university", "university", "college", "institution",
+    "degree", "degree type", "level of education",
+    "field of study", "major", "discipline",
+    "graduation date", "graduation year", "year graduated",
+    "gpa", "grade point average", "overall result (gpa)",
+]
+
+# -----------------------------
+# Work experience structural fields (Workday breaks per-role)
+# -----------------------------
+
+[work_experience]
+# Workday repeats the per-role sub-form. The matcher intentionally SKIPS
+# these (they're structural, not single-value fields) — the fill driver's
+# per-role loop construct (future Phase 3-B) handles them.
+synonyms = [
+    "job title*", "company*", "location",
+    "i currently work here",
+    "month", "year",
+    "role description", "summary",  # Workable's equivalent
+]
+
+# -----------------------------
+# Account creation (Workday gate)
+# -----------------------------
+
+[account]
+# Per-ATS passwords live in data/applications/credentials.toml (#333).
+# This section is a pointer-only — match here surfaces the credential
+# lookup, never an inline plaintext value.
+password_lookup_path = "data/applications/credentials.toml"
+synonyms = [
+    "password*", "verify new password*",
+    "remember me",
+]
+
+# -----------------------------
+# Work authorization
+# -----------------------------
+
+[work_authorization]
+authorized_us       = ""    # TODO  "yes" | "no"
+sponsorship_needed  = ""    # TODO  "yes" | "no"
+visa_status         = ""    # TODO  "U.S. Citizen" | "Permanent Resident" | etc.
+synonyms = [
+    "authorized to work", "legally authorized", "right to work",
+    "require sponsorship", "need sponsorship", "visa sponsorship",
+    "work visa", "visa status", "immigration status",
+    # Full-text paraphrases (whole-word match in long question labels):
+    "will you now or in the future require sponsorship for employment visa status",
+    "will you now or in the future require employment sponsorship (please also note if opt applies)",
+]
+
+[age_check]
+answer = "Yes"
+synonyms = [
+    "are you 18 years of age or older",
+    "are you at least 18", "age 18 or older",
+]
+
+# -----------------------------
+# EEO / voluntary disclosure
+# -----------------------------
+
+[eeo]
+gender              = ""    # TODO  "Male" | "Female" | "Decline to self-identify"
+race_ethnicity      = ""    # TODO
+hispanic_or_latino  = ""    # TODO  "yes" | "no" | "decline"
+veteran_status      = ""    # TODO
+disability_status   = ""    # TODO
+synonyms = [
+    "gender", "sex",
+    "race", "ethnicity", "race / ethnicity",
+    "hispanic", "latino",
+    "veteran", "veteran status", "protected veteran",
+    "disability", "disability status",
+    "yes, i have a disability, or have had one in the past",
+    "no, i do not have a disability and have not had one in the past",
+    "i do not want to answer",
+]
+
+# -----------------------------
+# Preferences
+# -----------------------------
+
+[preferences]
+salary_expectation_usd = ""    # TODO  e.g. "180000-220000"
+earliest_start_date    = ""    # TODO  e.g. "Two weeks after offer"
+willing_to_relocate    = ""    # TODO  "yes" | "no" | "for the right role"
+remote_preference      = ""    # TODO  "remote" | "hybrid" | "onsite" | "flexible"
+notice_period_days     = ""    # TODO  e.g. "14"
+travel_pct_ok          = ""    # TODO  e.g. "0-10%"
+compensation_alignment = ""    # TODO  yes/no — Workable explicitly asks
+synonyms = [
+    "salary", "compensation", "salary expectation", "expected salary", "desired compensation",
+    "does the listed compensation align with your expectations",
+    "start date", "earliest start", "available to start", "notice period",
+    "relocate", "willing to relocate", "open to relocation",
+    "remote", "hybrid", "onsite", "work location preference",
+    "travel", "travel requirements", "willingness to travel",
+]
+
+# -----------------------------
+# Referral
+# -----------------------------
+
+[referral]
+source        = ""        # TODO  "LinkedIn" | "Company website" | etc.
+referrer_name = ""
+synonyms = [
+    "how did you hear", "how did you hear about us", "how did you find",
+    "source", "referral", "referred by",
+]
+
+# -----------------------------
+# Free-text profile fields (Workable-style)
+# -----------------------------
+
+[profile_fields]
+headline           = ""    # TODO  e.g. "Software Engineer | Test Automation"
+preferred_pronouns = ""    # TODO  e.g. "he/him"
+summary            = ""    # TODO  1-2 paragraph candidate summary
+synonyms = [
+    "headline", "preferred pronouns", "summary",
+]
+
+# -----------------------------
+# Consent / marketing
+# -----------------------------
+
+[consent]
+job_alerts_marketing        = false   # default opt-out
+terms_of_use_agreed         = true    # required to submit
+privacy_notice_acknowledged = true
+synonyms = [
+    "yes, i would like to receive job alerts and marketing",
+    "yes, i agree to the terms of use and privacy policy",
+    "i acknowledge",
+]
+
+# -----------------------------
+# Anti-bot honeypot — NEVER FILL
+# -----------------------------
+
+[honeypot]
+# Workday hides this input off-screen; only bots fill it. Submitting with
+# any value here flags the application as automated. Confirmed in multiple
+# Workday tenants. The matcher recognizes these labels and returns
+# Skip[honeypot] — fill drivers must respect that.
+fields_to_skip = [
+    "Enter website. This input is for robots only, do not enter if you're human.",
+]
+
+# -----------------------------
+# Per-company custom answers (filled as you encounter them)
+# -----------------------------
+
+# [custom.acme]
+# why_this_company        = "..."
+# preferred_pronouns      = ""
+# sponsorship_explanation = ""

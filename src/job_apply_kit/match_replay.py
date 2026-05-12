@@ -62,7 +62,21 @@ def replay(
         ts_split = slug.rsplit("-", 1)
         if len(ts_split) == 2 and ts_split[1].isdigit():
             slug = ts_split[0]
-        data = json.loads(fp.read_text())
+        # UTF-8 explicit + tolerant of partial captures: the recorder writes
+        # incrementally and can be SIGKILLed mid-write (atomic-write helper
+        # exists but older captures may pre-date it). Emit a warning and
+        # continue rather than crashing the whole replay on one bad file.
+        try:
+            data = json.loads(fp.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            print(
+                f"\n=== {slug} === (skipped: {fp.name} is not valid JSON: {exc})",
+                file=sink,
+            )
+            continue
+        except OSError as exc:
+            print(f"\n=== {slug} === (skipped: {exc})", file=sink)
+            continue
 
         labels_seen: set[str] = set()
         for snap in data:
@@ -141,7 +155,10 @@ def _main(argv: list[str] | None = None) -> int:
     )
     args = p.parse_args(argv)
 
-    bank = tomllib.loads(args.bank.read_text())
+    # Deterministic TOML parse: read as bytes so tomllib doesn't depend on
+    # the OS's default text decoding.
+    with args.bank.open("rb") as f:
+        bank = tomllib.load(f)
     replay(answer_bank=bank, capture_paths=args.files, verbose=args.verbose)
     return 0
 

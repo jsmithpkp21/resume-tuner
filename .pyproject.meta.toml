@@ -43,3 +43,11 @@ pythonpath = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Include non-Python assets shipped with packages (e.g. job_apply_kit's
+# field_extractor.js, which is injected into Playwright pages at runtime
+# and must travel with the wheel). Without this, `pip install` builds
+# omit the .js and `from job_apply_kit import EXTRACTOR_JS` fails at
+# import with FileNotFoundError.
+[tool.setuptools.package-data]
+job_apply_kit = ["*.js"]

@@ -19,17 +19,31 @@ Usage:
 
     scripts/fill_application.py <apply-url> \\
         --bank data/applications/_answer_bank.toml \\
-        [--slug <slug>] [--profile-dir <path>] [--capture-dir <path>]
+        [--slug <slug>] [--profile-dir <path>] [--capture-dir <path>] \\
+        [--show-values]
 
 Outputs (under <capture-dir>):
-    fill-decisions-<slug>-<ts>.json  per-field decision log
+    fill-decisions-<slug>-<ts>.json  per-field decision log (atomic write)
     trace-<slug>-<ts>/               chunked Playwright traces
+
+Privacy:
+  - Match values are **redacted by default** (the answer bank is PII +
+    can hold per-ATS passwords). Terminal output shows the resolved
+    section/sub_key, plus a short fingerprint (`<value len=N>`) so you
+    can tell different values apart without leaking them.
+  - Pass `--show-values` to print the actual filled value (local debug only).
+  - The fill-decisions JSON ALWAYS redacts values unless `--show-values`
+    is set, so capture archives are safe to share.
+
+Safety:
+  - `--slug` is validated against `[A-Za-z0-9_-]` to prevent path-escape.
+  - `--bank`, `--profile-dir`, `--capture-dir` are checked against the
+    repo's blocked-runtime-roots policy before any filesystem I/O.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 import tomllib
@@ -39,8 +53,16 @@ from typing import Any
 try:
     from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-    from job_apply_kit import EXTRACTOR_JS, Match, Skip, match
+    from job_apply_kit import (
+        EXTRACTOR_JS,
+        Match,
+        Skip,
+        atomic_write_json,
+        match,
+        sanitize_slug,
+    )
     from playwright_stealth_kit import launch_stealth_chrome
+    from resume_builder._runtime_guard import assert_not_blocked_runtime_input
 except ImportError:
     sys.stderr.write(
         "playwright + playwright-stealth required. Install with:\n"
@@ -52,6 +74,12 @@ except ImportError:
 DEFAULT_PROFILE_DIR = Path("data/applications/.browser-profile")
 DEFAULT_CAPTURE_DIR = Path("data/applications/_capture")
 CHUNK_INTERVAL_S = 20
+
+
+def _redact(value: str) -> str:
+    """Display-safe value fingerprint: never leaks contents, but still
+    distinguishes different values via their length."""
+    return f"<value len={len(value)}>"
 
 
 def _decision_summary(decisions: list[dict[str, Any]]) -> dict[str, int]:
@@ -77,7 +105,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--slug",
         default=None,
-        help="output filename slug (default: session-<ts>)",
+        help=(
+            "output filename slug (default: session-<ts>); allowed chars: "
+            "alphanumeric, '_', '-'"
+        ),
     )
     parser.add_argument(
         "--profile-dir",
@@ -91,21 +122,38 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_CAPTURE_DIR,
         help=f"output dir for traces + decisions JSON (default: {DEFAULT_CAPTURE_DIR})",
     )
+    parser.add_argument(
+        "--show-values",
+        action="store_true",
+        help=(
+            "show actual answer-bank values in terminal + decisions JSON. "
+            "Default redacts (the bank holds PII + per-ATS passwords)."
+        ),
+    )
     args = parser.parse_args(argv)
 
     ts = int(time.time())
-    slug = args.slug or f"session-{ts}"
+    slug = sanitize_slug(args.slug) if args.slug else f"session-{ts}"
+    assert_not_blocked_runtime_input(args.bank)
+    assert_not_blocked_runtime_input(args.profile_dir)
+    assert_not_blocked_runtime_input(args.capture_dir)
+
     args.capture_dir.mkdir(parents=True, exist_ok=True)
     chunk_dir = args.capture_dir / f"trace-{slug}-{ts}"
     chunk_dir.mkdir(parents=True, exist_ok=True)
     decisions_path = args.capture_dir / f"fill-decisions-{slug}-{ts}.json"
     chunk_counter = [0]
 
-    bank = tomllib.loads(args.bank.read_text())
+    # Deterministic TOML parse (binary handle so tomllib doesn't depend on
+    # OS-default text decoding).
+    with args.bank.open("rb") as f:
+        bank = tomllib.load(f)
     print(
         f"[setup] answer bank loaded: {len(bank)} sections, "
         f"{sum(len(v.get('synonyms', [])) for v in bank.values() if isinstance(v, dict))} synonyms"
     )
+    if not args.show_values:
+        print("[setup] PII redaction ON (values hidden; pass --show-values to disable)")
 
     # Per-field decisions accumulate here. Deduped by (label, type) so we
     # don't double-count fields that re-emit on every MutationObserver tick.
@@ -114,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
 
     def write_decisions() -> None:
         try:
-            decisions_path.write_text(json.dumps(decisions, indent=2))
+            atomic_write_json(decisions_path, decisions)
         except OSError as e:
             print(f"  [warn] decisions write failed: {e}")
 
@@ -132,18 +180,20 @@ def main(argv: list[str] | None = None) -> int:
             seen_keys.add(key)
             d = match(lbl, bank)
             if isinstance(d, Match):
+                stored_value = d.value if args.show_values else _redact(d.value)
+                shown_value = d.value if args.show_values else _redact(d.value)
                 entry = {
                     "outcome": "match",
                     "label": lbl,
                     "type": ftype,
                     "section": d.section,
                     "sub_key": d.sub_key,
-                    "value": d.value,
+                    "value": stored_value,
                     "matched_synonym": d.matched_synonym,
                 }
                 print(
                     f"  [would-fill]  {lbl[:55]:55s} → "
-                    f"{d.section}.{d.sub_key:25s} = {d.value!r}"
+                    f"{d.section}.{d.sub_key:25s} = {shown_value!r}"
                 )
             else:
                 assert isinstance(d, Skip)
@@ -155,7 +205,10 @@ def main(argv: list[str] | None = None) -> int:
                     "detail": d.detail,
                 }
                 tag = "honeypot" if d.reason == "honeypot" else d.reason
-                marker = "🛑" if d.reason == "honeypot" else "·"
+                # ASCII-only marker so the driver doesn't crash on
+                # encoding-restricted stdouts (some Windows shells,
+                # certain redirect targets).
+                marker = "!!" if d.reason == "honeypot" else "·"
                 print(f"  [skip:{tag:11s}] {marker} {lbl[:55]}")
             decisions.append(entry)
             new += 1

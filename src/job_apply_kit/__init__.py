@@ -25,6 +25,7 @@ roadmap).
 """
 
 from .field_extractor import EXTRACTOR_JS, load_extractor_js
+from .io_safety import atomic_write_json, sanitize_slug
 from .label_matcher import (
     HONEYPOT_SUBSTRINGS,
     Decision,
@@ -42,9 +43,11 @@ __all__ = [
     "HONEYPOT_SUBSTRINGS",
     "Match",
     "Skip",
+    "atomic_write_json",
     "is_honeypot",
     "load_extractor_js",
     "match",
     "normalize",
     "replay",
+    "sanitize_slug",
 ]

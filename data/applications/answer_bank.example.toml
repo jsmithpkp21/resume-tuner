@@ -48,7 +48,11 @@ synonyms = [
     "phone", "phone number", "phone number*",
     "phone extension", "country phone code", "telephone country code",
     "mobile", "telephone", "contact number",
-    "email or phone",             # NOTE: this is Google SSO's field, not Workday's — recognized for skip
+    # NOTE: Google SSO's "Email or phone" field can appear during Workday
+    # account creation but should NOT be auto-filled (Google SSO refuses
+    # Playwright-launched sessions anyway). Intentionally NOT listed as a
+    # synonym here so the matcher reports skip[no-match] rather than
+    # trying to fill it with contact.email.
 ]
 
 [address]

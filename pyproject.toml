@@ -98,3 +98,8 @@ markers = [
 where = [
     "src",
 ]
+
+[tool.setuptools.package-data]
+job_apply_kit = [
+    "*.js",
+]

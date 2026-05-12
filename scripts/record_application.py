@@ -20,18 +20,25 @@ Defaults:
     --capture-dir  data/applications/_capture        (gitignored)
 
 Outputs (under <capture-dir>):
-    fields-<slug>-<ts>.json   per-step field snapshots (incremental writes)
+    fields-<slug>-<ts>.json   per-step field snapshots (atomic-write, so
+                              SIGKILL never leaves a truncated file)
     trace-<slug>-<ts>/        directory of chunked Playwright traces
                               (each chunk a viewable .zip)
 
 Both default paths are gitignored, so captures stay local. Run match-
 validation later via `python -m job_apply_kit.match_replay`.
+
+Safety:
+  - `--slug` is validated against `[A-Za-z0-9_-]` to prevent path-escape
+    via `..` or path separators.
+  - `--profile-dir` / `--capture-dir` are checked against the repo's
+    blocked-runtime-roots policy (sandbox/, data/samples/) before any
+    filesystem mkdir or write.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 from pathlib import Path
@@ -40,8 +47,9 @@ from typing import Any
 try:
     from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-    from job_apply_kit import EXTRACTOR_JS
+    from job_apply_kit import EXTRACTOR_JS, atomic_write_json, sanitize_slug
     from playwright_stealth_kit import launch_stealth_chrome
+    from resume_builder._runtime_guard import assert_not_blocked_runtime_input
 except ImportError:
     sys.stderr.write(
         "playwright + playwright-stealth required. Install with:\n"
@@ -61,7 +69,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--slug",
         default=None,
-        help="output filename slug (default: session-<ts>)",
+        help=(
+            "output filename slug (default: session-<ts>); allowed chars: "
+            "alphanumeric, '_', '-' (must start with alphanumeric)"
+        ),
     )
     parser.add_argument(
         "--profile-dir",
@@ -78,7 +89,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     ts = int(time.time())
-    slug = args.slug or f"session-{ts}"
+    slug = sanitize_slug(args.slug) if args.slug else f"session-{ts}"
+
+    # Block writes to sandbox/, data/samples/, etc. — same policy as
+    # build_resume.run_pipeline and validate_experience_data.
+    assert_not_blocked_runtime_input(args.profile_dir)
+    assert_not_blocked_runtime_input(args.capture_dir)
+
     args.capture_dir.mkdir(parents=True, exist_ok=True)
     chunk_dir = args.capture_dir / f"trace-{slug}-{ts}"
     chunk_dir.mkdir(parents=True, exist_ok=True)
@@ -88,9 +105,11 @@ def main(argv: list[str] | None = None) -> int:
     snapshots: list[dict[str, Any]] = []
 
     def write_fields() -> None:
-        # Idempotent incremental write so even SIGKILL leaves the partial JSON.
+        # Atomic write: temp file + os.replace() so SIGKILL mid-write can't
+        # leave fields_path truncated. Readers always see either the prior
+        # full snapshot or the new full snapshot, never a partial.
         try:
-            fields_path.write_text(json.dumps(snapshots, indent=2))
+            atomic_write_json(fields_path, snapshots)
         except OSError as e:
             print(f"  [warn] fields write failed: {e}")
 

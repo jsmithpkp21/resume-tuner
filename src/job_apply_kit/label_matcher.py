@@ -267,13 +267,18 @@ def match(label: str, answer_bank: dict[str, Any]) -> Decision:
                 elif section in _SUB_KEY_RESOLVERS:
                     sub_key = _SUB_KEY_RESOLVERS[section](norm)
                 else:
-                    # Generic section — pick the first non-synonyms key
-                    # whose value is a non-empty string.
+                    # Generic section — pick the first non-synonyms key with
+                    # a fillable value. Strings need to be non-empty; bool/int
+                    # values (e.g. [consent].terms_of_use_agreed=true) are
+                    # accepted as-is. None / empty-string / "synonyms" key
+                    # are skipped.
                     sub_key = next(
                         (
                             k
                             for k, v in data.items()
-                            if k != "synonyms" and isinstance(v, str) and v
+                            if k != "synonyms"
+                            and v is not None
+                            and (not isinstance(v, str) or v.strip())
                         ),
                         "",
                     )
@@ -282,7 +287,10 @@ def match(label: str, answer_bank: dict[str, Any]) -> Decision:
                         reason="empty-value",
                         detail=f"matched section={section} but no fillable sub-key for label",
                     )
-                value = data.get(sub_key, "")
+                value = data.get(sub_key)
+                # Empty-value gate: skip if the resolved sub_key is None,
+                # blank string, or whitespace-only string. Bools/numbers
+                # always pass (caller stringifies for display).
                 if value is None or (isinstance(value, str) and not value.strip()):
                     return Skip(
                         reason="empty-value",

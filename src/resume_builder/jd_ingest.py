@@ -1199,7 +1199,12 @@ def _host_needs_javascript_render(host: str) -> bool:
     match — e.g. ``becu.wd1.myworkdayjobs.com`` matches
     ``myworkdayjobs.com``).
     """
-    host = (host or "").lower().split(":", maxsplit=1)[0]
+    # Caller passes `urlparse(url).hostname`, which is already
+    # lowercased and port-stripped. We don't split on ':' here —
+    # IPv6 hostnames (e.g. '2001:db8::1') would be truncated to the
+    # first segment by such a split. Issue #317 (parallel to the fix in
+    # `_resolve_host_body_selector`, PR #313 review round 3).
+    host = (host or "").lower()
     if not host:
         return False
     if host in _JS_RENDERED_EXACT_HOSTS:

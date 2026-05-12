@@ -1858,6 +1858,31 @@ def test_resolve_host_body_selector_does_not_truncate_ipv6_hosts(
     assert _resolve_host_body_selector("2001:db8::1") == "div.jd-body"
 
 
+def test_host_needs_javascript_render_does_not_truncate_ipv6_hosts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Parallel to `test_resolve_host_body_selector_does_not_truncate_ipv6_hosts`:
+    the JS-render allowlist check used the same ``host.split(':', 1)[0]``
+    defensive truncation and would silently misroute IPv6 hosts (e.g.
+    ``'2001:db8::1'`` -> ``'2001'``). Issue #317.
+    """
+    monkeypatch.setattr(
+        "resume_builder.jd_ingest._JS_RENDERED_EXACT_HOSTS",
+        ("2001:db8::1",),
+    )
+    monkeypatch.setattr("resume_builder.jd_ingest._JS_RENDERED_HOST_FAMILIES", ())
+    # Exact-host match only works if colons survived normalization.
+    assert _host_needs_javascript_render("2001:db8::1") is True
+    # And the negative path: an IPv6 host NOT in the allowlist must
+    # not get truncated into a prefix that *would* match the allowlist
+    # (regression guard for the silent-misroute failure mode).
+    monkeypatch.setattr(
+        "resume_builder.jd_ingest._JS_RENDERED_EXACT_HOSTS",
+        ("2001",),
+    )
+    assert _host_needs_javascript_render("2001:db8::1") is False
+
+
 def test_fetch_via_playwright_uses_host_body_selector_when_no_jsonld(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

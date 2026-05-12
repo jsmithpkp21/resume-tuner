@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.49.0...v0.49.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* **generate_review_packet:** guard --output-dir with _assert_not_blocked_runtime_input (closes [#326](https://github.com/jsmithpkp21/resume-builder/issues/326)) ([af343c2](https://github.com/jsmithpkp21/resume-builder/commit/af343c223703a75da2cdd08aaf640b2aac31b22e))
+
 ## [0.49.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.48.1...v0.49.0) (2026-05-12)
 
 

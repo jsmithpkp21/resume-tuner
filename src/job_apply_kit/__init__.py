@@ -37,22 +37,32 @@ from .label_matcher import (
     match,
     normalize,
 )
+from .live_fill import (
+    FillDecision,
+    decide_fill,
+    parse_type_delay_range,
+    pick_typing_delay,
+)
 from .match_replay import replay
 
 __all__ = [
     "CredentialResult",
     "Decision",
     "EXTRACTOR_JS",
+    "FillDecision",
     "HONEYPOT_SUBSTRINGS",
     "Match",
     "Skip",
     "atomic_write_json",
+    "decide_fill",
     "handle_credential_match",
     "infer_ats_tenant",
     "is_honeypot",
     "load_extractor_js",
     "match",
     "normalize",
+    "parse_type_delay_range",
+    "pick_typing_delay",
     "replay",
     "sanitize_slug",
 ]

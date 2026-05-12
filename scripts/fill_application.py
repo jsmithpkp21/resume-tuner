@@ -1,26 +1,38 @@
 #!/usr/bin/env python3
-"""Playwright-driven semi-auto filler — dry-run mode (issue #319 Phase 3-A).
+"""Playwright-driven semi-auto filler — dry-run (#319) + live (#363).
 
 Opens Chrome via the same stealth-wrapped persistent context as
 `scripts/record_application.py`, injects the field extractor, and on each
-stable snapshot runs `job_apply_kit.label_matcher.match` per field. In
-dry-run mode it LOGS what it would fill but never calls page.fill() /
-page.click().
+stable snapshot runs `job_apply_kit.label_matcher.match` per field.
 
-Use the output to:
-  1. Confirm the matcher does the right thing on a live apply page
-  2. Spot synonyms missing from the answer bank
-  3. Catch honeypot patterns the matcher hasn't seen yet
+Two modes:
 
-Live-fill execution + per-role Workday loop handling are future
-sub-issues (Phase 3 deliverables B/C).
+  - **Dry-run** (default): LOGS what it would fill but never calls
+    page.fill() / page.click(). Use this to validate the matcher
+    against a real apply page, spot missing synonyms, catch new
+    honeypot patterns.
+  - **Live** (`--live`): actually fills matched fields via
+    `page.press_sequentially` / `select_option` / `check`. Honeypots,
+    `[account]` passwords (handed to the credential hook — #341), and
+    `[work_experience]` (Phase 3-C scope) are NEVER autofilled
+    regardless of flags. Sensitive bank sections (eeo, consent,
+    preferences, …) require explicit opt-in via `--fill-sections`.
+    Submit / Next / Apply buttons are never clicked — user reviews +
+    submits manually.
 
-Usage:
+Per-role Workday loop handling is a future sub-issue (Phase 3-C).
+
+Usage (dry-run):
+
+    scripts/fill_application.py <apply-url> \\
+        --bank data/applications/_answer_bank.toml
+
+Usage (live, with broader section scope):
 
     scripts/fill_application.py <apply-url> \\
         --bank data/applications/_answer_bank.toml \\
-        [--slug <slug>] [--profile-dir <path>] [--capture-dir <path>] \\
-        [--show-values]
+        --live --fill-sections name,contact,address,links,education,eeo \\
+        --type-delay-ms 80-180 --confirm-before-fill
 
 Outputs (under <capture-dir>):
     fill-decisions-<slug>-<ts>.json  per-field decision log (atomic write)
@@ -58,6 +70,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import random
 import sys
 import time
 import tomllib
@@ -66,6 +79,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 try:
+    from playwright.sync_api import Locator
     from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
     from job_apply_kit import (
@@ -73,9 +87,12 @@ try:
         Match,
         Skip,
         atomic_write_json,
+        decide_fill,
         handle_credential_match,
         infer_ats_tenant,
         match,
+        parse_type_delay_range,
+        pick_typing_delay,
         sanitize_slug,
     )
     from playwright_stealth_kit import launch_stealth_chrome
@@ -99,6 +116,14 @@ DEFAULT_PROFILE_DIR = Path("data/applications/.browser-profile")
 DEFAULT_CAPTURE_DIR = Path("data/applications/_capture")
 CHUNK_INTERVAL_S = 20
 
+# Default --fill-sections whitelist when --live is on but the user
+# didn't pass --fill-sections explicitly. Sensitive bank sections
+# (eeo / consent / preferences / referral / profile_fields) require
+# explicit opt-in; this default covers the high-fill / low-risk
+# identity sections.
+DEFAULT_FILL_SECTIONS = "name,contact,address,links,education"
+DEFAULT_TYPE_DELAY_MS = "50-150"
+
 
 def _redact(value: str) -> str:
     """Display-safe value fingerprint: never leaks contents, but still
@@ -120,12 +145,18 @@ class _TerminalPrompter:
 
 
 def _decision_summary(decisions: list[dict[str, Any]]) -> dict[str, int]:
-    """Summary counts by outcome — match / skip[honeypot] / skip[no-match] / skip[empty-value]."""
+    """Per-bucket counts: filled / fill-error / match[decision] / skip[reason]."""
     out: dict[str, int] = {}
     for d in decisions:
         k = d["outcome"]
         if "reason" in d:
+            # Skip entry from the matcher (honeypot, no-match, etc.).
             k = f"skip[{d['reason']}]"
+        elif k == "match" and "decision" in d:
+            # Dry-run or gated Match — break out by gate decision so
+            # the user sees how many fills were dropped to e.g.
+            # `skip-section-gated` vs `skip-dry-run`.
+            k = f"match[{d['decision']}]"
         out[k] = out.get(k, 0) + 1
     return out
 
@@ -168,7 +199,56 @@ def main(argv: list[str] | None = None) -> int:
             "Default redacts (the bank holds PII + per-ATS passwords)."
         ),
     )
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help=(
+            "Actually fill matched fields (page.fill / select_option / "
+            "check) instead of dry-run logging. Honeypots, passwords, "
+            "and work_experience are never filled regardless of this "
+            "flag. Default: dry-run (Phase 3-A behavior unchanged)."
+        ),
+    )
+    parser.add_argument(
+        "--fill-sections",
+        default=DEFAULT_FILL_SECTIONS,
+        help=(
+            "Comma-separated answer-bank sections this run may fill "
+            f"when --live is set (default: {DEFAULT_FILL_SECTIONS}). "
+            "Sensitive sections (eeo, consent, preferences, etc.) "
+            "require explicit opt-in. Pass an empty string to "
+            "section-gate everything."
+        ),
+    )
+    parser.add_argument(
+        "--type-delay-ms",
+        default=DEFAULT_TYPE_DELAY_MS,
+        help=(
+            "Per-keystroke typing-delay jitter range in 'MIN-MAX' "
+            f"format (default: {DEFAULT_TYPE_DELAY_MS}). Defends against "
+            "zero-delay bot detection on Workday + similar ATSes."
+        ),
+    )
+    parser.add_argument(
+        "--confirm-before-fill",
+        action="store_true",
+        help=(
+            "Pause and prompt before each live fill (y/n/skip). Useful "
+            "the first time you run --live on a new ATS."
+        ),
+    )
     args = parser.parse_args(argv)
+
+    # Parse + validate --type-delay-ms early so the user sees the error
+    # before the browser launches.
+    type_delay_range = parse_type_delay_range(args.type_delay_ms)
+    # Tokenize --fill-sections into a frozenset. Empty entries from
+    # consecutive commas or leading/trailing commas are dropped so
+    # `--fill-sections name,contact,` works.
+    allowed_sections = frozenset(
+        s.strip() for s in args.fill_sections.split(",") if s.strip()
+    )
+    typing_rng = random.Random()
 
     ts = int(time.time())
     slug = sanitize_slug(args.slug) if args.slug else f"session-{ts}"
@@ -207,6 +287,15 @@ def main(argv: list[str] | None = None) -> int:
     # ATS+tenant when inference failed) into later password fields
     # on the same host, so the user isn't asked again per field.
     host_ats_tenant_cache: dict[str, tuple[str, str]] = {}
+    # Sections the user opted to skip mid-session via the
+    # --confirm-before-fill prompt ("s" answer). Live mode honors
+    # this in addition to the static --fill-sections whitelist.
+    skip_sections_runtime: set[str] = set()
+    # Holds the main Playwright Page once `with launch_stealth_chrome`
+    # is entered. on_snapshot() is defined before that point but the
+    # live-fill path needs a page reference; reading from a cell lets
+    # us write once after launch without restructuring the closure.
+    page_holder: list[Any] = [None]
     prompter = _TerminalPrompter()
 
     def write_decisions() -> None:
@@ -214,6 +303,103 @@ def main(argv: list[str] | None = None) -> int:
             atomic_write_json(decisions_path, decisions)
         except OSError as e:
             print(f"  [warn] decisions write failed: {e}")
+
+    def _resolve_locator(page: Any, fld: dict[str, Any]) -> Locator | None:
+        """Try three locator strategies in priority order; return the
+        first unique match (`count() == 1`). Returns None on no match,
+        ambiguous match, or Playwright errors — caller logs and skips.
+        """
+        lbl = (fld.get("label") or "").strip()
+        name = (fld.get("name") or "").strip()
+        fid = (fld.get("id") or "").strip()
+        candidates: list[Locator] = []
+        if lbl:
+            candidates.append(page.get_by_label(lbl, exact=True))
+        if name:
+            # CSS attribute selector with escaped value.
+            safe = name.replace('"', '\\"')
+            candidates.append(page.locator(f'[name="{safe}"]'))
+        if fid:
+            candidates.append(page.locator(f"#{fid}"))
+        for loc in candidates:
+            try:
+                if loc.count() == 1:
+                    return loc
+            except Exception:
+                continue
+        return None
+
+    def _perform_live_fill(
+        page: Any,
+        fld: dict[str, Any],
+        m: Match,
+    ) -> tuple[str, str]:
+        """Execute the DOM action for a `fill` decision.
+
+        Returns ("filled", "") on success or ("fill-error", reason)
+        on any locator / action failure. Never raises — fill_application
+        must survive single-field failures and continue the session.
+        """
+        loc = _resolve_locator(page, fld)
+        if loc is None:
+            return ("fill-error", "no unique locator")
+        ftype = fld.get("type", "")
+        value = m.value
+        try:
+            if ftype in (
+                "text",
+                "email",
+                "tel",
+                "url",
+                "number",
+                "search",
+                "textarea",
+                "contenteditable",
+                "combobox",
+            ):
+                delay = pick_typing_delay(type_delay_range, typing_rng)
+                loc.press_sequentially(value, delay=delay)
+            elif ftype == "select":
+                # Try label-based selection first (matches what the user
+                # sees), fall back to value-based.
+                try:
+                    loc.select_option(label=value)
+                except Exception:
+                    loc.select_option(value=value)
+            elif ftype == "radio-group":
+                # The locator we resolved is the group root; the actual
+                # radio input lives under it with a specific [value=...].
+                # The extractor emits `options` with each radio's value.
+                opts = fld.get("options") or []
+                target_val: str | None = None
+                value_norm = value.strip().lower()
+                for opt in opts:
+                    olabel = str(opt.get("label", "")).strip().lower()
+                    oval = str(opt.get("value", "")).strip()
+                    if olabel == value_norm or oval.lower() == value_norm:
+                        target_val = oval
+                        break
+                if target_val is None:
+                    return ("fill-error", f"no radio option matched {value!r}")
+                name = fld.get("name", "")
+                if not name:
+                    return ("fill-error", "radio-group missing name attr")
+                safe_n = name.replace('"', '\\"')
+                safe_v = target_val.replace('"', '\\"')
+                page.locator(
+                    f'input[type="radio"][name="{safe_n}"][value="{safe_v}"]'
+                ).check()
+            elif ftype == "checkbox":
+                v = str(value).strip().lower()
+                if v in ("true", "yes", "on", "1", "agree", "accept"):
+                    loc.check()
+                else:
+                    loc.uncheck()
+            else:
+                return ("fill-error", f"unsupported field type {ftype!r}")
+        except Exception as e:
+            return ("fill-error", f"{type(e).__name__}: {e}")
+        return ("filled", "")
 
     def on_snapshot(payload: dict[str, Any]) -> None:
         page_url = payload.get("url", "") or ""
@@ -289,23 +475,89 @@ def main(argv: list[str] | None = None) -> int:
                     new += 1
                     continue
 
+                # All non-account Matches go through the live-fill gate.
+                # `decide_fill` returns one of fill / skip-dry-run /
+                # skip-section-gated / skip-work-experience / etc.
+                # Annotated `str` (not the narrower `FillDecision`
+                # literal) because the confirm-before-fill branch can
+                # overwrite the value with a runtime-only state like
+                # `"skip-confirm-no"` that's not in the literal union.
+                decision: str = decide_fill(
+                    section=d.section,
+                    sub_key=d.sub_key,
+                    skip_reason=None,
+                    live=args.live,
+                    allowed_sections=allowed_sections - skip_sections_runtime,
+                )
+
                 # Single source of truth for redaction so JSON + terminal
                 # output can never disagree (e.g. drift from a future tweak
                 # to only one of them and accidentally leak PII to one sink).
                 display_value = d.value if args.show_values else _redact(d.value)
-                entry = {
-                    "outcome": "match",
-                    "label": lbl,
-                    "type": ftype,
-                    "section": d.section,
-                    "sub_key": d.sub_key,
-                    "value": display_value,
-                    "matched_synonym": d.matched_synonym,
-                }
-                print(
-                    f"  [would-fill]  {lbl[:55]:55s} → "
-                    f"{d.section}.{d.sub_key:25s} = {display_value!r}"
-                )
+
+                if decision == "fill" and args.confirm_before_fill:
+                    resp = (
+                        input(
+                            f"  fill {d.section}.{d.sub_key} = "
+                            f"{display_value!r}? [y/n/s=skip-section/q=quit]: "
+                        )
+                        .strip()
+                        .lower()
+                    )
+                    if resp == "n":
+                        decision = "skip-confirm-no"
+                    elif resp == "s":
+                        skip_sections_runtime.add(d.section)
+                        decision = "skip-confirm-section"
+                    elif resp == "q":
+                        raise KeyboardInterrupt
+
+                if decision == "fill":
+                    page = page_holder[0]
+                    if page is None:
+                        outcome_str, err = "fill-error", "page not ready"
+                    else:
+                        outcome_str, err = _perform_live_fill(page, fld, d)
+                    entry = {
+                        "outcome": outcome_str,
+                        "label": lbl,
+                        "type": ftype,
+                        "section": d.section,
+                        "sub_key": d.sub_key,
+                        "value": display_value,
+                        "matched_synonym": d.matched_synonym,
+                    }
+                    if err:
+                        entry["error"] = err
+                    marker = "✓" if outcome_str == "filled" else "✗"
+                    err_suffix = f"  [{err}]" if err else ""
+                    print(
+                        f"  [{outcome_str:11s}] {marker} {lbl[:50]:50s} → "
+                        f"{d.section}.{d.sub_key:25s} = {display_value!r}"
+                        f"{err_suffix}"
+                    )
+                else:
+                    # Log only — dry-run or gated. Includes the
+                    # decision name so capture-readers can distinguish
+                    # "didn't fill because --live off" from "didn't fill
+                    # because section not whitelisted" without re-running.
+                    entry = {
+                        "outcome": "match",
+                        "decision": decision,
+                        "label": lbl,
+                        "type": ftype,
+                        "section": d.section,
+                        "sub_key": d.sub_key,
+                        "value": display_value,
+                        "matched_synonym": d.matched_synonym,
+                    }
+                    # Legacy tag for backwards-compat: 'skip-dry-run'
+                    # was previously logged as `[would-fill]`.
+                    tag = "would-fill" if decision == "skip-dry-run" else decision
+                    print(
+                        f"  [{tag:18s}] {lbl[:50]:50s} → "
+                        f"{d.section}.{d.sub_key:25s} = {display_value!r}"
+                    )
             else:
                 assert isinstance(d, Skip)
                 entry = {
@@ -345,10 +597,11 @@ def main(argv: list[str] | None = None) -> int:
             fields_flushed[0] = True
             write_decisions()
             summary = _decision_summary(decisions)
-            print("\n[flush] dry-run complete.")
+            mode_str = "live" if args.live else "dry-run"
+            print(f"\n[flush] {mode_str} complete.")
             print(f"  decisions: {decisions_path}  ({len(decisions)} fields)")
             for k in sorted(summary.keys()):
-                print(f"    {k:25s} {summary[k]}")
+                print(f"    {k:30s} {summary[k]}")
 
         context.tracing.start(snapshots=True, screenshots=True, sources=False)
         context.tracing.start_chunk()
@@ -356,6 +609,10 @@ def main(argv: list[str] | None = None) -> int:
         context.on("close", lambda _ctx: flush_final())
 
         page = context.pages[0] if context.pages else context.new_page()
+        # Make the page reachable from on_snapshot for the live-fill
+        # path. on_snapshot is defined above the `with` block so it
+        # can't reference `page` directly.
+        page_holder[0] = page
         page.expose_function("__claudePush", on_snapshot)
         context.on(
             "page",
@@ -364,8 +621,21 @@ def main(argv: list[str] | None = None) -> int:
 
         try:
             page.goto(args.url)
-            print("\n=== DRY-RUN MODE — no fields will be filled. ===")
-            print("    Drive the apply page manually; the matcher logs decisions")
+            if args.live:
+                print(
+                    f"\n=== LIVE MODE — sections enabled: "
+                    f"{','.join(sorted(allowed_sections)) or '(none)'} ==="
+                )
+                print(
+                    f"    Typing delay range: {type_delay_range[0]}–"
+                    f"{type_delay_range[1]} ms. Honeypots, passwords, "
+                    "and work_experience never auto-fill."
+                )
+                if args.confirm_before_fill:
+                    print("    Each fill will pause for confirmation.")
+            else:
+                print("\n=== DRY-RUN MODE — no fields will be filled. ===")
+                print("    Drive the apply page manually; the matcher logs decisions")
             print("    in real time. Close the Chrome window when done.\n")
             while True:
                 try:

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.50.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.49.1...v0.50.0) (2026-05-12)
+
+
+### Features
+
+* **application-submission:** phase 3-A dry-run filler in src/job_apply_kit/ (closes [#319](https://github.com/jsmithpkp21/resume-builder/issues/319)) ([057f4d7](https://github.com/jsmithpkp21/resume-builder/commit/057f4d7215da6d074c56ed0dee0953d25449ef96))
+
+
+### Bug Fixes
+
+* **application-submission:** address PR [#350](https://github.com/jsmithpkp21/resume-builder/issues/350) review round 1 ([8b941d1](https://github.com/jsmithpkp21/resume-builder/commit/8b941d155d0de43e41cd473aeea13fac1be0b0e4))
+* **application-submission:** address PR [#350](https://github.com/jsmithpkp21/resume-builder/issues/350) review round 2 ([9f6ad16](https://github.com/jsmithpkp21/resume-builder/commit/9f6ad166ecca0d260784107818e1d13a5740f4f9))
+* **application-submission:** address PR [#350](https://github.com/jsmithpkp21/resume-builder/issues/350) review round 3 ([cb647b4](https://github.com/jsmithpkp21/resume-builder/commit/cb647b427158b333251853303e0c6b911af8fc78))
+
 ## [0.49.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.49.0...v0.49.1) (2026-05-12)
 
 

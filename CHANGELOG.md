@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.48.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.48.0...v0.48.1) (2026-05-12)
+
+
+### Documentation
+
+* **application-submission:** retarget README session-hook reference at follow-up [#341](https://github.com/jsmithpkp21/resume-builder/issues/341) ([8436946](https://github.com/jsmithpkp21/resume-builder/commit/84369461860117d52a2ba3a14c33e537d31157b5))
+
 ## [0.48.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.47.3...v0.48.0) (2026-05-12)
 
 

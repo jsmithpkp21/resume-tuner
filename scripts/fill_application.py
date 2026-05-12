@@ -12,7 +12,8 @@ Two modes:
     against a real apply page, spot missing synonyms, catch new
     honeypot patterns.
   - **Live** (`--live`): actually fills matched fields via
-    `page.press_sequentially` / `select_option` / `check`. Honeypots,
+    `Locator.press_sequentially` / `Locator.select_option` /
+    `Locator.check`. Honeypots,
     `[account]` passwords (handed to the credential hook — #341), and
     `[work_experience]` (Phase 3-C scope) are NEVER autofilled
     regardless of flags. Sensitive bank sections (eeo, consent,

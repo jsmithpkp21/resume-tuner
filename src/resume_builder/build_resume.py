@@ -1966,7 +1966,8 @@ def _jd_context_required(args: argparse.Namespace) -> bool:
 
 _LLM_COMPANY_NAME_MAX_CHARS = 40
 _LLM_COMPANY_NAME_MAX_WORDS = 5
-_LLM_COMPANY_NAME_SEPARATORS = (",", ".", ";", ":", "(", "\n")
+_LLM_COMPANY_NAME_SEPARATORS = (",", ";", ":", "(", "\n", "—", "–")
+_LLM_COMPANY_NAME_SENTENCE_BREAK = re.compile(r"\.\s+[a-z]")
 _LLM_COMPANY_NAME_APPOSITIVES = (
     " you are ",
     " we are ",
@@ -2004,9 +2005,16 @@ def _clean_llm_company_name(raw: str) -> str:
         if idx != -1 and idx < cut:
             cut = idx
     cleaned = cleaned[:cut].strip()
+    # Split on sentence-terminating periods only (period + whitespace +
+    # lowercase letter). This catches mid-sentence breaks like
+    # "Corp. you are" while preserving acronyms like "U.S. Bank" where
+    # the period is followed by uppercase.
+    cleaned = _LLM_COMPANY_NAME_SENTENCE_BREAK.split(cleaned, maxsplit=1)[0].strip()
     for separator in _LLM_COMPANY_NAME_SEPARATORS:
         if separator in cleaned:
             cleaned = cleaned.split(separator, 1)[0].strip()
+    if cleaned.endswith("."):
+        cleaned = cleaned[:-1].strip()
     lowered = cleaned.lower()
     for prefix in _LLM_COMPANY_NAME_LEADING_PREFIXES:
         if lowered.startswith(prefix):

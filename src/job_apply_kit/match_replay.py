@@ -9,8 +9,12 @@ per-session + overall match-rate stats:
   - skip[honeypot]           — label matched a known anti-bot honeypot pattern
   - skip[empty-value]        — synonym matched but the bank's value is blank/TODO
   - skip[unresolved-sub-key] — synonym matched but the matcher couldn't pick a
-                               sub-key (resolver heuristic miss, or multi-field
-                               section with no resolver registered)
+                               sub-key (resolver heuristic miss returning None,
+                               or multi-field section with no resolver registered)
+  - skip[intentional-skip]   — synonym matched and the resolver deliberately
+                               declined to fill (e.g. Workday phone-extension,
+                               social links, "remember me" checkbox). Working
+                               as designed — no operator action needed.
   - skip[no-match]           — no synonym matched (structural/custom/page-chrome)
 
 Used to validate the matcher against real captures before doing anything
@@ -19,7 +23,8 @@ bank" health check: rising `no-match` rate suggests synonyms missing;
 rising `empty-value` rate suggests TODOs in the bank that should be filled;
 rising `unresolved-sub-key` rate suggests the matcher's per-section
 resolvers in `label_matcher._SUB_KEY_RESOLVERS` need new heuristic branches
-or that a multi-field section needs its first resolver.
+or that a multi-field section needs its first resolver; `intentional-skip`
+is benign and should be ignored.
 
 Example:
 

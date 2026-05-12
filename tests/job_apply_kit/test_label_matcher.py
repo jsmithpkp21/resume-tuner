@@ -4,8 +4,10 @@ Covers:
 - normalize(): trailing-punct stripping, whitespace collapsing, embedded newlines
 - is_honeypot(): substring detection against the canonical patterns
 - match(): canonical-synonym matching, sub-field heuristics, honeypot skip,
-  empty-value skip when bank entry is blank, unresolved-sub-key skip when the
-  matcher can't pick a sub-key, no-match for unrecognized labels
+  empty-value skip when bank entry is blank, unresolved-sub-key when the
+  resolver returns None (matcher gap), intentional-skip when the resolver
+  returns "" (matcher declined to fill by design), no-match for unrecognized
+  labels
 - Decision typing (Match vs Skip)
 
 The matcher is pure — no I/O, no Playwright, no captures — so these tests
@@ -525,6 +527,58 @@ class TestUnresolvedSubKey:
         assert isinstance(d, Skip)
         assert d.reason == "empty-value"
         assert "no fillable keys" in d.detail
+
+
+class TestIntentionalSkip:
+    """Resolvers return "" (not None) for labels they recognize but
+    deliberately decline to fill. Replay summaries should surface these
+    as `intentional-skip` so the operator doesn't waste time "extending
+    the matcher" — the matcher is working as designed. (Added in #355.)
+    """
+
+    def test_phone_extension_is_intentional_skip(self) -> None:
+        # Workday's phone-extension field — _sub_key_for_contact returns
+        # "" because we don't fill extensions even though we know what
+        # the label means.
+        bank = {
+            "contact": {
+                "email": "jane@example.com",
+                "phone_pretty": "+1 555 0123",
+                "synonyms": ["phone extension", "extension"],
+            },
+        }
+        d = match("Phone Extension", bank)
+        assert isinstance(d, Skip)
+        assert d.reason == "intentional-skip"
+        assert "contact" in d.detail
+
+    def test_facebook_link_is_intentional_skip(self) -> None:
+        # _sub_key_for_links returns "" for facebook/twitter — we don't
+        # track those social links by design.
+        bank = {
+            "links": {
+                "linkedin_url": "https://linkedin.com/in/jane",
+                "website_url": "https://example.com",
+                "synonyms": ["facebook", "facebook profile"],
+            },
+        }
+        d = match("Facebook Profile", bank)
+        assert isinstance(d, Skip)
+        assert d.reason == "intentional-skip"
+
+    def test_remember_me_is_intentional_skip(self) -> None:
+        # _sub_key_for_account returns "" for "remember me" — it's a
+        # boolean checkbox the caller handles separately, not a fillable
+        # text value the matcher should resolve.
+        bank = {
+            "account": {
+                "password_lookup_path": "credentials.toml#some_ats",
+                "synonyms": ["remember me"],
+            },
+        }
+        d = match("Remember me", bank)
+        assert isinstance(d, Skip)
+        assert d.reason == "intentional-skip"
 
 
 class TestWholeWordMatching:

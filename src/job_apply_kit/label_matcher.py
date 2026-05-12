@@ -36,7 +36,7 @@ class Match:
 class Skip:
     """Skip this field — explicit reason."""
 
-    reason: str  # "honeypot" | "no-match" | "empty-value" | "unresolved-sub-key"
+    reason: str  # "honeypot" | "no-match" | "empty-value" | "unresolved-sub-key" | "intentional-skip"
     detail: str = ""  # extra context for logs
 
 
@@ -82,9 +82,20 @@ def is_honeypot(label: str) -> bool:
 # -----------------------------
 # Given a normalized label that matched a section's synonyms list, decide
 # which sub-key within the section the value belongs to.
+#
+# Return-type convention (#355):
+#   - non-empty `str`: the sub_key to fill from the bank.
+#   - `""`            : matcher recognizes the label and is intentionally
+#                       declining to fill (e.g. Workday phone-extension,
+#                       social links we don't track). Surfaces as
+#                       Skip(reason="intentional-skip") to the operator —
+#                       no remediation needed.
+#   - `None`          : matcher does NOT recognize this label within the
+#                       section. Surfaces as Skip(reason="unresolved-sub-key")
+#                       — remediation is to add a branch to the resolver.
 
 
-def _sub_key_for_name(norm: str) -> str:
+def _sub_key_for_name(norm: str) -> str | None:
     if "middle" in norm:
         return "middle"
     if "last" in norm or "family" in norm or "surname" in norm:
@@ -98,13 +109,13 @@ def _sub_key_for_name(norm: str) -> str:
     return "first"
 
 
-def _sub_key_for_contact(norm: str) -> str:
+def _sub_key_for_contact(norm: str) -> str | None:
     if "email" in norm:
         return "email"
     if "country" in norm and ("code" in norm or "phone" in norm):
         return "country_phone_code"
     if "extension" in norm:
-        return ""  # Workday phone-extension — leave blank
+        return ""  # Workday phone-extension — intentional skip
     if (
         "phone" in norm
         or "telephone" in norm
@@ -115,7 +126,7 @@ def _sub_key_for_contact(norm: str) -> str:
     return "email"
 
 
-def _sub_key_for_address(norm: str) -> str:
+def _sub_key_for_address(norm: str) -> str | None:
     if "country" in norm:
         return "country"
     if "state" in norm or "province" in norm or "region" in norm:
@@ -131,17 +142,17 @@ def _sub_key_for_address(norm: str) -> str:
     return "street1"
 
 
-def _sub_key_for_links(norm: str) -> str:
+def _sub_key_for_links(norm: str) -> str | None:
     if "linkedin" in norm:
         return "linkedin_url"
     if "github" in norm:
         return "github_url"
     if "facebook" in norm or "twitter" in norm:
-        return ""  # leave blank
+        return ""  # intentional skip — we don't track these
     return "website_url"
 
 
-def _sub_key_for_education(norm: str) -> str:
+def _sub_key_for_education(norm: str) -> str | None:
     if (
         "school" in norm
         or "university" in norm
@@ -160,7 +171,7 @@ def _sub_key_for_education(norm: str) -> str:
     return "school"
 
 
-def _sub_key_for_account(norm: str) -> str:
+def _sub_key_for_account(norm: str) -> str | None:
     # password_lookup_path is the answer-bank's pointer to data/applications/
     # credentials.toml (#333) — fill_application's matcher hits this and the
     # session-level credential lookup wiring (#341, blocked behind #319) is
@@ -169,21 +180,21 @@ def _sub_key_for_account(norm: str) -> str:
     if "verify" in norm or "confirm" in norm or "password" in norm:
         return "password_lookup_path"
     if "remember me" in norm:
-        return ""  # boolean — caller handles
-    return ""
+        return ""  # boolean checkbox — intentional skip, caller handles
+    return None
 
 
-def _sub_key_for_profile_fields(norm: str) -> str:
+def _sub_key_for_profile_fields(norm: str) -> str | None:
     if "headline" in norm:
         return "headline"
     if "pronoun" in norm:
         return "preferred_pronouns"
     if "summary" in norm:
         return "summary"
-    return ""
+    return None
 
 
-def _sub_key_for_preferences(norm: str) -> str:
+def _sub_key_for_preferences(norm: str) -> str | None:
     # Order matters: more-specific patterns first.
     if "compensation align" in norm:
         return "compensation_alignment"
@@ -204,20 +215,20 @@ def _sub_key_for_preferences(norm: str) -> str:
         return "remote_preference"
     if "travel" in norm:
         return "travel_pct_ok"
-    return ""
+    return None
 
 
-def _sub_key_for_work_authorization(norm: str) -> str:
+def _sub_key_for_work_authorization(norm: str) -> str | None:
     if "sponsor" in norm:
         return "sponsorship_needed"
     if "visa" in norm or "immigration" in norm:
         return "visa_status"
     if "authorized" in norm or "right to work" in norm or "legally" in norm:
         return "authorized_us"
-    return ""
+    return None
 
 
-def _sub_key_for_eeo(norm: str) -> str:
+def _sub_key_for_eeo(norm: str) -> str | None:
     if "gender" in norm or norm == "sex":
         return "gender"
     if "hispanic" in norm or "latino" in norm:
@@ -230,10 +241,10 @@ def _sub_key_for_eeo(norm: str) -> str:
         return "disability_status"
     # "I do not want to answer" etc. — generic decline-to-answer; the caller
     # has to choose which EEO field to apply it to from context.
-    return ""
+    return None
 
 
-def _sub_key_for_referral(norm: str) -> str:
+def _sub_key_for_referral(norm: str) -> str | None:
     if "referred by" in norm or "referrer" in norm:
         return "referrer_name"
     if (
@@ -243,17 +254,17 @@ def _sub_key_for_referral(norm: str) -> str:
         or "referral" in norm
     ):
         return "source"
-    return ""
+    return None
 
 
-def _sub_key_for_consent(norm: str) -> str:
+def _sub_key_for_consent(norm: str) -> str | None:
     if "terms" in norm:
         return "terms_of_use_agreed"
     if "privacy" in norm or "acknowledg" in norm:
         return "privacy_notice_acknowledged"
     if "marketing" in norm or "job alert" in norm:
         return "job_alerts_marketing"
-    return ""
+    return None
 
 
 # Sections whose value is a simple string keyed by the section's only value field.
@@ -346,7 +357,11 @@ def match(label: str, answer_bank: dict[str, Any]) -> Decision:
             continue
         for syn in synonyms:
             if _synonym_matches(syn, norm):
-                # Resolve sub-key.
+                # Resolve sub-key. `str | None` because resolvers (and only
+                # resolvers) return None to signal "I don't recognize this
+                # label" — the single-value and generic-fallback branches
+                # always commit to a concrete string.
+                sub_key: str | None
                 if section in _SINGLE_VALUE_SECTIONS:
                     sub_key = _SINGLE_VALUE_SECTIONS[section]
                 elif section in _SUB_KEY_RESOLVERS:
@@ -392,14 +407,24 @@ def match(label: str, answer_bank: dict[str, Any]) -> Decision:
                                 "_SUB_KEY_RESOLVERS to disambiguate"
                             ),
                         )
-                if not sub_key:
-                    # Resolver matched the section but returned "" — its
-                    # heuristic branches didn't recognize this label. Same
-                    # "extend the matcher" remediation as the fail-closed
-                    # case above, not a bank-entry problem.
+                if sub_key is None:
+                    # Resolver matched the section but didn't recognize the
+                    # label (no branch hit). Remediation is "extend the
+                    # matcher" — add a new branch to the resolver.
                     return Skip(
                         reason="unresolved-sub-key",
                         detail=f"matched section={section} but no fillable sub-key for label",
+                    )
+                if sub_key == "":
+                    # Resolver recognized the label and deliberately chose
+                    # to skip (e.g. Workday phone-extension, social links,
+                    # "remember me" checkbox). No operator action needed —
+                    # this is the matcher working as designed. Distinct
+                    # from `unresolved-sub-key` so replay summaries don't
+                    # misdirect to "extend the matcher" for the (b) cases.
+                    return Skip(
+                        reason="intentional-skip",
+                        detail=f"matched section={section}; resolver declined to fill by design",
                     )
                 value = data.get(sub_key)
                 # Empty-value gate: skip if the resolved sub_key is None,

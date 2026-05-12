@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.51.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.50.3...v0.51.0) (2026-05-12)
+
+
+### Features
+
+* **application-submission:** wire credential_store into fill_application via ATS/tenant inference ([52e4d29](https://github.com/jsmithpkp21/resume-builder/commit/52e4d29dd6b19be96ebb8884511f1473d070faec))
+
+
+### Bug Fixes
+
+* **application-submission:** address PR [#361](https://github.com/jsmithpkp21/resume-builder/issues/361) review ([c717a54](https://github.com/jsmithpkp21/resume-builder/commit/c717a5425c73fa0414f9c0f1cfd2762723c38787))
+* **application-submission:** address PR [#361](https://github.com/jsmithpkp21/resume-builder/issues/361) review round 2 ([0413620](https://github.com/jsmithpkp21/resume-builder/commit/0413620c4c83d613e2b0c67659b0aff673834532))
+* **application-submission:** address PR [#361](https://github.com/jsmithpkp21/resume-builder/issues/361) review round 3 ([78537a2](https://github.com/jsmithpkp21/resume-builder/commit/78537a24256b7503cd7e1bb3d2d42eeebe28e79f))
+
 ## [0.50.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.50.2...v0.50.3) (2026-05-12)
 
 

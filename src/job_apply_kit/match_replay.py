@@ -32,6 +32,8 @@ from collections import Counter
 from pathlib import Path
 from typing import TextIO
 
+from resume_builder._runtime_guard import assert_not_blocked_runtime_input
+
 from .label_matcher import Match, Skip, match
 
 
@@ -154,6 +156,14 @@ def _main(argv: list[str] | None = None) -> int:
         "--verbose", action="store_true", help="print every per-label decision"
     )
     args = p.parse_args(argv)
+
+    # Honor the repo's blocked-runtime-roots policy: this CLI reads
+    # user-supplied paths and must reject any that resolve under a blocked
+    # root (consistent with build_resume.py, scripts/record_application.py,
+    # scripts/fill_application.py).
+    assert_not_blocked_runtime_input(args.bank)
+    for fp in args.files:
+        assert_not_blocked_runtime_input(fp)
 
     # Deterministic TOML parse: read as bytes so tomllib doesn't depend on
     # the OS's default text decoding.

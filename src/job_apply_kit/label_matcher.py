@@ -161,12 +161,15 @@ def _sub_key_for_education(norm: str) -> str:
 
 
 def _sub_key_for_account(norm: str) -> str:
-    if "verify" in norm or "confirm" in norm:
-        return "password_hint"  # same source — operator generates per-ATS password
+    # password_lookup_path is the answer-bank's pointer to data/applications/
+    # credentials.toml (#333) — fill_application's matcher hits this and the
+    # session-level credential lookup wiring (#341, blocked behind #319) is
+    # the consumer that turns "matched, here's the pointer" into "user typed
+    # the per-ATS password from credentials.toml".
+    if "verify" in norm or "confirm" in norm or "password" in norm:
+        return "password_lookup_path"
     if "remember me" in norm:
         return ""  # boolean — caller handles
-    if "password" in norm:
-        return "password_hint"
     return ""
 
 
@@ -180,15 +183,92 @@ def _sub_key_for_profile_fields(norm: str) -> str:
     return ""
 
 
+def _sub_key_for_preferences(norm: str) -> str:
+    # Order matters: more-specific patterns first.
+    if "compensation align" in norm:
+        return "compensation_alignment"
+    if "salary" in norm or "compensation" in norm:
+        return "salary_expectation_usd"
+    if "start date" in norm or "earliest start" in norm or "available to start" in norm:
+        return "earliest_start_date"
+    if "notice" in norm:
+        return "notice_period_days"
+    if "relocat" in norm:
+        return "willing_to_relocate"
+    if (
+        "remote" in norm
+        or "hybrid" in norm
+        or "onsite" in norm
+        or "location preference" in norm
+    ):
+        return "remote_preference"
+    if "travel" in norm:
+        return "travel_pct_ok"
+    return ""
+
+
+def _sub_key_for_work_authorization(norm: str) -> str:
+    if "sponsor" in norm:
+        return "sponsorship_needed"
+    if "visa" in norm or "immigration" in norm:
+        return "visa_status"
+    if "authorized" in norm or "right to work" in norm or "legally" in norm:
+        return "authorized_us"
+    return ""
+
+
+def _sub_key_for_eeo(norm: str) -> str:
+    if "gender" in norm or norm == "sex":
+        return "gender"
+    if "hispanic" in norm or "latino" in norm:
+        return "hispanic_or_latino"
+    if "race" in norm or "ethnic" in norm:
+        return "race_ethnicity"
+    if "veteran" in norm:
+        return "veteran_status"
+    if "disabil" in norm:
+        return "disability_status"
+    # "I do not want to answer" etc. — generic decline-to-answer; the caller
+    # has to choose which EEO field to apply it to from context.
+    return ""
+
+
+def _sub_key_for_referral(norm: str) -> str:
+    if "referred by" in norm or "referrer" in norm:
+        return "referrer_name"
+    if (
+        "how did you hear" in norm
+        or "how did you find" in norm
+        or "source" in norm
+        or "referral" in norm
+    ):
+        return "source"
+    return ""
+
+
+def _sub_key_for_consent(norm: str) -> str:
+    if "terms" in norm:
+        return "terms_of_use_agreed"
+    if "privacy" in norm or "acknowledg" in norm:
+        return "privacy_notice_acknowledged"
+    if "marketing" in norm or "job alert" in norm:
+        return "job_alerts_marketing"
+    return ""
+
+
 # Sections whose value is a simple string keyed by the section's only value field.
-# When we match into one of these, the sub_key is fixed.
+# When we match into one of these, the sub_key is fixed (only one fillable key).
 _SINGLE_VALUE_SECTIONS = {
     "age_check": "answer",
-    "referral": "source",
 }
 
 
-# Sections we know how to route into sub-keys.
+# Sections we know how to route into sub-keys. Every multi-field section
+# below MUST have a resolver — the generic fallback is intentionally
+# fail-closed when a section has multiple fillable keys (see match()
+# implementation below) to prevent confidently-wrong picks like
+# "travel requirements" → preferences.salary_expectation_usd just because
+# it's first in TOML order.
 _SUB_KEY_RESOLVERS = {
     "name": _sub_key_for_name,
     "contact": _sub_key_for_contact,
@@ -197,6 +277,11 @@ _SUB_KEY_RESOLVERS = {
     "education": _sub_key_for_education,
     "account": _sub_key_for_account,
     "profile_fields": _sub_key_for_profile_fields,
+    "preferences": _sub_key_for_preferences,
+    "work_authorization": _sub_key_for_work_authorization,
+    "eeo": _sub_key_for_eeo,
+    "referral": _sub_key_for_referral,
+    "consent": _sub_key_for_consent,
 }
 
 
@@ -267,21 +352,35 @@ def match(label: str, answer_bank: dict[str, Any]) -> Decision:
                 elif section in _SUB_KEY_RESOLVERS:
                     sub_key = _SUB_KEY_RESOLVERS[section](norm)
                 else:
-                    # Generic section — pick the first non-synonyms key with
-                    # a fillable value. Strings need to be non-empty; bool/int
-                    # values (e.g. [consent].terms_of_use_agreed=true) are
-                    # accepted as-is. None / empty-string / "synonyms" key
-                    # are skipped.
-                    sub_key = next(
-                        (
-                            k
-                            for k, v in data.items()
-                            if k != "synonyms"
-                            and v is not None
-                            and (not isinstance(v, str) or v.strip())
-                        ),
-                        "",
-                    )
+                    # Generic fallback for sections with NO registered
+                    # resolver. Pick the only fillable key in the section
+                    # (excluding "synonyms" + None / empty-string values).
+                    # If there are multiple candidate keys, fail closed —
+                    # confidently picking the first-in-TOML-order would
+                    # mis-route labels (e.g. "travel requirements" landing
+                    # on preferences.salary_expectation_usd). Add a
+                    # section-specific resolver to _SUB_KEY_RESOLVERS rather
+                    # than relying on this fallback for multi-field sections.
+                    candidates = [
+                        k
+                        for k, v in data.items()
+                        if k != "synonyms"
+                        and v is not None
+                        and (not isinstance(v, str) or v.strip())
+                    ]
+                    if len(candidates) == 1:
+                        sub_key = candidates[0]
+                    else:
+                        return Skip(
+                            reason="empty-value",
+                            detail=(
+                                f"section={section} has {len(candidates)} "
+                                "fillable keys but no resolver; add one to "
+                                "_SUB_KEY_RESOLVERS to disambiguate"
+                            )
+                            if candidates
+                            else f"section={section} has no fillable keys",
+                        )
                 if not sub_key:
                     return Skip(
                         reason="empty-value",

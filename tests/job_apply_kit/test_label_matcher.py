@@ -278,6 +278,211 @@ class TestMatchSkipPaths:
 # ---------------------------------------------------------------------------
 
 
+class TestSubKeyResolversForMultiFieldSections:
+    """The per-section resolvers MUST route to the right sub_key for
+    multi-field sections like [preferences], [work_authorization], [eeo],
+    [referral], [consent], [account]. The earlier "pick first key in TOML
+    order" generic fallback could mis-route, e.g. "Travel requirements"
+    landing on preferences.salary_expectation_usd just because it's first.
+    """
+
+    _MULTI_BANK: dict[str, object] = {
+        "preferences": {
+            "salary_expectation_usd": "150000",
+            "earliest_start_date": "Two weeks",
+            "willing_to_relocate": "no",
+            "remote_preference": "remote",
+            "notice_period_days": "14",
+            "travel_pct_ok": "0-10%",
+            "compensation_alignment": "yes",
+            "synonyms": [
+                "salary",
+                "salary expectation",
+                "start date",
+                "notice period",
+                "relocate",
+                "remote",
+                "travel",
+                "travel requirements",
+                "does the listed compensation align with your expectations",
+            ],
+        },
+        "work_authorization": {
+            "authorized_us": "yes",
+            "sponsorship_needed": "no",
+            "visa_status": "U.S. Citizen",
+            "synonyms": [
+                "authorized to work",
+                "require sponsorship",
+                "visa status",
+            ],
+        },
+        "eeo": {
+            "gender": "Decline",
+            "race_ethnicity": "Decline",
+            "veteran_status": "I am not a veteran",
+            "disability_status": "No",
+            "hispanic_or_latino": "no",
+            "synonyms": [
+                "gender",
+                "race",
+                "ethnicity",
+                "hispanic",
+                "latino",
+                "veteran",
+                "disability",
+            ],
+        },
+        "referral": {
+            "source": "LinkedIn",
+            "referrer_name": "",
+            "synonyms": ["how did you hear", "source", "referred by"],
+        },
+        "consent": {
+            "job_alerts_marketing": False,
+            "terms_of_use_agreed": True,
+            "privacy_notice_acknowledged": True,
+            "synonyms": [
+                "yes, i agree to the terms of use and privacy policy",
+                "yes, i would like to receive job alerts and marketing",
+                "i acknowledge",
+            ],
+        },
+        "account": {
+            "password_lookup_path": "data/applications/credentials.toml",
+            "synonyms": ["password*", "verify new password*"],
+        },
+    }
+
+    def test_salary_routes_to_salary_expectation(self) -> None:
+        d = match("Salary Expectation", self._MULTI_BANK)
+        assert isinstance(d, Match)
+        assert d.section == "preferences"
+        assert d.sub_key == "salary_expectation_usd"
+
+    def test_travel_routes_to_travel_pct(self) -> None:
+        # The bug Copilot caught: this used to land on salary_expectation_usd
+        # because that was first in TOML order. Resolver must route to travel.
+        d = match("Travel requirements", self._MULTI_BANK)
+        assert isinstance(d, Match)
+        assert d.sub_key == "travel_pct_ok"
+
+    def test_relocate_routes_correctly(self) -> None:
+        d = match("Willing to relocate", self._MULTI_BANK)
+        assert isinstance(d, Match)
+        assert d.sub_key == "willing_to_relocate"
+
+    def test_remote_routes_correctly(self) -> None:
+        d = match("Remote preference", self._MULTI_BANK)
+        assert isinstance(d, Match)
+        assert d.sub_key == "remote_preference"
+
+    def test_sponsorship_routes_correctly(self) -> None:
+        d = match(
+            "Will you now or in the future require sponsorship for employment visa status?",
+            self._MULTI_BANK,
+        )
+        assert isinstance(d, Match)
+        assert d.section == "work_authorization"
+        assert d.sub_key == "sponsorship_needed"
+
+    def test_authorized_routes_correctly(self) -> None:
+        d = match("Are you authorized to work in the US?", self._MULTI_BANK)
+        assert isinstance(d, Match)
+        assert d.sub_key == "authorized_us"
+
+    def test_visa_status_routes_correctly(self) -> None:
+        d = match("Visa Status", self._MULTI_BANK)
+        assert isinstance(d, Match)
+        assert d.sub_key == "visa_status"
+
+    def test_gender_routes_correctly(self) -> None:
+        d = match("Gender", self._MULTI_BANK)
+        assert isinstance(d, Match)
+        assert d.section == "eeo"
+        assert d.sub_key == "gender"
+
+    def test_veteran_routes_correctly(self) -> None:
+        d = match("Veteran Status", self._MULTI_BANK)
+        assert isinstance(d, Match)
+        assert d.sub_key == "veteran_status"
+
+    def test_disability_routes_correctly(self) -> None:
+        d = match("Disability Status", self._MULTI_BANK)
+        assert isinstance(d, Match)
+        assert d.sub_key == "disability_status"
+
+    def test_referral_source(self) -> None:
+        d = match("How did you hear about us?", self._MULTI_BANK)
+        assert isinstance(d, Match)
+        assert d.section == "referral"
+        assert d.sub_key == "source"
+
+    def test_terms_consent_routes_correctly_with_bool_value(self) -> None:
+        # [consent] uses booleans — exercises the bool/int fallback fix
+        d = match(
+            "Yes, I agree to the Terms of Use and Privacy Policy*",
+            self._MULTI_BANK,
+        )
+        assert isinstance(d, Match)
+        assert d.section == "consent"
+        assert d.sub_key == "terms_of_use_agreed"
+        assert d.value == "True"  # bool stringified for display
+
+    def test_marketing_routes_to_job_alerts(self) -> None:
+        d = match(
+            "Yes, I would like to receive job alerts and marketing",
+            self._MULTI_BANK,
+        )
+        assert isinstance(d, Match)
+        assert d.sub_key == "job_alerts_marketing"
+
+    def test_password_routes_to_lookup_path(self) -> None:
+        # password resolver must return password_lookup_path (the answer-bank
+        # pointer to credentials.toml), not the now-removed password_hint key
+        d = match("Password*", self._MULTI_BANK)
+        assert isinstance(d, Match)
+        assert d.section == "account"
+        assert d.sub_key == "password_lookup_path"
+
+    def test_verify_password_also_routes_to_lookup_path(self) -> None:
+        d = match("Verify New Password*", self._MULTI_BANK)
+        assert isinstance(d, Match)
+        assert d.sub_key == "password_lookup_path"
+
+
+class TestGenericFallbackFailsClosedWhenAmbiguous:
+    """If a multi-field section has no registered resolver, the generic
+    fallback must fail-closed rather than confidently picking the first
+    TOML key. (Caught by PR #350 review round 2.)"""
+
+    def test_multi_field_section_without_resolver_skips(self) -> None:
+        # An unknown section with two fillable keys + a matching synonym
+        bank = {
+            "custom_section": {
+                "first_value": "A",
+                "second_value": "B",
+                "synonyms": ["custom field"],
+            },
+        }
+        d = match("Custom field", bank)
+        assert isinstance(d, Skip)
+        assert d.reason == "empty-value"
+        assert "no resolver" in d.detail
+
+    def test_single_field_unknown_section_works(self) -> None:
+        # Single fillable key → safe to auto-pick
+        bank = {
+            "thing": {
+                "only_key": "value",
+                "synonyms": ["the thing"],
+            },
+        }
+        d = match("The thing", bank)
+        assert isinstance(d, Match)
+        assert d.sub_key == "only_key"
+
+
 class TestWholeWordMatching:
     """The matcher uses regex `\\b...\\b` boundaries on synonym → label.
 

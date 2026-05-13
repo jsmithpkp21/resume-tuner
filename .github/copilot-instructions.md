@@ -35,6 +35,7 @@
 ```bash
 make setup
 make lint
+make lint-fast   # sub-second pre-push gate (ruff check + ruff format --check); skips mypy + markdown-lint, NOT a substitute for `make lint`
 make test
 make check
 make sync-tooling

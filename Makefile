@@ -15,7 +15,7 @@ MARKDOWN_LINT_TIMEOUT_SECONDS ?= 120
 # See docs/REFERENCE/adr/0001-local-tooling-runtime-policy.md invariant (1).
 MARKDOWNLINT_VERSION ?= 0.47.0
 
-.PHONY: env setup active verify clean upgrade lock lint lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check tooling-toml-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper pr-epic docker-up docker-down docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
+.PHONY: env setup active verify clean upgrade lock lint lint-fast lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check tooling-toml-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper pr-epic docker-up docker-down docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
 
 env:
 	scripts/create_env.sh
@@ -152,6 +152,17 @@ lock:
 
 lint: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && ruff check . && ruff format --check . && mypy . && make markdown-lint"
+
+# Sub-second pre-push gate. Runs only the in-process ruff linters
+# (lint + format-check); skips mypy and markdown-lint, which are slower.
+# Use this as a quick local sanity check before pushing — `make lint` and
+# CI are still authoritative. Catches the common case where a developer
+# pre-flighted with a black or isort substitute that disagrees with ruff
+# format on edge cases (see tooling issue #399 for the motivating
+# friction; the originating consumer-side incident was
+# jsmithpkp21/resume-builder issue #326 / PR #348).
+lint-fast: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && ruff check . && ruff format --check ."
 
 # Public alias — always call this target from hooks, CI, and manually.
 # Uses local markdownlint binary when available (e.g. inside the project container),

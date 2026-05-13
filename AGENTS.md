@@ -6,6 +6,7 @@
 ```bash
 make setup
 make lint
+make lint-fast   # sub-second pre-push gate (ruff check + ruff format --check); skips mypy + markdown-lint, NOT a substitute for `make lint`
 make test
 make check
 make sync-tooling
@@ -50,6 +51,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 ## Critical Workflows (Use These Targets)
 - Local bootstrap: `make setup`.
 - Daily quality loop: `make lint`, `make test`, `make check`.
+- Quick pre-push sanity check: `make lint-fast` (runs only ruff check + ruff format --check; skips mypy and markdown-lint for speed). NOT a substitute for `make lint` — CI runs the full gate. Use when iterating locally and you want a sub-second yes/no on formatting + lint regressions.
 - Contract checks before release/sync: `make drift-check`, `make version-check`, `make action-pin-check`, `make docs-check`, `make agents-drift-check`, `make tooling-toml-check`.
 - Validate sync behavior after manifest/script edits: run `tests/scripts/test_sync_tooling_regressions.py` (tooling source repo; not present in consumers).
 - Docker parity path: `make docker-up` then run normal make targets inside container.

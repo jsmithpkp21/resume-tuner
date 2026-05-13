@@ -63,7 +63,10 @@ _FILE_GLOBS = ("**/*.py", "**/*.js")
 
 
 def _iter_source_lines() -> list[tuple[Path, int, str]]:
-    """Yield `(path, line_number, line_text)` for every source line."""
+    """Return a list of `(path, line_number, line_text)` for every
+    line in every scannable source file. Eager rather than generator
+    so the caller can iterate, count, and sort without re-walking
+    the tree."""
     out: list[tuple[Path, int, str]] = []
     for root in _SCAN_ROOTS:
         base = REPO_ROOT / root

@@ -31,10 +31,21 @@ def _staged_diff() -> str:
     """Return the unified diff of staged changes, zero context.
 
     Empty when there's nothing staged (e.g., `git commit --amend` with
-    no further changes); the script then short-circuits to OK.
+    no further changes); the script then short-circuits to OK. The
+    pathspec is `:(glob)**/*.py` so the diff includes Python files at
+    any depth (the previous `*.py` only matched repo-root files and
+    silently missed staged changes under src/, scripts/, tests/).
     """
     proc = subprocess.run(
-        ["git", "diff", "--cached", "--unified=0", "--no-color", "--", "*.py"],
+        [
+            "git",
+            "diff",
+            "--cached",
+            "--unified=0",
+            "--no-color",
+            "--",
+            ":(glob)**/*.py",
+        ],
         capture_output=True,
         text=True,
         check=False,

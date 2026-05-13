@@ -10,34 +10,38 @@
 # Pre-push quality gates (PR #364 retrospective)
 # ---------------------------------------------------------------------
 #
-# These catch the two friction modes seen in this session that
+# These catch two friction modes seen in the PR #364 review cycle that
 # `make lint` (ruff + mypy + markdown-lint) didn't surface:
 #
-#   - `make doc-drift-check`  — scans for deny-listed API references
+#   - `make doc-drift-check`     — scans for deny-listed API references
 #       in docstrings and comments (e.g. `page.fill` when the code
 #       uses `Locator.press_sequentially`). Fails on hit; the script
 #       supports `# noqa: doc-drift` opt-out per line.
-#   - `make no-new-type-ignore` — scans staged-for-commit Python
-#       changes for newly-added `# type: ignore` comments. Same
-#       pre-commit hook installs this gate, but the make target is
-#       handy for ad-hoc check before staging.
+#   - `make no-new-type-ignore`  — scans staged-for-commit Python
+#       changes for newly-added `# type: ignore` comments. Exits 1
+#       on hit so the user can either annotate the surrounding
+#       container or commit with `--no-verify` for genuinely
+#       irreducible cases.
 #
-# `make pre-push-checks` bundles both so a single command runs the
-# consumer-specific gates that aren't in `make lint`.
+# These are make targets only; they are NOT installed as
+# `.pre-commit-config.yaml` hooks (that file is tooling-synced;
+# consumer additions would drift). `make pre-push-checks` bundles
+# both so a single command runs the consumer-specific gates that
+# aren't in `make lint`.
 
 .PHONY: doc-drift-check no-new-type-ignore pre-push-checks
 
+# Both gates run inside the project venv so the same Python that
+# powers `make lint` / `make test` runs the checks. Matches the
+# `bash -lc "source $(ENV_PATH)/bin/activate && ..."` pattern the
+# synced Makefile uses everywhere else; `$(ENV_PATH)` is exported by
+# the synced Makefile and resolves to `~/envs/<repo>-env`.
+
 doc-drift-check:
-	@$(REPO_PY) scripts/check_doc_drift.py
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_doc_drift.py"
 
 no-new-type-ignore:
-	@$(REPO_PY) scripts/check_no_type_ignore.py
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_no_type_ignore.py"
 
 pre-push-checks: doc-drift-check no-new-type-ignore
 	@echo "[pre-push-checks] all consumer-side gates passed"
-
-# REPO_PY resolves to the project venv interpreter. The synced
-# Makefile defines a $(PYTHON) var; fall back to `python3` if the
-# synced var doesn't exist (so `make doc-drift-check` works standalone
-# from a fresh checkout).
-REPO_PY ?= $(if $(PYTHON),$(PYTHON),python3)

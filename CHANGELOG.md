@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.52.1...v0.52.2) (2026-05-13)
+
+
+### Bug Fixes
+
+* **fill_application:** dedup by id/name so distinct fields with same label aren't suppressed ([3a3694c](https://github.com/jsmithpkp21/resume-builder/commit/3a3694ccc11a266825d19730641c4f0b4cf4b91c))
+
 ## [0.52.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.52.0...v0.52.1) (2026-05-13)
 
 

@@ -29,7 +29,7 @@
 # both so a single command runs the consumer-specific gates that
 # aren't in `make lint`.
 
-.PHONY: doc-drift-check no-new-type-ignore pre-push-checks
+.PHONY: doc-drift-check no-new-type-ignore pr-body-drift-check pre-push-checks
 
 # Both gates run inside the project venv so the same Python that
 # powers `make lint` / `make test` runs the checks. Matches the
@@ -45,6 +45,13 @@ doc-drift-check: env
 
 no-new-type-ignore: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_no_type_ignore.py"
+
+# Opt-in (not folded into pre-push-checks): runs only when the user
+# has a PR to check. Pass PR=<number> to target a specific PR;
+# otherwise the script asks `gh` for the PR on the current branch.
+# Requires `gh` CLI auth (`gh auth status` to verify).
+pr-body-drift-check: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_pr_body_drift.py $(PR)"
 
 pre-push-checks: doc-drift-check no-new-type-ignore
 	@echo "[pre-push-checks] all consumer-side gates passed"

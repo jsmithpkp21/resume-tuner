@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.52.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.51.0...v0.52.0) (2026-05-13)
+
+
+### Features
+
+* **application-submission:** phase 3-B live-fill execution ([3f2307d](https://github.com/jsmithpkp21/resume-builder/commit/3f2307daba943aa886b0b9a39b61c5be3994571f))
+
+
+### Bug Fixes
+
+* **application-submission:** address PR [#364](https://github.com/jsmithpkp21/resume-builder/issues/364) review ([2eb506f](https://github.com/jsmithpkp21/resume-builder/commit/2eb506fafb8ae87f082c28c1f567a4c3200ec87c))
+* **application-submission:** address PR [#364](https://github.com/jsmithpkp21/resume-builder/issues/364) review round 3 ([c49c4cd](https://github.com/jsmithpkp21/resume-builder/commit/c49c4cde4f617d755f272299df3666f854f8203c))
+
+
+### Documentation
+
+* **application-submission:** align fill_application docstring with Locator API ([370d8a7](https://github.com/jsmithpkp21/resume-builder/commit/370d8a776e4b9026828162201b8dc35dcd828c9e))
+
 ## [0.51.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.50.3...v0.51.0) (2026-05-12)
 
 

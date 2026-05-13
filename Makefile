@@ -15,7 +15,8 @@ MARKDOWN_LINT_TIMEOUT_SECONDS ?= 120
 # See docs/REFERENCE/adr/0001-local-tooling-runtime-policy.md invariant (1).
 MARKDOWNLINT_VERSION ?= 0.47.0
 
-.PHONY: env setup active verify clean upgrade lock lint lint-fast lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check tooling-toml-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper pr-epic docker-up docker-down docker-shell lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
+# Every recipe target below must appear in this list; enforced by tests/scripts/test_makefile_phony.py.
+.PHONY: env setup active verify clean upgrade lock lint lint-fast lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check tooling-toml-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper branch pr-epic docker-up docker-down docker-shell update-docker lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
 
 env:
 	scripts/create_env.sh

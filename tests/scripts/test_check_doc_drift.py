@@ -2,23 +2,35 @@
 
 The check is regex+filesystem based, so the test strategy points the
 script at a temporary tree we control rather than the real `src/`.
-We import the script's `_iter_source_lines` and `_DENY_PATTERNS` to
-exercise the matching logic, plus invoke the script as a subprocess
-to verify the exit code + stderr formatting end-to-end.
+We load the script's `_DENY_PATTERNS` to exercise the matching logic
+parametrically, plus invoke the script as a subprocess to verify the
+exit code + stderr formatting end-to-end.
+
+The script is loaded via `importlib.util.spec_from_file_location` so
+the test doesn't mutate `sys.path` (which would persist across the
+whole pytest run and risk colliding with any other top-level modules
+named `check_doc_drift`).
 """
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-# Import the script as a module so we can poke at internals.
+# Load the script as a one-off module without touching sys.path. The
+# script keeps its REPO_ROOT relative to its own `__file__`, so this
+# import only exercises the patterns; the end-to-end tests below copy
+# the script into a tmp tree to retarget REPO_ROOT for each test.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_REPO_ROOT / "scripts"))
-import check_doc_drift  # noqa: E402
+_SCRIPT_PATH = _REPO_ROOT / "scripts" / "check_doc_drift.py"
+_spec = importlib.util.spec_from_file_location("check_doc_drift", _SCRIPT_PATH)
+assert _spec is not None and _spec.loader is not None
+check_doc_drift = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(check_doc_drift)
 
 
 def _run_check(repo_root: Path) -> subprocess.CompletedProcess[str]:

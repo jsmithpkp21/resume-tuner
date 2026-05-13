@@ -6,11 +6,16 @@ PR #364 review round 1 flagged `_HARD_SKIP_SECTIONS` for needing a
 untyped. Annotating it as `dict[str, FillDecision]` removed the
 ignore. That pattern recurred across several PRs this session.
 
-This script runs as a pre-commit hook. It:
+Invoked via `make no-new-type-ignore` (or `make pre-push-checks`).
+This script is NOT installed as a `.pre-commit-config.yaml` hook —
+that file is tooling-synced; consumer additions would drift. Users
+wanting hook-level enforcement should add a local `.git/hooks/`
+pre-commit script that calls `make no-new-type-ignore`. Behavior:
 
-  - Reads the staged diff (`git diff --cached --unified=0`).
+  - Reads the staged diff (`git diff --cached --unified=0` scoped to
+    `:(glob)**/*.py` so nested Python files are covered).
   - Collects added lines (`+...`) that contain `# type: ignore`.
-  - Fails the commit if any are found, with a remediation hint.
+  - Exits 1 + prints file:line for each hit, with a remediation hint.
 
 If the suppression is genuinely required (e.g., third-party library
 returns `Any` and there's no usable stub), add an explicit error code

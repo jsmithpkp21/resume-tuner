@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.52.2...v0.52.3) (2026-05-13)
+
+
+### Bug Fixes
+
+* **quality:** address PR [#373](https://github.com/jsmithpkp21/resume-builder/issues/373) review ([5a2ccf5](https://github.com/jsmithpkp21/resume-builder/commit/5a2ccf5a97d3af30b68a7d135ba56cd7930c803e))
+
 ## [0.52.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.52.1...v0.52.2) (2026-05-13)
 
 

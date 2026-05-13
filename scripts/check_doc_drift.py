@@ -8,11 +8,15 @@ That's the kind of drift this script catches before review.
 
 How it works:
 
-  - Walks every `.py` and `.js` file under `src/`, `scripts/`, and
-    `tests/`.
+  - Walks every `.py` and `.js` file under `src/` and `scripts/`.
+    Tests are intentionally not scanned — they assert behavior, not
+    document public API.
   - Searches each line against the deny-list regex (`_DENY_PATTERNS`).
-  - Skips lines that opt out via a trailing `# noqa: doc-drift` (Python)
-    or `// noqa: doc-drift` (JS) comment.
+  - Skips lines containing the literal string `noqa: doc-drift`
+    anywhere (typically in a `# noqa: doc-drift` Python comment or
+    `// noqa: doc-drift` JS comment, but a free-form mention also
+    counts). Match anywhere not strictly trailing — that way a long
+    line with a mid-line opt-out is still respected.
   - Exits 1 + prints `file:line: matched-text` for every hit.
 
 The deny-list is intentionally small + project-specific. Add entries
@@ -56,9 +60,13 @@ _DENY_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 # itself, or a doc that's explaining the historical mistake).
 _OPT_OUT_MARKER = "noqa: doc-drift"
 
-# Directories to scan. Tests are included so test-fixture docstrings
-# don't drift either.
-_SCAN_ROOTS = ("src", "scripts", "tests")
+# Directories to scan. Tests are intentionally NOT scanned: test
+# files routinely reference API names (including deny-listed ones)
+# as parametric inputs or assertion strings — they're asserting
+# behavior, not documenting public API. Drift control only matters
+# for shipped code. `src/` is the shipped Python package;
+# `scripts/` holds the CLI drivers + this script's siblings.
+_SCAN_ROOTS = ("src", "scripts")
 _FILE_GLOBS = ("**/*.py", "**/*.js")
 
 

@@ -35,12 +35,15 @@
 # powers `make lint` / `make test` runs the checks. Matches the
 # `bash -lc "source $(ENV_PATH)/bin/activate && ..."` pattern the
 # synced Makefile uses everywhere else; `$(ENV_PATH)` is exported by
-# the synced Makefile and resolves to `~/envs/<repo>-env`.
+# the synced Makefile and resolves to `~/envs/<repo>-env`. The `env`
+# prereq mirrors the synced lint/test targets so a fresh clone
+# creates the venv on first invocation rather than failing with
+# `source: No such file or directory`.
 
-doc-drift-check:
+doc-drift-check: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_doc_drift.py"
 
-no-new-type-ignore:
+no-new-type-ignore: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_no_type_ignore.py"
 
 pre-push-checks: doc-drift-check no-new-type-ignore

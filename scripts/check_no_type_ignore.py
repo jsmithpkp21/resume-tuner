@@ -93,8 +93,11 @@ def main() -> int:
                 # line numbers for this region.
                 current_line_target = 0
             continue
-        # Added line.
-        if raw.startswith("+") and not raw.startswith("+++"):
+        # Added line. The exclusion narrows to `+++ b/` (the diff
+        # post-image header) so a legitimately-added line starting
+        # with `+++` at column zero — e.g., a Python file's first
+        # character being three plus signs — isn't silently skipped.
+        if raw.startswith("+") and not raw.startswith("+++ b/"):
             content = raw[1:]
             if _PATTERN in content:
                 hits.append((current_file, current_line_target, content.rstrip()))

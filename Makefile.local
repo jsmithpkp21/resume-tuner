@@ -1,0 +1,43 @@
+# Makefile.local — consumer-side targets that extend the synced Makefile.
+#
+# The synced `Makefile` ends with `-include Makefile.local`, so any
+# target defined here is available alongside the tooling-provided
+# targets. Per AGENTS.md / docs/REFERENCE/adr/0001 this file MUST NOT
+# be added to `.tooling-sync-manifest.toml` — it's consumer-owned and
+# would otherwise be overwritten by sync.
+
+# ---------------------------------------------------------------------
+# Pre-push quality gates (PR #364 retrospective)
+# ---------------------------------------------------------------------
+#
+# These catch the two friction modes seen in this session that
+# `make lint` (ruff + mypy + markdown-lint) didn't surface:
+#
+#   - `make doc-drift-check`  — scans for deny-listed API references
+#       in docstrings and comments (e.g. `page.fill` when the code
+#       uses `Locator.press_sequentially`). Fails on hit; the script
+#       supports `# noqa: doc-drift` opt-out per line.
+#   - `make no-new-type-ignore` — scans staged-for-commit Python
+#       changes for newly-added `# type: ignore` comments. Same
+#       pre-commit hook installs this gate, but the make target is
+#       handy for ad-hoc check before staging.
+#
+# `make pre-push-checks` bundles both so a single command runs the
+# consumer-specific gates that aren't in `make lint`.
+
+.PHONY: doc-drift-check no-new-type-ignore pre-push-checks
+
+doc-drift-check:
+	@$(REPO_PY) scripts/check_doc_drift.py
+
+no-new-type-ignore:
+	@$(REPO_PY) scripts/check_no_type_ignore.py
+
+pre-push-checks: doc-drift-check no-new-type-ignore
+	@echo "[pre-push-checks] all consumer-side gates passed"
+
+# REPO_PY resolves to the project venv interpreter. The synced
+# Makefile defines a $(PYTHON) var; fall back to `python3` if the
+# synced var doesn't exist (so `make doc-drift-check` works standalone
+# from a fresh checkout).
+REPO_PY ?= $(if $(PYTHON),$(PYTHON),python3)

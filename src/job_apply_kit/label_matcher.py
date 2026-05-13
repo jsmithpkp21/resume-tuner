@@ -5,7 +5,7 @@ Pure functions. Given a form field's `label` string and the loaded
 honeypot or an unrecognized label).
 
 Phase 3 deliverable A: dry-run only — `fill_session.py` consumes these
-decisions and logs them; no `page.fill()` calls land yet. See issue #319.
+decisions and logs them; no DOM-modifying calls land yet. See issue #319.
 """
 
 from __future__ import annotations

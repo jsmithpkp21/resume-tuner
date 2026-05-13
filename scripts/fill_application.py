@@ -7,10 +7,9 @@ stable snapshot runs `job_apply_kit.label_matcher.match` per field.
 
 Two modes:
 
-  - **Dry-run** (default): LOGS what it would fill but never calls
-    page.fill() / page.click(). Use this to validate the matcher
-    against a real apply page, spot missing synonyms, catch new
-    honeypot patterns.
+  - **Dry-run** (default): LOGS what it would fill but never modifies
+    the DOM. Use this to validate the matcher against a real apply
+    page, spot missing synonyms, catch new honeypot patterns.
   - **Live** (`--live`): actually fills matched fields via
     `Locator.press_sequentially` / `Locator.select_option` /
     `Locator.check`. Honeypots,

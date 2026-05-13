@@ -27,7 +27,7 @@ Hard safety rails encoded here (no override path):
 
 from __future__ import annotations
 
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 # Decisions are returned as string literals (cheap to log, easy to
 # match in tests) rather than enums. Each value names both the
@@ -173,3 +173,32 @@ def pick_typing_delay(rng: tuple[int, int], source: _RngLike) -> int:
     """
     lo, hi = rng
     return source.randint(lo, hi)
+
+
+def dedup_key(fld: dict[str, Any]) -> tuple[str, str, str]:
+    """Stable dedup identity for a snapshot field (#366).
+
+    The MutationObserver re-emits the same DOM element on every tick, so
+    `on_snapshot` needs to skip fields it has already processed. But the
+    earlier key `(label, type)` collapsed *distinct* fields that share a
+    label/type — "Email" + "Confirm Email" (matcher resolves both to
+    `contact.email`), repeated labels across multi-step forms, Workday
+    repeating sub-forms — leaving the second field empty in live mode.
+
+    Key the dedup on the field's `id` (or `name`, or visible label) plus
+    `type` and `label`. `id` is the closest-to-unique DOM identifier;
+    `name` is not guaranteed unique in HTML (radio groups deliberately
+    share one, and some ATS templates reuse names across sections) but
+    in practice ATS apply forms emit distinct `name` attrs for distinct
+    inputs, which is the case this fix unblocks. The downside of an
+    accidental `name` collision is a false dedup — same risk profile
+    as the old label-only key, just with the failure mode narrowed.
+    `label` stays in the tuple so two shadow-DOM nodes with the same
+    `id` but different visible labels still distinguish.
+    """
+    lbl = (fld.get("label") or "").strip()
+    ftype = fld.get("type", "")
+    fid = (fld.get("id") or "").strip()
+    name = (fld.get("name") or "").strip()
+    identity = fid or name or lbl
+    return (identity, ftype, lbl)

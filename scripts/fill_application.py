@@ -88,6 +88,7 @@ try:
         Skip,
         atomic_write_json,
         decide_fill,
+        dedup_key,
         handle_credential_match,
         infer_ats_tenant,
         match,
@@ -168,30 +169,6 @@ def _decision_summary(decisions: list[dict[str, Any]]) -> dict[str, int]:
             k = f"match[{d['decision']}]"
         out[k] = out.get(k, 0) + 1
     return out
-
-
-def _dedup_key(fld: dict[str, Any]) -> tuple[str, str, str]:
-    """Stable dedup identity for a snapshot field.
-
-    The MutationObserver re-emits the same DOM element on every tick, so
-    `on_snapshot` needs to skip fields it has already processed. But the
-    earlier key `(label, type)` collapsed *distinct* fields that share a
-    label/type — "Email" + "Confirm Email" (matcher resolves both to
-    `contact.email`), repeated labels across multi-step forms, Workday
-    repeating sub-forms — leaving the second field empty in live mode.
-
-    Key the dedup on the field's own `id` / `name` (which uniquely
-    identify a DOM element), falling back to the visible label only
-    when neither is present. `label` and `type` remain in the tuple so
-    edge cases like two shadow-DOM nodes with the same `id` but different
-    visible labels still distinguish.
-    """
-    lbl = (fld.get("label") or "").strip()
-    ftype = fld.get("type", "")
-    fid = (fld.get("id") or "").strip()
-    name = (fld.get("name") or "").strip()
-    identity = fid or name or lbl
-    return (identity, ftype, lbl)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -310,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.show_values:
         print("[setup] PII redaction ON (values hidden; pass --show-values to disable)")
 
-    # Per-field decisions accumulate here. Deduped by `_dedup_key`
+    # Per-field decisions accumulate here. Deduped by `dedup_key`
     # — (id-or-name-or-label, type, label) — so MutationObserver
     # re-emits of the same DOM element collapse while two distinct
     # fields sharing a label (e.g. "Email" + "Confirm Email", Workday
@@ -472,7 +449,7 @@ def main(argv: list[str] | None = None) -> int:
             ftype = fld.get("type", "")
             if not lbl:
                 continue
-            key = _dedup_key(fld)
+            key = dedup_key(fld)
             if key in seen_keys:
                 continue
             seen_keys.add(key)

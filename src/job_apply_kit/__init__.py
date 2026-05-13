@@ -40,6 +40,7 @@ from .label_matcher import (
 from .live_fill import (
     FillDecision,
     decide_fill,
+    dedup_key,
     parse_type_delay_range,
     pick_typing_delay,
 )
@@ -55,6 +56,7 @@ __all__ = [
     "Skip",
     "atomic_write_json",
     "decide_fill",
+    "dedup_key",
     "handle_credential_match",
     "infer_ats_tenant",
     "is_honeypot",

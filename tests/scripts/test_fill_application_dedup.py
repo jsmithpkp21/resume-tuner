@@ -1,24 +1,25 @@
-"""Tests for `scripts/fill_application.py` `_dedup_key` (#366).
+"""Tests for `job_apply_kit.dedup_key` (#366).
 
-The dedup loop in `on_snapshot` previously keyed on `(label, type)`,
-which collapsed *distinct* fields sharing a label — most notably
-"Email" + "Confirm Email" (both resolve to `contact.email`),
-multi-step forms re-showing the same labels, and Workday repeating
-sub-forms. In live mode the second field was left empty.
+`scripts/fill_application.py` `on_snapshot` previously deduped fields
+by `(label, type)`, which collapsed *distinct* fields sharing a label
+— most notably "Email" + "Confirm Email" (both resolve to
+`contact.email`), multi-step forms re-showing the same labels, and
+Workday repeating sub-forms. In live mode the second field was left
+empty.
 
-These tests cover the new `_dedup_key` helper which adds `id`/`name`
-to the dedup identity, falling back to label only when neither is
-present. We also simulate the dedup loop itself against a small
-fields-list fixture so the end-to-end behavior — distinct fields
-stay separate, MutationObserver re-emits of the same DOM element
-collapse — is locked in.
+`dedup_key` lives in `job_apply_kit.live_fill` so it's importable
+without dragging in playwright (`scripts/fill_application.py`
+hard-exits when playwright is missing). These tests cover the helper
+plus a mirrored dedup loop so the end-to-end behavior — distinct
+fields stay separate, MutationObserver re-emits of the same DOM
+element collapse — is locked in.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from scripts.fill_application import _dedup_key
+from job_apply_kit import dedup_key
 
 
 def _dedup_loop(fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -33,7 +34,7 @@ def _dedup_loop(fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
         lbl = (fld.get("label") or "").strip()
         if not lbl:
             continue
-        key = _dedup_key(fld)
+        key = dedup_key(fld)
         if key in seen:
             continue
         seen.add(key)
@@ -46,21 +47,21 @@ class TestDedupKey:
         # Both id and name present — id wins as the identity component
         # so two fields with the same name but different ids stay
         # distinct (rare, but valid HTML).
-        key = _dedup_key({"label": "Email", "type": "email", "id": "e1", "name": "n"})
+        key = dedup_key({"label": "Email", "type": "email", "id": "e1", "name": "n"})
         assert key == ("e1", "email", "Email")
 
     def test_falls_back_to_name_when_no_id(self) -> None:
-        key = _dedup_key({"label": "Email", "type": "email", "name": "email_field"})
+        key = dedup_key({"label": "Email", "type": "email", "name": "email_field"})
         assert key == ("email_field", "email", "Email")
 
     def test_falls_back_to_label_when_no_id_or_name(self) -> None:
         # Label-only fields preserve pre-#366 behavior — still
         # deduped, just by their label.
-        key = _dedup_key({"label": "Email", "type": "email"})
+        key = dedup_key({"label": "Email", "type": "email"})
         assert key == ("Email", "email", "Email")
 
     def test_strips_whitespace_from_identity_components(self) -> None:
-        key = _dedup_key({"label": "  Email  ", "type": "email", "id": "  e1  "})
+        key = dedup_key({"label": "  Email  ", "type": "email", "id": "  e1  "})
         assert key == ("e1", "email", "Email")
 
     def test_missing_type_yields_empty_string(self) -> None:
@@ -68,7 +69,7 @@ class TestDedupKey:
         # KeyError if a future payload shape drops it. Two fields with
         # the same identity but no type still collapse — same DOM
         # element, MutationObserver re-emit.
-        key = _dedup_key({"label": "Email", "id": "e1"})
+        key = dedup_key({"label": "Email", "id": "e1"})
         assert key == ("e1", "", "Email")
 
 

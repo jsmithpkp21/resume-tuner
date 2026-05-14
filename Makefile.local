@@ -29,7 +29,7 @@
 # both so a single command runs the consumer-specific gates that
 # aren't in `make lint`.
 
-.PHONY: doc-drift-check no-new-type-ignore pr-body-drift-check gh-preflight-check pre-push-checks
+.PHONY: doc-drift-check no-new-type-ignore pr-body-drift-check gh-preflight-check sync-check-latest pre-push-checks
 
 # Both gates run inside the project venv so the same Python that
 # powers `make lint` / `make test` runs the checks. Matches the
@@ -64,6 +64,17 @@ pr-body-drift-check: env
 # can't be edited here without drifting from tooling.
 gh-preflight-check: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_gh_preflight.py"
+
+# Reports the gap between the pinned tooling version and the upstream
+# latest tag. Opt-in (not in pre-push-checks) — calls `gh api` so it
+# requires auth + network. Useful before opening a sync PR: if the
+# pin is already at latest, the sync is pulling in real upstream
+# changes; if behind, a one-line tooling.toml bump may close most
+# review comments without a tooling PR (see
+# feedback_check_latest_tooling_tag memory). Tooling promotion
+# candidate at jsmithpkp21/tooling#420.
+sync-check-latest: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_sync_lag.py"
 
 pre-push-checks: doc-drift-check no-new-type-ignore
 	@echo "[pre-push-checks] all consumer-side gates passed"

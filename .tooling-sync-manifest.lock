@@ -70,7 +70,7 @@
       "sha256": "90441f19e84cb77a9f4302d50dd3e9178011f8d1e2e20df43775838711589783"
     },
     "Makefile": {
-      "sha256": "6a7eceb6227270360995b80e2f6cd41ee2f93461433f220511c9e042f90b429c"
+      "sha256": "3ce85d2622b2618b5dc9dbfe0aa7d388c357d35686be2795532655721d6a8c58"
     },
     "commitlint.config.mjs": {
       "sha256": "ae0ebfa1b37453c8e29eff7c5af0b8eec5dc73f373298288cf7d79692b76daea"
@@ -177,6 +177,18 @@
     "scripts/__init__.py": {
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
+    "scripts/check_doc_drift.py": {
+      "sha256": "8c5d096c3d5d3d1ca5127508eba134db947443ca6a136eeff0fa72f258143327"
+    },
+    "scripts/check_gh_preflight.py": {
+      "sha256": "edf08d92901efdb4238dc96f2c7c273eeb2d44d0452ee9991a035255a22fe670"
+    },
+    "scripts/check_no_type_ignore.py": {
+      "sha256": "c5684db0a33a589404b449fa6c3ce4cc8b5cd1c88db8d031aaede4fe542f0e13"
+    },
+    "scripts/check_pr_body_drift.py": {
+      "sha256": "378956ff7f3084a748e8ddbcd4587b6185b8dd49a33e6b7eff5a49857bad8fdf"
+    },
     "scripts/create_branch.sh": {
       "sha256": "2767b33edbb46bfc6e52c4ff9097f71dca2b2c92c20bee499a7d541ec4b222ce"
     },
@@ -265,9 +277,9 @@
       "sha256": "428d00d9550fcd46deea5255bcce2ef96f23131ba58d0be5f148a476a0ce19d9"
     }
   },
-  "generated_at_utc": "2026-05-14T16:35:57Z",
-  "requested_ref": "v1.31.0",
-  "resolved_ref": "8e597e6f2ab4af229a21111fcb71c7eadd659a94",
+  "generated_at_utc": "2026-05-14T17:52:47Z",
+  "requested_ref": "v1.32.0",
+  "resolved_ref": "beef8d90203072bf4be8e0d0d8d1a8e42ac09941",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

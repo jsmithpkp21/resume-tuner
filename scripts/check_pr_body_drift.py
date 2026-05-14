@@ -23,6 +23,7 @@ two lists or two strings to maintain.
 
 from __future__ import annotations
 
+import functools
 import importlib.util
 import json
 import re
@@ -35,11 +36,16 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DRIFT_SCRIPT = _REPO_ROOT / "scripts" / "check_doc_drift.py"
 
 
+@functools.lru_cache(maxsize=1)
 def _load_drift_module() -> ModuleType:
     """Import `check_doc_drift.py` from disk without mutating
     `sys.path`. Both `_DENY_PATTERNS` and `_OPT_OUT_MARKER` come
     from the loaded module so the PR-body check tracks every future
     edit to the source-code check without manual sync.
+
+    Cached via `lru_cache(maxsize=1)` so repeat callers (scan_body +
+    main, plus tests that call them in sequence) pay the disk read +
+    `exec_module` cost exactly once per process.
     """
     spec = importlib.util.spec_from_file_location("check_doc_drift", _DRIFT_SCRIPT)
     if spec is None or spec.loader is None:
@@ -120,8 +126,14 @@ def scan_body(body: str) -> list[tuple[int, str, str]]:
 
     Returned tuple is `(line_number, matched_text, remediation_hint)`.
     Lines containing the opt-out marker (imported from
-    `check_doc_drift`) are skipped. Pure function — no I/O, no
-    subprocess; the unit tests pass canned strings here.
+    `check_doc_drift`) are skipped.
+
+    Calls `_load_drift_module()` to pick up `_DENY_PATTERNS` and
+    `_OPT_OUT_MARKER` from `check_doc_drift.py`. That helper is
+    `lru_cache`-wrapped, so the first call in a process performs one
+    disk read + dynamic import and subsequent calls (e.g. when both
+    `scan_body` and `main` look at the same module) are O(1) cache
+    hits. No subprocess, no network.
     """
     mod = _load_drift_module()
     patterns: list[tuple[re.Pattern[str], str]] = list(mod._DENY_PATTERNS)

@@ -16,7 +16,7 @@ MARKDOWN_LINT_TIMEOUT_SECONDS ?= 120
 MARKDOWNLINT_VERSION ?= 0.47.0
 
 # Every recipe target below must appear in this list — enforced by tests/scripts/test_makefile_phony.py in the tooling source repo (the test is not synced into consumers).
-.PHONY: env setup active verify clean upgrade lock lint lint-fast lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check tooling-toml-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper branch pr-epic docker-up docker-down docker-shell update-docker lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker
+.PHONY: env setup active verify clean upgrade lock lint lint-fast lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check tooling-toml-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper branch pr-epic docker-up docker-down docker-shell update-docker lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker doc-drift-check no-new-type-ignore pr-body-drift-check gh-preflight-check
 
 env:
 	scripts/create_env.sh
@@ -662,6 +662,50 @@ precommit-fix-docker: docker-up
 
 check-docker: docker-up
 	$(DOCKER_RUN) "cd /repo && source /opt/venv/bin/activate && ruff check . --fix && ruff format . && mypy . && pytest -q && pre-commit run check-yaml --all-files && pre-commit run check-toml --all-files && pre-commit run check-json --all-files && python3 scripts/validate_version_sync.py --root . && python3 scripts/validate_env_file.py --root . && python3 scripts/validate_workflow_action_pins.py --root . && python3 scripts/validate_dev_tool_pins.py --root . && python3 scripts/validate_agents_drift.py --root . && python3 scripts/validate_tooling_toml_drift.py --root ."
+
+# ---------------------------------------------------------------------
+# Quality-check family (promoted from resume-builder via #409)
+# ---------------------------------------------------------------------
+#
+# Four targeted lint-adjacent gates that catch friction modes which
+# `make lint` (ruff + mypy + markdown-lint) doesn't surface. Each is
+# its own target rather than bundled into `make lint` so consumers
+# can wire them into pre-push / CI / `Makefile.local` at the cadence
+# that fits — same opt-in posture as resume-builder uses today.
+#
+#   - `make doc-drift-check`       — deny-list regex scan for stale
+#       API references in docstrings / comments / help-strings.
+#       Supports `# noqa: doc-drift` per-line opt-out. Exit 0/1/2
+#       (clean / drift / scan-incomplete).
+#   - `make no-new-type-ignore`    — staged-diff scan that blocks
+#       newly-added `# type: ignore` comments. Override via
+#       `--no-verify` for genuinely irreducible cases.
+#   - `make pr-body-drift-check PR=<n>` — runs the doc-drift deny-list
+#       against `gh pr view --json body`. Catches drift in PR
+#       descriptions that doc-drift-check can't reach. Pass PR=<n>
+#       or omit to target the current branch's PR.
+#   - `make gh-preflight-check`    — meta-check that every `gh`
+#       subprocess call in `scripts/*.py`/`scripts/*.sh` is preceded
+#       by a `gh auth status` preflight (AGENTS.md requirement).
+
+doc-drift-check: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_doc_drift.py"
+
+no-new-type-ignore: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_no_type_ignore.py"
+
+# `$(value PR)` prevents make-level recursive expansion of user-supplied
+# PR (e.g. a malicious `PR='$(shell ...)'` value stays literal). The
+# bash `${VAR:+"$VAR"}` construct then only forwards the value as a
+# positional arg when it's non-empty, and quotes it so the shell does
+# not re-evaluate command-substitution or globbing inside it. Same
+# pattern as `pr-epic`'s `$(value VAR)` + exported env approach.
+pr-body-drift-check: export PR_BODY_DRIFT_PR := $(value PR)
+pr-body-drift-check: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_pr_body_drift.py $${PR_BODY_DRIFT_PR:+\"$$PR_BODY_DRIFT_PR\"}"
+
+gh-preflight-check: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_gh_preflight.py"
 
 # Consumer-specific make targets live in Makefile.local. The file is
 # consumer-owned and intentionally NOT in .tooling-sync-manifest.toml, so

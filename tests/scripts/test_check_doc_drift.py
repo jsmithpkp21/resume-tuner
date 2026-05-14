@@ -34,11 +34,14 @@ _spec.loader.exec_module(check_doc_drift)
 
 
 def _run_check(repo_root: Path) -> subprocess.CompletedProcess[str]:
-    """Run the script with `repo_root` swapped in via REPO_ROOT env."""
-    # The script computes REPO_ROOT from `__file__`. Easiest way to
-    # point it at a temp tree is to copy the script into the temp
-    # tree's `scripts/` dir and run it from there — its
-    # `parents[1]` resolution then lands on the temp root.
+    """Run the script against a synthetic repo rooted at `repo_root`.
+
+    The script computes its REPO_ROOT from its own `__file__`
+    (`parents[1]`), so to retarget it we copy the real script into
+    `repo_root/scripts/check_doc_drift.py` and invoke it from there;
+    its parent-of-parent then resolves to `repo_root`. No env vars
+    are involved — the script reads no configuration from the
+    environment."""
     temp_script = repo_root / "scripts" / "check_doc_drift.py"
     src = _REPO_ROOT / "scripts" / "check_doc_drift.py"
     temp_script.parent.mkdir(parents=True, exist_ok=True)
@@ -134,3 +137,36 @@ class TestEndToEnd:
         # tree above — verify it stays out of the output.)
         result = _run_check(tmp_path)
         assert "check_doc_drift.py" not in result.stderr
+
+    def test_unreadable_file_exits_2(self, tmp_path: Path) -> None:
+        # A broken symlink (target does not exist) raises FileNotFoundError
+        # — an OSError subclass — when the script tries to read it. The
+        # walk previously swallowed this silently; now it should surface
+        # the unreadable path and exit 2 to signal an incomplete scan.
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        broken = src_dir / "broken.py"
+        broken.symlink_to(tmp_path / "does_not_exist.py")
+        result = _run_check(tmp_path)
+        assert result.returncode == 2, result.stderr
+        assert "unreadable" in result.stderr
+        assert "src/broken.py" in result.stderr
+
+    def test_unreadable_plus_drift_still_exits_2(self, tmp_path: Path) -> None:
+        # Plant both a real drift hit AND an unreadable file. The script
+        # should still surface the drift hit in stderr (so the user sees
+        # everything it managed to find) but exit 2, not 1, because the
+        # scan is incomplete and callers shouldn't treat the drift list
+        # as authoritative.
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        (src_dir / "hit.py").write_text(
+            '"""Calls page.fill()."""\n',
+            encoding="utf-8",
+        )
+        broken = src_dir / "broken.py"
+        broken.symlink_to(tmp_path / "does_not_exist.py")
+        result = _run_check(tmp_path)
+        assert result.returncode == 2, result.stderr
+        assert "page.fill" in result.stderr
+        assert "src/broken.py" in result.stderr

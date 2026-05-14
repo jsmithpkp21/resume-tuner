@@ -17,7 +17,9 @@ How it works:
     `// noqa: doc-drift` JS comment, but a free-form mention also
     counts). Match anywhere not strictly trailing — that way a long
     line with a mid-line opt-out is still respected.
-  - Exits 1 + prints `file:line: matched-text` for every hit.
+  - Exit codes: `0` clean, `1` drift found, `2` scan incomplete
+    (one or more files could not be read). `2` dominates `1` so that
+    callers don't treat a partial scan as authoritative.
 
 The deny-list is intentionally small + project-specific. Add entries
 when a real drift incident happens; remove them when the pattern is
@@ -70,19 +72,33 @@ _SCAN_ROOTS = ("src", "scripts")
 _FILE_GLOBS = ("**/*.py", "**/*.js")
 
 
-def _iter_source_lines() -> list[tuple[Path, int, str]]:
-    """Return a list of `(path, line_number, line_text)` for every
-    line in every scannable source file. Eager rather than generator
-    so the caller can iterate, count, and sort without re-walking
-    the tree."""
-    out: list[tuple[Path, int, str]] = []
+def _iter_source_lines() -> tuple[
+    list[tuple[Path, int, str]], list[tuple[Path, OSError]]
+]:
+    """Walk the scan roots and return `(lines, errors)`.
+
+    `lines` is `(path, line_number, line_text)` for every readable
+    file; `errors` is `(path, OSError)` for files that could not be
+    read. Eager rather than generator so the caller can iterate,
+    count, and sort without re-walking the tree.
+
+    Surfacing read errors lets `main()` fail-closed on partial scans
+    rather than silently skipping unreadable files (which would let a
+    drift slip through if the file was unreadable for a transient or
+    permissions-related reason)."""
+    lines: list[tuple[Path, int, str]] = []
+    errors: list[tuple[Path, OSError]] = []
     for root in _SCAN_ROOTS:
         base = REPO_ROOT / root
         if not base.exists():
             continue
         for glob in _FILE_GLOBS:
             for f in sorted(base.glob(glob)):
-                if not f.is_file():
+                # `is_file()` follows symlinks and returns False for a
+                # broken one — without `is_symlink()` here we'd skip
+                # broken links silently, masking exactly the kind of
+                # unreadable-file case we want to fail-closed on.
+                if not (f.is_file() or f.is_symlink()):
                     continue
                 # Skip this script itself — it has the patterns in its
                 # own _DENY_PATTERNS list, which would otherwise match.
@@ -90,16 +106,18 @@ def _iter_source_lines() -> list[tuple[Path, int, str]]:
                     continue
                 try:
                     text = f.read_text(encoding="utf-8", errors="replace")
-                except OSError:
+                except OSError as exc:
+                    errors.append((f, exc))
                     continue
                 for n, line in enumerate(text.splitlines(), start=1):
-                    out.append((f, n, line))
-    return out
+                    lines.append((f, n, line))
+    return lines, errors
 
 
 def main() -> int:
+    lines, errors = _iter_source_lines()
     hits: list[tuple[Path, int, str, str]] = []
-    for path, lineno, line in _iter_source_lines():
+    for path, lineno, line in lines:
         if _OPT_OUT_MARKER in line:
             continue
         for pattern, hint in _DENY_PATTERNS:
@@ -107,18 +125,34 @@ def main() -> int:
             if m:
                 hits.append((path, lineno, m.group(0), hint))
 
-    if not hits:
-        return 0
+    if hits:
+        sys.stderr.write(
+            f"doc-drift-check: {len(hits)} stale API reference(s) found:\n\n"
+        )
+        for path, lineno, matched, hint in hits:
+            rel = path.relative_to(REPO_ROOT)
+            sys.stderr.write(f"  {rel}:{lineno}: `{matched}` — {hint}\n")
+        sys.stderr.write(
+            f"\nFix each occurrence or add `# {_OPT_OUT_MARKER}` to the line if the "
+            "reference is intentional (e.g. quoting historical API).\n"
+        )
 
-    sys.stderr.write(f"doc-drift-check: {len(hits)} stale API reference(s) found:\n\n")
-    for path, lineno, matched, hint in hits:
-        rel = path.relative_to(REPO_ROOT)
-        sys.stderr.write(f"  {rel}:{lineno}: `{matched}` — {hint}\n")
-    sys.stderr.write(
-        f"\nFix each occurrence or add `# {_OPT_OUT_MARKER}` to the line if the "
-        "reference is intentional (e.g. quoting historical API).\n"
-    )
-    return 1
+    if errors:
+        sys.stderr.write(
+            f"\ndoc-drift-check: {len(errors)} unreadable file(s) — scan is incomplete:\n\n"
+        )
+        for path, exc in errors:
+            rel = path.relative_to(REPO_ROOT)
+            sys.stderr.write(f"  {rel}: {exc.__class__.__name__}: {exc}\n")
+        sys.stderr.write(
+            "\nResolve the read errors above and re-run; results may be incomplete "
+            "until every file is scannable.\n"
+        )
+        return 2
+
+    if hits:
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

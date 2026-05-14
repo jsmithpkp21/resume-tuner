@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.4](https://github.com/jsmithpkp21/resume-builder/compare/v0.52.3...v0.52.4) (2026-05-14)
+
+
+### Bug Fixes
+
+* **quality:** fail-closed reads in check_doc_drift + docstring alignment ([cae8ee8](https://github.com/jsmithpkp21/resume-builder/commit/cae8ee8989e069a40fe1d9b82cf0e97e4b2d2caf))
+
 ## [0.52.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.52.2...v0.52.3) (2026-05-13)
 
 

@@ -94,6 +94,8 @@ try:
         match,
         parse_type_delay_range,
         pick_typing_delay,
+        redact,
+        redact_error_text,
         sanitize_slug,
     )
     from playwright_stealth_kit import launch_stealth_chrome
@@ -126,26 +128,12 @@ DEFAULT_FILL_SECTIONS = "name,contact,address,links,education"
 DEFAULT_TYPE_DELAY_MS = "50-150"
 
 
-def _redact(value: str) -> str:
-    """Display-safe value fingerprint: never leaks contents, but still
-    distinguishes different values via their length."""
-    return f"<value len={len(value)}>"
-
-
-def _redact_error_text(text: str, sensitive: str | None) -> str:
-    """Substring-replace `sensitive` (if any) with `_redact(sensitive)`
-    wherever it appears in `text`.
-
-    Used on error messages from `_perform_live_fill` (#365). Playwright
-    exceptions can embed the value the matcher attempted to fill into
-    the error string; if we hand that text to the `[fill-error]` log
-    line or persist it to the fill-decisions JSON, the value leaks
-    regardless of `--show-values`. This helper makes the redaction
-    posture consistent with the success-path display.
-    """
-    if sensitive:
-        text = text.replace(sensitive, _redact(sensitive))
-    return text
+# `redact` and `redact_error_text` are imported from
+# `job_apply_kit.redaction` (see import block above). They live in
+# that package — not inline here — so the unit tests can exercise
+# them without dragging in this script's top-level Playwright imports
+# (which sys.exit(2) in environments where playwright isn't installed,
+# breaking pytest test collection).
 
 
 class _TerminalPrompter:
@@ -440,7 +428,7 @@ def main(argv: list[str] | None = None) -> int:
                     # `--show-values` doesn't propagate to error paths.
                     return (
                         "fill-error",
-                        f"no radio option matched ({_redact(value)})",
+                        f"no radio option matched ({redact(value)})",
                     )
                 name = fld.get("name", "")
                 if not name:
@@ -464,7 +452,7 @@ def main(argv: list[str] | None = None) -> int:
             # or printing to the terminal.
             return (
                 "fill-error",
-                _redact_error_text(f"{type(e).__name__}: {e}", value),
+                redact_error_text(f"{type(e).__name__}: {e}", value),
             )
         return ("filled", "")
 
@@ -561,7 +549,7 @@ def main(argv: list[str] | None = None) -> int:
                 # Single source of truth for redaction so JSON + terminal
                 # output can never disagree (e.g. drift from a future tweak
                 # to only one of them and accidentally leak PII to one sink).
-                display_value = d.value if args.show_values else _redact(d.value)
+                display_value = d.value if args.show_values else redact(d.value)
 
                 if decision == "fill" and args.confirm_before_fill:
                     # Loop until the user gives one of the four

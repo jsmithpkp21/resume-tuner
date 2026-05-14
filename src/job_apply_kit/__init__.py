@@ -45,6 +45,7 @@ from .live_fill import (
     pick_typing_delay,
 )
 from .match_replay import replay
+from .redaction import redact, redact_error_text
 
 __all__ = [
     "CredentialResult",
@@ -65,6 +66,8 @@ __all__ = [
     "normalize",
     "parse_type_delay_range",
     "pick_typing_delay",
+    "redact",
+    "redact_error_text",
     "replay",
     "sanitize_slug",
 ]

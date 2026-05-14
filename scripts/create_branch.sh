@@ -11,11 +11,33 @@ if [[ -z "$ISSUE_NUM" ]]; then
     exit 1
 fi
 
-# Fetch issue details from GitHub
-ISSUE_JSON=$(gh issue view "$ISSUE_NUM" --json title,labels 2>/dev/null || {
-    echo "❌ Issue #$ISSUE_NUM not found" >&2
+# Preflight: confirm gh is installed and authenticated before any API call.
+# Two stages, both mirroring scripts/create_pr_epic.sh:
+#   1. `command -v gh` — gives an install hint if gh is missing from PATH.
+#      Without this, the stage-2 `gh auth status` failure would suppress
+#      bash's "command not found" via its `2>/dev/null` and surface the
+#      wrong remediation (auth hint instead of install hint).
+#   2. `gh auth status` — gives an auth hint. A stale or expired GITHUB_TOKEN
+#      env var silently overrides stored credentials and would otherwise
+#      surface as a confusing "Issue not found" downstream.
+if ! command -v gh >/dev/null 2>&1; then
+    echo "ERROR: GitHub CLI (gh) not found in PATH." >&2
+    echo "Install from https://cli.github.com/ or see docs/SETUP/GITHUB_CLI_AUTH.md" >&2
     exit 1
-})
+fi
+if ! gh auth status >/dev/null 2>&1; then
+    echo "ERROR: gh is not authenticated. Run: gh auth login" >&2
+    echo "If GITHUB_TOKEN is exported in your shell, verify it is valid: gh auth status" >&2
+    exit 1
+fi
+
+# Fetch issue details from GitHub. stderr is intentionally NOT redirected:
+# gh's native error message (e.g. "GraphQL: Could not resolve to an Issue
+# with the number of 999") is more informative than our wrapper alone.
+ISSUE_JSON=$(gh issue view "$ISSUE_NUM" --json title,labels) || {
+    echo "❌ Issue #$ISSUE_NUM not found (or gh call failed — see error above)" >&2
+    exit 1
+}
 
 TITLE=$(echo "$ISSUE_JSON" | jq -r .title)
 LABELS=$(echo "$ISSUE_JSON" | jq -r '.labels[].name' | paste -sd,)

@@ -132,6 +132,22 @@ def _redact(value: str) -> str:
     return f"<value len={len(value)}>"
 
 
+def _redact_error_text(text: str, sensitive: str | None) -> str:
+    """Substring-replace `sensitive` (if any) with `_redact(sensitive)`
+    wherever it appears in `text`.
+
+    Used on error messages from `_perform_live_fill` (#365). Playwright
+    exceptions can embed the value the matcher attempted to fill into
+    the error string; if we hand that text to the `[fill-error]` log
+    line or persist it to the fill-decisions JSON, the value leaks
+    regardless of `--show-values`. This helper makes the redaction
+    posture consistent with the success-path display.
+    """
+    if sensitive:
+        text = text.replace(sensitive, _redact(sensitive))
+    return text
+
+
 class _TerminalPrompter:
     """Production `CredentialPrompter` — wraps `input()` and
     `getpass.getpass()`. The credential hook in `job_apply_kit`
@@ -419,7 +435,13 @@ def main(argv: list[str] | None = None) -> int:
                         target_val = oval
                         break
                 if target_val is None:
-                    return ("fill-error", f"no radio option matched {value!r}")
+                    # Redact the value — it's the matched answer-bank
+                    # string (e.g. EEO answers, veteran status) and
+                    # `--show-values` doesn't propagate to error paths.
+                    return (
+                        "fill-error",
+                        f"no radio option matched ({_redact(value)})",
+                    )
                 name = fld.get("name", "")
                 if not name:
                     return ("fill-error", "radio-group missing name attr")
@@ -437,7 +459,13 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 return ("fill-error", f"unsupported field type {ftype!r}")
         except Exception as e:
-            return ("fill-error", f"{type(e).__name__}: {e}")
+            # Playwright exception messages can embed the value being
+            # filled. Scrub it before persisting to the decisions JSON
+            # or printing to the terminal.
+            return (
+                "fill-error",
+                _redact_error_text(f"{type(e).__name__}: {e}", value),
+            )
         return ("filled", "")
 
     def on_snapshot(payload: dict[str, Any]) -> None:

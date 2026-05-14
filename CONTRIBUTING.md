@@ -74,12 +74,16 @@ For the current sync-hardening work, child issue PRs should target:
 git checkout -b feature/your-feature-name
 ```
 
-**Branch naming conventions:**
-- `feature/` - New features
+**Branch naming conventions** (prefixes produced by `make branch ISSUE=<n>`; you may also use these — or others like `epic/` — when creating branches manually with `git checkout -b`. See [Creating Branches from Issues](#creating-branches-from-issues) for the full label-to-prefix mapping):
+
+- `feature/` - New features (default fallback)
+- `feat/` - New features (when labeled `feat`)
 - `fix/` - Bug fixes
 - `docs/` - Documentation updates
+- `chore/` - Maintenance, config, housekeeping
 - `refactor/` - Code refactoring
 - `test/` - Test improvements
+- `ci/` - CI/CD pipeline changes
 
 > **Wrong base or messy ancestry?** See
 > [Clean PR recovery: rebuild an issue branch from `main`](docs/SETUP/GIT_STAGING_GUIDE.md#clean-pr-recovery-rebuild-an-issue-branch-from-main)
@@ -1206,9 +1210,21 @@ make branch ISSUE=42
 This will:
 - Fetch the issue title and labels using the GitHub CLI (`gh`)
 - Generate a branch name in the format `<type>/<id>-<slug>`
-  - `type` is determined by labels: `feature` (default), `fix` (if bug), `docs` (if documentation)
+  - `type` is determined by issue labels (priority-ordered — first match wins):
+
+    | Label | Branch prefix |
+    | ----- | ------------- |
+    | `bug` | `fix` |
+    | `documentation` or `docs` | `docs` |
+    | `chore` | `chore` |
+    | `refactor` | `refactor` |
+    | `test` | `test` |
+    | `ci-cd` | `ci` |
+    | `feat` | `feat` |
+    | (none of the above) | `feature` |
+
   - `id` is the issue number
-  - `slug` is a lowercase, hyphenated, alphanumeric version of the title (max 50 chars)
+  - `slug` is a lowercase, hyphenated, alphanumeric version of the title (max 50 chars). A leading Conventional Commits prefix on the title (`type:`, `type(scope):`, `type!:`, `type(scope)!:`) is stripped before slugifying, so e.g. `chore(release): cut v1.30.1` becomes slug `cut-v1301`.
 - Create and switch to the new branch
 
 **Requirements:**

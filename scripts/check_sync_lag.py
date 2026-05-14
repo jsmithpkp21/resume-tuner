@@ -18,7 +18,8 @@ Behavior:
   - Compares via `packaging.version.Version` (handles `v` prefix +
     semver ordering).
   - Exits:
-      0 — pinned == latest (up-to-date)
+      0 — pinned == latest (up-to-date) OR pinned > latest (consumer
+          ahead of release, e.g. testing a release candidate)
       1 — pinned < latest (behind; surfaces the gap + level)
       2 — cannot determine (gh missing/unauth, network failure,
           malformed tooling.toml)

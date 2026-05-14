@@ -20,3 +20,9 @@ reportlab==4.4.4
 # private-projects PDF section assertion). Without this, those tests
 # silently skip via pytest.importorskip and the calibration is not pinned.
 pypdf==6.9.2
+
+# Semver parsing — used by scripts/check_sync_lag.py to compare the
+# pinned tooling version to the upstream latest tag. Declared directly
+# (not relied upon as a transitive of build/setuptools) so the
+# `make sync-check-latest` target stays stable across env rebuilds.
+packaging==26.2

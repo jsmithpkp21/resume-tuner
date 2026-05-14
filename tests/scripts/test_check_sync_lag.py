@@ -123,6 +123,51 @@ class TestRepoSlugParser:
         monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
         assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
 
+    def test_host_substring_match_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Pre-fix bug: `"github.com" in url` substring check accepted
+        # any URL that happened to contain the literal "github.com",
+        # including `https://notgithub.com/...`. The strict urlparse
+        # form checks hostname equality and rejects this. (PR #392 r1.)
+        toml = tmp_path / "tooling.toml"
+        toml.write_text(
+            'version = "v1.32.1"\nrepo = "https://notgithub.com/acme/tooling"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
+        assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
+
+    def test_ssh_url_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Pre-fix bug: SSH URL `git@github.com:acme/tooling.git` passed
+        # the substring check but the `split("github.com/", ...)` parse
+        # returned the whole string. The strict urlparse form requires
+        # http(s) scheme and rejects SSH. (PR #392 r1.)
+        toml = tmp_path / "tooling.toml"
+        toml.write_text(
+            'version = "v1.32.1"\nrepo = "git@github.com:acme/tooling.git"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
+        assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
+
+    def test_extra_path_segments_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # GitHub URLs with deep paths (e.g. `/owner/name/tree/main`)
+        # should NOT be parsed as `owner/name/tree/main` — the strict
+        # slug regex catches that and falls back to default rather
+        # than passing a malformed slug to `gh api`. (PR #392 r1.)
+        toml = tmp_path / "tooling.toml"
+        toml.write_text(
+            'version = "v1.32.1"\nrepo = "https://github.com/acme/tooling/tree/main"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
+        assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
+
 
 class TestReadPinnedVersion:
     def test_returns_pinned(

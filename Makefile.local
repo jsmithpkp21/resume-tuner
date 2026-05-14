@@ -70,9 +70,8 @@ gh-preflight-check: env
 # requires auth + network. Useful before opening a sync PR: if the
 # pin is already at latest, the sync is pulling in real upstream
 # changes; if behind, a one-line tooling.toml bump may close most
-# review comments without a tooling PR (see
-# feedback_check_latest_tooling_tag memory). Tooling promotion
-# candidate at jsmithpkp21/tooling#420.
+# review comments without a tooling PR. Tooling promotion candidate
+# at jsmithpkp21/tooling#420 (full rationale + design notes there).
 sync-check-latest: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_sync_lag.py"
 

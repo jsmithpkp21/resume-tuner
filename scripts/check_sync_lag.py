@@ -26,10 +26,12 @@ Behavior:
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import tomllib
 from pathlib import Path
+from urllib.parse import urlparse
 
 from packaging.version import InvalidVersion, Version
 
@@ -113,20 +115,45 @@ def _fetch_latest_tag(repo: str) -> str:
     return tag
 
 
+_DEFAULT_REPO_SLUG = "jsmithpkp21/tooling"
+# Accept only `owner/name` shapes with the same character set GitHub
+# allows: alnum, `_`, `-`, `.` (with no leading dot). Anchors prevent
+# trailing path segments from leaking through.
+_REPO_SLUG_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+
+
 def _repo_slug_from_tooling_toml() -> str:
-    """Read `repo` URL from tooling.toml and parse owner/name. Defaults
-    to `jsmithpkp21/tooling` if the key is missing (current shape)."""
+    """Read `repo` URL from tooling.toml and parse owner/name. Strict:
+
+      - Only `https://github.com/<owner>/<name>(.git)?` is recognized.
+      - SSH URLs (`git@github.com:...`), non-github hosts, and shapes
+        with extra path segments fall back to the default.
+
+    Returns ``"jsmithpkp21/tooling"`` on any parse failure.
+    """
     try:
         with TOOLING_TOML.open("rb") as f:
             data = tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError):
-        return "jsmithpkp21/tooling"
+        return _DEFAULT_REPO_SLUG
     url = data.get("repo")
-    if not isinstance(url, str) or "github.com" not in url:
-        return "jsmithpkp21/tooling"
-    # Format: https://github.com/<owner>/<name>(.git)? → owner/name
-    slug = url.rstrip("/").removesuffix(".git").split("github.com/", 1)[-1]
-    return slug or "jsmithpkp21/tooling"
+    if not isinstance(url, str):
+        return _DEFAULT_REPO_SLUG
+    parsed = urlparse(url)
+    # Require https (or http for completeness) AND host == github.com.
+    # Reject SSH URLs (`git@github.com:...` parses with empty scheme +
+    # netloc), GitLab-style hosts, and any URL that doesn't structurally
+    # resolve to GitHub.
+    if parsed.scheme not in {"http", "https"}:
+        return _DEFAULT_REPO_SLUG
+    if parsed.hostname != "github.com":
+        return _DEFAULT_REPO_SLUG
+    # Path is `/owner/name` or `/owner/name.git`. Strip slashes + `.git`,
+    # then validate the slug matches the strict `owner/name` shape.
+    slug = parsed.path.strip("/").removesuffix(".git")
+    if not _REPO_SLUG_RE.fullmatch(slug):
+        return _DEFAULT_REPO_SLUG
+    return slug
 
 
 def compare_versions(pinned: str, latest: str) -> tuple[int, str]:

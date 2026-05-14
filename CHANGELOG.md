@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.5](https://github.com/jsmithpkp21/resume-builder/compare/v0.52.4...v0.52.5) (2026-05-14)
+
+
+### Bug Fixes
+
+* **quality:** remediate request_copilot_review preflight (closes [#378](https://github.com/jsmithpkp21/resume-builder/issues/378)) ([1c70016](https://github.com/jsmithpkp21/resume-builder/commit/1c70016585cbdf0b5b0b08db073abf85f8ca424d))
+
 ## [0.52.4](https://github.com/jsmithpkp21/resume-builder/compare/v0.52.3...v0.52.4) (2026-05-14)
 
 

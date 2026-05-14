@@ -29,7 +29,7 @@
 # both so a single command runs the consumer-specific gates that
 # aren't in `make lint`.
 
-.PHONY: doc-drift-check no-new-type-ignore pr-body-drift-check pre-push-checks
+.PHONY: doc-drift-check no-new-type-ignore pr-body-drift-check gh-preflight-check pre-push-checks
 
 # Both gates run inside the project venv so the same Python that
 # powers `make lint` / `make test` runs the checks. Matches the
@@ -52,6 +52,14 @@ no-new-type-ignore: env
 # Requires `gh` CLI auth (`gh auth status` to verify).
 pr-body-drift-check: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_pr_body_drift.py $(PR)"
+
+# Opt-in (not folded into pre-push-checks until #378 remediates the
+# 5 pre-existing violators): scans `scripts/*.py` and `scripts/*.sh`
+# for `gh` subprocess calls that lack a `gh auth status` preflight.
+# AGENTS.md mandates the preflight; this is the meta-check that
+# enforces it.
+gh-preflight-check: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_gh_preflight.py"
 
 pre-push-checks: doc-drift-check no-new-type-ignore
 	@echo "[pre-push-checks] all consumer-side gates passed"

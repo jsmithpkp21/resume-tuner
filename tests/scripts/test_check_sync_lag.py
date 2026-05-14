@@ -168,6 +168,48 @@ class TestRepoSlugParser:
         monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
         assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
 
+    def test_path_traversal_owner_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Pre-fix bug: regex allowed `.` as the first owner character,
+        # so `https://github.com/../tooling` parsed to `../tooling`
+        # and would have been passed to `gh api repos/../tooling/...`.
+        # Strict regex (alphanumeric first char on owner) rejects it.
+        # (PR #392 r2.)
+        toml = tmp_path / "tooling.toml"
+        toml.write_text(
+            'version = "v1.32.1"\nrepo = "https://github.com/../tooling"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
+        assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
+
+    def test_dot_only_owner_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # `.` and `..` as path components are filesystem-traversal
+        # markers; reject them via the alnum-first-char rule.
+        toml = tmp_path / "tooling.toml"
+        toml.write_text(
+            'version = "v1.32.1"\nrepo = "https://github.com/./tooling"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
+        assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
+
+    def test_dot_only_repo_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Repo side gets the same alnum-first-char rule so
+        # `/acme/..` doesn't sneak through.
+        toml = tmp_path / "tooling.toml"
+        toml.write_text(
+            'version = "v1.32.1"\nrepo = "https://github.com/acme/.."\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
+        assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
+
 
 class TestReadPinnedVersion:
     def test_returns_pinned(

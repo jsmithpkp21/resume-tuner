@@ -120,7 +120,10 @@ _DEFAULT_REPO_SLUG = "jsmithpkp21/tooling"
 # Accept only `owner/name` shapes with the same character set GitHub
 # allows: alnum, `_`, `-`, `.` (with no leading dot). Anchors prevent
 # trailing path segments from leaking through.
-_REPO_SLUG_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+# Each half MUST start with an alphanumeric so dot-only or
+# path-traversal shapes (`..`, `.`, `./..`, `../tooling`) are rejected.
+# Subsequent chars allow GitHub's full set: alnum, `_`, `-`, `.`.
+_REPO_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 
 def _repo_slug_from_tooling_toml() -> str:

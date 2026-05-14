@@ -53,11 +53,15 @@ no-new-type-ignore: env
 pr-body-drift-check: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_pr_body_drift.py $(PR)"
 
-# Opt-in (not folded into pre-push-checks until #378 remediates the
-# 5 pre-existing violators): scans `scripts/*.py` and `scripts/*.sh`
-# for `gh` subprocess calls that lack a `gh auth status` preflight.
-# AGENTS.md mandates the preflight; this is the meta-check that
-# enforces it.
+# Scans `scripts/*.py` and `scripts/*.sh` for `gh` subprocess calls
+# that lack a `gh auth status` preflight. AGENTS.md mandates the
+# preflight; this is the meta-check that enforces it. Kept opt-in
+# (not folded into pre-push-checks) until the 4 tooling-synced
+# admin scripts get the preflight upstream and sync back — see
+# jsmithpkp21/tooling#409 for the promotion path. Local-only
+# remediation lives in `scripts/request_copilot_review.py` (this PR)
+# via an alias to the existing `_ensure_gh_auth()`; the synced 4
+# can't be edited here without drifting from tooling.
 gh-preflight-check: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_gh_preflight.py"
 

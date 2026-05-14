@@ -80,6 +80,15 @@ def _ensure_gh_auth() -> None:
     raise RuntimeError("\n".join(message))
 
 
+# Alias so `scripts/check_gh_preflight.py` recognizes this script as
+# having a preflight (#378). `_ensure_gh_auth` IS the preflight; we
+# don't replace it with `resume_builder.gh_preflight.preflight()`
+# because that helper calls `sys.exit(2)` whereas `_ensure_gh_auth`
+# raises `RuntimeError` (caught by the existing try/except in main).
+# Behavior preserved; the alias makes the meta-check happy.
+_gh_preflight = _ensure_gh_auth
+
+
 def _kickoff_body(sha: str) -> str:
     if sha:
         return f"@copilot review\n\nAuto-kickoff after push `{sha[:7]}`."
@@ -132,7 +141,11 @@ def _existing_kickoff_matches(
 def main() -> int:
     args = parse_args()
     try:
-        _ensure_gh_auth()
+        # `_gh_preflight` is the canonical name `check_gh_preflight.py`
+        # recognizes; aliased to `_ensure_gh_auth` above so the existing
+        # raise-RuntimeError-on-failure behavior is preserved (caught by
+        # this `try/except` block).
+        _gh_preflight()
         short_sha = args.sha[:7]
         body = _kickoff_body(args.sha)
 

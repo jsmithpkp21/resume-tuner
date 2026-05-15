@@ -100,6 +100,14 @@ _HOST_BODY_SELECTOR_FAMILIES: dict[str, str] = {}
 _HOST_BODY_SELECTOR_TIMEOUT_MS = 2000
 
 _PLAYWRIGHT_ENABLED_ENV = "RESUME_BUILDER_ENABLE_PLAYWRIGHT"
+# Optional launch overrides for hosts where Playwright's bundled Chromium
+# isn't available (e.g. Ubuntu 26.04 surfaced this in #390). Both are
+# honored by `_playwright_launch_kwargs`:
+#   _PLAYWRIGHT_CHANNEL_ENV     -> forwarded as `channel=`     to launch()
+#   _PLAYWRIGHT_EXECUTABLE_ENV  -> forwarded as `executable_path=` to launch()
+# Executable path wins over channel when both are set (more specific).
+_PLAYWRIGHT_CHANNEL_ENV = "RESUME_BUILDER_PLAYWRIGHT_CHANNEL"
+_PLAYWRIGHT_EXECUTABLE_ENV = "RESUME_BUILDER_PLAYWRIGHT_EXECUTABLE"
 _PLAYWRIGHT_TIMEOUT_SECONDS = 15.0
 # When the static fetch comes back below this many chars, retry via
 # Playwright even if the host isn't in the allowlist. Catches new
@@ -1191,6 +1199,22 @@ def _playwright_enabled() -> bool:
     return _import_sync_playwright() is not None
 
 
+def _playwright_launch_kwargs() -> dict[str, Any]:
+    """Optional `chromium.launch()` kwargs derived from env overrides (#390).
+
+    Executable path wins over channel when both are set — the path is more
+    specific. Both unset returns an empty dict, preserving the bundled-
+    Chromium default.
+    """
+    executable = (os.getenv(_PLAYWRIGHT_EXECUTABLE_ENV) or "").strip()
+    if executable:
+        return {"executable_path": executable}
+    channel = (os.getenv(_PLAYWRIGHT_CHANNEL_ENV) or "").strip()
+    if channel:
+        return {"channel": channel}
+    return {}
+
+
 def _host_needs_javascript_render(host: str) -> bool:
     """Match host against the JS-rendered allowlist.
 
@@ -1323,7 +1347,7 @@ def _playwright_fetch_html(
     selector = _resolve_host_body_selector(parsed_host)
     try:
         with sync_pw() as pw:
-            browser = pw.chromium.launch(headless=True)
+            browser = pw.chromium.launch(headless=True, **_playwright_launch_kwargs())
             try:
                 page = browser.new_page(user_agent=_FETCH_USER_AGENT)
                 page.goto(

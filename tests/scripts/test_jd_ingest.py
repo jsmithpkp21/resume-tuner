@@ -1373,12 +1373,56 @@ def test_playwright_fetch_html_returns_title_and_content() -> None:
     assert out == ("Staff SDET", "<p>JD body</p>", None)
 
 
-def test_playwright_fetch_html_passes_user_agent_and_settle_window() -> None:
+def test_playwright_fetch_html_passes_user_agent_and_settle_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Guard against dev-env leakage of the #390 launch overrides; the
+    # equality assertion below depends on these being unset.
+    monkeypatch.delenv("RESUME_BUILDER_PLAYWRIGHT_CHANNEL", raising=False)
+    monkeypatch.delenv("RESUME_BUILDER_PLAYWRIGHT_EXECUTABLE", raising=False)
     fake_sync, browser, chromium = _make_fake_sync_playwright()
     _playwright_fetch_html(fake_sync, "https://example.com/job/1")
     # Browser launched headless; user-agent forwarded to new_page.
     assert chromium.launch_kwargs == {"headless": True}
     assert "user_agent" in browser.new_page_kwargs
+
+
+def test_playwright_fetch_html_uses_channel_when_env_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RESUME_BUILDER_PLAYWRIGHT_EXECUTABLE", raising=False)
+    monkeypatch.setenv("RESUME_BUILDER_PLAYWRIGHT_CHANNEL", "chrome")
+    fake_sync, _browser, chromium = _make_fake_sync_playwright()
+    _playwright_fetch_html(fake_sync, "https://example.com/job/1")
+    assert chromium.launch_kwargs == {"headless": True, "channel": "chrome"}
+
+
+def test_playwright_fetch_html_uses_executable_when_env_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RESUME_BUILDER_PLAYWRIGHT_CHANNEL", raising=False)
+    monkeypatch.setenv("RESUME_BUILDER_PLAYWRIGHT_EXECUTABLE", "/usr/bin/google-chrome")
+    fake_sync, _browser, chromium = _make_fake_sync_playwright()
+    _playwright_fetch_html(fake_sync, "https://example.com/job/1")
+    assert chromium.launch_kwargs == {
+        "headless": True,
+        "executable_path": "/usr/bin/google-chrome",
+    }
+
+
+def test_playwright_fetch_html_executable_wins_over_channel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Both set: executable_path is more specific, so channel is dropped.
+    monkeypatch.setenv("RESUME_BUILDER_PLAYWRIGHT_CHANNEL", "chrome")
+    monkeypatch.setenv("RESUME_BUILDER_PLAYWRIGHT_EXECUTABLE", "/usr/bin/google-chrome")
+    fake_sync, _browser, chromium = _make_fake_sync_playwright()
+    _playwright_fetch_html(fake_sync, "https://example.com/job/1")
+    assert chromium.launch_kwargs == {
+        "headless": True,
+        "executable_path": "/usr/bin/google-chrome",
+    }
+    assert "channel" not in chromium.launch_kwargs
 
 
 def test_playwright_fetch_html_truncates_oversize_content() -> None:

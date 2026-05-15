@@ -35,6 +35,36 @@ At enterprise scale (tech companies, finance, healthcare), pre-commit hooks must
 - ❌ No fallback (intentionally strict)
 - 📝 Clear error messages guide users to create feature branch
 
+### 1a. Pre-Push Freshness (Stale-Base Detection)
+
+**Purpose:** Catch the case where a parallel session/clone has already pushed
+new commits to your branch — pushing on a stale base would either be rejected
+as non-fast-forward (forcing manual recovery) or, worse, accepted as
+`--force-with-lease` if the local cache happened to match.
+
+```yaml
+- id: check-pre-push-freshness
+  entry: bash scripts/check_pre_push_freshness.sh
+  stages: [push]
+```
+
+**Behavior:**
+- ✅ Fetches the upstream branch and aborts if it has commits the local
+  branch doesn't, with `git pull --rebase ...` as the actionable remediation.
+- ✅ Skipped automatically for branch deletions, first-push of a new branch,
+  and non-branch refs (tags).
+- ✅ Treats fetch failures (offline, missing remote branch) as non-blocking
+  so legitimate offline-development pushes aren't broken.
+- ❌ Pre-push hooks can't observe the user's `--force` / `--force-with-lease`
+  flags. For intentional force-push workflows, use the bypass:
+  ```bash
+  PRE_PUSH_SKIP_STALE_CHECK=1 git push --force-with-lease ...
+  ```
+
+The implementation is `scripts/check_pre_push_freshness.sh`. See
+[tooling#460](https://github.com/jsmithpkp21/tooling/issues/460) for the
+PR #457 retrospective that motivated this hook.
+
 ### 2. Code Quality (Auto-Fix)
 
 **Purpose:** Enforce style, type hints, imports

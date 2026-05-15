@@ -54,7 +54,22 @@ def _load_drift_module() -> ModuleType:
         )
         sys.exit(2)
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    # `exec_module` runs the sibling script's top-level code, so it can
+    # raise `OSError` (unreadable file), `SyntaxError` (invalid source),
+    # `ImportError` (missing transitive dep), or any other exception
+    # the module's own code throws. Convert all of them to the
+    # documented exit-2 contract with an actionable diagnostic so
+    # contributors aren't staring at a Python traceback. (tooling#450.)
+    try:
+        spec.loader.exec_module(mod)
+    except Exception as e:
+        sys.stderr.write(
+            f"check-pr-body-drift: cannot load deny-list from {_DRIFT_SCRIPT}: "
+            f"{type(e).__name__}: {e}\n"
+            "Verify the sibling check script is present, readable, and "
+            "syntactically valid, then retry.\n"
+        )
+        sys.exit(2)
     return mod
 
 

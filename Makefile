@@ -646,7 +646,7 @@ check: env
 	@echo ""
 
 lint-docker: docker-up
-	$(DOCKER_RUN) "cd /repo && source /opt/venv/bin/activate && ruff check . && ruff format --check . && mypy . && make markdown-lint"
+	$(DOCKER_RUN) "cd /repo && source /opt/venv/bin/activate && ruff check . && ruff format --check . && mypy . && python3 scripts/check_makefile_bash_quoting.py && make markdown-lint"
 
 lint-fix-docker: docker-up
 	$(DOCKER_RUN) "cd /repo && source /opt/venv/bin/activate && ruff check . --fix && ruff format ."

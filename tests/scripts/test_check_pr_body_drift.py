@@ -195,3 +195,89 @@ class TestGhPreflight:
         monkeypatch.setattr(subprocess, "run", fake_run)
         # No exception, no SystemExit.
         assert check_pr_body_drift._gh_preflight() is None
+
+
+class TestLoadDriftModuleErrors:
+    """`_load_drift_module()` shells out to `importlib.spec_from_file_location` +
+    `exec_module` on the sibling `scripts/check_doc_drift.py`. If that
+    file is missing, unreadable, or has a syntax error, the script
+    must honor the documented exit-2 contract instead of letting the
+    Python traceback escape. (tooling#450.)
+
+    The `lru_cache(maxsize=1)` decorator on `_load_drift_module()`
+    is cleared before each test so the previous run's cached module
+    doesn't satisfy the call before the patched path is hit.
+    """
+
+    def _patch_drift_script(
+        self, monkeypatch: pytest.MonkeyPatch, target: Path
+    ) -> None:
+        monkeypatch.setattr(check_pr_body_drift, "_DRIFT_SCRIPT", target)
+        check_pr_body_drift._load_drift_module.cache_clear()
+
+    def test_missing_sibling_script_exits_2_with_actionable_diagnostic(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # Point _DRIFT_SCRIPT at a file that doesn't exist on disk.
+        # `spec_from_file_location` returns a spec but loading fails.
+        missing = tmp_path / "does_not_exist.py"
+        self._patch_drift_script(monkeypatch, missing)
+        with pytest.raises(SystemExit) as exc:
+            check_pr_body_drift._load_drift_module()
+        assert exc.value.code == 2
+        err = capsys.readouterr().err
+        # Path mentioned + actionable hint, no traceback.
+        assert "cannot load deny-list" in err
+        assert str(missing) in err
+        assert "Verify the sibling check script" in err
+        assert "Traceback" not in err
+
+    def test_syntax_error_in_sibling_script_exits_2(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # Write a Python file with invalid syntax. `exec_module` will
+        # raise `SyntaxError` during compilation; the new try/except
+        # must convert it to exit 2 + a clear diagnostic.
+        broken = tmp_path / "broken_drift.py"
+        broken.write_text("def x( :\n  # invalid Python\n", encoding="utf-8")
+        self._patch_drift_script(monkeypatch, broken)
+        with pytest.raises(SystemExit) as exc:
+            check_pr_body_drift._load_drift_module()
+        assert exc.value.code == 2
+        err = capsys.readouterr().err
+        # The exception type name surfaces so the user knows what went
+        # wrong without a traceback.
+        assert "SyntaxError" in err
+        assert str(broken) in err
+        assert "Traceback" not in err
+
+    def test_module_level_exception_in_sibling_script_exits_2(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # Sibling script that raises at module load (e.g., a top-level
+        # call that errors out). `exec_module` propagates the
+        # exception; the wrapper must catch it. Common shape if a
+        # future check_doc_drift.py adds a top-level validation that
+        # fails on import.
+        raising = tmp_path / "raising_drift.py"
+        raising.write_text(
+            "raise RuntimeError('deny-list config invalid')\n",
+            encoding="utf-8",
+        )
+        self._patch_drift_script(monkeypatch, raising)
+        with pytest.raises(SystemExit) as exc:
+            check_pr_body_drift._load_drift_module()
+        assert exc.value.code == 2
+        err = capsys.readouterr().err
+        assert "RuntimeError" in err
+        assert "deny-list config invalid" in err
+        assert "Traceback" not in err

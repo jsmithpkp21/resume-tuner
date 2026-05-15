@@ -88,46 +88,65 @@ def _is_offender(line: str) -> bool:
     return bool(_SHELL_VAR_RE.search(line, pos=match.end()))
 
 
-def main(makefile: Path = MAKEFILE) -> int:
-    if not makefile.exists():
-        return 0
+def _scan_one(path: Path) -> tuple[int, list[tuple[str, int, str]]]:
+    """Scan one Makefile for offenders.
+
+    Returns (status, offenders). status: 0 = clean or absent, 1 = offenders
+    present, 2 = unreadable (fail-closed). Each offender is
+    (filename, 1-based line_no, stripped snippet).
+    """
+    if not path.exists():
+        return 0, []
 
     # `errors="replace"` handles a Makefile with invalid utf-8 bytes
     # gracefully (substitutes U+FFFD) rather than raising. OSError still
     # fires for unreadable files / broken symlinks / permission denied;
     # mirror check_doc_drift's fail-closed exit-2 contract for that.
     try:
-        text = makefile.read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         sys.stderr.write(
-            f"check-makefile-bash-quoting: could not read {makefile}: "
+            f"check-makefile-bash-quoting: could not read {path}: "
             f"{exc.__class__.__name__}: {exc}\nScan is incomplete.\n"
         )
-        return 2
-    raw_lines = text.splitlines()
-    joined = _join_continuations(raw_lines)
+        return 2, []
 
-    offenders: list[tuple[int, str]] = []
-    for line_no, line in joined:
+    offenders: list[tuple[str, int, str]] = []
+    for line_no, line in _join_continuations(text.splitlines()):
         if not _is_recipe_line(line):
             continue
         if _OPT_OUT in line:
             continue
         if _is_offender(line):
-            offenders.append((line_no, line.strip()))
+            offenders.append((path.name, line_no, line.strip()))
+    return (1 if offenders else 0), offenders
 
-    if not offenders:
+
+def main(makefile: Path = MAKEFILE) -> int:
+    # Also scan `Makefile.local` (sibling) if present. Consumer-owned and
+    # loaded by the synced Makefile via `-include Makefile.local`, so unsafe
+    # recipes added there would otherwise bypass this gate entirely. Absence
+    # is normal — most consumers have no Makefile.local. See issue #448.
+    paths = [makefile, makefile.parent / "Makefile.local"]
+    all_offenders: list[tuple[str, int, str]] = []
+    for path in paths:
+        status, offenders = _scan_one(path)
+        if status == 2:
+            return 2
+        all_offenders.extend(offenders)
+
+    if not all_offenders:
         return 0
 
     sys.stderr.write(
-        f"check-makefile-bash-quoting: {len(offenders)} recipe(s) combine "
+        f"check-makefile-bash-quoting: {len(all_offenders)} recipe(s) combine "
         f'`bash -c/-lc "..."` (double-quoted) with `$$VAR` / `$${{VAR}}` '
         "shell-var expansion. The recipe shell (/bin/sh) expands the value "
         "BEFORE bash re-parses the command string, allowing quote-breakout "
         'injection if the value contains `"` (see PR #424).\n\n'
     )
-    for line_no, snippet in offenders:
-        sys.stderr.write(f"  Makefile:{line_no}: {snippet}\n")
+    for filename, line_no, snippet in all_offenders:
+        sys.stderr.write(f"  {filename}:{line_no}: {snippet}\n")
     sys.stderr.write(
         "\nFix: switch the outer `bash -c/-lc` argument to single quotes "
         "so /bin/sh treats it as literal and bash performs the expansion at "

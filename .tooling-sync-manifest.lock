@@ -4,7 +4,7 @@
       "sha256": "ac1ba68ad3d1e1cc5863378e67d61d911e82316163bc59a56de08d4ade3a99cb"
     },
     ".github/copilot-instructions.md": {
-      "sha256": "7efc9c36d9e5069335f7b0a737ceb40be67f01af33cd92c08754ece8416003dc"
+      "sha256": "510251bb8db97cc8feace424559a67f2090c0af05f7f619ca0ca89a09e3bf6a4"
     },
     ".github/dev-tool-pin-lock.json": {
       "sha256": "ec73d4350dc8e786efeacea313382227194c602b457b469eb13bd359a618e1f0"
@@ -40,13 +40,13 @@
       "sha256": "afc88cf56f3f6b1b2c9b2fc7af77748ba8fc729ea18ba85757935f16f7f7a85a"
     },
     ".pre-commit-config.yaml": {
-      "sha256": "fcf2e0fee508f12ebef0b52739dc13eabc192346bccf438a83b87acb3ed21678"
+      "sha256": "67438012df5dc444fe8969cf9aa001f686bc6392f12699dce5353eee9b0aa197"
     },
     ".release-please-config.json": {
       "sha256": "685f55f5dc1993f49ea4b68d8b35ddda207def419bd980d3b0f549ec77cc887e"
     },
     "AGENTS.md": {
-      "sha256": "48a3e418b5577dd2cca88b8804ae6fd8ca49099ef8200d595446f4b917179f4d"
+      "sha256": "1c69ca00625ec866693c47b766ad47f20a5e38a2bd6b0fca06405da13798feca"
     },
     "CLAUDE.md": {
       "sha256": "6a676ef88e9f075ae313d16e15d68d3359e958418535974399008654a1666548"
@@ -70,7 +70,7 @@
       "sha256": "90441f19e84cb77a9f4302d50dd3e9178011f8d1e2e20df43775838711589783"
     },
     "Makefile": {
-      "sha256": "8c618fab584e06c79695d0db3ee9c9bfd5c39fc8d4711a87a2beaf256107b11f"
+      "sha256": "522c88af5c18786293ca9bc84d7b69e41dd3c907f76a3f2a966b18e1cb88998e"
     },
     "commitlint.config.mjs": {
       "sha256": "ae0ebfa1b37453c8e29eff7c5af0b8eec5dc73f373298288cf7d79692b76daea"
@@ -115,7 +115,7 @@
       "sha256": "a086b02436ac716afbbbd1b1986110aea3e7228d92ef9341cca9fac1051e2342"
     },
     "docs/REFERENCE/PRE_COMMIT_HOOKS.md": {
-      "sha256": "7c7fddd80442cedf81184f5ebefa04a0157f5e6350038d727fcd339e9b818440"
+      "sha256": "82f5c09d124fbfa25e21800ac9ff404921cd3c4bb615de21d64ba4a6e57200fd"
     },
     "docs/REFERENCE/PROJECT_STATUS.md": {
       "sha256": "d7ccc399fb07490f08b2576f619b6b27d1c578f3823de1d275466d2cd106f3bf"
@@ -181,19 +181,22 @@
       "sha256": "8c5d096c3d5d3d1ca5127508eba134db947443ca6a136eeff0fa72f258143327"
     },
     "scripts/check_gh_preflight.py": {
-      "sha256": "8b0944ac8ed77be493cd3a25bc422b8b403d06e0cfd0f620ec6922a9790d2b1e"
+      "sha256": "8ed35bd36888e46f2d0fbbea56131ccc4c4f2a103e6b13b64dcece3a7cc4e9b7"
     },
     "scripts/check_makefile_bash_quoting.py": {
-      "sha256": "067528541a0ccbfa9f764dd8882dcba9141a8efeb44e8039905b7a510c7155a9"
+      "sha256": "dff1f13032b8887b94a86c1ee3e36c3563c484db38e0e56cb685743f048fa8a6"
     },
     "scripts/check_no_type_ignore.py": {
-      "sha256": "c5684db0a33a589404b449fa6c3ce4cc8b5cd1c88db8d031aaede4fe542f0e13"
+      "sha256": "eb45203b3bf9820b7c4b68dfae4f8039657f375e502cdf5e2f4523b3d2247dfb"
     },
     "scripts/check_pr_body_drift.py": {
-      "sha256": "378956ff7f3084a748e8ddbcd4587b6185b8dd49a33e6b7eff5a49857bad8fdf"
+      "sha256": "51501ea9a120d5584c8cd700f5fb041d5e6600181af213e63767e6a8559f1194"
+    },
+    "scripts/check_pre_push_freshness.sh": {
+      "sha256": "b0b8012b880d7ed3d856af5000b6e7320478fe4ac66737b845118ad7e0065560"
     },
     "scripts/check_sync_lag.py": {
-      "sha256": "7643d7e6a0b0201d81c4a997e72b20ce201f9dc5b427f3a1c26d64d70f68ca71"
+      "sha256": "418d363c4747be4995227f0688bac756751a307c2ba80733e03c19f81f29c6cc"
     },
     "scripts/create_branch.sh": {
       "sha256": "a9456a73d1f476af2854a5b634157057bf4ededbbaba9055c26588a28f3ec0ad"
@@ -273,6 +276,27 @@
     "scripts/verify_env.sh": {
       "sha256": "fa448cb402c6de47fef5aa2e28e68b4d05caea878e7513cfb31243206a7d1b9f"
     },
+    "tests/scripts/_helpers.py": {
+      "sha256": "07eb9038852403ecafae81997f7c6c3b89763881904df051ca618006fc985565"
+    },
+    "tests/scripts/test_check_doc_drift.py": {
+      "sha256": "965cc80bff696bdb5b9acb38cc20111fe5487c727d17f0f717e1d36d2d56396c"
+    },
+    "tests/scripts/test_check_gh_preflight.py": {
+      "sha256": "d7c57a55e9ceef692c928fa7809ab4ed29b395dc426d91404b765af694d9ecab"
+    },
+    "tests/scripts/test_check_makefile_bash_quoting.py": {
+      "sha256": "3079a14b833f05140a43373f27b94dea8ea04d5eadd227635aa8f63b18fe62b1"
+    },
+    "tests/scripts/test_check_no_type_ignore.py": {
+      "sha256": "071d26963931d223ae6569196c8e3ad7a383ec77b31000d23ea0f36792b7984d"
+    },
+    "tests/scripts/test_check_pr_body_drift.py": {
+      "sha256": "b280a50b828bb6edc85c593fc82d90f6c17c011f1739f04c0720ef6d78b869dd"
+    },
+    "tests/scripts/test_check_sync_lag.py": {
+      "sha256": "57f2ba25b7f73a999f49c9b0467a8e0c77d07d2788ab5aa265dc28572e1bf5ef"
+    },
     "tests/scripts/test_consumer_contract.py": {
       "sha256": "7855275df6672fa07ea542ea83b7643ff15d302c6a7df5359529f9e14c2572d7"
     },
@@ -283,9 +307,9 @@
       "sha256": "428d00d9550fcd46deea5255bcce2ef96f23131ba58d0be5f148a476a0ce19d9"
     }
   },
-  "generated_at_utc": "2026-05-15T15:08:16Z",
-  "requested_ref": "v1.34.4",
-  "resolved_ref": "0d7aa71ae62dc05efc2bbe7446e21fb324cb4058",
+  "generated_at_utc": "2026-05-15T19:19:25Z",
+  "requested_ref": "v1.35.0",
+  "resolved_ref": "5c72755e93f35135ee1717352970872503ac6a83",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

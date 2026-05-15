@@ -1,15 +1,18 @@
 """Tests for `scripts/check_sync_lag.py`.
 
-The script has three parts:
-  1. `compare_versions(pinned, latest)` — pure semver comparison.
-  2. `_read_pinned_version()` + `_repo_slug_from_tooling_toml()` — TOML
+Five parts to cover:
+  1. `_parse_version` — stdlib semver-ish parser.
+  2. `compare_versions(pinned, latest)` — pure (exit_code, message)
+     contract.
+  3. `_read_pinned_version()` + `_repo_slug_from_tooling_toml()` — TOML
      parsers; tested via monkeypatch on the module's `TOOLING_TOML`
      constant.
-  3. `_fetch_latest_tag(repo)` / `_gh_preflight()` — subprocess shells
+  4. `_fetch_latest_tag(repo)` / `_gh_preflight()` — subprocess shells
      to `gh`; tested by monkeypatching `subprocess.run`.
+  5. End-to-end exit-code paths via the same monkeypatch.
 
 Loaded via `importlib.util` (no `sys.path` mutation), matching the
-pattern in `test_check_doc_drift.py` and friends.
+pattern in `test_check_doc_drift.py` and the other sibling check tests.
 """
 
 from __future__ import annotations
@@ -29,8 +32,58 @@ check_sync_lag = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(check_sync_lag)
 
 
+class TestParseVersion:
+    """`_parse_version` is the strict stdlib semver-ish parser."""
+
+    def test_basic_v_prefix(self) -> None:
+        assert check_sync_lag._parse_version("v1.2.3") == (1, 2, 3)
+
+    def test_no_v_prefix(self) -> None:
+        assert check_sync_lag._parse_version("1.2.3") == (1, 2, 3)
+
+    def test_capital_v_prefix(self) -> None:
+        assert check_sync_lag._parse_version("V1.2.3") == (1, 2, 3)
+
+    def test_zero_components(self) -> None:
+        assert check_sync_lag._parse_version("v0.0.0") == (0, 0, 0)
+
+    def test_multi_digit_components(self) -> None:
+        assert check_sync_lag._parse_version("v12.34.567") == (12, 34, 567)
+
+    def test_rejects_double_v(self) -> None:
+        # Pre-fix bug in the consumer prototype: `lstrip("v")` silently
+        # accepted `vv1.2.3` by stripping both v's. The strict regex
+        # requires at most one optional `v`. (See
+        # feedback_check_parser_before_normalizing.md.)
+        with pytest.raises(ValueError):
+            check_sync_lag._parse_version("vv1.2.3")
+
+    def test_rejects_two_components(self) -> None:
+        with pytest.raises(ValueError):
+            check_sync_lag._parse_version("v1.2")
+
+    def test_rejects_four_components(self) -> None:
+        with pytest.raises(ValueError):
+            check_sync_lag._parse_version("v1.2.3.4")
+
+    def test_rejects_pre_release_suffix(self) -> None:
+        # Tooling tags are clean vX.Y.Z; pre-release suffixes
+        # (`-rc1`, `+abc`) are intentionally unsupported and fail
+        # cleanly rather than being silently coerced.
+        with pytest.raises(ValueError):
+            check_sync_lag._parse_version("v1.2.3-rc1")
+
+    def test_rejects_garbage(self) -> None:
+        with pytest.raises(ValueError):
+            check_sync_lag._parse_version("garbage")
+
+    def test_rejects_empty_v(self) -> None:
+        with pytest.raises(ValueError):
+            check_sync_lag._parse_version("v")
+
+
 class TestCompareVersions:
-    """Pure-function semver compare. Handles `v` prefix + level diff."""
+    """Public-ish `compare_versions(pinned, latest)` contract."""
 
     def test_equal_returns_zero(self) -> None:
         code, msg = check_sync_lag.compare_versions("v1.2.3", "v1.2.3")
@@ -78,20 +131,117 @@ class TestCompareVersions:
         assert code == 2
 
     def test_double_v_prefix_rejected(self) -> None:
-        # Pre-fix bug: `lstrip("v")` stripped ALL leading v's, so
-        # `vv1.2.3` silently normalized to `1.2.3` and was accepted
-        # as a valid version. `removeprefix("v")` strips exactly one
-        # literal `v`, so `vv1.2.3` → `v1.2.3` which `Version()`
-        # rejects → exit 2 cannot-parse. (#395.)
+        # Defense-in-depth: even if a future refactor of `_parse_version`
+        # reintroduces the `lstrip` bug from the consumer prototype,
+        # `vv1.2.3` must still return cannot-parse not silently-normalized.
         code, msg = check_sync_lag.compare_versions("vv1.2.3", "v1.32.1")
         assert code == 2
         assert "cannot parse" in msg
 
-    def test_double_v_prefix_in_latest_rejected(self) -> None:
-        # Same protection on the upstream-tag side.
-        code, msg = check_sync_lag.compare_versions("v1.32.0", "vv1.32.1")
+
+class TestBranchRefHandling:
+    """README documents branch refs as a supported
+    `tooling.toml.version` channel; the tooling repo's own
+    `project-template/tooling.toml` uses `version = "main"`. Branch
+    pins must NOT trigger exit 2 — they're a category mismatch with
+    tag comparison, not a parse failure.
+
+    Under the conservative detection rule, "branch ref" means EITHER:
+    the value contains `/` (impossible in a release tag, so
+    `release/stable` / `feature/420` qualify), OR the value matches a
+    known branch name (`main`, `master`, `develop`, `trunk`, `HEAD`).
+    Other unrecognized strings stay on the cannot-parse exit-2 path
+    so the operator gets an actionable error rather than silent
+    branch-ref treatment of a typo. (PR #429 review.)
+    """
+
+    def test_main_branch_returns_tracking_zero(self) -> None:
+        code, msg = check_sync_lag.compare_versions("main", "v1.32.1")
+        assert code == 0
+        assert "tracking branch" in msg
+        # Still surfaces the latest tag so the operator can decide.
+        assert "v1.32.1" in msg
+        assert "main" in msg
+
+    def test_release_stable_branch_returns_tracking_zero(self) -> None:
+        code, msg = check_sync_lag.compare_versions("release/stable", "v1.32.1")
+        assert code == 0
+        assert "tracking branch" in msg
+        assert "release/stable" in msg
+
+    def test_feature_branch_returns_tracking_zero(self) -> None:
+        code, msg = check_sync_lag.compare_versions("feature/420", "v1.32.1")
+        assert code == 0
+        assert "tracking branch" in msg
+
+    def test_branch_ref_with_no_tag_components_still_handled(self) -> None:
+        # A bare branch name with no slashes.
+        code, _ = check_sync_lag.compare_versions("develop", "v1.32.1")
+        assert code == 0
+
+    def test_malformed_tag_still_returns_cannot_parse(self) -> None:
+        # The branch detector must NOT capture malformed-tag shapes.
+        # `v1.2` has no letters / slashes and fails the tag regex,
+        # so it stays in the exit-2 cannot-parse path.
+        code, msg = check_sync_lag.compare_versions("v1.2", "v1.32.1")
         assert code == 2
         assert "cannot parse" in msg
+
+    def test_pre_release_tag_returns_cannot_parse(self) -> None:
+        # `v1.2.3-rc1` is a malformed-tag shape (pre-release suffix
+        # unsupported). Under the conservative branch-ref rule it
+        # has no `/` and isn't a known branch name, so it stays on
+        # the cannot-parse exit-2 path with an actionable error
+        # rather than getting silently treated as a branch.
+        code, msg = check_sync_lag.compare_versions("v1.2.3-rc1", "v1.32.1")
+        assert code == 2
+        assert "cannot parse" in msg
+
+    def test_branch_ref_with_garbage_latest_returns_2(self) -> None:
+        # Pre-fix bug: the branch-ref shortcut returned (0, "...") before
+        # `latest` was parsed, so `compare_versions("main", "garbage")`
+        # returned exit 0 with the garbage tag embedded in the message —
+        # masking a real upstream-tag problem. Now `latest` is validated
+        # first so malformed `latest` fails closed regardless of whether
+        # `pinned` is a branch ref. (tooling#446.)
+        code, msg = check_sync_lag.compare_versions("main", "garbage")
+        assert code == 2
+        assert "cannot parse latest version" in msg
+
+    def test_branch_ref_with_malformed_tag_latest_returns_2(self) -> None:
+        # Same as above but `latest` is tag-shaped-but-incomplete
+        # (`v1.2` is two components, not three). Still must fail closed.
+        code, msg = check_sync_lag.compare_versions("release/stable", "v1.2")
+        assert code == 2
+        assert "cannot parse latest version" in msg
+
+
+class TestIsBranchRef:
+    """`_is_branch_ref` conservative sniff: returns True only when the
+    value (a) contains `/` (impossible in a release tag) or (b)
+    matches a known branch name (`main`, `master`, `develop`, `trunk`,
+    `HEAD`). Other unrecognized strings (`v1.2`, `vv1.2.3`,
+    `not-a-version`) return False so the caller hands them to the
+    strict parser and they take the cannot-parse exit-2 path."""
+
+    def test_main_is_branch(self) -> None:
+        assert check_sync_lag._is_branch_ref("main") is True
+
+    def test_release_stable_is_branch(self) -> None:
+        assert check_sync_lag._is_branch_ref("release/stable") is True
+
+    def test_feature_slash_is_branch(self) -> None:
+        assert check_sync_lag._is_branch_ref("feature/420-something") is True
+
+    def test_tag_is_not_branch(self) -> None:
+        assert check_sync_lag._is_branch_ref("v1.32.1") is False
+        assert check_sync_lag._is_branch_ref("1.32.1") is False
+
+    def test_malformed_tag_is_not_branch(self) -> None:
+        # `v1.2` has only digits + dots + `v` → not a branch.
+        # Caller falls through to the strict parser and gets exit 2.
+        assert check_sync_lag._is_branch_ref("v1.2") is False
+        assert check_sync_lag._is_branch_ref("1.2") is False
 
 
 class TestRepoSlugParser:
@@ -142,10 +292,6 @@ class TestRepoSlugParser:
     def test_host_substring_match_rejected(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # Pre-fix bug: `"github.com" in url` substring check accepted
-        # any URL that happened to contain the literal "github.com",
-        # including `https://notgithub.com/...`. The strict urlparse
-        # form checks hostname equality and rejects this. (PR #392 r1.)
         toml = tmp_path / "tooling.toml"
         toml.write_text(
             'version = "v1.32.1"\nrepo = "https://notgithub.com/acme/tooling"\n',
@@ -157,10 +303,6 @@ class TestRepoSlugParser:
     def test_ssh_url_rejected(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # Pre-fix bug: SSH URL `git@github.com:acme/tooling.git` passed
-        # the substring check but the `split("github.com/", ...)` parse
-        # returned the whole string. The strict urlparse form requires
-        # http(s) scheme and rejects SSH. (PR #392 r1.)
         toml = tmp_path / "tooling.toml"
         toml.write_text(
             'version = "v1.32.1"\nrepo = "git@github.com:acme/tooling.git"\n',
@@ -169,13 +311,20 @@ class TestRepoSlugParser:
         monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
         assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
 
+    def test_http_scheme_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        toml = tmp_path / "tooling.toml"
+        toml.write_text(
+            'version = "v1.32.1"\nrepo = "http://github.com/acme/tooling"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
+        assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
+
     def test_extra_path_segments_rejected(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # GitHub URLs with deep paths (e.g. `/owner/name/tree/main`)
-        # should NOT be parsed as `owner/name/tree/main` — the strict
-        # slug regex catches that and falls back to default rather
-        # than passing a malformed slug to `gh api`. (PR #392 r1.)
         toml = tmp_path / "tooling.toml"
         toml.write_text(
             'version = "v1.32.1"\nrepo = "https://github.com/acme/tooling/tree/main"\n',
@@ -187,11 +336,6 @@ class TestRepoSlugParser:
     def test_path_traversal_owner_rejected(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # Pre-fix bug: regex allowed `.` as the first owner character,
-        # so `https://github.com/../tooling` parsed to `../tooling`
-        # and would have been passed to `gh api repos/../tooling/...`.
-        # Strict regex (alphanumeric first char on owner) rejects it.
-        # (PR #392 r2.)
         toml = tmp_path / "tooling.toml"
         toml.write_text(
             'version = "v1.32.1"\nrepo = "https://github.com/../tooling"\n',
@@ -203,8 +347,6 @@ class TestRepoSlugParser:
     def test_dot_only_owner_rejected(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # `.` and `..` as path components are filesystem-traversal
-        # markers; reject them via the alnum-first-char rule.
         toml = tmp_path / "tooling.toml"
         toml.write_text(
             'version = "v1.32.1"\nrepo = "https://github.com/./tooling"\n',
@@ -213,29 +355,67 @@ class TestRepoSlugParser:
         monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
         assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
 
-    def test_dot_only_repo_rejected(
+    def test_query_string_rejected(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # Repo side gets the same alnum-first-char rule so
-        # `/acme/..` doesn't sneak through.
+        # urlparse puts `?tab=readme` in parsed.query, NOT parsed.path,
+        # so the slug regex would accept `acme/tooling` without an
+        # explicit query check. (PR #429 review.)
         toml = tmp_path / "tooling.toml"
         toml.write_text(
-            'version = "v1.32.1"\nrepo = "https://github.com/acme/.."\n',
+            'version = "v1.32.1"\nrepo = "https://github.com/acme/tooling?tab=readme"\n',
             encoding="utf-8",
         )
         monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
         assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
 
-    def test_http_scheme_rejected(
+    def test_fragment_rejected(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # Tightening to https-only aligns the code with the docstring
-        # contract. No real-world `tooling.toml` uses plain http;
-        # rejecting it removes a small attack-surface + makes the
-        # accepted shape exactly one. (#395.)
+        # Fragments live in parsed.fragment, also outside parsed.path.
         toml = tmp_path / "tooling.toml"
         toml.write_text(
-            'version = "v1.32.1"\nrepo = "http://github.com/acme/tooling"\n',
+            'version = "v1.32.1"\nrepo = "https://github.com/acme/tooling#anchor"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
+        assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
+
+    def test_userinfo_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # `user:pass@host` keeps userinfo separate from hostname. The
+        # README documents bare `https://github.com/<owner>/<name>` so
+        # any userinfo is a category mismatch.
+        toml = tmp_path / "tooling.toml"
+        toml.write_text(
+            'version = "v1.32.1"\nrepo = "https://user:pass@github.com/acme/tooling"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
+        assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
+
+    def test_non_default_port_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        toml = tmp_path / "tooling.toml"
+        toml.write_text(
+            'version = "v1.32.1"\nrepo = "https://github.com:8443/acme/tooling"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
+        assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
+
+    def test_malformed_port_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # `parsed.port` raises ValueError on non-numeric port text.
+        # Without the try/except wrap, this would crash the script
+        # with a traceback instead of returning the default slug.
+        # (tooling#432.)
+        toml = tmp_path / "tooling.toml"
+        toml.write_text(
+            'version = "v1.32.1"\nrepo = "https://github.com:abc/acme/tooling"\n',
             encoding="utf-8",
         )
         monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
@@ -280,6 +460,60 @@ class TestReadPinnedVersion:
         with pytest.raises(SystemExit) as exc:
             check_sync_lag._read_pinned_version()
         assert exc.value.code == 2
+
+    def test_symlink_rejected(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # SECURITY guard: a symlink at TOOLING_TOML must fail closed
+        # before any read. Matches scripts/validate_tooling_toml_drift.py.
+        # (PR #429 review.)
+        real = tmp_path / "real.toml"
+        real.write_text('version = "v1.0.0"\n', encoding="utf-8")
+        link = tmp_path / "tooling.toml"
+        link.symlink_to(real)
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", link)
+        with pytest.raises(SystemExit) as exc:
+            check_sync_lag._read_pinned_version()
+        assert exc.value.code == 2
+        assert "SECURITY" in capsys.readouterr().err
+
+    def test_broken_symlink_rejected(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # Path.exists() follows symlinks, so a broken symlink would be
+        # reported as "missing" and skip the SECURITY guard without the
+        # is_symlink() check ordered first.
+        link = tmp_path / "tooling.toml"
+        link.symlink_to(tmp_path / "does-not-exist")
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", link)
+        with pytest.raises(SystemExit) as exc:
+            check_sync_lag._read_pinned_version()
+        assert exc.value.code == 2
+        assert "SECURITY" in capsys.readouterr().err
+
+    def test_directory_rejected(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # Regular-file guard: a directory at TOOLING_TOML would let
+        # the script attempt to open it and produce a confusing IsADirectoryError
+        # traceback. Stand-in for the FIFO/device case (FIFOs require
+        # OS-specific mkfifo; the is_file() guard catches all three).
+        d = tmp_path / "tooling.toml"
+        d.mkdir()
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", d)
+        with pytest.raises(SystemExit) as exc:
+            check_sync_lag._read_pinned_version()
+        assert exc.value.code == 2
+        assert "MALFORMED" in capsys.readouterr().err
 
 
 class TestGhPreflight:
@@ -327,9 +561,7 @@ class TestGhPreflight:
 
 class TestFetchLatestTag:
     def test_returns_tag_on_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        # _gh_preflight is called first → return ok.
-        # Then `gh api` runs → return tag.
-        calls = []
+        calls: list[Any] = []
 
         def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
             cmd = args[0]
@@ -344,8 +576,7 @@ class TestFetchLatestTag:
 
         monkeypatch.setattr(subprocess, "run", fake_run)
         assert check_sync_lag._fetch_latest_tag("jsmithpkp21/tooling") == "v1.32.1"
-        # Two subprocess calls: preflight + api fetch.
-        assert len(calls) == 2
+        assert len(calls) == 2  # preflight + api fetch
 
     def test_gh_api_failure_exits_2(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -369,8 +600,6 @@ class TestFetchLatestTag:
     def test_empty_tag_exits_2(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        # `gh api` returns 0 but empty stdout — shouldn't be treated as
-        # success.
         def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
             cmd = args[0]
             if "auth" in cmd:
@@ -386,3 +615,126 @@ class TestFetchLatestTag:
             check_sync_lag._fetch_latest_tag("jsmithpkp21/tooling")
         assert exc.value.code == 2
         assert "empty tag" in capsys.readouterr().err
+
+
+class TestMain:
+    """End-to-end wiring tests. Monkeypatch the three I/O boundaries
+    (`_read_pinned_version`, `_repo_slug_from_tooling_toml`,
+    `_fetch_latest_tag`) and assert that `main()` returns the right
+    exit code and routes output to stdout vs stderr correctly. A
+    regression in output routing, remediation text, or the final
+    exit-code wiring would slip past the unit tests on the pure
+    helpers. (PR #429 review.)
+    """
+
+    @staticmethod
+    def _wire(
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        pinned: str,
+        latest: str,
+        repo: str = "jsmithpkp21/tooling",
+    ) -> None:
+        monkeypatch.setattr(check_sync_lag, "_read_pinned_version", lambda: pinned)
+        monkeypatch.setattr(
+            check_sync_lag, "_repo_slug_from_tooling_toml", lambda: repo
+        )
+        monkeypatch.setattr(check_sync_lag, "_fetch_latest_tag", lambda r: latest)
+
+    def test_up_to_date_returns_0_and_writes_stdout(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._wire(monkeypatch, pinned="v1.32.1", latest="v1.32.1")
+        code = check_sync_lag.main()
+        out, err = capsys.readouterr()
+        assert code == 0
+        assert "up-to-date" in out
+        assert err == ""
+
+    def test_ahead_of_release_returns_0_and_writes_stdout(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._wire(monkeypatch, pinned="v1.33.0", latest="v1.32.1")
+        code = check_sync_lag.main()
+        out, err = capsys.readouterr()
+        assert code == 0
+        assert "ahead of release" in out
+        assert err == ""
+
+    def test_tracking_branch_returns_0_and_writes_stdout(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # README-documented case: pinned to `main`. Must exit 0 and
+        # surface the latest tag without any remediation noise on stderr.
+        self._wire(monkeypatch, pinned="main", latest="v1.32.1")
+        code = check_sync_lag.main()
+        out, err = capsys.readouterr()
+        assert code == 0
+        assert "tracking branch" in out
+        assert "v1.32.1" in out
+        assert err == ""
+
+    def test_behind_returns_1_with_remediation_on_stderr(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._wire(
+            monkeypatch,
+            pinned="v1.30.0",
+            latest="v1.32.1",
+            repo="jsmithpkp21/tooling",
+        )
+        code = check_sync_lag.main()
+        out, err = capsys.readouterr()
+        assert code == 1
+        assert out == ""
+        # Diagnostic message:
+        assert "behind by minor version" in err
+        # Actionable remediation: bump instructions + release notes URL:
+        assert "Bump `version` in tooling.toml" in err
+        assert "make sync-tooling" in err
+        assert "https://github.com/jsmithpkp21/tooling/releases/tag/v1.32.1" in err
+
+    def test_behind_patch_level_shows_patch_in_message(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._wire(monkeypatch, pinned="v1.32.0", latest="v1.32.1")
+        code = check_sync_lag.main()
+        _, err = capsys.readouterr()
+        assert code == 1
+        assert "behind by patch version" in err
+
+    def test_behind_major_level_shows_major_in_message(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._wire(monkeypatch, pinned="v1.99.99", latest="v2.0.0")
+        code = check_sync_lag.main()
+        _, err = capsys.readouterr()
+        assert code == 1
+        assert "behind by major version" in err
+
+    def test_cannot_parse_returns_2_with_no_remediation(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Malformed-tag pinned (not a branch ref): exit 2, message on
+        # stderr, and importantly NO "Bump version" remediation — that
+        # text only makes sense for the behind-by-N case.
+        self._wire(monkeypatch, pinned="v1.2", latest="v1.32.1")
+        code = check_sync_lag.main()
+        out, err = capsys.readouterr()
+        assert code == 2
+        assert out == ""
+        assert "cannot parse" in err
+        assert "Bump `version`" not in err
+
+    def test_main_propagates_systemexit_from_read_pinned_version(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # If the TOML readers fail they `sys.exit(2)` directly; main()
+        # must NOT swallow that.
+        def boom() -> str:
+            raise SystemExit(2)
+
+        monkeypatch.setattr(check_sync_lag, "_read_pinned_version", boom)
+        with pytest.raises(SystemExit) as exc:
+            check_sync_lag.main()
+        assert exc.value.code == 2

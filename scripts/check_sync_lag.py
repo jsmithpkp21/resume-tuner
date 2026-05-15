@@ -269,13 +269,30 @@ def compare_versions(pinned: str, latest: str) -> tuple[int, str]:
         not a failure. The message still surfaces the latest release
         tag so the operator can decide whether to pin instead.
       - ``(1, "behind by <level> ...")`` when pinned < latest
-      - ``(2, "cannot parse ...")`` when either string is malformed
-        and not a recognized branch ref (e.g. ``v1.2``, ``v1.2.3-rc1``,
-        ``vv1.2.3``, ``not-a-version``).
+      - ``(2, "cannot parse latest version ...")`` when ``latest`` is
+        malformed. Checked FIRST so a bad upstream tag fails closed
+        regardless of whether ``pinned`` is a branch ref.
+      - ``(2, "cannot parse version ...")`` when ``pinned`` is
+        malformed and not a recognized branch ref (e.g. ``v1.2``,
+        ``v1.2.3-rc1``, ``vv1.2.3``, ``not-a-version``).
     """
+    # Validate `latest` FIRST, before the branch-ref shortcut. The
+    # branch-ref path embeds `latest` into the human message without
+    # parsing it, so a malformed upstream tag (e.g. `gh api` returning
+    # garbage) would otherwise be surfaced as exit 0 "tracking branch"
+    # whenever `pinned` is a branch — masking a real upstream problem.
+    # The function contract documents malformed `latest` as exit 2;
+    # this restores that guarantee regardless of `pinned`'s shape.
+    # (tooling#446.)
+    try:
+        l = _parse_version(latest)  # noqa: E741 — `l` is fine here
+    except ValueError as e:
+        return (2, f"cannot parse latest version ({e})")
+
     # Branch-ref pinned (main / release/stable / feature/X): comparison
     # to a tag is a category mismatch, not a parse failure. Surface
-    # the latest tag so the operator can decide whether to pin.
+    # the (now-validated) latest tag so the operator can decide whether
+    # to pin.
     if _is_branch_ref(pinned):
         return (
             0,
@@ -285,7 +302,6 @@ def compare_versions(pinned: str, latest: str) -> tuple[int, str]:
 
     try:
         p = _parse_version(pinned)
-        l = _parse_version(latest)  # noqa: E741 — `l` is fine here
     except ValueError as e:
         return (2, f"cannot parse version ({e})")
 

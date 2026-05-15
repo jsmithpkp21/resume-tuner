@@ -41,20 +41,30 @@ def _staged_diff() -> str:
     any depth (the previous `*.py` only matched repo-root files and
     silently missed staged changes under src/, scripts/, tests/).
     """
-    proc = subprocess.run(
-        [
-            "git",
-            "diff",
-            "--cached",
-            "--unified=0",
-            "--no-color",
-            "--",
-            ":(glob)**/*.py",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            [
+                "git",
+                "diff",
+                "--cached",
+                "--unified=0",
+                "--no-color",
+                "--",
+                ":(glob)**/*.py",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as e:
+        # `git` binary missing / not on PATH / not executable: honor the
+        # documented exit-2 contract instead of letting the traceback
+        # escape. (tooling#449.)
+        sys.stderr.write(
+            f"check-no-type-ignore: cannot invoke `git`: {e}\n"
+            "Install git and ensure it's on PATH, then retry.\n"
+        )
+        sys.exit(2)
     if proc.returncode != 0:
         sys.stderr.write(
             f"check-no-type-ignore: `git diff --cached` failed:\n{proc.stderr}"

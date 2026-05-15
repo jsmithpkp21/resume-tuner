@@ -13,9 +13,20 @@ restores the original state on teardown so a contributor's real
 from __future__ import annotations
 
 import hashlib
+import sys
 from pathlib import Path
 
 import pytest
+
+# Workaround for tooling#470: synced test files (`tests/scripts/test_check_*.py`)
+# use bare `from _helpers import isolated_git_env`. That works in tooling
+# (no `tests/__init__.py`, pytest auto-adds `tests/scripts/` to sys.path
+# under rootdir-mode). This consumer has `tests/__init__.py` +
+# `tests/scripts/__init__.py` making it a package, so pytest does NOT
+# add `tests/scripts/` to sys.path. Insert it explicitly so the bare
+# imports resolve. Remove this once tooling#470 ships a relative-import
+# fix and the next sync pulls it in.
+sys.path.insert(0, str(Path(__file__).parent))
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _RUNTIME_PROFILE = _REPO_ROOT / "data" / "profile" / "profile.toml"

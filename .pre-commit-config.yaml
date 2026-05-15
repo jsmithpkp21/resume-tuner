@@ -22,6 +22,13 @@ repos:
         pass_filenames: false
         stages: [push]
 
+      - id: check-pre-push-freshness
+        name: Pre-push freshness (block stale-base pushes)
+        entry: bash scripts/check_pre_push_freshness.sh
+        language: system
+        pass_filenames: false
+        stages: [push]
+
   # -------------------------------
   # Commit Message: enforce commitlint rules (mirrors CI wagoid/commitlint-github-action)
   # Uses commitlint.config.mjs as the single source of truth for both local and CI.

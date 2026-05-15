@@ -15,18 +15,29 @@ from pathlib import Path
 
 import pytest
 
+# pytest's rootdir-based collection puts this test file's directory on
+# sys.path, so this resolves to tests/scripts/_helpers.py.
+from _helpers import isolated_git_env
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPT = _REPO_ROOT / "scripts" / "check_no_type_ignore.py"
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    """Run `git ARGS...` inside `repo`, raising on nonzero exit."""
+    """Run `git ARGS...` inside `repo`, raising on nonzero exit.
+
+    `env=isolated_git_env()` strips GIT_DIR / GIT_WORK_TREE inherited from
+    the parent process (e.g. when pytest runs under pre-commit's pre-push
+    hook), which would otherwise override cwd and land the call against
+    the parent repo. See bug #433.
+    """
     return subprocess.run(
         ["git", *args],
         cwd=repo,
         capture_output=True,
         text=True,
         check=True,
+        env=isolated_git_env(),
     )
 
 
@@ -45,12 +56,18 @@ def repo(tmp_path: Path) -> Path:
 
 
 def _run_check(repo: Path) -> subprocess.CompletedProcess[str]:
+    # `env=isolated_git_env()` so the script-under-test's `git diff
+    # --cached` resolves against `cwd=repo`, not a GIT_DIR inherited
+    # from the test runner's parent (pre-commit pre-push, etc.). The
+    # script reads staged-diff state via git; without this, the call
+    # lands against the parent repo. See bug #435.
     return subprocess.run(
         [sys.executable, str(_SCRIPT)],
         cwd=repo,
         capture_output=True,
         text=True,
         check=False,
+        env=isolated_git_env(),
     )
 
 
@@ -139,3 +156,43 @@ class TestUnstagedNotConsidered:
         # Note: NOT calling `git add` — unstaged.
         result = _run_check(repo)
         assert result.returncode == 0, result.stderr
+
+
+class TestMissingGitBinary:
+    """`_staged_diff()` calls `git diff --cached`; if `git` isn't on
+    PATH the subprocess raises `FileNotFoundError`. The script must
+    honor its documented exit-2 contract instead of letting that
+    traceback escape. (tooling#449.)
+    """
+
+    def test_missing_git_exits_2_with_actionable_message(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        # Invoke the script with a PATH containing only an empty dir.
+        # `git` won't resolve → `subprocess.run([...])` inside the
+        # script raises `FileNotFoundError`, which the new try/except
+        # converts to exit 2 + actionable stderr.
+        empty_bin = tmp_path / "empty_bin"
+        empty_bin.mkdir()
+        env = {
+            **isolated_git_env(),
+            "PATH": str(empty_bin),
+        }
+        result = subprocess.run(
+            [sys.executable, str(_SCRIPT)],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert result.returncode == 2, (
+            f"expected exit 2 for missing git, got {result.returncode}\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
+        assert "cannot invoke `git`" in result.stderr, result.stderr
+        # Actionable remediation:
+        assert "Install git" in result.stderr or "PATH" in result.stderr, result.stderr
+        # The stderr must NOT be a Python traceback (which would mean
+        # the FileNotFoundError escaped instead of being caught).
+        assert "Traceback" not in result.stderr, result.stderr

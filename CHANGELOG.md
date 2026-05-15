@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.53.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.53.1...v0.53.2) (2026-05-15)
+
+
+### Bug Fixes
+
+* **sync:** drop stale packaging dep after sync-check-latest promotion ([b6c44fd](https://github.com/jsmithpkp21/resume-builder/commit/b6c44fdda57ed155ecd61580d4c321fb47a56df3))
+
 ## [0.53.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.53.0...v0.53.1) (2026-05-15)
 
 

@@ -77,6 +77,22 @@ class TestCompareVersions:
         code, msg = check_sync_lag.compare_versions("v1.32.0", "garbage")
         assert code == 2
 
+    def test_double_v_prefix_rejected(self) -> None:
+        # Pre-fix bug: `lstrip("v")` stripped ALL leading v's, so
+        # `vv1.2.3` silently normalized to `1.2.3` and was accepted
+        # as a valid version. `removeprefix("v")` strips exactly one
+        # literal `v`, so `vv1.2.3` → `v1.2.3` which `Version()`
+        # rejects → exit 2 cannot-parse. (#395.)
+        code, msg = check_sync_lag.compare_versions("vv1.2.3", "v1.32.1")
+        assert code == 2
+        assert "cannot parse" in msg
+
+    def test_double_v_prefix_in_latest_rejected(self) -> None:
+        # Same protection on the upstream-tag side.
+        code, msg = check_sync_lag.compare_versions("v1.32.0", "vv1.32.1")
+        assert code == 2
+        assert "cannot parse" in msg
+
 
 class TestRepoSlugParser:
     """`_repo_slug_from_tooling_toml()` extracts owner/name from the
@@ -205,6 +221,21 @@ class TestRepoSlugParser:
         toml = tmp_path / "tooling.toml"
         toml.write_text(
             'version = "v1.32.1"\nrepo = "https://github.com/acme/.."\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)
+        assert check_sync_lag._repo_slug_from_tooling_toml() == "jsmithpkp21/tooling"
+
+    def test_http_scheme_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Tightening to https-only aligns the code with the docstring
+        # contract. No real-world `tooling.toml` uses plain http;
+        # rejecting it removes a small attack-surface + makes the
+        # accepted shape exactly one. (#395.)
+        toml = tmp_path / "tooling.toml"
+        toml.write_text(
+            'version = "v1.32.1"\nrepo = "http://github.com/acme/tooling"\n',
             encoding="utf-8",
         )
         monkeypatch.setattr(check_sync_lag, "TOOLING_TOML", toml)

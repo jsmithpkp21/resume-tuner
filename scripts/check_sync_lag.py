@@ -144,11 +144,12 @@ def _repo_slug_from_tooling_toml() -> str:
     if not isinstance(url, str):
         return _DEFAULT_REPO_SLUG
     parsed = urlparse(url)
-    # Require https (or http for completeness) AND host == github.com.
-    # Reject SSH URLs (`git@github.com:...` parses with empty scheme +
-    # netloc), GitLab-style hosts, and any URL that doesn't structurally
-    # resolve to GitHub.
-    if parsed.scheme not in {"http", "https"}:
+    # Require https AND host == github.com. No real-world tooling.toml
+    # uses plain http; tightening to https-only aligns with the
+    # docstring contract (#395). Also rejects SSH URLs (parse with
+    # empty scheme + netloc), GitLab-style hosts, and any URL that
+    # doesn't structurally resolve to GitHub.
+    if parsed.scheme != "https":
         return _DEFAULT_REPO_SLUG
     if parsed.hostname != "github.com":
         return _DEFAULT_REPO_SLUG
@@ -169,9 +170,16 @@ def compare_versions(pinned: str, latest: str) -> tuple[int, str]:
     Pinned > latest is treated as ``(0, ...)`` with a "pre-release"
     note (consumer ahead of release, e.g. testing a candidate).
     """
+    # `packaging.version.Version` natively accepts a single leading
+    # `v` (or `V`) prefix and rejects malformed double-prefix shapes
+    # like `vv1.2.3`. The earlier `lstrip("v")` was both unnecessary
+    # AND wrong: lstrip treats the argument as a char SET and would
+    # strip ALL leading v's, silently normalizing `vv1.2.3` to a
+    # valid version. Removing the preprocessing entirely lets Version
+    # do the right thing in one place. (#395.)
     try:
-        p = Version(pinned.lstrip("v"))
-        l = Version(latest.lstrip("v"))  # noqa: E741 — `l` is fine here
+        p = Version(pinned)
+        l = Version(latest)  # noqa: E741 — `l` is fine here
     except InvalidVersion as e:
         return (2, f"cannot parse version ({e})")
 

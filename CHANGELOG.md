@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.53.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.52.5...v0.53.0) (2026-05-15)
+
+
+### Features
+
+* **quality:** add make sync-check-latest to surface tooling-pin gap ([7fc67b8](https://github.com/jsmithpkp21/resume-builder/commit/7fc67b8ae7691411cac75302fd2aa14b8d2c80a9))
+
+
+### Bug Fixes
+
+* **application-submission:** move redact helpers to job_apply_kit to fix CI test collection ([c762010](https://github.com/jsmithpkp21/resume-builder/commit/c7620105c07be308a62bc3c23b3bcbc70deedd2a))
+* **application-submission:** redact bank values in live-fill errors (closes [#365](https://github.com/jsmithpkp21/resume-builder/issues/365)) ([f06ad3c](https://github.com/jsmithpkp21/resume-builder/commit/f06ad3cc2be16c6d65287a160947ac60267f5e11))
+* **quality:** address PR [#392](https://github.com/jsmithpkp21/resume-builder/issues/392) review ([d3f66d2](https://github.com/jsmithpkp21/resume-builder/commit/d3f66d2c5b96071d3b47628e222cd750f1980c85))
+* **quality:** reject path-traversal owner in repo-slug parser ([0f0e3f2](https://github.com/jsmithpkp21/resume-builder/commit/0f0e3f26dab2e4c3f9b83c9bcd3d455f49342fb0))
+
+
+### Documentation
+
+* **quality:** document ahead-of-release case in exit-code summary ([36728d5](https://github.com/jsmithpkp21/resume-builder/commit/36728d5f776f891a5b506b92b6d628043ad6c3bb))
+
 ## [0.52.5](https://github.com/jsmithpkp21/resume-builder/compare/v0.52.4...v0.52.5) (2026-05-14)
 
 

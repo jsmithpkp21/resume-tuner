@@ -66,8 +66,10 @@ def _load_drift_module() -> ModuleType:
         sys.stderr.write(
             f"check-pr-body-drift: cannot load deny-list from {_DRIFT_SCRIPT}: "
             f"{type(e).__name__}: {e}\n"
-            "Verify the sibling check script is present, readable, and "
-            "syntactically valid, then retry.\n"
+            "Verify the sibling check script is present, readable, "
+            "syntactically valid, and that its imports / transitive "
+            "dependencies are installed in the active environment, then "
+            "retry.\n"
         )
         sys.exit(2)
     return mod

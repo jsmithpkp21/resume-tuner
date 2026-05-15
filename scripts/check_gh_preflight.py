@@ -57,7 +57,52 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # count as a real preflight (issue #447). Permissive about leading
 # context so common idioms like `if ! gh auth status; then` and
 # `if gh auth status; then` are still recognized.
-_SH_PREFLIGHT_RE = re.compile(r"\bgh\s+auth\s+status\b")
+# Shell preflight regex — command-prefix anchored so a non-executed
+# mention like `echo "run gh auth status"` doesn't satisfy the gate.
+# Two-branch alternation:
+#
+#   (A) Direct invocation: `gh auth status` immediately after a
+#       command-start anchor (start of line, after `;`/`&`/`|`, inside
+#       `$()` / backtick, OR inside a subshell `(` that is ITSELF at
+#       a command-start position — `^\s*\(` or `[;&|]\s*\(`. The
+#       subshell anchor was unscoped in round 1; round 3 review
+#       caught that `echo "(gh auth status)"` bypassed because `(`
+#       in argument text would otherwise match).
+#   (B) Nested-shell invocation: `bash -lc 'gh auth status'` /
+#       `bash -c "gh auth status"`. The `bash -[lc]+ '` opener must
+#       ITSELF appear at a command-start position — otherwise
+#       `echo "bash -lc 'gh auth status'"` (where the whole nested-
+#       shell string is just argument text to echo) would satisfy.
+#
+# Round 2 review on this PR caught the missing anchor on branch (B).
+_SH_PREFLIGHT_RE = re.compile(
+    r"""
+    (?:
+        # Branch (A): direct gh auth status invocation at command position.
+        (?:
+            ^\s*(?:if\s+)?(?:!\s+)?
+            |[;&|]\s*(?:!\s+)?
+            |\$\(
+            |`
+            |(?:^\s*|[;&|]\s*)\(\s*(?:!\s+)?
+        )
+        gh\s+auth\s+status\b
+        |
+        # Branch (B): nested-shell preflight. `bash` MUST be at command
+        # position (same anchor set as branch A), then `-lc`/`-c`, then
+        # an open quote, then gh auth status. (tooling#471 round 2.)
+        (?:
+            ^\s*(?:if\s+)?(?:!\s+)?
+            |[;&|]\s*(?:!\s+)?
+            |\$\(
+            |`
+            |(?:^\s*|[;&|]\s*)\(\s*(?:!\s+)?
+        )
+        bash\s+-[lc]+\s+['"]gh\s+auth\s+status\b
+    )
+    """,
+    re.VERBOSE,
+)
 
 # Shell: `gh ` after a command-start position. The alternation
 # enumerates every shape we've seen `gh` invoked in:
@@ -87,14 +132,20 @@ _SH_GH_RE = re.compile(r"(?:^\s*|[;&|]\s*|\$\(|`|\(\s*)gh\s+\w")
 _OPT_OUT = "noqa: gh-preflight"
 
 
-def _python_gh_call_lines(text: str) -> list[int]:
-    """Lines where a list/tuple literal whose first element is the
-    string `"gh"` appears in the AST. Catches both the dominant
-    `subprocess.run(["gh", ...])` shape and the `cmd = ["gh", ...]`
-    indirection — anything that's actually code. Mentions of `"gh"`
-    inside docstrings or comments parse as `Constant` (a string), not
-    a `List`, so they're naturally excluded — the issue #447 false
-    positive that a regex-based scan couldn't avoid.
+def _python_gh_call_lines(text: str) -> list[tuple[int, int]]:
+    """Return `(start_lineno, end_lineno)` ranges for statements that
+    contain a list/tuple literal whose first element is the string
+    `"gh"`. Catches both the dominant `subprocess.run(["gh", ...])`
+    shape and the `cmd = ["gh", ...]` indirection. Mentions of `"gh"`
+    inside docstrings / comments are `Constant` nodes, not `List`, so
+    they're naturally excluded (issue #447).
+
+    Range-based (not point-based) so the `# noqa: gh-preflight`
+    opt-out marker can appear ANYWHERE within the enclosing statement
+    — including the `subprocess.run(` line or the closing-bracket
+    line of a multi-line list literal. Pre-fix the marker had to land
+    on the same line as the first string literal, which was fragile
+    after black/ruff reformatted long calls. (tooling#471.)
     """
     try:
         tree = ast.parse(text)
@@ -103,14 +154,38 @@ def _python_gh_call_lines(text: str) -> list[int]:
         # regardless — fall through and let other gates (ruff, etc.)
         # surface the syntax error.
         return []
-    lines: list[int] = []
+
+    # Build a parent map so we can walk up from a List/Tuple to find
+    # the innermost enclosing `ast.stmt` node, whose `lineno` /
+    # `end_lineno` give the full statement range.
+    parents: dict[int, ast.AST] = {}
+    for parent in ast.walk(tree):
+        for child in ast.iter_child_nodes(parent):
+            parents[id(child)] = parent
+
+    def _innermost_stmt(node: ast.AST) -> ast.stmt | None:
+        cur: ast.AST | None = node
+        while cur is not None and not isinstance(cur, ast.stmt):
+            cur = parents.get(id(cur))
+        return cur if isinstance(cur, ast.stmt) else None
+
+    seen_stmts: set[int] = set()
+    ranges: list[tuple[int, int]] = []
     for node in ast.walk(tree):
         if not isinstance(node, (ast.List, ast.Tuple)) or not node.elts:
             continue
         first = node.elts[0]
-        if isinstance(first, ast.Constant) and first.value == "gh":
-            lines.append(first.lineno)
-    return lines
+        if not (isinstance(first, ast.Constant) and first.value == "gh"):
+            continue
+        stmt = _innermost_stmt(node)
+        if stmt is None:
+            continue
+        if id(stmt) in seen_stmts:
+            continue
+        seen_stmts.add(id(stmt))
+        end = getattr(stmt, "end_lineno", None) or stmt.lineno
+        ranges.append((stmt.lineno, end))
+    return ranges
 
 
 def _python_has_preflight(text: str) -> bool:
@@ -154,8 +229,15 @@ def _file_has_gh_call(path: Path, text: str) -> bool:
     """
     if path.suffix == ".py":
         lines = text.splitlines()
-        for ln in _python_gh_call_lines(text):
-            if 0 < ln <= len(lines) and _OPT_OUT in lines[ln - 1]:
+        for start, end in _python_gh_call_lines(text):
+            # Opt-out can appear ANYWHERE in the enclosing statement
+            # range. (tooling#471 — pre-fix the check was tied to the
+            # first-string lineno, missing markers on the `run(` line
+            # or closing-bracket line of multi-line list literals.)
+            in_range = (
+                lines[i - 1] for i in range(start, end + 1) if 0 < i <= len(lines)
+            )
+            if any(_OPT_OUT in line for line in in_range):
                 continue
             return True
         return False

@@ -181,16 +181,16 @@
       "sha256": "8c5d096c3d5d3d1ca5127508eba134db947443ca6a136eeff0fa72f258143327"
     },
     "scripts/check_gh_preflight.py": {
-      "sha256": "8ed35bd36888e46f2d0fbbea56131ccc4c4f2a103e6b13b64dcece3a7cc4e9b7"
+      "sha256": "f906bbf2a56be2aad529533b6843b202d1f51871451b0a4e94165370f1d34aed"
     },
     "scripts/check_makefile_bash_quoting.py": {
-      "sha256": "dff1f13032b8887b94a86c1ee3e36c3563c484db38e0e56cb685743f048fa8a6"
+      "sha256": "035a59eef6ef48fb537eb8b5697c077b3d23c442c459511c70b0923ea94e1348"
     },
     "scripts/check_no_type_ignore.py": {
       "sha256": "eb45203b3bf9820b7c4b68dfae4f8039657f375e502cdf5e2f4523b3d2247dfb"
     },
     "scripts/check_pr_body_drift.py": {
-      "sha256": "51501ea9a120d5584c8cd700f5fb041d5e6600181af213e63767e6a8559f1194"
+      "sha256": "5e58a41ddac10c0197693e1843e0ef26738dd990ce6af01a92e130965c5da6e9"
     },
     "scripts/check_pre_push_freshness.sh": {
       "sha256": "b0b8012b880d7ed3d856af5000b6e7320478fe4ac66737b845118ad7e0065560"
@@ -199,7 +199,7 @@
       "sha256": "418d363c4747be4995227f0688bac756751a307c2ba80733e03c19f81f29c6cc"
     },
     "scripts/create_branch.sh": {
-      "sha256": "a9456a73d1f476af2854a5b634157057bf4ededbbaba9055c26588a28f3ec0ad"
+      "sha256": "3c06d8cd5a5cde181be5ddfe819e1075198b7f927439b100c0136e3394ed01da"
     },
     "scripts/create_env.sh": {
       "sha256": "1131c9f6faabc240fdb3c740329654cc3d678351d9e74a24e90680f1f03ab3b7"
@@ -283,16 +283,16 @@
       "sha256": "965cc80bff696bdb5b9acb38cc20111fe5487c727d17f0f717e1d36d2d56396c"
     },
     "tests/scripts/test_check_gh_preflight.py": {
-      "sha256": "d7c57a55e9ceef692c928fa7809ab4ed29b395dc426d91404b765af694d9ecab"
+      "sha256": "a8afeaa5dfa963cc10046fe9dc20f3bcb567680f4587ab5efc4219dc8563b9dd"
     },
     "tests/scripts/test_check_makefile_bash_quoting.py": {
-      "sha256": "3079a14b833f05140a43373f27b94dea8ea04d5eadd227635aa8f63b18fe62b1"
+      "sha256": "2c9011848e622ac12faed6d005be2e86850b642a5666f21e0ce75816ca0bc512"
     },
     "tests/scripts/test_check_no_type_ignore.py": {
       "sha256": "071d26963931d223ae6569196c8e3ad7a383ec77b31000d23ea0f36792b7984d"
     },
     "tests/scripts/test_check_pr_body_drift.py": {
-      "sha256": "b280a50b828bb6edc85c593fc82d90f6c17c011f1739f04c0720ef6d78b869dd"
+      "sha256": "697402417c7c04a9664a151aab8ff39221907d54b1bf260085496b6f8a4f868e"
     },
     "tests/scripts/test_check_sync_lag.py": {
       "sha256": "57f2ba25b7f73a999f49c9b0467a8e0c77d07d2788ab5aa265dc28572e1bf5ef"
@@ -307,9 +307,9 @@
       "sha256": "428d00d9550fcd46deea5255bcce2ef96f23131ba58d0be5f148a476a0ce19d9"
     }
   },
-  "generated_at_utc": "2026-05-15T19:19:25Z",
-  "requested_ref": "v1.35.0",
-  "resolved_ref": "5c72755e93f35135ee1717352970872503ac6a83",
+  "generated_at_utc": "2026-05-15T22:42:00Z",
+  "requested_ref": "v1.35.1",
+  "resolved_ref": "37cc05daf63c8e448ade38e187070050a379251b",
   "schema_version": 1,
   "source_mode": "git",
   "tooling_repo": "https://github.com/jsmithpkp21/tooling"

@@ -128,9 +128,10 @@ class TestEndToEnd:
         # A directory at the Makefile path makes `read_text` raise
         # IsADirectoryError (subclass of OSError). Mirrors
         # check_doc_drift's fail-closed exit-2 contract for "scan
-        # incomplete". A broken symlink would hit the `exists()`
-        # early-return path instead (treated as "no Makefile" → 0),
-        # which is the right behavior for that case.
+        # incomplete". Broken symlinks also exit 2 — see
+        # `TestScanOnePathTypes::test_broken_symlink_fails_closed`.
+        # (tooling#471 corrected the prior `exists()` early-return
+        # that treated broken symlinks as absent.)
         path = tmp_path / "Makefile"
         path.mkdir()
         assert mod.main(makefile=path) == 2
@@ -242,3 +243,77 @@ class TestMakefileLocal:
         err = capsys.readouterr().err
         assert "could not read" in err
         assert "Makefile.local" in err
+
+
+class TestScanOnePathTypes:
+    """`_scan_one(path)` is called for both the primary `Makefile` and
+    the sibling `Makefile.local`; its handling of unusual path types
+    (broken symlinks, absent files) applies to either. Kept separate
+    from `TestMakefileLocal` so the intent — exercising `_scan_one`
+    semantics independent of filename — is clear. (tooling#471 round 2.)
+    """
+
+    def test_broken_symlink_fails_closed(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # PR #400 review (tooling#471): `_scan_one` returned 0 (clean)
+        # for broken symlinks because `path.exists()` follows symlinks
+        # and returns False. The comment promised OSError → exit 2.
+        # Now the implementation uses `Path.lstat()` first, so broken
+        # symlinks are treated as present and then fail closed on read.
+        broken = tmp_path / "Makefile"
+        broken.symlink_to(tmp_path / "no-such-target")
+        status, offenders = mod._scan_one(broken)
+        assert status == 2, (
+            f"expected exit 2 for broken symlink, got {status} (offenders={offenders})"
+        )
+        err = capsys.readouterr().err
+        assert "could not read" in err
+        assert "Scan is incomplete" in err
+
+    def test_absent_path_still_returns_clean(self, tmp_path: Path) -> None:
+        # Sanity check: the symlink guard didn't accidentally make
+        # plain-absent paths fail. A path that simply doesn't exist
+        # must still be treated as clean / absent (status 0).
+        # (tooling#471.)
+        absent = tmp_path / "no-such-file"  # never created
+        status, offenders = mod._scan_one(absent)
+        assert status == 0
+        assert offenders == []
+
+    def test_present_but_unreadable_fails_closed(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # tooling#471 round 5 review: `path.exists()` returns False on
+        # ANY `os.stat` OSError (notably permission denied), which
+        # would have classified an unreadable-but-present Makefile as
+        # "absent / clean" instead of the documented fail-closed exit
+        # 2. The lstat-based check distinguishes FileNotFoundError
+        # (truly absent → 0) from other OSError (unreadable → 2).
+        #
+        # Simulate permission-denied via monkeypatch on
+        # `Path.lstat`. (Real chmod 000 doesn't reliably reproduce in
+        # CI: euid=root containers ignore mode bits, and parent-dir
+        # traversal vs file-read have different code paths.)
+        target = tmp_path / "Makefile"
+        target.write_text("foo:\n\techo hello\n", encoding="utf-8")
+        real_lstat = Path.lstat
+
+        def fake_lstat(self: Path) -> object:
+            if self == target:
+                raise PermissionError(13, "Permission denied", str(self))
+            return real_lstat(self)
+
+        monkeypatch.setattr(Path, "lstat", fake_lstat)
+        status, offenders = mod._scan_one(target)
+        assert status == 2, (
+            f"expected exit 2 for permission-denied lstat, got {status} "
+            f"(offenders={offenders})"
+        )
+        err = capsys.readouterr().err
+        assert "could not stat" in err
+        assert "PermissionError" in err
+        assert "Scan is incomplete" in err

@@ -281,3 +281,33 @@ class TestLoadDriftModuleErrors:
         assert "RuntimeError" in err
         assert "deny-list config invalid" in err
         assert "Traceback" not in err
+
+    def test_import_error_in_sibling_script_mentions_dependencies(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # PR #400 review (tooling#471): when the sibling script fails
+        # to import because of a MISSING TRANSITIVE DEPENDENCY (e.g.
+        # `import packaging` in a fresh env without it), the
+        # diagnostic should point the user at dependency availability
+        # — not just "is the file readable and syntactically valid",
+        # which would steer them wrong.
+        importing = tmp_path / "missing_dep_drift.py"
+        importing.write_text(
+            "import __definitely_not_a_real_module__\n", encoding="utf-8"
+        )
+        self._patch_drift_script(monkeypatch, importing)
+        with pytest.raises(SystemExit) as exc:
+            check_pr_body_drift._load_drift_module()
+        assert exc.value.code == 2
+        err = capsys.readouterr().err
+        # The exception type surfaces (ModuleNotFoundError is a subclass
+        # of ImportError) and the diagnostic now mentions dependencies.
+        assert "ModuleNotFoundError" in err or "ImportError" in err, err
+        assert "dependencies" in err or "transitive" in err, (
+            "diagnostic should mention dependencies for the ImportError "
+            f"case; got: {err!r}"
+        )
+        assert "Traceback" not in err

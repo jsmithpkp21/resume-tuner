@@ -95,11 +95,31 @@ def _scan_one(path: Path) -> tuple[int, list[tuple[str, int, str]]]:
     present, 2 = unreadable (fail-closed). Each offender is
     (filename, 1-based line_no, stripped snippet).
     """
-    if not path.exists():
+    # Distinguish "truly absent" from "exists but unreadable" so the
+    # contract holds even when an OSError other than FileNotFoundError
+    # fires (e.g. permission denied on parent traversal). `path.exists()`
+    # was used here in round 1, but `Path.exists()` returns False on ANY
+    # `os.stat` OSError — permission denied gets silently treated as
+    # absent/clean instead of fail-closed exit 2 as documented.
+    #
+    # `lstat()` is used (not `stat()`) so broken symlinks succeed here
+    # (the symlink itself exists, even though its target doesn't); they
+    # fall through to the read which OSError-fails-closed below.
+    # (tooling#471 round 5.)
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        # Truly absent — neither a regular file nor a broken symlink.
         return 0, []
+    except OSError as exc:
+        sys.stderr.write(
+            f"check-makefile-bash-quoting: could not stat {path}: "
+            f"{exc.__class__.__name__}: {exc}\nScan is incomplete.\n"
+        )
+        return 2, []
 
     # `errors="replace"` handles a Makefile with invalid utf-8 bytes
-    # gracefully (substitutes U+FFFD) rather than raising. OSError still
+    # gracefully (substitutes U+FFFD) rather than raising. OSError
     # fires for unreadable files / broken symlinks / permission denied;
     # mirror check_doc_drift's fail-closed exit-2 contract for that.
     try:

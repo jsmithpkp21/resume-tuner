@@ -60,6 +60,58 @@ class TestFileHasGhCallPython:
         )
         assert check_gh_preflight._file_has_gh_call(path, path.read_text()) is False
 
+    def test_opt_out_on_call_line_of_multiline_list(self, tmp_path: Path) -> None:
+        # PR #400 review (tooling#471): pre-fix, the opt-out check was
+        # tied to the FIRST STRING LITERAL's lineno. After black/ruff
+        # reformats a long call across multiple lines, the marker
+        # naturally lives on the `subprocess.run(` line, not on the
+        # `"gh",` line — and was silently missed. The fix uses the
+        # enclosing-statement range so the marker is recognized
+        # anywhere in `[start_lineno, end_lineno]`.
+        path = tmp_path / "x.py"
+        path.write_text(
+            "import subprocess\n"
+            "subprocess.run(  # noqa: gh-preflight\n"
+            "    [\n"
+            '        "gh",\n'
+            '        "pr",\n'
+            '        "view",\n'
+            "    ]\n"
+            ")\n",
+            encoding="utf-8",
+        )
+        assert check_gh_preflight._file_has_gh_call(path, path.read_text()) is False
+
+    def test_opt_out_on_closing_bracket_of_multiline_list(self, tmp_path: Path) -> None:
+        # Same fix, opt-out on the closing-bracket line at the end of
+        # the call. Both placements are common after auto-format.
+        path = tmp_path / "x.py"
+        path.write_text(
+            "import subprocess\n"
+            "subprocess.run(\n"
+            "    [\n"
+            '        "gh",\n'
+            '        "pr",\n'
+            '        "view",\n'
+            "    ]\n"
+            ")  # noqa: gh-preflight\n",
+            encoding="utf-8",
+        )
+        assert check_gh_preflight._file_has_gh_call(path, path.read_text()) is False
+
+    def test_opt_out_on_unrelated_line_does_not_silence(self, tmp_path: Path) -> None:
+        # Sanity: the range-based check is bounded to the enclosing
+        # statement. A `# noqa: gh-preflight` on a totally unrelated
+        # earlier line shouldn't silence the gh call.
+        path = tmp_path / "x.py"
+        path.write_text(
+            "import subprocess\n"
+            "x = 1  # noqa: gh-preflight\n"
+            'subprocess.run(["gh", "pr", "view"])\n',
+            encoding="utf-8",
+        )
+        assert check_gh_preflight._file_has_gh_call(path, path.read_text()) is True
+
     def test_string_literal_mention_not_caught(self, tmp_path: Path) -> None:
         # AST-based detection: `"gh"` inside a string literal parses as
         # a `Constant`, not a `List`, so it's not matched. This is the
@@ -248,6 +300,122 @@ class TestFileHasPreflightShell:
             '    echo "not authenticated" >&2\n'
             "    exit 1\n"
             "fi\n",
+            encoding="utf-8",
+        )
+        assert check_gh_preflight._file_has_preflight(path, path.read_text()) is True
+
+    def test_quoted_string_mention_does_not_count(self, tmp_path: Path) -> None:
+        # PR #148 review (tooling#471): pre-fix `_SH_PREFLIGHT_RE` was
+        # `\bgh\s+auth\s+status\b` — matched ANYWHERE in the line
+        # including inside echo string arguments. `echo "run gh auth
+        # status"` could satisfy the gate without a real call. Now the
+        # regex requires command-prefix anchoring.
+        path = tmp_path / "x.sh"
+        path.write_text(
+            '#!/usr/bin/env bash\necho "run gh auth status"\ngh pr view\n',
+            encoding="utf-8",
+        )
+        assert check_gh_preflight._file_has_preflight(path, path.read_text()) is False
+
+    def test_echo_argument_with_bang_does_not_count(self, tmp_path: Path) -> None:
+        # `echo ! gh auth status` — the `!` is argument text, not
+        # shell negation. The `!\s+` anchor must require command-position
+        # context, not match anywhere on the line.
+        path = tmp_path / "x.sh"
+        path.write_text(
+            "#!/usr/bin/env bash\necho ! gh auth status\ngh pr view\n",
+            encoding="utf-8",
+        )
+        assert check_gh_preflight._file_has_preflight(path, path.read_text()) is False
+
+    def test_nested_bash_lc_single_quoted_counts(self, tmp_path: Path) -> None:
+        # `bash -lc 'gh auth status'` — real nested-shell preflight.
+        # `gh` is immediately after the opening single quote; the
+        # `bash\s+-[lc]+\s+['"]` anchor catches it.
+        path = tmp_path / "x.sh"
+        path.write_text(
+            "#!/usr/bin/env bash\nbash -lc 'gh auth status' || exit 2\ngh pr view\n",
+            encoding="utf-8",
+        )
+        assert check_gh_preflight._file_has_preflight(path, path.read_text()) is True
+
+    def test_nested_bash_c_double_quoted_counts(self, tmp_path: Path) -> None:
+        # Same shape, double-quoted.
+        path = tmp_path / "x.sh"
+        path.write_text(
+            '#!/usr/bin/env bash\nbash -c "gh auth status"\ngh pr view\n',
+            encoding="utf-8",
+        )
+        assert check_gh_preflight._file_has_preflight(path, path.read_text()) is True
+
+    def test_nested_bash_lc_as_string_argument_does_not_count(
+        self, tmp_path: Path
+    ) -> None:
+        # tooling#471 round 2 review: round-1 of the bash-lc anchor didn't
+        # require `bash` itself to be at command position. So a string
+        # argument like `echo "bash -lc 'gh auth status'"` (where the
+        # whole nested-shell text is just argument data to echo)
+        # falsely satisfied the gate. Now `bash` must follow the same
+        # command-start anchors as direct gh invocations.
+        path = tmp_path / "x.sh"
+        path.write_text(
+            "#!/usr/bin/env bash\necho \"bash -lc 'gh auth status'\"\ngh pr view\n",
+            encoding="utf-8",
+        )
+        assert check_gh_preflight._file_has_preflight(path, path.read_text()) is False
+
+    def test_nested_bash_lc_after_chain_op_counts(self, tmp_path: Path) -> None:
+        # Positive control for the anchor: real chained nested-shell
+        # invocation. `bash` is after `&&`, which IS a command-start
+        # anchor, so the gate is satisfied.
+        path = tmp_path / "x.sh"
+        path.write_text(
+            "#!/usr/bin/env bash\nsetup && bash -lc 'gh auth status'\ngh pr view\n",
+            encoding="utf-8",
+        )
+        assert check_gh_preflight._file_has_preflight(path, path.read_text()) is True
+
+    def test_subshell_in_argument_string_does_not_count(self, tmp_path: Path) -> None:
+        # tooling#471 round 3 review: the subshell `\(\s*` anchor was
+        # unscoped, so `echo "(gh auth status)"` matched even though
+        # `(` is literal text inside an echo argument. Now `(` must
+        # itself be at a command-start position (start of line or
+        # after a chain op).
+        path = tmp_path / "x.sh"
+        path.write_text(
+            '#!/usr/bin/env bash\necho "(gh auth status)"\ngh pr view\n',
+            encoding="utf-8",
+        )
+        assert check_gh_preflight._file_has_preflight(path, path.read_text()) is False
+
+    def test_subshell_in_single_quoted_argument_does_not_count(
+        self, tmp_path: Path
+    ) -> None:
+        # Same bypass shape, single-quoted.
+        path = tmp_path / "x.sh"
+        path.write_text(
+            "#!/usr/bin/env bash\necho '(gh auth status)'\ngh pr view\n",
+            encoding="utf-8",
+        )
+        assert check_gh_preflight._file_has_preflight(path, path.read_text()) is False
+
+    def test_subshell_at_line_start_counts(self, tmp_path: Path) -> None:
+        # Positive control: a real subshell `(gh auth status)` at line
+        # start IS a valid invocation. The anchor must still recognize
+        # it after the scoping fix.
+        path = tmp_path / "x.sh"
+        path.write_text(
+            "#!/usr/bin/env bash\n(gh auth status)\ngh pr view\n",
+            encoding="utf-8",
+        )
+        assert check_gh_preflight._file_has_preflight(path, path.read_text()) is True
+
+    def test_subshell_after_chain_op_counts(self, tmp_path: Path) -> None:
+        # Positive control: `setup && (gh auth status)` — subshell
+        # immediately after a chain op is also a real call.
+        path = tmp_path / "x.sh"
+        path.write_text(
+            "#!/usr/bin/env bash\nsetup && (gh auth status)\ngh pr view\n",
             encoding="utf-8",
         )
         assert check_gh_preflight._file_has_preflight(path, path.read_text()) is True

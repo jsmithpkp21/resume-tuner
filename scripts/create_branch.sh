@@ -91,3 +91,13 @@ BRANCH="${TYPE}/${ISSUE_NUM}-${SLUG}"
 echo "✅ Issue #${ISSUE_NUM}: ${TITLE}"
 echo "✅ Branch: ${BRANCH}"
 git checkout -b "$BRANCH"
+
+# Set the terminal tab title to <repo>#<issue> via OSC 0. Helps
+# distinguish parallel sessions across sibling clones (e.g.
+# `tooling2#447` vs `tooling3#460`) which previously caused two
+# sessions to start the same issue independently. Honored by
+# JetBrains' terminal, Windows Terminal, iTerm, and most others.
+# Fires once here so it doesn't fight a PROMPT_COMMAND or other
+# title-setter elsewhere in the shell.
+REPO_NAME=$(basename "$(git rev-parse --show-toplevel)")
+printf '\033]0;%s#%s\007' "$REPO_NAME" "$ISSUE_NUM"

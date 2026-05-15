@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.54.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.53.2...v0.54.0) (2026-05-15)
+
+
+### Features
+
+* **jd-ingest:** add Playwright channel/executable launch overrides ([#390](https://github.com/jsmithpkp21/resume-builder/issues/390)) ([4c22b12](https://github.com/jsmithpkp21/resume-builder/commit/4c22b125757bc9e2b36cc40efdc8369a2781ddfe))
+
 ## [0.53.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.53.1...v0.53.2) (2026-05-15)
 
 

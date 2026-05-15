@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.53.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.53.0...v0.53.1) (2026-05-15)
+
+
+### Bug Fixes
+
+* **quality:** https-only scheme + drop unneeded v-prefix strip (closes [#395](https://github.com/jsmithpkp21/resume-builder/issues/395)) ([78dcb36](https://github.com/jsmithpkp21/resume-builder/commit/78dcb3620ce627c2988de4a472eeb475ed32f200))
+
 ## [0.53.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.52.5...v0.53.0) (2026-05-15)
 
 

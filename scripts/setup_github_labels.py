@@ -13,6 +13,38 @@ import subprocess
 import sys
 
 
+def _gh_preflight() -> None:
+    """Verify `gh` is installed AND authenticated before any real
+    invocation. Matches the AGENTS.md "Before using `gh` CLI in any
+    script or make target, add `gh auth status` as an explicit
+    preflight" guidance. A stale `GITHUB_TOKEN` env var silently
+    overrides stored credentials and causes HTTP 401 — surfacing it
+    here turns the failure into one actionable message instead of N
+    opaque per-label errors.
+    """
+    try:
+        proc = subprocess.run(
+            ["gh", "auth", "status"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        sys.stderr.write(
+            "setup-github-labels: `gh` CLI not found on PATH.\n"
+            "Install with: https://cli.github.com/  (or your package manager).\n"
+        )
+        sys.exit(2)
+    if proc.returncode != 0:
+        sys.stderr.write(
+            "setup-github-labels: `gh auth status` failed; aborting.\n\n"
+            f"{proc.stderr}\n"
+            "Common causes: not logged in (run `gh auth login`), or a stale\n"
+            "GITHUB_TOKEN env var overriding stored credentials.\n"
+        )
+        sys.exit(2)
+
+
 def create_label(name: str, description: str, color: str) -> str:
     """Create a GitHub label.
 
@@ -66,6 +98,8 @@ def create_label(name: str, description: str, color: str) -> str:
 
 def main() -> None:
     """Create all labels."""
+    _gh_preflight()
+
     print("🏷️  Setting up GitHub labels")
     print("=" * 60)
     print()

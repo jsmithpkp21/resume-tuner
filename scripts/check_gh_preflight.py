@@ -80,6 +80,16 @@ _PY_GH_RE = re.compile(
 # `ISSUE_JSON=$(gh issue view …)`). The trade-off is occasional false
 # positives if a comment line happens to contain one of these shapes;
 # `# noqa: gh-preflight` opt-out covers that case.
+# See tests in tests/scripts/test_check_gh_preflight.py — coverage
+# for each alternation branch, with test_indented_caught additionally
+# pinning the `\s*` quantifier inside the start-of-line branch (names
+# kept unbroken so they're greppable):
+#   test_start_of_line_caught
+#   test_after_double_amp_caught
+#   test_command_substitution_caught
+#   test_backtick_substitution_caught
+#   test_subshell_caught
+#   test_indented_caught
 _SH_GH_RE = re.compile(r"(?:^\s*|[;&|]\s*|\$\(|`|\(\s*)gh\s+\w")
 
 _OPT_OUT = "noqa: gh-preflight"
@@ -146,6 +156,11 @@ def main() -> int:
             # file a "preflight offender" is wrong (we don't know if
             # it calls `gh` at all) and would mask scan-incompleteness.
             # Mirrors check_doc_drift's fail-closed exit-2 contract.
+            # See tests in tests/scripts/test_check_gh_preflight.py:
+            # test_unreadable_file_exits_2 (broken-symlink → exit 2,
+            # NOT mis-labeled as offender) and
+            # test_unreadable_plus_offender_still_exits_2 (mixed case
+            # still exits 2 — scan-incomplete wins over offenders).
             unreadable.append((path, exc))
             continue
         if _file_has_gh_call(path, text) and not _file_has_preflight(text):

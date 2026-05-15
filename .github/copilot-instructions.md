@@ -57,6 +57,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 - Local developer tooling is **local-runtime-first with Docker fallback** (see `docs/REFERENCE/adr/0001-local-tooling-runtime-policy.md`). Existing instances: `make markdown-lint`, `scripts/run_commitlint.sh`. Fully containerized workflows are explicit opt-in via `*-docker` make targets. Any new local tool that shells out to `docker` must satisfy the six ADR-0001 invariants (pinned runtime, pinned image, hardened installs, sentinel exit code separating setup vs validation failure, actionable hard-fail, cached install artifacts on hot paths).
 - GitHub Actions must use strict semver tag pins (`@vX.Y.Z`); no floating `@v6` pins.
 - Keep action refs aligned with `.github/workflow-action-lock.json`.
+- Makefile recipes that combine `bash -c "..."` / `bash -lc "..."` (double-quoted) with `$$VAR` shell-var expansion are prohibited: the recipe shell expands the value before bash re-parses, enabling quote-breakout injection (see PR #424). Enforcement via `scripts/check_makefile_bash_quoting.py` (`make makefile-quoting-check`, chained into `make lint`). Use single quotes around `bash -c/-lc` arguments. Per-line opt-out: `# noqa: bash-lc-quoting`.
 
 ## Execution Guardrails
 
@@ -77,6 +78,7 @@ pytest -q tests/scripts/test_consumer_contract.py
 - When presenting multiple implementation options, include concise pros and cons for each option so trade-offs are explicit.
 - Before using `gh` CLI in any script or make target, add `gh auth status` as an explicit preflight with a clear error and remediation message. A stale or expired `GITHUB_TOKEN` env var silently overrides stored credentials and causes HTTP 401 errors.
 - Never export `GITHUB_TOKEN` as a static value in dotfiles (`~/.bashrc`, `~/.bash_profile`, etc.). Use `gh auth login` for persistent credentials. If a token must be in the environment, scope it to the session only.
+- Test fixtures that subprocess `git` against a temp repo must pass `env=isolated_git_env()` (from `tests/scripts/_helpers.py`) to `subprocess.run`. This applies at every subprocess hop: direct `git` calls, wrapper-script invocations (`bash`, `python -m pre_commit`), and script-under-test invocations via `sys.executable`. Without it, the call may inherit `GIT_DIR` / `GIT_WORK_TREE` from the test runner's parent process and silently operate against the parent repo instead of `cwd`. See bugs #433 and #435.
 
 ## PR Review Conventions
 

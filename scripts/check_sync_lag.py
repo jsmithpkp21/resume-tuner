@@ -1,28 +1,40 @@
 #!/usr/bin/env python3
-"""Report the gap between this repo's pinned tooling version and upstream latest.
+"""Report the gap between a consumer's pinned tooling version and upstream latest.
 
-Surfaced by resume-builder PR #389 retrospective: 4 of 5 Copilot comments
-on that sync PR were already fixed in a newer tooling tag, but the gap
-wasn't obvious until I checked manually. This target makes "you're N
-patch versions behind" visible at a glance.
+Promoted to tooling per resume-builder retrospective on PR #389: 4 of
+5 Copilot review comments on that sync PR were already fixed in a
+newer tooling tag, but the gap wasn't obvious until checked manually.
+This target makes "you're N patch versions behind" visible at a glance
+from any consumer repo that syncs from this tooling.
 
-Sketched as a consumer-side prototype per the tooling promotion policy
-(see jsmithpkp21/tooling#420 for the upstream promotion plan).
+Sibling of the four existing quality checks (`check_doc_drift`,
+`check_no_type_ignore`, `check_pr_body_drift`, `check_gh_preflight`).
+Same shape: pure script, opt-in Makefile target, AGENTS.md-mandated
+`gh auth status` preflight before any `gh` call.
 
 Behavior:
 
-  - Reads pinned tooling version from `tooling.toml` `version` key.
-  - Calls `gh api repos/<owner>/tooling/releases/latest --jq .tag_name`
-    for the upstream latest. Uses the AGENTS.md-mandated `gh auth
-    status` preflight.
-  - Compares via `packaging.version.Version` (handles `v` prefix +
-    semver ordering).
+  - Reads pinned tooling version from `tooling.toml` `version` key
+    (consumer's local copy of tooling.toml; consumers pin a tag like
+    `v1.32.1`).
+  - Calls `gh api repos/<owner>/<name>/releases/latest --jq .tag_name`
+    for the upstream latest tag. `<owner>/<name>` is parsed from the
+    `repo` URL in `tooling.toml`; falls back to the consumer's
+    upstream if the URL is malformed (rare).
+  - Compares via a tiny stdlib `(major, minor, patch)` tuple parser
+    so this script has no dependencies beyond the stdlib + `gh` CLI.
+    Tooling tags are clean `vMAJOR.MINOR.PATCH`; pre-release suffixes
+    are intentionally unsupported (returns exit 2 cannot-parse).
   - Exits:
       0 — pinned == latest (up-to-date) OR pinned > latest (consumer
-          ahead of release, e.g. testing a release candidate)
+          ahead of release, e.g. testing a release candidate) OR
+          pinned is a branch ref (``main``, ``release/stable``, etc.);
+          README documents branch pins as a supported channel and
+          comparing to a tag is a category mismatch, not a failure
       1 — pinned < latest (behind; surfaces the gap + level)
       2 — cannot determine (gh missing/unauth, network failure,
-          malformed tooling.toml)
+          malformed tooling.toml, malformed-tag pinned value such
+          as ``v1.2`` or ``v1.2.3-rc1``)
 """
 
 from __future__ import annotations
@@ -33,8 +45,6 @@ import sys
 import tomllib
 from pathlib import Path
 from urllib.parse import urlparse
-
-from packaging.version import InvalidVersion, Version
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TOOLING_TOML = REPO_ROOT / "tooling.toml"
@@ -64,18 +74,38 @@ def _read_pinned_version() -> str:
     """Return the `version` value from `tooling.toml`.
 
     Exits 2 with an actionable error on any structural issue (file
-    missing, invalid TOML, key missing) so the user knows to fix the
-    config rather than seeing a Python traceback.
+    missing, symlink, non-regular file, unreadable, invalid TOML, key
+    missing) so the user knows to fix the config rather than seeing a
+    Python traceback. Mirrors the symlink + is_file + read-error
+    guards in `scripts/validate_tooling_toml_drift.py`.
     """
+    # Symlink check before exists(): exists() follows symlinks, so a
+    # broken symlink would otherwise be reported as missing and bypass
+    # the SECURITY guard. Fail closed on any symlink.
+    if TOOLING_TOML.is_symlink():
+        sys.stderr.write(
+            f"check-sync-lag: SECURITY: {TOOLING_TOML} must not be a symbolic link.\n"
+        )
+        sys.exit(2)
     if not TOOLING_TOML.exists():
         sys.stderr.write(
             f"check-sync-lag: {TOOLING_TOML} not found. Are you running from "
             "the repo root?\n"
         )
         sys.exit(2)
+    # Regular-file guard: a FIFO, device, or directory would block or
+    # misbehave on read. Matches validate_tooling_toml_drift.py.
+    if not TOOLING_TOML.is_file():
+        sys.stderr.write(
+            f"check-sync-lag: MALFORMED: {TOOLING_TOML} must be a regular file.\n"
+        )
+        sys.exit(2)
     try:
         with TOOLING_TOML.open("rb") as f:
             data = tomllib.load(f)
+    except OSError as e:
+        sys.stderr.write(f"check-sync-lag: cannot read tooling.toml: {e}\n")
+        sys.exit(2)
     except tomllib.TOMLDecodeError as e:
         sys.stderr.write(f"check-sync-lag: cannot parse tooling.toml: {e}\n")
         sys.exit(2)
@@ -117,9 +147,6 @@ def _fetch_latest_tag(repo: str) -> str:
 
 
 _DEFAULT_REPO_SLUG = "jsmithpkp21/tooling"
-# Accept only `owner/name` shapes with the same character set GitHub
-# allows: alnum, `_`, `-`, `.` (with no leading dot). Anchors prevent
-# trailing path segments from leaking through.
 # Each half MUST start with an alphanumeric so dot-only or
 # path-traversal shapes (`..`, `.`, `./..`, `../tooling`) are rejected.
 # Subsequent chars allow GitHub's full set: alnum, `_`, `-`, `.`.
@@ -129,11 +156,17 @@ _REPO_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.
 def _repo_slug_from_tooling_toml() -> str:
     """Read `repo` URL from tooling.toml and parse owner/name. Strict:
 
-      - Only `https://github.com/<owner>/<name>(.git)?` is recognized.
-      - SSH URLs (`git@github.com:...`), non-github hosts, and shapes
+      - Only ``https://github.com/<owner>/<name>(.git)?`` is recognized.
+      - SSH URLs (``git@github.com:...``), non-github hosts, and shapes
         with extra path segments fall back to the default.
+      - URLs carrying query strings (``?tab=readme``), fragments
+        (``#anchor``), parameters, userinfo, or non-default ports fall
+        back to the default — ``urlparse`` puts those in separate
+        attributes from ``parsed.path``, so without explicit rejection
+        ``https://github.com/acme/tooling?tab=readme`` would otherwise
+        slip through as slug ``acme/tooling``.
 
-    Returns ``"jsmithpkp21/tooling"`` on any parse failure.
+    Returns the default repo slug on any parse failure.
     """
     try:
         with TOOLING_TOML.open("rb") as f:
@@ -144,43 +177,116 @@ def _repo_slug_from_tooling_toml() -> str:
     if not isinstance(url, str):
         return _DEFAULT_REPO_SLUG
     parsed = urlparse(url)
-    # Require https AND host == github.com. No real-world tooling.toml
-    # uses plain http; tightening to https-only aligns with the
-    # docstring contract (#395). Also rejects SSH URLs (parse with
-    # empty scheme + netloc), GitLab-style hosts, and any URL that
-    # doesn't structurally resolve to GitHub.
     if parsed.scheme != "https":
         return _DEFAULT_REPO_SLUG
     if parsed.hostname != "github.com":
         return _DEFAULT_REPO_SLUG
-    # Path is `/owner/name` or `/owner/name.git`. Strip slashes + `.git`,
-    # then validate the slug matches the strict `owner/name` shape.
+    # Reject any URL component that lives outside `parsed.path`, since
+    # the slug check only inspects path. github.com release URLs the
+    # README documents are bare `https://github.com/<owner>/<name>`
+    # with no query / fragment / userinfo / non-default port.
+    if parsed.query or parsed.fragment or parsed.params:
+        return _DEFAULT_REPO_SLUG
+    if parsed.username or parsed.password:
+        return _DEFAULT_REPO_SLUG
+    # `parsed.port` itself raises ValueError on malformed port text
+    # (e.g. `https://github.com:abc/...`). Without the try/except,
+    # a bad `repo` value crashes the script with a traceback instead
+    # of falling back to the default slug as the function contract
+    # promises. (tooling#432.)
+    try:
+        port = parsed.port
+    except ValueError:
+        return _DEFAULT_REPO_SLUG
+    if port is not None:
+        return _DEFAULT_REPO_SLUG
     slug = parsed.path.strip("/").removesuffix(".git")
     if not _REPO_SLUG_RE.fullmatch(slug):
         return _DEFAULT_REPO_SLUG
     return slug
 
 
+# Strict semver-ish parser for tooling tags. Accepts an optional single
+# leading `v` / `V` and requires exactly three numeric components.
+# Pre-release / build-metadata suffixes (`-rc1`, `+abc`) are
+# intentionally unsupported — tooling tags are clean `vX.Y.Z`.
+_VERSION_RE = re.compile(r"^[vV]?(\d+)\.(\d+)\.(\d+)$")
+
+
+def _parse_version(s: str) -> tuple[int, int, int]:
+    """Return `(major, minor, patch)` from a `vX.Y.Z`-shaped tag.
+
+    Raises:
+        ValueError: on any non-conforming input. Caller is expected
+            to convert to the exit-2 cannot-parse path.
+    """
+    m = _VERSION_RE.fullmatch(s)
+    if m is None:
+        raise ValueError(f"not a vMAJOR.MINOR.PATCH tag: {s!r}")
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+
+
+# Branch names that are unambiguously branch refs (not malformed tags).
+# Anything with a `/` is also a branch ref because release tags can't
+# contain `/`. Everything else falls through to the strict tag parser
+# so genuinely malformed input (`not-a-version`, `vv1.2.3`, `v1.2`)
+# stays on the exit-2 cannot-parse path with an actionable error
+# rather than getting silently treated as a branch pin.
+_KNOWN_BRANCH_NAMES = frozenset({"main", "master", "develop", "trunk", "HEAD"})
+
+
+def _is_branch_ref(s: str) -> bool:
+    """True if `s` is a branch ref (`main`, `release/stable`, feature
+    branch) rather than a release tag.
+
+    The README documents branch refs as a supported `tooling.toml.version`
+    channel; comparing a branch pin against a release tag is a category
+    mismatch, not a parse failure. Conservative detection: either a `/`
+    is present (impossible in a release tag) or the value matches a
+    well-known branch name. Other unrecognized strings stay on the
+    cannot-parse path so the operator gets an actionable error.
+    """
+    if _VERSION_RE.fullmatch(s):
+        return False
+    if "/" in s:
+        return True
+    return s in _KNOWN_BRANCH_NAMES
+
+
 def compare_versions(pinned: str, latest: str) -> tuple[int, str]:
     """Return `(exit_code, human_message)` comparing pinned to latest.
 
-    Both inputs may have a leading `v`; `packaging.version.Version`
-    handles that. Returns ``(0, ...)`` when equal, ``(1, ...)`` when
-    pinned < latest, ``(2, ...)`` when either string is unparseable.
-    Pinned > latest is treated as ``(0, ...)`` with a "pre-release"
-    note (consumer ahead of release, e.g. testing a candidate).
+    Both inputs accept a single optional `v` prefix. Returns:
+
+      - ``(0, "up-to-date — ...")`` when pinned == latest
+      - ``(0, "ahead of release — ...")`` when pinned > latest
+        (consumer testing a release candidate)
+      - ``(0, "tracking branch — ...")`` when pinned is a branch ref
+        (any value containing ``/`` like ``release/stable`` or
+        ``feature/X``, or a well-known branch name like ``main``,
+        ``master``, ``develop``). The README documents this as a
+        supported channel; comparison to a tag is a category mismatch,
+        not a failure. The message still surfaces the latest release
+        tag so the operator can decide whether to pin instead.
+      - ``(1, "behind by <level> ...")`` when pinned < latest
+      - ``(2, "cannot parse ...")`` when either string is malformed
+        and not a recognized branch ref (e.g. ``v1.2``, ``v1.2.3-rc1``,
+        ``vv1.2.3``, ``not-a-version``).
     """
-    # `packaging.version.Version` natively accepts a single leading
-    # `v` (or `V`) prefix and rejects malformed double-prefix shapes
-    # like `vv1.2.3`. The earlier `lstrip("v")` was both unnecessary
-    # AND wrong: lstrip treats the argument as a char SET and would
-    # strip ALL leading v's, silently normalizing `vv1.2.3` to a
-    # valid version. Removing the preprocessing entirely lets Version
-    # do the right thing in one place. (#395.)
+    # Branch-ref pinned (main / release/stable / feature/X): comparison
+    # to a tag is a category mismatch, not a parse failure. Surface
+    # the latest tag so the operator can decide whether to pin.
+    if _is_branch_ref(pinned):
+        return (
+            0,
+            f"tracking branch — pinned {pinned!r} is a branch ref, "
+            f"not a release tag. Latest released tag: {latest}.",
+        )
+
     try:
-        p = Version(pinned)
-        l = Version(latest)  # noqa: E741 — `l` is fine here
-    except InvalidVersion as e:
+        p = _parse_version(pinned)
+        l = _parse_version(latest)  # noqa: E741 — `l` is fine here
+    except ValueError as e:
         return (2, f"cannot parse version ({e})")
 
     if p == l:
@@ -189,9 +295,9 @@ def compare_versions(pinned: str, latest: str) -> tuple[int, str]:
         return (0, f"ahead of release — pinned {pinned} > latest {latest}")
 
     # Behind. Determine semver level for the diff.
-    if p.major < l.major:
+    if p[0] < l[0]:
         level = "major"
-    elif p.minor < l.minor:
+    elif p[1] < l[1]:
         level = "minor"
     else:
         level = "patch"

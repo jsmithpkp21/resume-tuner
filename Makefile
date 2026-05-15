@@ -16,7 +16,7 @@ MARKDOWN_LINT_TIMEOUT_SECONDS ?= 120
 MARKDOWNLINT_VERSION ?= 0.47.0
 
 # Every recipe target below must appear in this list — enforced by tests/scripts/test_makefile_phony.py in the tooling source repo (the test is not synced into consumers).
-.PHONY: env setup active verify clean upgrade lock lint lint-fast lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check tooling-toml-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper branch pr-epic docker-up docker-down docker-shell update-docker lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker doc-drift-check no-new-type-ignore pr-body-drift-check gh-preflight-check
+.PHONY: env setup active verify clean upgrade lock lint lint-fast lint-fix typecheck test test-fast test-slow test-profile test-selective test-shell precommit precommit-fix install-act bootstrap sync-tooling update-sync-script drift-check docs-check agents-drift-check tooling-toml-check check version-check version-fix env-file-check env-file-fix action-pin-check action-pin-fix dev-tool-pin-check dev-tool-pin-fix markdown-lint markdown-lint-run markdown-lint-docker commitlint-msg fix-pr-initial-commit consumer-contract-test pr-review-helper branch pr-epic docker-up docker-down docker-shell update-docker lint-docker lint-fix-docker typecheck-docker test-docker precommit-fix-docker check-docker doc-drift-check no-new-type-ignore pr-body-drift-check gh-preflight-check makefile-quoting-check sync-check-latest
 
 env:
 	scripts/create_env.sh
@@ -152,7 +152,7 @@ lock:
 	echo "requirements.txt updated (runtime-only packages)."
 
 lint: env
-	bash -lc "source \"$(ENV_PATH)/bin/activate\" && ruff check . && ruff format --check . && mypy . && make markdown-lint"
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && ruff check . && ruff format --check . && mypy . && python3 scripts/check_makefile_bash_quoting.py && make markdown-lint"
 
 # Sub-second pre-push gate. Runs only the in-process ruff linters
 # (lint + format-check); skips mypy and markdown-lint, which are slower.
@@ -278,7 +278,7 @@ test: env
 # Docker, `env` runs as before to auto-create the local venv on first use.
 test-fast:
 	@if [ -n "$$VENV_PATH" ] && [ -f "$$VENV_PATH/bin/activate" ]; then \
-		bash -lc "source \"$$VENV_PATH/bin/activate\" && pytest -q --durations=10 -m 'not slow'"; \
+		bash -lc 'source "$$VENV_PATH/bin/activate" && pytest -q --durations=10 -m "not slow"'; \
 	else \
 		$(MAKE) --no-print-directory env; \
 		bash -lc "source \"$(ENV_PATH)/bin/activate\" && pytest -q --durations=10 -m 'not slow'"; \
@@ -286,7 +286,7 @@ test-fast:
 
 test-slow:
 	@if [ -n "$$VENV_PATH" ] && [ -f "$$VENV_PATH/bin/activate" ]; then \
-		bash -lc "source \"$$VENV_PATH/bin/activate\" && pytest -q --durations=10 -m slow"; \
+		bash -lc 'source "$$VENV_PATH/bin/activate" && pytest -q --durations=10 -m slow'; \
 	else \
 		$(MAKE) --no-print-directory env; \
 		bash -lc "source \"$(ENV_PATH)/bin/activate\" && pytest -q --durations=10 -m slow"; \
@@ -667,11 +667,14 @@ check-docker: docker-up
 # Quality-check family (promoted from resume-builder via #409)
 # ---------------------------------------------------------------------
 #
-# Four targeted lint-adjacent gates that catch friction modes which
+# Six targeted lint-adjacent gates that catch friction modes which
 # `make lint` (ruff + mypy + markdown-lint) doesn't surface. Each is
 # its own target rather than bundled into `make lint` so consumers
 # can wire them into pre-push / CI / `Makefile.local` at the cadence
-# that fits — same opt-in posture as resume-builder uses today.
+# that fits — same opt-in posture as resume-builder uses today. The
+# one exception is `make makefile-quoting-check`, which IS chained
+# into `make lint` because it guards a real injection-class invariant
+# rather than a stylistic one (see PR #424).
 #
 #   - `make doc-drift-check`       — deny-list regex scan for stale
 #       API references in docstrings / comments / help-strings.
@@ -685,8 +688,20 @@ check-docker: docker-up
 #       descriptions that doc-drift-check can't reach. Pass PR=<n>
 #       or omit to target the current branch's PR.
 #   - `make gh-preflight-check`    — meta-check that every `gh`
-#       subprocess call in `scripts/*.py`/`scripts/*.sh` is preceded
-#       by a `gh auth status` preflight (AGENTS.md requirement).
+#       subprocess call in every `.py` / `.sh` file under `scripts/`
+#       (recursive walk) is preceded by a `gh auth status` preflight
+#       (AGENTS.md requirement).
+#   - `make makefile-quoting-check` — bans `bash -c/-lc "..."`
+#       (double-quoted) combined with `$$VAR` shell-var expansion in
+#       Makefile recipes; the pair allows quote-breakout injection
+#       (see PR #424). Per-line opt-out: `# noqa: bash-lc-quoting`.
+#       Also chained into `make lint` so CI gates it.
+#   - `make sync-check-latest`     — reports the gap between the
+#       pinned tooling version (`tooling.toml` `version`) and the
+#       upstream latest release tag. Exit 0 up-to-date / ahead of
+#       release, 1 behind (surfaces patch/minor/major level + a
+#       remediation hint pointing at the release notes), 2 on
+#       gh/network/parse failure. Opt-in (calls network).
 
 doc-drift-check: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_doc_drift.py"
@@ -695,17 +710,45 @@ no-new-type-ignore: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_no_type_ignore.py"
 
 # `$(value PR)` prevents make-level recursive expansion of user-supplied
-# PR (e.g. a malicious `PR='$(shell ...)'` value stays literal). The
-# bash `${VAR:+"$VAR"}` construct then only forwards the value as a
-# positional arg when it's non-empty, and quotes it so the shell does
-# not re-evaluate command-substitution or globbing inside it. Same
-# pattern as `pr-epic`'s `$(value VAR)` + exported env approach.
+# PR (e.g. a malicious `PR='$(shell ...)'` value stays literal).
+#
+# The `bash -lc '...'` argument is SINGLE-quoted so the outer recipe
+# shell (/bin/sh) does NOT expand `${PR_BODY_DRIFT_PR:+"$PR_BODY_DRIFT_PR"}`
+# itself — it hands the literal parameter-expansion syntax to bash,
+# and bash performs the expansion after parsing. This is what stops
+# quote-breakout: if /bin/sh did the expansion (as it would with
+# outer double-quoting), a `"` inside the value would be interpolated
+# into the command string bash then re-parses, and a payload like
+# `PR='abc"; rm -rf …; #'` would parse as valid bash. With the
+# expansion deferred to bash, the value lands inside an already-
+# parsed `"..."` word where embedded `"` characters stay literal.
+# (Updated after PR #424 round-3 review caught a quote-breakout in
+# the previous outer-double-quoted form; see commit message for
+# the probe that demonstrates the difference. Bash-level $() / `` `
+# was never an issue — variable expansion is not re-parsed as code
+# regardless of quoting.)
+#
+# The inner bash-level `"..."` around `$PR_BODY_DRIFT_PR` also blocks
+# word-splitting / glob / argv-shape injection on a value that
+# survives expansion. Same `$(value VAR)` + exported-env pattern as
+# `pr-epic` (which delegates to a shell script via env vars rather
+# than inline `bash -lc`, so it doesn't share this quoting concern).
 pr-body-drift-check: export PR_BODY_DRIFT_PR := $(value PR)
 pr-body-drift-check: env
-	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_pr_body_drift.py $${PR_BODY_DRIFT_PR:+\"$$PR_BODY_DRIFT_PR\"}"
+	bash -lc 'source "$(ENV_PATH)/bin/activate" && python3 scripts/check_pr_body_drift.py $${PR_BODY_DRIFT_PR:+"$$PR_BODY_DRIFT_PR"}'
 
 gh-preflight-check: env
 	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_gh_preflight.py"
+
+# Static check: bans `bash -c "..."` / `bash -lc "..."` (double-quoted) +
+# embedded `$$VAR` / `$${VAR...}` shell-var expansion in Makefile recipes.
+# The combination allows quote-breakout injection (see PR #424). Also
+# invoked from `make lint` so CI gates it.
+makefile-quoting-check: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_makefile_bash_quoting.py"
+
+sync-check-latest: env
+	bash -lc "source \"$(ENV_PATH)/bin/activate\" && python3 scripts/check_sync_lag.py"
 
 # Consumer-specific make targets live in Makefile.local. The file is
 # consumer-owned and intentionally NOT in .tooling-sync-manifest.toml, so

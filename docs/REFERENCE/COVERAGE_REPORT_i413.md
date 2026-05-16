@@ -40,5 +40,5 @@ These are large enough to warrant their own scoping — see the follow-up issues
 
 ## Notes
 
-- Coverage instrumentation is `pytest-cov` (added to local venv only; not promoted into `requirements-dev.txt` yet — defer until tooling settles a shared coverage gate).
+- Coverage instrumentation is `pytest-cov==7.1.0` (added to local venv only; not promoted into `requirements-dev.txt` yet — defer until tooling settles a shared coverage gate). The exact version is pinned here so the committed coverage snapshot remains reproducible until the dependency is promoted into the shared dev requirements.
 - One pre-existing test-order quirk: running the full suite reports `llm_client.py` at 90% under one ordering and 74% under another. The new tests do not import `llm_client`; the variance was present on `origin/main` and is unrelated to issue #413 — separate follow-up if it persists.

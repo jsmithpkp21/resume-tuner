@@ -310,8 +310,8 @@ synonyms = ["first name", "first name*"]
     assert "Mystery Field*" in out
 
 
-def test_main_cli_rejects_blocked_runtime_input(tmp_path: Path) -> None:
-    """`_main` honors the blocked-runtime-roots policy for `--bank` and files."""
+def test_main_cli_rejects_blocked_runtime_bank(tmp_path: Path) -> None:
+    """`_main` rejects a `--bank` path under a blocked runtime root."""
     from job_apply_kit.match_replay import _main
 
     # Use the real repo sandbox/ root — it's the canonical blocked path.
@@ -321,3 +321,24 @@ def test_main_cli_rejects_blocked_runtime_input(tmp_path: Path) -> None:
     cap.write_text("[]")
     with pytest.raises(ValueError, match="blocked runtime"):
         _main(["--bank", str(blocked_bank), str(cap)])
+
+
+def test_main_cli_rejects_blocked_runtime_capture_file(tmp_path: Path) -> None:
+    """`_main` rejects a positional capture path under a blocked runtime root.
+
+    The bank guard and the per-file guard are independent loops in `_main`;
+    this test pins the per-file guard so a future regression that removes
+    only the file-side check is still caught.
+    """
+    from job_apply_kit.match_replay import _main
+
+    # Safe bank in tmp_path, blocked capture path under repo sandbox/.
+    repo_root = Path(__file__).resolve().parents[2]
+    bank_path = tmp_path / "bank.toml"
+    bank_path.write_text(
+        '[name]\nfirst = "Jane"\nsynonyms = ["first name"]\n',
+        encoding="utf-8",
+    )
+    blocked_cap = repo_root / "sandbox" / "fields-blocked-1.json"
+    with pytest.raises(ValueError, match="blocked runtime"):
+        _main(["--bank", str(bank_path), str(blocked_cap)])

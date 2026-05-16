@@ -204,13 +204,16 @@ def test_validate_experience_data_accepts_payload_with_no_experience_key() -> No
 
 
 def test_main_returns_nonzero_when_experience_db_missing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """`main` returns 1 with a clear stderr when experience_db.toml is missing.
+    """`main` returns 1 and emits the missing-file error on stderr.
 
-    Patched via working directory: the script resolves paths relative to a
-    fixed `parents[2]` (its real install location), so we exercise the
-    file-missing branch by mocking the imported `Path` inside the module.
+    The script derives its project root from `Path(__file__).resolve().parents[2]`.
+    We redirect that derivation by patching the module's `__file__` attribute
+    to point at a temp tree where `data/experience/experience_db.toml` does
+    not exist, then assert both the exit code and the stderr message.
     """
     from resume_builder import validate_experience_data as mod
 
@@ -226,7 +229,9 @@ def test_main_returns_nonzero_when_experience_db_missing(
     )
 
     rc = mod.main()
+    captured = capsys.readouterr()
     assert rc == 1
+    assert "experience_db.toml" in captured.err
 
 
 def test_main_succeeds_on_valid_inputs(

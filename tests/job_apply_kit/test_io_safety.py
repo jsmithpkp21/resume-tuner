@@ -136,9 +136,12 @@ def test_atomic_write_json_indents_output(tmp_path: Path) -> None:
 def test_atomic_write_json_temp_file_is_in_same_directory_to_keep_replace_atomic(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The temp file must be created in `path.parent` so `os.replace` is atomic
-    (cross-filesystem rename would silently fall back to copy + delete and
-    break the partial-write guarantee).
+    """The temp file must be created in `path.parent` so `os.replace` is atomic.
+
+    `os.replace` requires the source and destination to live on the same
+    filesystem; a cross-filesystem call raises `OSError` (EXDEV) rather than
+    falling back to copy+delete. Keeping the temp file in the target
+    directory avoids that error and preserves the rename's atomicity.
     """
     target = tmp_path / "snap.json"
     seen_dirs: list[str] = []

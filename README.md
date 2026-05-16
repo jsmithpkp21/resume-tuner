@@ -1,7 +1,9 @@
-# Project Template
+# resume-builder
 
-A minimal starting point for new projects that use shared tooling.
-Clone this template, run the setup script, and you are ready to code.
+AI-assisted resume and cover-letter generation tooling. Consumer of the
+shared `tooling` repo: managed config (Makefile, lint/test/release, CI
+workflows) syncs in via `scripts/sync_tooling.sh`; the resume/cover-letter
+pipeline, data, and docs are owned by this repo.
 
 ## Starter Data Locations (resume-builder)
 
@@ -127,36 +129,26 @@ Export behavior notes:
 ## Quick Start
 
 ```bash
-# 1. Clone this template (or use the GitHub "Use this template" button)
-git clone https://github.com/jsmithpkp21/project-template.git my_new_project
-cd my_new_project
-
-# 2. Run setup — choose your layer (or omit for a minimal base setup)
-bash scripts/setup.sh              # Default/minimal setup
-bash scripts/setup.sh playwright   # With Playwright layer
-bash scripts/setup.sh api          # With API layer
-bash scripts/setup.sh web          # With Web layer
-
-# 3. Follow the printed next steps (make env → make active → make setup)
+git clone https://github.com/jsmithpkp21/resume-builder.git
+cd resume-builder
+make setup    # Full setup: env + verify + hooks + pre-commit
+make active   # Print the activation command for the venv
 ```
 
-The script handles everything:
-- Downloads and runs the shared `sync_tooling.sh` to pull in all shared config
-- Initializes a git repository
-- Installs git hooks (branch protection)
-- Applies your chosen layer
-- Removes itself once complete
+`make setup` creates `~/envs/resume-builder-env` from `requirements.txt`
+and installs pre-commit hooks. See `AGENTS.md` for the daily quality
+loop (`make lint`, `make test`, `make check`) and contract checks.
 
 ---
 
 ## Available Layers
 
+Layers are scaffolding for venv-level dependency groups (not Docker
+images). See `layers/<layer>/` for what each one installs.
+
 | Layer        | Description                                          |
 |--------------|------------------------------------------------------|
-| *(none)*     | Minimal base setup — shared config only              |
-| `playwright` | Adds Playwright + pytest-playwright to the layer     |
-| `api`        | Placeholder for API-specific dependencies            |
-| `web`        | Placeholder for web-specific dependencies            |
+| `playwright` | Adds Playwright + pytest-playwright (record/fill flow) |
 
 ---
 
@@ -173,16 +165,13 @@ The script handles everything:
 ## After Setup
 
 ```bash
-make env      # Create the Python virtual environment
+make env      # (Re)create the Python virtual environment
 make active   # Print the activation command
 make setup    # Full setup: env + verify + hooks + pre-commit
 ```
 
-The template includes minimal `VERSION`, `tooling.toml`, and
-`requirements.txt` as starting points for your project; after
-`scripts/setup.sh` has synced tooling, you can run `make env` /
-`make setup` using these files. They are intentionally not overwritten by
-`sync_tooling.sh`, so you can adjust them to your project's needs.
+`VERSION`, `tooling.toml`, and `requirements.txt` are consumer-owned and
+intentionally not overwritten by `sync_tooling.sh`.
 
 ---
 

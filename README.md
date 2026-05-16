@@ -136,8 +136,9 @@ make active   # Print the activation command for the venv
 ```
 
 `make setup` creates `~/envs/resume-builder-env` from `requirements.txt`
-and installs pre-commit hooks. See `AGENTS.md` for the daily quality
-loop (`make lint`, `make test`, `make check`) and contract checks.
+and `requirements-dev.txt`, then installs pre-commit hooks. See
+`AGENTS.md` for the daily quality loop (`make lint`, `make test`,
+`make check`) and contract checks.
 
 ---
 

@@ -20,7 +20,9 @@ from typing import Any
 import pytest
 
 from resume_builder.jd_ingest import (
+    _JOBPOSTING_DESC_COMPANY_PREFIX,
     FetchedPage,
+    _extract_company_from_jobposting_prose,
     _extract_company_name,
     _extract_jobposting_from_html,
     _extract_role_from_title,
@@ -37,6 +39,7 @@ from resume_builder.jd_ingest import (
     _resolve_host_body_selector,
     _should_use_playwright,
     _try_board_api_fetch,
+    ingest_job_context,
 )
 
 # --- _extract_company_name: ATS path-slug for Workable -------------------
@@ -79,6 +82,122 @@ def test_workable_apply_subdomain_classifies_as_ats() -> None:
 def test_non_apply_workable_hostnames_are_not_ats(netloc: str) -> None:
     """Marketing / docs / help workable.com hosts are not ATS job boards."""
     assert _infer_source(netloc) != "ats"
+
+
+# --- _extract_company_name: JSON-LD JobPosting > ATS slug (issue #391) ---
+
+
+def test_extract_company_name_ats_prefers_jobposting_org_over_slug() -> None:
+    """Issue #391: JSON-LD `hiringOrganization` display name wins over the
+    URL slug for ATS hosts (e.g. boards.greenhouse.io/sagansystems for
+    Gladly — slug is the parent / legal entity, not the public brand)."""
+    description = (
+        "Role: Staff Software Engineer\n\n"
+        f"{_JOBPOSTING_DESC_COMPANY_PREFIX}Gladly\n\n"
+        "Location: San Francisco, CA, US\n\n"
+        "About Gladly. We build customer experience AI..."
+    )
+    name = _extract_company_name(
+        source="ats",
+        netloc="boards.greenhouse.io",
+        path="/sagansystems/jobs/7811679",
+        page_title="Staff Software Engineer, AI & Automation",
+        description=description,
+    )
+    assert name == "Gladly"
+
+
+def test_extract_company_name_ats_falls_back_to_slug_when_no_jobposting_org() -> None:
+    """Issue #391: when the JSON-LD JobPosting prose is absent (no
+    `Company:` line in the description), the existing ATS slug behavior
+    is preserved — no regression for boards without JSON-LD."""
+    name = _extract_company_name(
+        source="ats",
+        netloc="boards.greenhouse.io",
+        path="/sagansystems/jobs/7811679",
+        page_title="Staff Software Engineer",
+        description="Some role description without any JSON-LD prose prefix.",
+    )
+    assert name == "sagansystems"
+
+
+def test_extract_company_name_ats_jobposting_org_with_empty_name_falls_back() -> None:
+    """Issue #391: a `Company:` prefix with only whitespace after it must
+    not satisfy the lookup — falls back to the ATS slug. Guards against a
+    malformed JobPosting where `hiringOrganization.name` was an empty
+    string that still made it past `_jobposting_organization`'s strip()."""
+    description = f"Role: Staff SDET\n\n{_JOBPOSTING_DESC_COMPANY_PREFIX}   \n\nbody"
+    name = _extract_company_name(
+        source="ats",
+        netloc="boards.greenhouse.io",
+        path="/sagansystems/jobs/7811679",
+        page_title="Staff SDET",
+        description=description,
+    )
+    assert name == "sagansystems"
+
+
+def test_extract_company_from_jobposting_prose_finds_org_anywhere() -> None:
+    """The `Company:` line can appear at any position in the prose, not
+    just the first line — the parser scans all lines."""
+    description = (
+        "Role: SRE\n\n"
+        "Location: Remote\n\n"
+        f"{_JOBPOSTING_DESC_COMPANY_PREFIX}Acme\n\n"
+        "About Acme..."
+    )
+    assert _extract_company_from_jobposting_prose(description) == "Acme"
+
+
+def test_extract_company_from_jobposting_prose_returns_empty_when_absent() -> None:
+    """No `Company:` line → empty string (caller falls back)."""
+    assert _extract_company_from_jobposting_prose("Role: SRE\n\nbody") == ""
+    assert _extract_company_from_jobposting_prose("") == ""
+
+
+def test_jobposting_html_extract_uses_company_prefix_constant() -> None:
+    """Regression guard: the JSON-LD JobPosting prose extractor must use
+    `_JOBPOSTING_DESC_COMPANY_PREFIX` so producer and consumer stay in
+    lockstep. If someone renames the prefix in one place but not the
+    other, this test catches it. Issue #391."""
+    html = (
+        '<html><head><script type="application/ld+json">'
+        '{"@context":"https://schema.org","@type":"JobPosting",'
+        '"title":"Staff Engineer",'
+        '"hiringOrganization":{"@type":"Organization","name":"Gladly"}}'
+        "</script></head><body></body></html>"
+    )
+    prose = _extract_jobposting_from_html(html)
+    assert prose is not None
+    assert _JOBPOSTING_DESC_COMPANY_PREFIX in prose
+    assert _extract_company_from_jobposting_prose(prose) == "Gladly"
+
+
+def test_ingest_job_context_greenhouse_uses_jobposting_org_for_company_name() -> None:
+    """End-to-end repro of issue #391: a Greenhouse URL whose slug is the
+    parent company (sagansystems) but whose JSON-LD JobPosting names the
+    brand (Gladly) must surface `company_name == "Gladly"` on the
+    `JobContext`, not the slug."""
+
+    def fake_fetcher(_: str) -> FetchedPage:
+        return FetchedPage(
+            status="fetched",
+            title="Staff Software Engineer, AI & Automation",
+            description=(
+                "Role: Staff Software Engineer, AI & Automation\n\n"
+                f"{_JOBPOSTING_DESC_COMPANY_PREFIX}Gladly\n\n"
+                "Location: San Francisco, CA, US\n\n"
+                "About Gladly. We build customer experience AI..."
+            ),
+            notes=("source:greenhouse_api",),
+        )
+
+    context = ingest_job_context(
+        "https://boards.greenhouse.io/sagansystems/jobs/7811679",
+        fetcher=fake_fetcher,
+    )
+    assert context.company_name == "Gladly"
+    assert context.source == "ats"
 
 
 # --- _extract_company_name: generic-subdomain skipping -------------------

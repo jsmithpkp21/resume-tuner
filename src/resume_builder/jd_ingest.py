@@ -126,6 +126,14 @@ _GREENHOUSE_BOARD_HOSTS: tuple[str, ...] = (
     "job-boards.greenhouse.io",
 )
 
+# Producer/consumer contract for the JSON-LD JobPosting org name. When
+# `_extract_jobposting_from_html` finds a `hiringOrganization`, it writes
+# `Company: <name>` as one prose line in the description. `_extract_company_name`
+# parses that line back out so the JobPosting display name wins over the URL
+# slug for ATS hosts (e.g. boards.greenhouse.io/sagansystems → "Gladly"
+# rather than "sagansystems"). Issue #391.
+_JOBPOSTING_DESC_COMPANY_PREFIX = "Company: "
+
 
 class _ValidatingRedirectHandler(HTTPRedirectHandler):
     """Validate each redirect target before following it."""
@@ -593,6 +601,21 @@ def _extract_role_hint(
     return _extract_role_from_description(description)
 
 
+def _extract_company_from_jobposting_prose(description: str) -> str:
+    """Read `Company: <name>` from the JSON-LD JobPosting prose form.
+
+    Built by `_extract_jobposting_from_html`. Returns "" when the prefix
+    isn't found (JSON-LD missing or had no `hiringOrganization`). Issue #391.
+    """
+    for line in description.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(_JOBPOSTING_DESC_COMPANY_PREFIX):
+            name = stripped[len(_JOBPOSTING_DESC_COMPANY_PREFIX) :].strip()
+            if name:
+                return name
+    return ""
+
+
 def _extract_company_name(
     *,
     source: str,
@@ -615,6 +638,12 @@ def _extract_company_name(
             return segments[2]
 
     if source == "ats":
+        # Prefer the JSON-LD `hiringOrganization` display name when present —
+        # the URL slug is often a parent / legal entity (e.g. Greenhouse's
+        # `sagansystems` for Gladly) rather than the public brand. Issue #391.
+        org_from_jobposting = _extract_company_from_jobposting_prose(description)
+        if org_from_jobposting:
+            return org_from_jobposting
         ats_slug = _extract_ats_company_slug(netloc, path)
         if ats_slug:
             return ats_slug
@@ -1046,7 +1075,7 @@ def _extract_jobposting_from_html(html: str) -> str | None:
             parts.append(f"Role: {title.strip()}")
         org_name = _jobposting_organization(posting)
         if org_name:
-            parts.append(f"Company: {org_name}")
+            parts.append(f"{_JOBPOSTING_DESC_COMPANY_PREFIX}{org_name}")
         location = _jobposting_location(posting)
         if location:
             parts.append(f"Location: {location}")

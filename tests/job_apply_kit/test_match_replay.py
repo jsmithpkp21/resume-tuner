@@ -153,3 +153,171 @@ def test_replay_handles_multiple_captures(
     # Per-session headers should both appear
     assert "=== a " in output
     assert "=== b " in output
+
+
+# ---------------------------------------------------------------------------
+# Error-tolerance: partial captures, missing files, bad JSON
+# ---------------------------------------------------------------------------
+
+
+def test_replay_skips_invalid_json_capture_and_continues(
+    answer_bank: dict[str, object], tmp_path: Path
+) -> None:
+    """A truncated/garbled fields-*.json doesn't crash the whole replay run."""
+    bad = tmp_path / "fields-broken-1.json"
+    bad.write_text("{not valid json")
+    good = tmp_path / "fields-good-2.json"
+    good.write_text(
+        json.dumps(
+            [
+                {
+                    "url": "u",
+                    "ts": 1,
+                    "fields": [{"label": "First Name*", "type": "text"}],
+                }
+            ]
+        )
+    )
+    buf = io.StringIO()
+    n = replay(answer_bank=answer_bank, capture_paths=[bad, good], out=buf)
+    output = buf.getvalue()
+    # Bad capture is logged as skipped with the parse error reason
+    assert "skipped: fields-broken-1.json is not valid JSON" in output
+    # Good capture still produced its one match
+    assert n == 1
+    assert "=== good " in output
+
+
+def test_replay_skips_missing_capture_file_via_oserror(
+    answer_bank: dict[str, object], tmp_path: Path
+) -> None:
+    """An OSError on a missing/unreadable file produces a graceful skip line."""
+    missing = tmp_path / "fields-missing-1.json"  # not created
+    buf = io.StringIO()
+    n = replay(answer_bank=answer_bank, capture_paths=[missing], out=buf)
+    assert n == 0
+    assert "=== missing ===" in buf.getvalue() or "=== missing" in buf.getvalue()
+
+
+def test_replay_slug_without_trailing_timestamp_is_left_unchanged(
+    answer_bank: dict[str, object], tmp_path: Path
+) -> None:
+    """When the trailing token isn't all digits, the slug stays intact."""
+    cap = tmp_path / "fields-no-ts-here.json"
+    cap.write_text(
+        json.dumps(
+            [
+                {
+                    "url": "u",
+                    "ts": 1,
+                    "fields": [{"label": "First Name*", "type": "text"}],
+                }
+            ]
+        )
+    )
+    buf = io.StringIO()
+    replay(answer_bank=answer_bank, capture_paths=[cap], out=buf)
+    # No trailing-numeric strip — full "no-ts-here" should appear as the slug
+    assert "=== no-ts-here " in buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# _main CLI surface
+# ---------------------------------------------------------------------------
+
+
+def test_main_cli_reads_bank_and_invokes_replay(
+    answer_bank: dict[str, object], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`_main` parses --bank + capture paths and runs end-to-end without error."""
+    from job_apply_kit.match_replay import _main
+
+    # Write a real TOML answer bank that mirrors the fixture
+    bank_path = tmp_path / "bank.toml"
+    bank_path.write_text(
+        """
+[name]
+first = "Jane"
+last = "Doe"
+synonyms = ["first name", "first name*", "last name", "last name*"]
+
+[contact]
+email = "jane@example.com"
+synonyms = ["email", "email address*"]
+""",
+        encoding="utf-8",
+    )
+
+    cap = tmp_path / "fields-cli-1700000000.json"
+    cap.write_text(
+        json.dumps(
+            [
+                {
+                    "url": "u",
+                    "ts": 1,
+                    "fields": [
+                        {"label": "First Name*", "type": "text"},
+                        {"label": "Email Address*", "type": "email"},
+                    ],
+                }
+            ]
+        )
+    )
+
+    rc = _main(["--bank", str(bank_path), str(cap)])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "=== cli " in captured.out
+    assert "OVERALL" in captured.out
+
+
+def test_main_cli_verbose_flag_logs_per_label_decisions(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`--verbose` surfaces per-label match/skip lines on stdout."""
+    from job_apply_kit.match_replay import _main
+
+    bank_path = tmp_path / "bank.toml"
+    bank_path.write_text(
+        """
+[name]
+first = "Jane"
+synonyms = ["first name", "first name*"]
+""",
+        encoding="utf-8",
+    )
+    cap = tmp_path / "fields-v-1.json"
+    cap.write_text(
+        json.dumps(
+            [
+                {
+                    "url": "u",
+                    "ts": 1,
+                    "fields": [
+                        {"label": "First Name*", "type": "text"},
+                        {"label": "Mystery Field*", "type": "text"},
+                    ],
+                }
+            ]
+        )
+    )
+
+    rc = _main(["--bank", str(bank_path), "--verbose", str(cap)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    # Verbose lines for both labels
+    assert "First Name*" in out
+    assert "Mystery Field*" in out
+
+
+def test_main_cli_rejects_blocked_runtime_input(tmp_path: Path) -> None:
+    """`_main` honors the blocked-runtime-roots policy for `--bank` and files."""
+    from job_apply_kit.match_replay import _main
+
+    # Use the real repo sandbox/ root — it's the canonical blocked path.
+    repo_root = Path(__file__).resolve().parents[2]
+    blocked_bank = repo_root / "sandbox" / "bank.toml"
+    cap = tmp_path / "fields-x-1.json"
+    cap.write_text("[]")
+    with pytest.raises(ValueError, match="blocked runtime"):
+        _main(["--bank", str(blocked_bank), str(cap)])

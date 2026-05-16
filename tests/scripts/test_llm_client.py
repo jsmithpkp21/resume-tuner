@@ -89,6 +89,31 @@ def test_complete_json_rejects_blocked_cache_dir_before_file_io(
         )
 
 
+def test_complete_json_normalizes_cache_read_oserror_to_runtimeerror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_FIXTURE", "1")
+    monkeypatch.setenv("RESUME_BUILDER_LLM_CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv(
+        "RESUME_BUILDER_LLM_API_URL", "http://localhost:11434/v1/chat/completions"
+    )
+    monkeypatch.setenv("RESUME_BUILDER_LLM_MODEL", "llama3.1:8b")
+
+    client = LLMClient.from_env()
+
+    def _raise_oserror(self: LLMClient, path: Path) -> str | None:  # noqa: ARG001
+        raise PermissionError("simulated cache read failure")
+
+    monkeypatch.setattr(LLMClient, "_read_cache", _raise_oserror, raising=True)
+
+    with pytest.raises(RuntimeError, match="cache read failed"):
+        client.complete_json(
+            namespace="trim_for_role",
+            system_prompt="Return JSON.",
+            user_payload={"value": 1},
+        )
+
+
 @pytest.mark.parametrize(
     "raw, expected",
     [

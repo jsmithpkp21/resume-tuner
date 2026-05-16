@@ -317,7 +317,8 @@ def _resolve_addressee(
         )
     except (RuntimeError, ValueError) as exc:
         # complete_json raises RuntimeError for transport/HTTP/shape failures
-        # and ValueError for invalid JSON; fall back to the static addressee.
+        # and for cache I/O failures (LLMClient normalizes OSError -> RuntimeError);
+        # ValueError for invalid JSON. Fall back to the static addressee.
         logger.warning("Addressee inference failed: %s", exc)
         return fallback
     name = result.get("hiring_manager_name")

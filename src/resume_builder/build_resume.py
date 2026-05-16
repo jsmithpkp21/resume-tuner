@@ -2064,7 +2064,8 @@ def _extract_company_via_llm(job_context: JobContext) -> str:
         )
     except (RuntimeError, ValueError) as exc:
         # complete_json raises RuntimeError for transport/HTTP/shape failures
-        # and ValueError for invalid JSON; skip extraction on failure.
+        # and for cache I/O failures (LLMClient normalizes OSError -> RuntimeError);
+        # ValueError for invalid JSON. Skip extraction on failure.
         logger.info("LLM company extraction skipped: %s", exc)
         return ""
     company = response.get("company", "")
@@ -2758,7 +2759,8 @@ def compute_fit_assessment(resume: ResumeIR) -> FitAssessment | None:
         )
     except (RuntimeError, ValueError) as exc:
         # complete_json raises RuntimeError for transport/HTTP/shape failures
-        # and ValueError for invalid JSON; skip the assessment on failure.
+        # and for cache I/O failures (LLMClient normalizes OSError -> RuntimeError);
+        # ValueError for invalid JSON. Skip the assessment on failure.
         logger.info("fit_assessment skipped: %s", exc)
         return None
 
@@ -2940,7 +2942,8 @@ def _generate_jd_tailored_summary_via_llm(
         )
     except (RuntimeError, ValueError) as exc:
         # complete_json raises RuntimeError for transport/HTTP/shape failures
-        # and ValueError for invalid JSON; skip the tailored summary on failure.
+        # and for cache I/O failures (LLMClient normalizes OSError -> RuntimeError);
+        # ValueError for invalid JSON. Skip the tailored summary on failure.
         logger.info("LLM JD-tailored summary skipped: %s", exc)
         return ""
 

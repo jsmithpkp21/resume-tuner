@@ -116,7 +116,18 @@ class LLMClient:
         cache_path = self._cache_dir / f"llm_response_{cache_key}.json"
         assert_not_blocked_runtime_input(cache_path)
 
-        cached = self._read_cache(cache_path)
+        try:
+            cached = self._read_cache(cache_path)
+        except OSError as exc:
+            # Normalize cache-read filesystem failures (permission denied,
+            # unreadable file, etc.) into RuntimeError so callers that catch
+            # (RuntimeError, ValueError) around complete_json continue to get
+            # the documented fallback behavior instead of an unexpected
+            # OSError propagating out.
+            raise RuntimeError(
+                f"LLM cache read failed for namespace={namespace} "
+                f"cache_key={cache_key}: {exc}"
+            ) from exc
         if cached is not None:
             return LLMResponse(content=cached, cache_key=cache_key, from_cache=True)
 
@@ -126,7 +137,16 @@ class LLMClient:
             )
 
         content = self._request_chat_completion(messages)
-        self._write_cache(cache_path=cache_path, content=content)
+        try:
+            self._write_cache(cache_path=cache_path, content=content)
+        except OSError as exc:
+            # Same rationale as the read path above: a disk/permission failure
+            # writing the cache must not bypass callers' (RuntimeError,
+            # ValueError) handlers.
+            raise RuntimeError(
+                f"LLM cache write failed for namespace={namespace} "
+                f"cache_key={cache_key}: {exc}"
+            ) from exc
         return LLMResponse(content=content, cache_key=cache_key, from_cache=False)
 
     def _cache_key(self, *, messages: list[dict[str, str]], namespace: str) -> str:

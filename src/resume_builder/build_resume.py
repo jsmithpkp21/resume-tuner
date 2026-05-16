@@ -1198,6 +1198,9 @@ def transform_for_role(resume: ResumeIR) -> ResumeIR:
             for experience in resume.experiences
         )
     except Exception as exc:  # noqa: BLE001
+        # Pipeline-stage boundary: any failure (LLM transport, JSON shape,
+        # downstream coercion) must degrade to the baseline resume rather
+        # than abort the whole build.
         logger.warning("transform_for_role fallback to baseline: %s", exc)
         return resume
 
@@ -1462,6 +1465,8 @@ def trim_for_role(resume: ResumeIR) -> ResumeIR:
             for experience in resume.experiences
         )
     except Exception as exc:  # noqa: BLE001
+        # Pipeline-stage boundary: any failure (LLM transport, JSON shape,
+        # ranking coercion) degrades to the baseline resume.
         logger.warning("trim_for_role fallback to baseline: %s", exc)
         return resume
 
@@ -1905,6 +1910,8 @@ def enrich_data(resume: ResumeIR) -> ResumeIR:
                 )
             )
     except Exception as exc:  # noqa: BLE001
+        # Pipeline-stage boundary: any failure (LLM transport, JSON shape,
+        # enrichment coercion) degrades to the baseline resume.
         logger.warning("enrich_data fallback to baseline: %s", exc)
         return resume
 
@@ -2055,7 +2062,9 @@ def _extract_company_via_llm(job_context: JobContext) -> str:
             ),
             user_payload={"text": payload_text},
         )
-    except Exception as exc:  # noqa: BLE001
+    except (RuntimeError, ValueError) as exc:
+        # complete_json raises RuntimeError for transport/HTTP/shape failures
+        # and ValueError for invalid JSON; skip extraction on failure.
         logger.info("LLM company extraction skipped: %s", exc)
         return ""
     company = response.get("company", "")
@@ -2747,7 +2756,9 @@ def compute_fit_assessment(resume: ResumeIR) -> FitAssessment | None:
             system_prompt=_FIT_ASSESSMENT_SYSTEM_PROMPT,
             user_payload=user_payload,
         )
-    except Exception as exc:  # noqa: BLE001
+    except (RuntimeError, ValueError) as exc:
+        # complete_json raises RuntimeError for transport/HTTP/shape failures
+        # and ValueError for invalid JSON; skip the assessment on failure.
         logger.info("fit_assessment skipped: %s", exc)
         return None
 
@@ -2927,7 +2938,9 @@ def _generate_jd_tailored_summary_via_llm(
             system_prompt=system_prompt,
             user_payload=user_payload,
         )
-    except Exception as exc:  # noqa: BLE001
+    except (RuntimeError, ValueError) as exc:
+        # complete_json raises RuntimeError for transport/HTTP/shape failures
+        # and ValueError for invalid JSON; skip the tailored summary on failure.
         logger.info("LLM JD-tailored summary skipped: %s", exc)
         return ""
 
@@ -5208,6 +5221,9 @@ def _render_docx_pdf_outputs(
         if staged_pdf is not None and pdf_output is not None:
             staged_pdf.replace(pdf_output)
     except Exception:
+        # Atomic finalize: any rendering or replace failure must restore the
+        # prior on-disk outputs from backups and re-raise; the broad catch
+        # is intentional so cleanup runs for every failure mode.
         if staged_docx is not None:
             staged_docx.unlink(missing_ok=True)
         if staged_pdf is not None:
@@ -5260,6 +5276,8 @@ def main() -> int:
     try:
         return run_pipeline(args)
     except Exception as exc:  # noqa: BLE001
+        # CLI top-level boundary: convert any uncaught pipeline failure
+        # into a non-zero exit code with a one-line message.
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 

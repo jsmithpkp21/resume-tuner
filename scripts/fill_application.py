@@ -358,6 +358,8 @@ def main(argv: list[str] | None = None) -> int:
                 if loc.count() == 1:
                     return loc
             except Exception:
+                # Playwright locator surface: any resolution / engine
+                # failure means this candidate is unusable — try the next.
                 continue
         return None
 
@@ -408,6 +410,8 @@ def main(argv: list[str] | None = None) -> int:
                 try:
                     loc.select_option(label=value)
                 except Exception:
+                    # Playwright surface: any select_option failure (label
+                    # missing, strict mode, etc.) means we retry by value.
                     loc.select_option(value=value)
             elif ftype == "radio-group":
                 # The locator we resolved is the group root; the actual
@@ -583,6 +587,8 @@ def main(argv: list[str] | None = None) -> int:
                             try:
                                 page_holder[0].context.close()
                             except Exception:
+                                # Best-effort close; the wait_for_event
+                                # loop will exit on its own if this fails.
                                 pass
                             break
                         prompt = "  please answer y / n / s / q: "
@@ -667,6 +673,9 @@ def main(argv: list[str] | None = None) -> int:
                 context.tracing.stop_chunk(path=str(path))
                 return True
             except Exception:
+                # Playwright tracing has no narrow exception base; any
+                # failure (browser already closed, disk I/O, tracing state)
+                # just means this chunk is lost — prior chunks are on disk.
                 return False
 
         def flush_final() -> None:
@@ -739,7 +748,10 @@ def main(argv: list[str] | None = None) -> int:
                     break
             flush_chunk("final")
             flush_final()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
+            # Fill-session boundary: any failure (Playwright, downstream
+            # callbacks) must still persist trace + decisions before
+            # propagating.
             print(f"\n[error during session: {e}]")
             flush_chunk("exception")
             flush_final()

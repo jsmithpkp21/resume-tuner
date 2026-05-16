@@ -153,7 +153,7 @@ def get_installed_packages(
         raise OSError(f"pip freeze timed out after {timeout}s") from e
     except FileNotFoundError as e:
         raise OSError(f"Python executable not found: {python_executable}") from e
-    except Exception as e:
+    except (OSError, ValueError) as e:
         raise OSError(f"Unexpected error running pip: {e}") from e
 
     if result.returncode != 0:
@@ -241,7 +241,7 @@ def verify_base_env(python_prefix: str = "3.11") -> dict[str, object]:
             timeout=10,
             check=False,
         )
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError) as e:
         raise OSError(f"Failed to check Python version: {e}") from e
 
     output: str = (proc.stdout or proc.stderr or "").strip()
@@ -251,7 +251,7 @@ def verify_base_env(python_prefix: str = "3.11") -> dict[str, object]:
     # VERSION
     try:
         results["env_version"] = read_version()
-    except Exception as e:
+    except (FileNotFoundError, ValueError, OSError) as e:
         results["env_version_error"] = str(e)
 
     # Requirements

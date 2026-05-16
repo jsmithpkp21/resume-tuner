@@ -315,7 +315,9 @@ def _resolve_addressee(
             system_prompt=system_prompt,
             user_payload=payload,
         )
-    except Exception as exc:
+    except (RuntimeError, ValueError) as exc:
+        # complete_json raises RuntimeError for transport/HTTP/shape failures
+        # and ValueError for invalid JSON; fall back to the static addressee.
         logger.warning("Addressee inference failed: %s", exc)
         return fallback
     name = result.get("hiring_manager_name")
@@ -567,6 +569,11 @@ def _audit_and_correct_body(
             user_payload=payload,
         )
     except Exception as exc:  # noqa: BLE001
+        # Best-effort post-generation audit: any failure (LLM transport,
+        # JSON shape, test-fixture AssertionError) returns the unaudited
+        # body so the cover-letter run still produces output. The
+        # `test_cover_letter_no_bridging_when_fit_assessment_unavailable`
+        # test contract requires this fall-through.
         logger.info("cover_letter_audit skipped: %s", exc)
         return body, []
 
@@ -883,6 +890,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_LLM_DISABLED
     except Exception as exc:  # noqa: BLE001
+        # CLI top-level boundary: convert any uncaught pipeline failure
+        # into a non-zero exit code with a one-line message.
         print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_ERROR
 

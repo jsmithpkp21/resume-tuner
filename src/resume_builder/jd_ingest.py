@@ -1103,7 +1103,7 @@ def _fetch_json_api(api_url: str) -> dict[str, Any] | None:
     """
     try:
         _validate_job_url(_normalize_url(api_url))
-    except Exception:  # noqa: BLE001
+    except ValueError:
         return None
     request = Request(
         api_url,
@@ -1126,6 +1126,11 @@ def _fetch_json_api(api_url: str) -> dict[str, Any] | None:
                 return None
             text = content.decode(charset, errors="replace")
     except Exception:  # noqa: BLE001
+        # Documented contract (see test_fetch_json_api_returns_none_on_opener_exception):
+        # any opener-level error — urllib (URLError/OSError/socket.timeout),
+        # validator (ValueError on post-redirect host), or arbitrary
+        # transport-injected exceptions — degrades to None so the caller
+        # falls back to the static HTML fetch path.
         return None
     try:
         parsed = json.loads(text)
@@ -1328,6 +1333,9 @@ def _extract_via_host_body_selector(page: Any, selector: str) -> str | None:
                 timeout=_HOST_BODY_SELECTOR_TIMEOUT_MS
             )
     except Exception as exc:  # noqa: BLE001
+        # Playwright surface: timeout, locator-resolution, frame-attachment,
+        # and engine errors do not share a useful common base class we can
+        # narrow to; treat any failure as "selector unusable, fall back".
         logger.debug("Host-body selector %r failed: %s", selector, exc, exc_info=True)
         return None
     if not isinstance(text, str) or not text.strip():
@@ -1398,6 +1406,9 @@ def _playwright_fetch_html(
             finally:
                 browser.close()
     except Exception as exc:  # noqa: BLE001
+        # Playwright surface: launch / navigation / timeout / engine errors
+        # do not share a useful common base; degrade to None so the static
+        # result wins (documented contract in _fetch_via_playwright).
         logger.debug("Playwright fetch failed for %s: %s", url, exc, exc_info=True)
         return None
 
@@ -1419,7 +1430,7 @@ def _fetch_via_playwright(url: str) -> FetchedPage | None:
         return None
     try:
         _validate_job_url(_normalize_url(url))
-    except Exception:  # noqa: BLE001
+    except ValueError:
         return None
 
     raw = _playwright_fetch_html(sync_pw, url)
@@ -1520,6 +1531,10 @@ def _fetch_static_job_page_metadata(url: str) -> FetchedPage:
                 )
             html_text = content.decode(charset, errors="replace")
     except Exception as exc:  # noqa: BLE001
+        # Contract: never raise. urllib (URLError/OSError/socket.timeout),
+        # validator (ValueError), and decode paths all map to a single
+        # fetch_failed FetchedPage that tags the exception class name for
+        # observability.
         return FetchedPage(
             status="fetch_failed",
             title="",
@@ -1566,7 +1581,7 @@ def _fetch_job_page_metadata_from_fixture(path: Path) -> FetchedPage:
     resolved_path = path.resolve()
     try:
         html_text = resolved_path.read_text(encoding="utf-8")
-    except Exception as exc:  # noqa: BLE001
+    except (OSError, UnicodeDecodeError) as exc:
         return FetchedPage(
             status="fetch_failed",
             title="",

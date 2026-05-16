@@ -210,6 +210,9 @@ def _write_atomic(path: Path, data: dict[str, Any]) -> None:
         os.chmod(tmp_path, 0o600)
         os.replace(tmp_path, path)
     except Exception:
+        # Atomic-write rollback: clean up the orphaned tmp file on any
+        # failure (OSError, encoding errors, etc.) and re-raise so the
+        # caller still sees the original exception.
         if tmp_path.exists():
             tmp_path.unlink()
         raise

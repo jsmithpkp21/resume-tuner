@@ -159,6 +159,9 @@ def main(argv: list[str] | None = None) -> int:
                 context.tracing.stop_chunk(path=str(path))
                 return True
             except Exception:
+                # Playwright tracing has no narrow exception base; any
+                # failure (browser already closed, disk I/O, tracing state)
+                # just means this chunk is lost — prior chunks are on disk.
                 return False
 
         def flush_fields_final() -> None:
@@ -213,7 +216,10 @@ def main(argv: list[str] | None = None) -> int:
             # Best-effort final chunk (likely fails after a graceful close).
             flush_chunk("final")
             flush_fields_final()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
+            # Recording-session boundary: any failure (Playwright, KeyboardInterrupt
+            # was already handled above, downstream callbacks) must still
+            # persist the trace + fields before propagating.
             print(f"\n[error during session: {e}]")
             flush_chunk("exception")
             flush_fields_final()

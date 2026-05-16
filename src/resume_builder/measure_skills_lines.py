@@ -372,6 +372,9 @@ def load_kern_table(font_path: Path | None = None) -> KernTable | None:
         kt = KernTable(path)
         return kt
     except Exception as exc:  # noqa: BLE001
+        # Font-binary parsing surface: struct.error, OSError, IndexError,
+        # ValueError, KeyError from missing tables. Any failure means we
+        # render without kerning rather than abort.
         print(f"WARNING: Could not load kern table: {exc}", file=sys.stderr)
         return None
 

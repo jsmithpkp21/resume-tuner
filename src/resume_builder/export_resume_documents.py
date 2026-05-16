@@ -272,6 +272,9 @@ def run() -> int:
             staged_docx.replace(docx_output)
             staged_pdf.replace(pdf_output)
         except Exception:
+            # Atomic finalize: any rendering or replace failure must restore
+            # the prior on-disk outputs from backups and re-raise; the broad
+            # catch is intentional so cleanup runs for every failure mode.
             staged_docx.unlink(missing_ok=True)
             staged_pdf.unlink(missing_ok=True)
 
@@ -315,6 +318,8 @@ def run() -> int:
             print(f"  source html: {html_source_path}")
         return 0
     except Exception as exc:  # noqa: BLE001
+        # CLI top-level boundary: convert any uncaught failure into a
+        # non-zero exit code with a one-line message.
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 

@@ -101,7 +101,7 @@ def merge_pyproject(
     try:
         with open(meta_file, "rb") as f:
             meta_data = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError) as e:
+    except Exception as e:
         print(f"❌ Error reading {meta_file}: {e}", file=sys.stderr)
         return False
 
@@ -142,7 +142,7 @@ def merge_pyproject(
     try:
         with open(tooling_pyproject, "rb") as f:
             tooling_data = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError) as e:
+    except Exception as e:
         print(f"❌ Error reading {tooling_pyproject}: {e}", file=sys.stderr)
         return False
 
@@ -154,7 +154,7 @@ def merge_pyproject(
             with open(tooling_toml, "rb") as f:
                 tooling_toml_data = tomllib.load(f)
                 python_version = tooling_toml_data.get("python", {}).get("version")
-        except (OSError, tomllib.TOMLDecodeError) as e:
+        except Exception as e:
             print(
                 f"⚠️  Warning: Could not read Python version from {tooling_toml}: {e}",
                 file=sys.stderr,
@@ -230,7 +230,7 @@ def merge_pyproject(
         print("❌ Error: tomli_w not installed", file=sys.stderr)
         print("Install it with: pip install tomli_w", file=sys.stderr)
         return False
-    except OSError as e:
+    except Exception as e:
         print(f"❌ Error writing {pyproject_file}: {e}", file=sys.stderr)
         return False
 

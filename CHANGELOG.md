@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.54.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.54.0...v0.54.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* **jd-ingest:** prefer JSON-LD hiringOrganization over ATS slug for company_name (closes [#391](https://github.com/jsmithpkp21/resume-builder/issues/391)) ([2d553bd](https://github.com/jsmithpkp21/resume-builder/commit/2d553bded1b2c5cfba999b8f9843306591dbf583))
+
 ## [0.54.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.53.2...v0.54.0) (2026-05-15)
 
 

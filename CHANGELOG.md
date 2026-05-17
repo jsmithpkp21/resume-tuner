@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.54.4](https://github.com/jsmithpkp21/resume-builder/compare/v0.54.3...v0.54.4) (2026-05-17)
+
+
+### Bug Fixes
+
+* **jd-ingest:** uuid role-path + description-leak + greenhouse-api company fixes (closes [#415](https://github.com/jsmithpkp21/resume-builder/issues/415)) ([#426](https://github.com/jsmithpkp21/resume-builder/issues/426)) ([86fd4f5](https://github.com/jsmithpkp21/resume-builder/commit/86fd4f50eaf8eeffce547be214867a64960fa438))
+
 ## [0.54.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.54.2...v0.54.3) (2026-05-17)
 
 

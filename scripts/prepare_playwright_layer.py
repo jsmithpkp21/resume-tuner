@@ -285,16 +285,24 @@ class PlaywrightEnvBuilder:
         stays a clean delta over base_env. `base_requirements` itself is
         never written to the file.
 
-        Both default Playwright extras use strict `==` pins so consumer
-        installs are reproducible across time. Override via
-        `extra_packages=` for non-default layer recipes.
+        Default Playwright extras use strict `==` pins so consumer installs
+        are reproducible across time. The three pins move together — bumping
+        `playwright` without re-validating `pytest-playwright` and
+        `playwright-stealth` against the new version is how the
+        ResolutionImpossible drift (issue #421) was introduced in the first
+        place. Override the whole list via `extra_packages=` for non-default
+        layer recipes.
 
         Returns path to the written requirements file.
         """
         if extra_packages is None:
+            # `playwright-stealth>=2.0.3` requires `playwright>=1.40.0`; pin
+            # `playwright==1.59.0` (validated against this stealth release).
+            # Issue #421.
             extras: list[str] = [
-                "playwright==1.35.0",
+                "playwright==1.59.0",
                 "pytest-playwright==0.7.2",
+                "playwright-stealth==2.0.3",
             ]
         else:
             extras = extra_packages

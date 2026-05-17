@@ -15,9 +15,15 @@ from pathlib import Path
 
 import pytest
 
-# pytest's rootdir-based collection puts this test file's directory on
-# sys.path, so this resolves to tests/scripts/_helpers.py.
-from _helpers import isolated_git_env
+# Self-bootstrap sys.path so `_helpers` resolves whether pytest runs in
+# rootdir-mode (no tests/__init__.py — this repo) or package-mode (a
+# consumer that has tests/__init__.py + tests/scripts/__init__.py, where
+# pytest's auto-insert of the test's directory into sys.path no longer
+# fires). Neither bare nor relative `_helpers` import works in both
+# layouts; explicit sys.path injection does. See tooling#470.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _helpers import isolated_git_env  # noqa: E402
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPT = _REPO_ROOT / "scripts" / "check_no_type_ignore.py"

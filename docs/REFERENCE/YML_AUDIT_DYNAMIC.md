@@ -31,8 +31,8 @@
 - **Syncs to other repos**: ✅ YES
 
 ### 5. ✅ auto-merge-release.yml - FULLY DYNAMIC
-- **PR detection**: Uses `github.head_ref` and `github.actor` (GitHub context)
-- **PR number**: Uses `github.event.pull_request.number` (GitHub context)
+- **Trigger**: `workflow_run` (on completion of `release-please`). Not `pull_request` — release-please opens its PR via the default `GITHUB_TOKEN`, and GitHub's anti-loop protection silently suppresses `pull_request`/`push` runs for events that token creates. `workflow_run` is not subject to that suppression. (See issue #476.)
+- **PR detection**: `gh pr list` filtered by `headRefName` prefix `release-please-` and `author.login == "app/github-actions"` (GitHub context not available under `workflow_run` because the event payload doesn't carry the downstream PR).
 - **Hardcoded values**: NONE
 - **Syncs to other repos**: ✅ YES
 
@@ -58,6 +58,7 @@
 - `github.head_ref` - Auto-detects branch name
 - `github.actor` - Auto-detects who created PR
 - `github.event.pull_request.number` - Auto-detects PR number
+- `github.event.workflow_run.conclusion` - Gates `workflow_run` listeners to successful upstream runs
 
 ### Extracted Values
 - `steps.repo_info.outputs.repo_owner` - Extracted from `github.repository`

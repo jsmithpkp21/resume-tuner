@@ -1,7 +1,14 @@
 name: Auto-merge Release PR
+# Trigger is `workflow_run`, not `pull_request`. release-please opens its
+# PR using the default GITHUB_TOKEN, and GitHub's anti-loop protection
+# silently suppresses workflow runs for events created by that token, so
+# `pull_request: [opened, synchronize]` never fires for release-please
+# PRs. `workflow_run` fires off the upstream workflow's completion, which
+# is not subject to the same suppression. See issue #476.
 on:
-  pull_request:
-    types: [opened, synchronize]
+  workflow_run:
+    workflows: ["release-please"]
+    types: [completed]
 permissions:
   pull-requests: write
   contents: write
@@ -9,22 +16,47 @@ jobs:
   auto-merge-release:
     name: Auto-merge Release PR
     runs-on: ubuntu-latest
-    # Only run for release-please PRs
-    if: |
-      startsWith(github.head_ref, 'release-please-') &&
-      github.actor == 'github-actions[bot]'
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6.0.2
-      - name: Enable auto-merge for release PR
+      - name: Preflight gh auth
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr merge ${{ github.event.pull_request.number }} \
+          if ! gh auth status; then
+            echo "::error::gh CLI is not authenticated; cannot enable auto-merge."
+            exit 1
+          fi
+      - name: Find open release-please PR
+        id: find_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # --repo is required because there is no checked-out working tree
+          # under workflow_run. `gh pr list` shells out to git to discover
+          # the current repo and fails fast without one. `gh pr merge` is
+          # passed --repo for the same reason. See issue #481.
+          pr_number=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --state open \
+            --json number,headRefName,author \
+            --jq '[.[]
+                    | select(.headRefName | startswith("release-please-"))
+                    | select(.author.login == "app/github-actions")]
+                  | .[0].number // ""')
+          if [ -z "$pr_number" ]; then
+            echo "No open release-please PR found; release-please ran without opening one."
+            exit 0
+          fi
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+      - name: Enable auto-merge
+        if: ${{ steps.find_pr.outputs.pr_number != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge ${{ steps.find_pr.outputs.pr_number }} \
+            --repo "${{ github.repository }}" \
             --auto \
             --squash \
             --delete-branch
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Wait for merge and verify release
-        run: |
-          echo "✅ Auto-merge enabled for PR #${{ github.event.pull_request.number }}"
-          echo "Release tag will be created after merge completes"
+          echo "Auto-merge enabled for PR #${{ steps.find_pr.outputs.pr_number }}"

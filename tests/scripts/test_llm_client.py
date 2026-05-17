@@ -115,6 +115,53 @@ def test_complete_json_normalizes_cache_read_oserror_to_runtimeerror(
 
 
 @pytest.mark.parametrize(
+    "transport_exc",
+    [
+        pytest.param(
+            __import__("urllib.error", fromlist=["URLError"]).URLError("dns failure"),
+            id="urllib-urlerror",
+        ),
+        pytest.param(TimeoutError("read timed out"), id="builtin-timeouterror"),
+        pytest.param(
+            ConnectionResetError("connection reset by peer"),
+            id="connection-reset",
+        ),
+        pytest.param(OSError("network unreachable"), id="bare-oserror"),
+    ],
+)
+def test_complete_json_normalizes_transport_errors_to_runtimeerror(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    transport_exc: BaseException,
+) -> None:
+    # Live (non-fixture) mode so _request_chat_completion runs; cache_dir
+    # points at an empty tmp_path so the cached-hit short-circuit is skipped
+    # and we actually exercise the urlopen code path.
+    monkeypatch.delenv("RESUME_BUILDER_LLM_FIXTURE", raising=False)
+    monkeypatch.setenv("RESUME_BUILDER_LLM_CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv(
+        "RESUME_BUILDER_LLM_API_URL", "http://localhost:11434/v1/chat/completions"
+    )
+    monkeypatch.setenv("RESUME_BUILDER_LLM_MODEL", "llama3.1:8b")
+
+    client = LLMClient.from_env()
+
+    def _raise_transport(*_args: object, **_kwargs: object) -> None:
+        raise transport_exc
+
+    monkeypatch.setattr(
+        "resume_builder.llm_client.urlopen", _raise_transport, raising=True
+    )
+
+    with pytest.raises(RuntimeError, match="LLM request failed"):
+        client.complete_json(
+            namespace="trim_for_role",
+            system_prompt="Return JSON.",
+            user_payload={"value": 1},
+        )
+
+
+@pytest.mark.parametrize(
     "raw, expected",
     [
         (None, _DEFAULT_TIMEOUT_SECONDS),

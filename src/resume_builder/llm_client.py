@@ -9,7 +9,6 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from ._runtime_guard import assert_not_blocked_runtime_input
@@ -92,6 +91,20 @@ class LLMClient:
         system_prompt: str,
         user_payload: dict[str, object],
     ) -> dict[str, Any]:
+        """Return a parsed JSON object from the LLM.
+
+        Error contract (callers may rely on this for narrowed fallback
+        handlers):
+          - ``ValueError`` for response-shape failures: invalid JSON,
+            non-object JSON, or malformed cache payload.
+          - ``RuntimeError`` for every other recoverable failure path:
+            transport errors (network / DNS / timeout / connection reset),
+            cache filesystem I/O errors, fixture-mode misses, and
+            malformed upstream chat-completion responses.
+
+        Callers should catch ``(RuntimeError, ValueError)`` to degrade
+        gracefully; anything else escaping from here is a real bug.
+        """
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": json.dumps(user_payload, sort_keys=True)},
@@ -175,7 +188,14 @@ class LLMClient:
         try:
             with urlopen(request, timeout=self._timeout_seconds) as response:  # nosec B310
                 body = response.read().decode("utf-8", errors="replace")
-        except URLError as exc:
+        except (OSError, TimeoutError) as exc:
+            # urllib.error.URLError and socket.timeout both inherit from
+            # OSError, and response.read() can also raise raw OSError /
+            # TimeoutError mid-stream. Normalize all transport-level
+            # failures to RuntimeError so callers that catch
+            # (RuntimeError, ValueError) around complete_json (per its
+            # docstring contract) keep the documented fallback behavior
+            # instead of being aborted by an unexpected OSError.
             raise RuntimeError(f"LLM request failed: {exc}") from exc
 
         try:

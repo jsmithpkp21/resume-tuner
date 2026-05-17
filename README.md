@@ -3,7 +3,11 @@
 AI-assisted resume and cover-letter generation tooling. Consumer of the
 shared `tooling` repo: managed config (Makefile, lint/test/release, CI
 workflows) syncs in via `scripts/sync_tooling.sh`; the resume/cover-letter
-pipeline, data, and docs are owned by this repo.
+pipeline and data are owned by this repo. Docs are mixed: `README.md` and
+`CHANGELOG.md` are consumer-owned, while many files under `docs/REFERENCE/`
+and `docs/SETUP/` are tooling-synced and drift-checked — see
+[`FILE_DISTRIBUTION.md`](FILE_DISTRIBUTION.md) for the authoritative
+ownership map.
 
 ## Starter Data Locations (resume-builder)
 

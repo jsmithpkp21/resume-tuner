@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.54.3](https://github.com/jsmithpkp21/resume-builder/compare/v0.54.2...v0.54.3) (2026-05-17)
+
+
+### Documentation
+
+* narrow readme doc-ownership claim and link file_distribution ([0e4f791](https://github.com/jsmithpkp21/resume-builder/commit/0e4f791fbddb43df39d59dc7d52192c4451b5cc4))
+* **readme:** correct stale project-template framing ([1be367e](https://github.com/jsmithpkp21/resume-builder/commit/1be367efb2e44ca787fd1371812eae0f9778cda2)), closes [#409](https://github.com/jsmithpkp21/resume-builder/issues/409)
+* **readme:** document requirements-dev.txt in make setup ([dd250f7](https://github.com/jsmithpkp21/resume-builder/commit/dd250f701fab55c85a4a0bee020d7c3683b25f86))
+
 ## [0.54.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.54.1...v0.54.2) (2026-05-17)
 
 

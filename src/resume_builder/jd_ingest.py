@@ -134,6 +134,21 @@ _GREENHOUSE_BOARD_HOSTS: tuple[str, ...] = (
 # rather than "sagansystems"). Issue #391.
 _JOBPOSTING_DESC_COMPANY_PREFIX = "Company: "
 
+# Canonical UUID v4 shape. Lever and Ashby URLs use `<co>/<uuid>` for the job-id
+# segment; the role-from-path heuristic must reject UUID-shaped segments so they
+# don't get title-cased word-by-word and emitted as the role hint. Issue #415.
+_UUID_PATH_SEGMENT_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+
+# Maximum length for a candidate company name extracted via the " at <company>"
+# description heuristic. Real company names fit comfortably under 60 chars
+# ("Qualcomm Technologies, Inc." is 27); anything longer is almost certainly
+# description body text that happens to follow an " at " token (e.g.
+# "...tested at functional, integration and system levels"). Issue #415 case B.
+_MAX_COMPANY_AT_CANDIDATE_LEN = 60
+
 
 class _ValidatingRedirectHandler(HTTPRedirectHandler):
     """Validate each redirect target before following it."""
@@ -652,8 +667,29 @@ def _extract_company_name(
     lower = description.lower()
     if marker in lower:
         start = lower.index(marker) + len(marker)
-        candidate = description[start:].split(".")[0].strip()
-        if candidate:
+        # Conservative slice: stop at the first sentence boundary, newline, OR
+        # bullet/list marker — whichever comes first. Then validate that the
+        # candidate looks like a company name. Pre-fix, the heuristic accepted
+        # any text up to the first "." which produced 200+ char description-
+        # body fragments as `company_name` (e.g. on the Qualcomm careers page
+        # where "...tested at functional, integration and system levels\n\n
+        # * Manually test..." was taken whole). Issue #415 case B.
+        chunk = description[start : start + _MAX_COMPANY_AT_CANDIDATE_LEN + 1]
+        candidate = re.split(r"[.\n*•]", chunk, maxsplit=1)[0].strip()
+        # Real company names: capitalized first letter ("Acme", "Qualcomm
+        # Technologies, Inc."). Description fragments that happen to follow
+        # " at " often start lowercase ("at functional, integration and system
+        # levels", "at scale", "at the customer site"). The capitalization
+        # gate is cheap and rejects most description noise without false
+        # positives on real names. Brands styled all-lowercase (super.com,
+        # openmined, etc.) come through the ATS-slug path, not this marker.
+        if (
+            candidate
+            and len(candidate) <= _MAX_COMPANY_AT_CANDIDATE_LEN
+            and "\n" not in candidate
+            and not any(ch in candidate for ch in ("*", "•"))
+            and candidate[0].isupper()
+        ):
             return candidate
 
     if source == "company-site":
@@ -729,6 +765,12 @@ def _extract_role_from_path(*, path: str) -> str:
         if "-" not in segment:
             continue
         if not any(char.isalpha() for char in segment):
+            continue
+        # Lever / Ashby URLs use `<co>/<uuid>` for job IDs. UUID segments
+        # satisfy every filter above (have `-`, have alpha hex chars), so they
+        # would otherwise be title-cased and emitted as bogus role hints like
+        # "0fe13294 F7d2 403c 9dfc 5006b75a28f1". Issue #415 case A.
+        if _UUID_PATH_SEGMENT_RE.fullmatch(segment):
             continue
         candidates.append(segment)
 
@@ -1148,6 +1190,7 @@ def _fetch_greenhouse_via_api(*, board: str, job_id: str) -> FetchedPage | None:
     if payload is None:
         return None
     title = (payload.get("title") or "").strip()
+    company_name = (payload.get("company_name") or "").strip()
     description = _html_to_text(payload.get("content") or "")
     # Require a non-empty description specifically (not just title-or-description):
     # downstream JD-term extraction and the LLM-tailoring stages all depend on
@@ -1156,6 +1199,15 @@ def _fetch_greenhouse_via_api(*, board: str, job_id: str) -> FetchedPage | None:
     # defeating the whole point of the API path.
     if not description:
         return None
+    # Prepend the JSON-LD-shaped `Company: <name>` prose line so the
+    # producer/consumer contract from #391 (`_extract_company_from_jobposting_prose`)
+    # recovers the display name. Without this, ATS slug wins and Gladly jobs
+    # surface with `company_name="sagansystems"` (the parent legal entity in
+    # Greenhouse) instead of the brand. Issue #415 case C.
+    if company_name:
+        description = (
+            f"{_JOBPOSTING_DESC_COMPANY_PREFIX}{company_name}\n\n{description}"
+        )
     return FetchedPage(
         status="fetched",
         title=title,

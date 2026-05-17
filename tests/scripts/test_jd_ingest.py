@@ -25,6 +25,7 @@ from resume_builder.jd_ingest import (
     _extract_company_from_jobposting_prose,
     _extract_company_name,
     _extract_jobposting_from_html,
+    _extract_role_from_path,
     _extract_role_from_title,
     _extract_role_hint,
     _fetch_greenhouse_via_api,
@@ -198,6 +199,191 @@ def test_ingest_job_context_greenhouse_uses_jobposting_org_for_company_name() ->
     )
     assert context.company_name == "Gladly"
     assert context.source == "ats"
+
+
+# --- jd-ingest: role + company extraction quality (issue #415) -----------
+
+
+def test_extract_role_from_path_rejects_uuid_segment() -> None:
+    """Lever / Ashby URLs use `<co>/<uuid>` for the job-id segment. The path
+    extractor previously accepted UUIDs (they have `-` separators and `a-f`
+    chars, satisfying every existing filter) and emitted them as title-cased
+    bogus role hints like 'CesiumAstro 0fe13294 F7d2 ...'. Issue #415 case A."""
+    role = _extract_role_from_path(
+        path="/CesiumAstro/0fe13294-f7d2-403c-9dfc-5006b75a28f1"
+    )
+    assert role == ""
+
+
+def test_extract_role_from_path_still_accepts_real_role_slugs() -> None:
+    """Regression guard: real role-slug segments must still be accepted after
+    the UUID rejector lands. A path like
+    `/jobs/staff-software-engineer-ai-automation` should produce a humanized
+    role, not an empty result."""
+    role = _extract_role_from_path(path="/jobs/staff-software-engineer-ai-automation")
+    assert role == "Staff Software Engineer AI Automation"
+
+
+def test_extract_role_hint_falls_through_uuid_path_to_description() -> None:
+    """End-to-end of case A: when the path-segment role candidate is a UUID
+    (rejected post-#415), `_extract_role_hint` falls through to
+    `_extract_role_from_description` and recovers a real role from the JD
+    body. Without the UUID rejection, this returns the UUID-as-words."""
+    role = _extract_role_hint(
+        query={},
+        path="/CesiumAstro/0fe13294-f7d2-403c-9dfc-5006b75a28f1",
+        source="ats",
+        page_title="",
+        description="We are looking for a Senior Test Automation Engineer. Etc.",
+    )
+    assert role == "Senior Test Automation Engineer"
+
+
+def test_extract_company_name_rejects_at_marker_candidate_with_newlines() -> None:
+    """Issue #415 case B (Qualcomm repro): pre-fix the ' at <X>' heuristic
+    grabbed text up to the first '.', producing 200+ char description-body
+    fragments as the company name. Reject candidates that span newlines or
+    contain bullet/list markers."""
+    description = (
+        "Design and maintain automated suites for the purpose of "
+        "verifying quality and compliance of Qualcomm products at "
+        "functional, integration and system levels\n\n * Manually test, "
+        "where appropriate, the customer experience of installation and "
+        "deployment of Qualcomm hardware and software."
+    )
+    # Use source="company-site" so the heuristic-marker path is reached
+    # (ats source hits _extract_company_from_jobposting_prose first).
+    name = _extract_company_name(
+        source="company-site",
+        netloc="careers.qualcomm.com",
+        path="/careers",
+        page_title="",
+        description=description,
+    )
+    # Should NOT return the description fragment. Falls through to
+    # company-site hostname extraction → "Qualcomm".
+    assert "\n" not in name
+    assert "*" not in name
+    assert len(name) <= 60
+    # Hostname-based fallback recovers the brand.
+    assert name == "Qualcomm"
+
+
+def test_extract_company_name_at_marker_accepts_short_clean_candidate() -> None:
+    """Regression guard for issue #415 case B: short, clean ' at <X>'
+    matches must still extract the company name. The tightened guard only
+    rejects multi-line / bullet-bearing / overlong candidates."""
+    description = "Software Engineer at Acme Corp. Located in San Francisco."
+    name = _extract_company_name(
+        source="linkedin",
+        netloc="www.linkedin.com",
+        path="/jobs/view/123",
+        page_title="",
+        description=description,
+    )
+    assert name == "Acme Corp"
+
+
+def test_fetch_greenhouse_via_api_prepends_company_name_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #415 case C: `_fetch_greenhouse_via_api` now reads
+    `payload['company_name']` and prepends `Company: <name>` to the
+    description so `_extract_company_from_jobposting_prose` (the #391
+    helper) recovers the display name instead of the URL slug."""
+
+    def fake_json_api(_url: str) -> dict[str, object]:
+        return {
+            "title": "Staff Software Engineer, AI & Automation",
+            "company_name": "Gladly",
+            "content": "<p>About Gladly. We build customer experience AI.</p>",
+        }
+
+    monkeypatch.setattr("resume_builder.jd_ingest._fetch_json_api", fake_json_api)
+    page = _fetch_greenhouse_via_api(board="sagansystems", job_id="7811679")
+    assert page is not None
+    assert page.description.startswith(f"{_JOBPOSTING_DESC_COMPANY_PREFIX}Gladly\n\n")
+    # And the existing prose-extraction helper recovers the display name.
+    assert _extract_company_from_jobposting_prose(page.description) == "Gladly"
+
+
+def test_fetch_greenhouse_via_api_omits_company_prefix_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #415 case C: defensive — when the Greenhouse payload doesn't
+    include a `company_name` field, the prefix isn't synthesized, so the
+    `Company:` line in description is genuinely absent (not an empty
+    prefix that'd confuse the consumer)."""
+
+    def fake_json_api(_url: str) -> dict[str, object]:
+        return {
+            "title": "Some Role",
+            "content": "<p>JD body.</p>",
+            # no company_name key
+        }
+
+    monkeypatch.setattr("resume_builder.jd_ingest._fetch_json_api", fake_json_api)
+    page = _fetch_greenhouse_via_api(board="acme", job_id="42")
+    assert page is not None
+    assert not page.description.startswith(_JOBPOSTING_DESC_COMPANY_PREFIX)
+    assert _extract_company_from_jobposting_prose(page.description) == ""
+
+
+def test_ingest_job_context_lever_url_skips_uuid_as_role_hint() -> None:
+    """End-to-end repro of issue #415 case A. A Lever URL with a UUID job-id
+    segment must not surface the UUID-as-words via `role_hint`. With the
+    UUID rejection in place, the role comes from `page_title` instead."""
+
+    def fake_fetcher(_url: str) -> FetchedPage:
+        return FetchedPage(
+            status="fetched",
+            title="CesiumAstro - Senior Software Engineer – Test Automation & Infrastructure",
+            description="Build the test infrastructure for satellite payloads.",
+            notes=(),
+        )
+
+    context = ingest_job_context(
+        "https://jobs.lever.co/CesiumAstro/0fe13294-f7d2-403c-9dfc-5006b75a28f1",
+        fetcher=fake_fetcher,
+    )
+    # The role from the page title is what we want — definitely NOT the UUID.
+    assert "0fe13294" not in context.role_hint
+    assert "F7d2" not in context.role_hint
+    assert (
+        context.role_hint
+        == (
+            "CesiumAstro - Senior Software Engineer – Test Automation & Infrastructure"
+        ).split(" - ")[0]
+    )
+
+
+def test_ingest_job_context_greenhouse_api_returns_display_company(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End-to-end repro of issue #415 case C. The Greenhouse direct URL
+    (boards.greenhouse.io/sagansystems/jobs/7811679) must surface
+    `company_name == "Gladly"` on `JobContext`, not the URL slug. This
+    completes the gap that #391 left — #391 fixed the JSON-LD path; case C
+    fixes the Greenhouse-API path which never produced the
+    `Company: <name>` prose line."""
+
+    def fake_json_api(url: str) -> dict[str, object] | None:
+        if "boards-api.greenhouse.io" in url:
+            return {
+                "title": "Staff Software Engineer, AI & Automation",
+                "company_name": "Gladly",
+                "content": "<p>About Gladly. We build customer experience AI.</p>",
+            }
+        return None
+
+    monkeypatch.setattr("resume_builder.jd_ingest._fetch_json_api", fake_json_api)
+    context = ingest_job_context(
+        "https://boards.greenhouse.io/sagansystems/jobs/7811679",
+    )
+    assert context.company_name == "Gladly"
+    assert context.source == "ats"
+    # Notes carry the API-path provenance.
+    assert "source:greenhouse_api" in context.notes
 
 
 # --- _extract_company_name: generic-subdomain skipping -------------------

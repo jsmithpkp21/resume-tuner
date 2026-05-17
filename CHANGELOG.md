@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.54.2](https://github.com/jsmithpkp21/resume-builder/compare/v0.54.1...v0.54.2) (2026-05-17)
+
+
+### Bug Fixes
+
+* **llm-client:** normalize cache i/o errors so narrowed handlers still fall back ([2a3a0a3](https://github.com/jsmithpkp21/resume-builder/commit/2a3a0a3a5f1f12319b67186e04ba549e9d1bf5d5))
+* **llm-client:** normalize transport errors so narrowed handlers still fall back ([7a3336f](https://github.com/jsmithpkp21/resume-builder/commit/7a3336f6e2d6d71c49cfbce91e31d91ec328773f))
+
+
+### Reverts
+
+* **except-audit:** restore tooling-managed scripts to upstream state ([5039a9b](https://github.com/jsmithpkp21/resume-builder/commit/5039a9b6aa458212911e6dced8901a51203dff8b)), closes [#411](https://github.com/jsmithpkp21/resume-builder/issues/411)
+
 ## [0.54.1](https://github.com/jsmithpkp21/resume-builder/compare/v0.54.0...v0.54.1) (2026-05-16)
 
 

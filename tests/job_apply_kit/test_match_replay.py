@@ -63,7 +63,7 @@ def fields_capture(tmp_path: Path) -> Path:
         }
     ]
     path = tmp_path / "fields-test-1700000000.json"
-    path.write_text(json.dumps(capture))
+    path.write_text(json.dumps(capture), encoding="utf-8")
     return path
 
 
@@ -117,7 +117,7 @@ def test_replay_dedupes_labels_within_session(
         for i in range(5)
     ]
     path = tmp_path / "fields-dedup-1700000000.json"
-    path.write_text(json.dumps(capture))
+    path.write_text(json.dumps(capture), encoding="utf-8")
     buf = io.StringIO()
     n = replay(answer_bank=answer_bank, capture_paths=[path], out=buf)
     assert n == 1
@@ -138,13 +138,15 @@ def test_replay_handles_multiple_captures(
                     "fields": [{"label": "First Name*", "type": "text"}],
                 }
             ]
-        )
+        ),
+        encoding="utf-8",
     )
     cap2 = tmp_path / "fields-b-2.json"
     cap2.write_text(
         json.dumps(
             [{"url": "u2", "ts": 2, "fields": [{"label": "Email", "type": "email"}]}]
-        )
+        ),
+        encoding="utf-8",
     )
     buf = io.StringIO()
     n = replay(answer_bank=answer_bank, capture_paths=[cap1, cap2], out=buf)
@@ -165,7 +167,7 @@ def test_replay_skips_invalid_json_capture_and_continues(
 ) -> None:
     """A truncated/garbled fields-*.json doesn't crash the whole replay run."""
     bad = tmp_path / "fields-broken-1.json"
-    bad.write_text("{not valid json")
+    bad.write_text("{not valid json", encoding="utf-8")
     good = tmp_path / "fields-good-2.json"
     good.write_text(
         json.dumps(
@@ -176,7 +178,8 @@ def test_replay_skips_invalid_json_capture_and_continues(
                     "fields": [{"label": "First Name*", "type": "text"}],
                 }
             ]
-        )
+        ),
+        encoding="utf-8",
     )
     buf = io.StringIO()
     n = replay(answer_bank=answer_bank, capture_paths=[bad, good], out=buf)
@@ -196,7 +199,14 @@ def test_replay_skips_missing_capture_file_via_oserror(
     buf = io.StringIO()
     n = replay(answer_bank=answer_bank, capture_paths=[missing], out=buf)
     assert n == 0
-    assert "=== missing ===" in buf.getvalue() or "=== missing" in buf.getvalue()
+    # Pin the OSError-tolerance contract: the header must carry the
+    # `(skipped: ...)` marker AND the OSError message text, so a regression
+    # that printed a normal session header (or that suppressed the OSError
+    # path entirely) would fail this test rather than slipping through a
+    # broad fallback assertion.
+    output = buf.getvalue()
+    assert "=== missing === (skipped:" in output
+    assert "No such file or directory" in output
 
 
 def test_replay_slug_without_trailing_timestamp_is_left_unchanged(
@@ -213,7 +223,8 @@ def test_replay_slug_without_trailing_timestamp_is_left_unchanged(
                     "fields": [{"label": "First Name*", "type": "text"}],
                 }
             ]
-        )
+        ),
+        encoding="utf-8",
     )
     buf = io.StringIO()
     replay(answer_bank=answer_bank, capture_paths=[cap], out=buf)
@@ -227,7 +238,7 @@ def test_replay_slug_without_trailing_timestamp_is_left_unchanged(
 
 
 def test_main_cli_reads_bank_and_invokes_replay(
-    answer_bank: dict[str, object], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """`_main` parses --bank + capture paths and runs end-to-end without error."""
     from job_apply_kit.match_replay import _main
@@ -261,7 +272,8 @@ synonyms = ["email", "email address*"]
                     ],
                 }
             ]
-        )
+        ),
+        encoding="utf-8",
     )
 
     rc = _main(["--bank", str(bank_path), str(cap)])
@@ -299,7 +311,8 @@ synonyms = ["first name", "first name*"]
                     ],
                 }
             ]
-        )
+        ),
+        encoding="utf-8",
     )
 
     rc = _main(["--bank", str(bank_path), "--verbose", str(cap)])
@@ -318,7 +331,7 @@ def test_main_cli_rejects_blocked_runtime_bank(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[2]
     blocked_bank = repo_root / "sandbox" / "bank.toml"
     cap = tmp_path / "fields-x-1.json"
-    cap.write_text("[]")
+    cap.write_text("[]", encoding="utf-8")
     with pytest.raises(ValueError, match="blocked runtime"):
         _main(["--bank", str(blocked_bank), str(cap)])
 

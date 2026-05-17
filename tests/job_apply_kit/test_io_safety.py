@@ -164,15 +164,26 @@ def test_atomic_write_json_fsyncs_before_rename(
 
     Without fsync, the kernel can lose the data on power-loss even after
     the rename returns; the helper exists specifically to provide that
-    guarantee, so coverage should pin it.
+    guarantee, so coverage should pin both the call AND its ordering vs
+    `os.replace` — a regression that moved fsync after replace would still
+    issue both calls, so a count-only assertion would not catch it.
     """
-    called: list[int] = []
+    call_order: list[str] = []
     real_fsync = os.fsync
+    real_replace = os.replace
 
     def spy_fsync(fd: int) -> None:
-        called.append(fd)
+        call_order.append("fsync")
         real_fsync(fd)
 
+    def spy_replace(src: object, dst: object) -> None:
+        call_order.append("replace")
+        real_replace(src, dst)  # type: ignore[arg-type]
+
     monkeypatch.setattr("job_apply_kit.io_safety.os.fsync", spy_fsync)
+    monkeypatch.setattr("job_apply_kit.io_safety.os.replace", spy_replace)
     atomic_write_json(tmp_path / "snap.json", {"k": "v"})
-    assert len(called) == 1
+    # Both must have run, and fsync must come strictly before replace.
+    assert call_order == ["fsync", "replace"], (
+        f"expected fsync→replace ordering, got {call_order!r}"
+    )

@@ -8252,3 +8252,19 @@ def test_render_markdown_full_experience_keeps_role_summary(
     content = output.read_text(encoding="utf-8")
     assert "Test platform engineering." in content
     assert "Related skills:" in content
+
+
+def test_argparse_help_renders_without_format_crash(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression for #428: argparse formats help strings with the action's
+    namespace dict, so unescaped `%` in any help string raises TypeError
+    (e.g. `% o` in `50% of` parsed as the `%o` octal conversion). This guard
+    runs `--help` end-to-end so any future `%`-in-help leak hard-fails in CI.
+    """
+    monkeypatch.setattr(sys, "argv", ["build_resume.py", "--help"])
+    with pytest.raises(SystemExit) as exc_info:
+        build_resume.parse_args()
+    # `--help` exits 0 after printing; a TypeError-on-format would propagate
+    # as a different exception type before reaching this assertion.
+    assert exc_info.value.code == 0

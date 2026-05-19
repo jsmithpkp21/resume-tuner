@@ -152,7 +152,11 @@ def _patch_llm(
         namespace: str,
         system_prompt: str,
         user_payload: dict[str, Any],
+        response_schema: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        # response_schema is accepted but ignored at the test layer — fixtures
+        # mock the model's output directly, so schema enforcement (which
+        # happens at the HTTP layer per #436) doesn't apply here.
         if counter is not None:
             counter[namespace] = counter.get(namespace, 0) + 1
         try:
@@ -1246,6 +1250,7 @@ def test_cover_letter_bridging_fires_only_for_stretch_fits(
         namespace: str,
         system_prompt: str,
         user_payload: dict[str, Any],
+        response_schema: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if namespace == build_cover_letter.BODY_NAMESPACE:
             body_prompts.append(system_prompt)
@@ -1321,6 +1326,7 @@ def test_cover_letter_no_bridging_when_fit_assessment_unavailable(
         namespace: str,
         system_prompt: str,
         user_payload: dict[str, Any],
+        response_schema: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if namespace == build_cover_letter.BODY_NAMESPACE:
             body_prompts.append(system_prompt)

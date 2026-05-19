@@ -197,3 +197,121 @@ def test_from_env_default_timeout_when_env_unset(
     monkeypatch.setenv("RESUME_BUILDER_LLM_FIXTURE", "1")
     client = LLMClient.from_env()
     assert client._timeout_seconds == _DEFAULT_TIMEOUT_SECONDS  # noqa: SLF001
+
+
+# --- response_schema (#436) ----------------------------------------------
+
+
+def _make_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> LLMClient:
+    monkeypatch.setenv("RESUME_BUILDER_LLM_CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv(
+        "RESUME_BUILDER_LLM_API_URL", "http://localhost:11434/v1/chat/completions"
+    )
+    monkeypatch.setenv("RESUME_BUILDER_LLM_MODEL", "llama3.1:8b")
+    monkeypatch.delenv("RESUME_BUILDER_LLM_FIXTURE", raising=False)
+    return LLMClient.from_env()
+
+
+def test_request_payload_omits_json_schema_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No `response_schema` -> request keeps the legacy weak json_object mode."""
+    client = _make_client(tmp_path, monkeypatch)
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(req: object, timeout: float) -> object:  # noqa: ARG001
+        captured["data"] = json.loads(req.data.decode("utf-8"))  # type: ignore[attr-defined]
+
+        class _Resp:
+            def __enter__(self) -> object:
+                return self
+
+            def __exit__(self, *a: object) -> None:
+                return None
+
+            def read(self) -> bytes:
+                return json.dumps(
+                    {"choices": [{"message": {"content": '{"ok": true}'}}]}
+                ).encode("utf-8")
+
+        return _Resp()
+
+    monkeypatch.setattr("resume_builder.llm_client.urlopen", fake_urlopen)
+    client.complete_json(namespace="t", system_prompt="s", user_payload={"k": "v"})
+    assert captured["data"]["response_format"] == {"type": "json_object"}  # type: ignore[index]
+
+
+def test_request_payload_includes_json_schema_when_provided(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With `response_schema` -> request uses OpenAI-compat strict json_schema."""
+    client = _make_client(tmp_path, monkeypatch)
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(req: object, timeout: float) -> object:  # noqa: ARG001
+        captured["data"] = json.loads(req.data.decode("utf-8"))  # type: ignore[attr-defined]
+
+        class _Resp:
+            def __enter__(self) -> object:
+                return self
+
+            def __exit__(self, *a: object) -> None:
+                return None
+
+            def read(self) -> bytes:
+                return json.dumps(
+                    {"choices": [{"message": {"content": '{"opening": "x"}'}}]}
+                ).encode("utf-8")
+
+        return _Resp()
+
+    monkeypatch.setattr("resume_builder.llm_client.urlopen", fake_urlopen)
+    schema = {
+        "name": "cl_body",
+        "schema": {
+            "type": "object",
+            "properties": {"opening": {"type": "string"}},
+            "required": ["opening"],
+            "additionalProperties": False,
+        },
+    }
+    client.complete_json(
+        namespace="t",
+        system_prompt="s",
+        user_payload={"k": "v"},
+        response_schema=schema,
+    )
+    rf = captured["data"]["response_format"]  # type: ignore[index]
+    assert rf["type"] == "json_schema"
+    assert rf["json_schema"]["name"] == "cl_body"
+    assert rf["json_schema"]["strict"] is True
+    assert rf["json_schema"]["schema"]["required"] == ["opening"]
+
+
+def test_cache_key_differs_when_schema_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Same prompt + different schema must hash to different cache keys —
+    the model's output can legitimately differ, so they're not the same
+    response.
+    """
+    client = _make_client(tmp_path, monkeypatch)
+    messages = [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": '{"k":"v"}'},
+    ]
+    key_none = client._cache_key(  # noqa: SLF001
+        messages=messages, namespace="t", response_schema=None
+    )
+    key_schema_a = client._cache_key(  # noqa: SLF001
+        messages=messages,
+        namespace="t",
+        response_schema={"name": "a", "schema": {"type": "object"}},
+    )
+    key_schema_b = client._cache_key(  # noqa: SLF001
+        messages=messages,
+        namespace="t",
+        response_schema={"name": "b", "schema": {"type": "object"}},
+    )
+    assert key_none != key_schema_a
+    assert key_schema_a != key_schema_b

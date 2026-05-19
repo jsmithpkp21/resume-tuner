@@ -90,8 +90,22 @@ class LLMClient:
         namespace: str,
         system_prompt: str,
         user_payload: dict[str, object],
+        response_schema: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Return a parsed JSON object from the LLM.
+
+        When ``response_schema`` is provided, the underlying request uses
+        OpenAI-compatible strict json_schema mode
+        (``response_format: {"type": "json_schema", "json_schema": {...},
+        "strict": true}``) so the model is constrained to produce output
+        matching the schema. Ollama's OpenAI-compat layer honors this
+        (verified live during #436 investigation). Without a schema, the
+        request falls back to the prior weak ``{"type": "json_object"}``
+        mode which only enforces valid-JSON structure.
+
+        The schema is hashed into the cache key alongside the messages —
+        the same prompt with a different schema produces a different
+        cached response, since the model's output can legitimately differ.
 
         Error contract (callers may rely on this for narrowed fallback
         handlers):
@@ -109,7 +123,11 @@ class LLMClient:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": json.dumps(user_payload, sort_keys=True)},
         ]
-        response = self._chat(messages=messages, namespace=namespace)
+        response = self._chat(
+            messages=messages,
+            namespace=namespace,
+            response_schema=response_schema,
+        )
         try:
             parsed = json.loads(response.content)
         except json.JSONDecodeError as exc:
@@ -124,8 +142,16 @@ class LLMClient:
             )
         return parsed
 
-    def _chat(self, *, messages: list[dict[str, str]], namespace: str) -> LLMResponse:
-        cache_key = self._cache_key(messages=messages, namespace=namespace)
+    def _chat(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        namespace: str,
+        response_schema: dict[str, Any] | None = None,
+    ) -> LLMResponse:
+        cache_key = self._cache_key(
+            messages=messages, namespace=namespace, response_schema=response_schema
+        )
         cache_path = self._cache_dir / f"llm_response_{cache_key}.json"
         assert_not_blocked_runtime_input(cache_path)
 
@@ -149,7 +175,9 @@ class LLMClient:
                 f"LLM fixture missing for namespace={namespace} cache_key={cache_key}"
             )
 
-        content = self._request_chat_completion(messages)
+        content = self._request_chat_completion(
+            messages, response_schema=response_schema
+        )
         try:
             self._write_cache(cache_path=cache_path, content=content)
         except OSError as exc:
@@ -162,22 +190,54 @@ class LLMClient:
             ) from exc
         return LLMResponse(content=content, cache_key=cache_key, from_cache=False)
 
-    def _cache_key(self, *, messages: list[dict[str, str]], namespace: str) -> str:
-        payload = {
+    def _cache_key(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        namespace: str,
+        response_schema: dict[str, Any] | None = None,
+    ) -> str:
+        payload: dict[str, Any] = {
             "namespace": namespace,
             "model": self._model,
             "messages": messages,
             "endpoint": self._endpoint,
         }
+        # Different schemas legitimately produce different model output for
+        # the same prompt, so include the schema in the cache key.
+        if response_schema is not None:
+            payload["response_schema"] = response_schema
         serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
-    def _request_chat_completion(self, messages: list[dict[str, str]]) -> str:
+    def _request_chat_completion(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        response_schema: dict[str, Any] | None = None,
+    ) -> str:
+        # Default: weak json mode (valid JSON, any keys). When a schema is
+        # supplied: OpenAI-compatible strict json_schema mode — Ollama
+        # rejects model output that doesn't match the schema. Issue #436
+        # diagnosis: weak json_object mode let the model invent or drop
+        # keys when the JD content grew past ~1KB, collapsing the
+        # cover-letter body schema entirely.
+        if response_schema is None:
+            response_format: dict[str, Any] = {"type": "json_object"}
+        else:
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": response_schema.get("name", "response"),
+                    "schema": response_schema.get("schema", response_schema),
+                    "strict": True,
+                },
+            }
         payload = {
             "model": self._model,
             "messages": messages,
             "temperature": 0,
-            "response_format": {"type": "json_object"},
+            "response_format": response_format,
         }
         request = Request(
             self._endpoint,

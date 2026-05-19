@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.55.0](https://github.com/jsmithpkp21/resume-builder/compare/v0.54.5...v0.55.0) (2026-05-19)
+
+
+### Features
+
+* **cover_letter:** enforce body-draft response shape with strict json_schema ([6d49dbe](https://github.com/jsmithpkp21/resume-builder/commit/6d49dbec6132273ba6bd9151d1684b87c1bd3b85))
+* **llm_client:** add response_schema parameter for strict json_schema enforcement ([84fd50c](https://github.com/jsmithpkp21/resume-builder/commit/84fd50c53a743cbc05448089e76de1eeb84d2e6f))
+
 ## [0.54.5](https://github.com/jsmithpkp21/resume-builder/compare/v0.54.4...v0.54.5) (2026-05-19)
 
 

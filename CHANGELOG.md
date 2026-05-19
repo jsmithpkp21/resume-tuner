@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.54.5](https://github.com/jsmithpkp21/resume-builder/compare/v0.54.4...v0.54.5) (2026-05-19)
+
+
+### Bug Fixes
+
+* **build_resume:** escape percent literals in --experience-mode help text ([09facaf](https://github.com/jsmithpkp21/resume-builder/commit/09facaf1390506f476da60eb563126ab6a736019)), closes [#428](https://github.com/jsmithpkp21/resume-builder/issues/428)
+* **cover_letter:** pre-filter audit violations whose claimed_tech is in known skills ([510c44e](https://github.com/jsmithpkp21/resume-builder/commit/510c44e22cbcfcb6c82fe1070501c30c27f7fc52))
+* **cover_letter:** strengthen audit prompt with explicit gate + rewrite-direction rule ([cf73252](https://github.com/jsmithpkp21/resume-builder/commit/cf732523181975de806e890768654a6a6845dee6))
+
 ## [0.54.4](https://github.com/jsmithpkp21/resume-builder/compare/v0.54.3...v0.54.4) (2026-05-17)
 
 

@@ -515,6 +515,18 @@ INPUTS:
 
 A VIOLATION is a phrase in `body` that asserts the candidate has direct experience with a technology X where X is NOT in `candidate_known_skills`. Direct-experience phrasings include: "experience with X", "expertise in X", "proficient in X", "skills in X", "leverage my X", "extensive X experience", "X experience", or "build/develop/design <Y> using X" when X is presented as the candidate's tool. Transferable-principle phrases ("X principles I've applied to Y translate to Z", "my Y work translates to X service development") are NOT violations because X is framed as a target, not a candidate skill.
 
+GATE — apply BEFORE marking any phrase as a violation:
+1. Identify the specific technology X you would claim is overclaimed.
+2. Check whether X (case-insensitive, substring match in either direction) appears in `candidate_known_skills`. Examples: if `candidate_known_skills` contains "Python", then "Python", "Python project tooling", and "next-generation Python automation frameworks" all PASS this gate — X is supported. If it contains "Multi-repo platform engineering", then "multi-repo platform engineering" PASSES.
+3. If X passes the gate, this is NOT a violation. Do NOT flag it. Do NOT rewrite the sentence.
+4. Only phrases whose claimed X fails this gate may be marked as violations.
+
+This gate is necessary because past runs of this audit have flagged phrases whose claimed_tech was literally in `candidate_known_skills` — a clear self-contradiction with the rule above. The gate makes the check explicit and step-by-step rather than implicit.
+
+REWRITE DIRECTION — softening, never amplifying:
+- Your rewrites must REMOVE or SOFTEN the claim about X.
+- You must NOT take a generic sentence (e.g. "I am excited to bring my expertise to <company>") and INSERT a specific skill claim (e.g. "I am excited to leverage my expertise in <X> at <company>"). Amplifying a generic sentence into a specific skill claim is the opposite of what this audit is for.
+
 For each violation, REWRITE the sentence so X is framed as a target/JD context, preserving surrounding sentences. Keep the corrected text close to the original in length and meaning; do NOT introduce new facts. Do NOT remove or rewrite sentences that have no violation.
 
 OUTPUT — strict JSON only, no prose around it:

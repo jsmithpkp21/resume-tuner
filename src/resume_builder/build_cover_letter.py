@@ -578,19 +578,55 @@ def _audit_and_correct_body(
         logger.info("cover_letter_audit skipped: %s", exc)
         return body, []
 
+    # Pre-filter against candidate_known_skills before surfacing violations.
+    # The audit LLM is empirically noisy: in #431's walkthrough it flagged
+    # "Python" and "multi-repo platform engineering" as overclaims even though
+    # both are literal entries in the allow-list. Drop violations whose
+    # claimed_tech matches (case-insensitive substring, either direction) any
+    # known-skills entry; they are false positives by definition. Substring
+    # matching handles cases like "Python project tooling" overlapping with
+    # the "Python" skill tag.
+    known_skills_cf = {s.casefold() for s in candidate_known_skills if s}
+
+    def _is_known_skill_match(tech: str) -> bool:
+        t = tech.casefold().strip()
+        if not t:
+            return False
+        return any(t in s or s in t for s in known_skills_cf)
+
     raw_violations = result.get("violations", [])
     warnings: list[str] = []
+    suppressed = 0
+    real_violation_count = 0
     if isinstance(raw_violations, list):
         for v in raw_violations:
             if not isinstance(v, dict):
                 continue
             tech = str(v.get("claimed_tech", "")).strip()
+            if _is_known_skill_match(tech):
+                suppressed += 1
+                continue
+            real_violation_count += 1
             phrase = str(v.get("original_phrase", "")).strip()
             if tech or phrase:
                 warnings.append(
                     f"Audit rewrote unfounded claim ({tech or 'unknown tech'}): "
                     f"{phrase!r}"
                 )
+
+    if suppressed:
+        logger.info(
+            "cover_letter_audit: suppressed %d false-positive violation(s) "
+            "(claimed_tech in candidate_known_skills); %d real violation(s) remain",
+            suppressed,
+            real_violation_count,
+        )
+
+    # If the audit returned ONLY false positives, its corrected_body cannot
+    # be trusted — the LLM's reasoning was wrong throughout. Fall back to
+    # the original draft to avoid silently applying suspect rewrites.
+    if suppressed and real_violation_count == 0:
+        return body, []
 
     corrected = result.get("corrected_body")
     if not isinstance(corrected, dict):

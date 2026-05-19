@@ -1682,3 +1682,154 @@ def test_audit_rejects_null_string_fields(
     assert "None.\n" not in md_text
     # Original good_body opening retained.
     assert "I am applying for the Senior Principal" in md_text
+
+
+def test_audit_prefilter_suppresses_false_positive_for_in_skills_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #431 Fix #1: the audit LLM is empirically noisy and sometimes
+    flags claims whose `claimed_tech` is literally in `candidate_known_skills`
+    (in the 2026-05-17 walkthrough Python and multi-repo platform engineering
+    were both flagged despite being in the allow-list). When ALL violations
+    are false positives by this rule, the audit's corrected_body cannot be
+    trusted — fall back to the original draft and emit no audit notes.
+    """
+    profile_path, experience_path, jd_path = _write_inputs(tmp_path)
+    _enable_fixture_mode(monkeypatch)
+
+    def handler(namespace: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if namespace == build_cover_letter.ADDRESSEE_NAMESPACE:
+            return {"hiring_manager_name": None, "confidence": 0.0}
+        if namespace == build_cover_letter.BODY_NAMESPACE:
+            return _good_body()
+        if namespace == build_cover_letter.AUDIT_NAMESPACE:
+            # Python IS in candidate_known_skills (sourced from the fixture
+            # experience DB). The audit LLM mistakenly flags it. We expect
+            # the pre-filter to drop the violation and keep the original body.
+            return {
+                "violations": [
+                    {
+                        "original_phrase": "designed Python automation frameworks",
+                        "claimed_tech": "Python",
+                        "rewritten_phrase": (
+                            "applied automation framework principles to Python projects"
+                        ),
+                    }
+                ],
+                "corrected_body": {
+                    "opening": "DO NOT USE — audit reasoning was wrong",
+                    "body_paragraphs": ["DO NOT USE"],
+                    "closing_paragraph": "DO NOT USE",
+                },
+            }
+        raise AssertionError(f"unexpected namespace {namespace}")
+
+    _patch_llm(monkeypatch, handler)
+
+    out_dir = tmp_path / "out"
+    rc, stdout = _run_cli(
+        monkeypatch,
+        [
+            "--profile",
+            str(profile_path),
+            "--experience-db",
+            str(experience_path),
+            "--job-text-file",
+            str(jd_path),
+            "--company",
+            "Graphcore",
+            "--output-dir",
+            str(out_dir),
+            "--outputs",
+            "md",
+        ],
+    )
+    assert rc == build_cover_letter.EXIT_SUCCESS
+
+    # Original body kept — the "DO NOT USE" sentinel must NOT appear.
+    md_text = (out_dir / "graphcore_cover_letter.md").read_text("utf-8")
+    assert "DO NOT USE" not in md_text
+
+    # No audit notes surfaced for the false positive.
+    summary = json.loads(stdout)
+    assert summary["audit_notes"] == []
+
+
+def test_audit_prefilter_keeps_real_violations_alongside_suppressed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #431 Fix #1: when SOME violations are false positives (in skills)
+    and OTHERS are real (not in skills), the pre-filter drops only the false
+    positives, surfaces the real ones, and keeps the audit's corrected_body
+    (which contains at least one legitimate rewrite).
+    """
+    profile_path, experience_path, jd_path = _write_inputs(tmp_path)
+    _enable_fixture_mode(monkeypatch)
+
+    def handler(namespace: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if namespace == build_cover_letter.ADDRESSEE_NAMESPACE:
+            return {"hiring_manager_name": None, "confidence": 0.0}
+        if namespace == build_cover_letter.BODY_NAMESPACE:
+            return _good_body()
+        if namespace == build_cover_letter.AUDIT_NAMESPACE:
+            return {
+                "violations": [
+                    # False positive — Python is in candidate_known_skills.
+                    {
+                        "original_phrase": "designed Python automation frameworks",
+                        "claimed_tech": "Python",
+                        "rewritten_phrase": "fp-rewrite",
+                    },
+                    # Real violation — Spring Boot is NOT in known skills.
+                    {
+                        "original_phrase": "have experience with Spring Boot microservices",
+                        "claimed_tech": "Spring Boot",
+                        "rewritten_phrase": (
+                            "framework-architecture principles I've applied "
+                            "translate to Spring Boot service development"
+                        ),
+                    },
+                ],
+                "corrected_body": {
+                    "opening": (
+                        "I am proficient in Java and the framework-architecture "
+                        "principles I've applied translate to Spring Boot service "
+                        "development."
+                    ),
+                    "body_paragraphs": ["audited body retained"],
+                    "closing_paragraph": "Thank you for considering my application.",
+                },
+            }
+        raise AssertionError(f"unexpected namespace {namespace}")
+
+    _patch_llm(monkeypatch, handler)
+
+    out_dir = tmp_path / "out"
+    rc, stdout = _run_cli(
+        monkeypatch,
+        [
+            "--profile",
+            str(profile_path),
+            "--experience-db",
+            str(experience_path),
+            "--job-text-file",
+            str(jd_path),
+            "--company",
+            "Graphcore",
+            "--output-dir",
+            str(out_dir),
+            "--outputs",
+            "md",
+        ],
+    )
+    assert rc == build_cover_letter.EXIT_SUCCESS
+
+    # Corrected body applied (Spring Boot legit-rewrite landed).
+    md_text = (out_dir / "graphcore_cover_letter.md").read_text("utf-8")
+    assert "framework-architecture principles" in md_text
+
+    # Only the real (Spring Boot) note surfaced; the Python false positive is gone.
+    summary = json.loads(stdout)
+    assert summary["audit_notes"]
+    assert any("Spring Boot" in note for note in summary["audit_notes"])
+    assert not any("Python" in note for note in summary["audit_notes"])

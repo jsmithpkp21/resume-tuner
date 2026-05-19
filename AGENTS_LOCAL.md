@@ -18,12 +18,11 @@ Local overrides and branch-scoped guidance layered after `AGENTS.md`.
 - If a deferred item is picked up later, add a follow-up thread comment linking both the issue and the fixing PR/commit.
 
 ## Copilot Review Rhythm
-Copilot auto-review on PR creation was disabled across the repo family in tooling #500 (2026-05-19). All Copilot reviews are now opt-in:
-1. Request review explicitly via the PR UI ("Reviewers → Copilot") when you want one — no auto-review fires.
-2. Push the fix-round commits, then re-request review via the PR UI ("Re-request review" next to Copilot) when the round is complete.
-3. Cap at ~3 rounds; remaining threads roll into a follow-up issue.
-
-To re-enable auto-review, add the `copilot_code_review` rule back to the repo's ruleset — recipe is in the tooling #500 issue body.
+Copilot reviews run on PR creation only (GitHub default); per-commit auto-kickoff was removed in issue #167 because re-review on every push produced diminishing-returns feedback. Re-request review manually:
+1. Open PR → Copilot reviews automatically on creation.
+2. Push the fix-round commits.
+3. When the round is complete, re-request review explicitly via the PR UI ("Re-request review" next to Copilot in the Reviewers panel).
+4. Cap at ~3 rounds; remaining threads roll into a follow-up issue.
 
 ## WSL Path Handling (Windows + WSL Workspace)
 This workspace runs on WSL (Ubuntu) but is opened from a Windows JetBrains editor.

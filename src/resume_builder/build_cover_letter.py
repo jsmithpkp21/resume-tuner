@@ -454,6 +454,7 @@ def _draft_body(
         namespace=BODY_NAMESPACE,
         system_prompt=system_prompt,
         user_payload=payload,
+        response_schema=_BODY_DRAFT_RESPONSE_SCHEMA,
     )
     opening = str(result.get("opening", "")).strip()
     body_paragraphs_raw = result.get("body_paragraphs", [])
@@ -694,6 +695,33 @@ def _audit_and_correct_body(
         ),
         warnings,
     )
+
+
+# JSON-schema enforced on the body-draft response. Issue #436: weak
+# `{"type": "json_object"}` let the model drop required keys and invent
+# extras (e.g. `cover_letter_content.opening_statement` instead of
+# `opening`) when JD content grew past ~1KB. Strict json_schema mode
+# constrains output structure regardless of input size, so the schema-
+# collapse failure can't recur. Content-level fabrication is a separate
+# concern (prompt-tuning, not schema). `additionalProperties: false` is
+# the critical knob — without it the model can pad with extra keys.
+_BODY_DRAFT_RESPONSE_SCHEMA: dict[str, Any] = {
+    "name": "cover_letter_body",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "opening": {"type": "string"},
+            "body_paragraphs": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": 1,
+            },
+            "closing_paragraph": {"type": "string"},
+        },
+        "required": ["opening", "body_paragraphs", "closing_paragraph"],
+        "additionalProperties": False,
+    },
+}
 
 
 _BODY_SYSTEM_PROMPT_BASE = """You draft a professional cover letter body for a software engineering role.

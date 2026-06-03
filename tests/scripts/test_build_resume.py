@@ -74,7 +74,7 @@ PROFILE_HEADLINE = CURRENT_PROFILE.headline
 
 
 def _expected_resume_title(profile: build_resume.Profile) -> str:
-    return derive_resume_title(
+    return derive_resume_title(  # type: ignore[no-any-return,unused-ignore]
         build_resume.ResumeIR(
             profile=profile,
             target_role="",
@@ -2480,7 +2480,7 @@ def test_fetch_job_page_metadata_limits_response_body(
 
         def read(self, limit: int = -1) -> bytes:
             assert limit == jd_ingest._MAX_FETCH_BYTES + 1
-            return b"x" * (jd_ingest._MAX_FETCH_BYTES + 1)
+            return b"x" * (jd_ingest._MAX_FETCH_BYTES + 1)  # type: ignore[no-any-return,unused-ignore]
 
     class _FakeOpener:
         def open(self, req: object, timeout: int = 0) -> _FakeResponse:
@@ -6732,7 +6732,7 @@ def test_summarize_profile_for_role_falls_back_to_deterministic_on_llm_empty(
 
     def spy(resume: build_resume.ResumeIR) -> str:
         captured["called"] = True
-        return real_generate(resume)
+        return real_generate(resume)  # type: ignore[no-any-return,unused-ignore]
 
     monkeypatch.setattr(build_resume, "_generate_profile_summary", spy)
     resume = _minimal_resume_ir(job_context=_make_job_context("Real JD body. " * 30))
@@ -8141,7 +8141,7 @@ def test_apply_experience_compression_auto_recomputes_budget_with_compressed_sim
 
     def capture_then_real(r: build_resume.ResumeIR) -> int:
         captured.append(r)
-        return real_budget(r)
+        return real_budget(r)  # type: ignore[no-any-return,unused-ignore]
 
     monkeypatch.setattr(
         "resume_builder.build_resume._compute_bullet_line_budget", capture_then_real

@@ -535,7 +535,7 @@ def test_normalize_skill_near_dupes_prefers_shorter_variant_on_score_tie() -> No
 def _role_relevance(skill: str, jd_text: str) -> float:
     role_text = jd_text.lower()
     expanded = _expand_jd_forms(_tokenize_role_text(role_text))
-    return _skill_role_relevance(skill, role_text, expanded)
+    return _skill_role_relevance(skill, role_text, expanded)  # type: ignore[no-any-return,unused-ignore]
 
 
 def test_skill_role_relevance_matches_dotted_variant_against_no_dot_jd() -> None:

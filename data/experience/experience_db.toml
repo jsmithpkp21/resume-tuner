@@ -6,7 +6,7 @@ default_timezone = "UTC"
 
 [[experience]]
 id = "exp_hp_poly_architect_python_video_202306"
-job_title = "Architect, Python Test Framework (Video)"
+job_title = "Lead Framework Designer, Python Test Framework (Video)"
 company = "HP / Poly"
 start_date = "2023-06"
 end_date = "2026-01"
@@ -222,7 +222,7 @@ domain = "corporate-platform"
 
 [[experience]]
 id = "exp_hp_poly_lead_framework_designer_video_sqa_200808"
-job_title = "Lead Framework Designer, Video SQA Automation"
+job_title = "Architect, Video SQA Automation"
 company = "HP / Poly"
 start_date = "2008-08"
 end_date = "2018-03"

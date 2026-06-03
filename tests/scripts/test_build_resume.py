@@ -1020,7 +1020,7 @@ def test_build_resume_cli_generates_baseline_artifacts(tmp_path: Path) -> None:
         assert expected_github in html_text
     else:
         assert "github.com/" not in html_text
-    assert "Architect, Python Test Framework (Video)" in html_text
+    assert "Lead Framework Designer, Python Test Framework (Video)" in html_text
     assert "HP / Poly (formerly Polycom), Austin, TX" in html_text
     assert (
         ".company-line span { margin-left: auto; text-align: right; font-size: 10pt; color: #222; font-weight: 700; }"

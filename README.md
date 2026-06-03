@@ -1,4 +1,4 @@
-# resume-builder
+# resume-tuner
 
 AI-assisted resume and cover-letter generation tooling. Consumer of the
 shared `tooling` repo: managed config (Makefile, lint/test/release, CI
@@ -8,6 +8,18 @@ pipeline and data are owned by this repo. Docs are mixed: `README.md` and
 and `docs/SETUP/` are tooling-synced and drift-checked — see
 [`FILE_DISTRIBUTION.md`](FILE_DISTRIBUTION.md) for the authoritative
 ownership map.
+
+> **Public mirror.** Active development, issues, and PRs live in a separate
+> private repository. Issues are intentionally disabled here while the tool
+> is still finding its shape; we may re-enable them later depending on
+> direction. Code, commit history, and release tags are published in full
+> so you can verify how every claim in a generated resume traces back to
+> source data in `data/experience/experience_db.toml` and
+> `data/profile/profile.toml`.
+>
+> The `src/job_apply_kit/` modules are a research artifact exploring
+> ATS-form automation. They were deliberately not wired into a submission
+> path — every application using this repo's outputs is uploaded by hand.
 
 ## Starter Data Locations (resume-builder)
 
